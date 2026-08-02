@@ -303,7 +303,8 @@ const loadDocument = async (docPath: string) => {
     const docItem = docNav.find(d => d.path === docPath)
     const mdFile = docItem?.file || 'DOCS.md'
     
-    const response = await fetch(`/docs/${mdFile}`)
+    const base = import.meta.env.BASE_URL || '/'
+    const response = await fetch(`${base}docs/${mdFile}`)
     
     if (!response.ok) {
       throw new Error(`无法加载文档: ${response.status}`)

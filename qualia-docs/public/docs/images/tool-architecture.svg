@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ec4899;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#db2777;stop-opacity:1"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="640" height="360" fill="#fafafa"/>
+
+  <!-- Layer 1: ReActAgent -->
+  <rect x="70" y="30" width="500" height="56" rx="12" fill="url(#blueGrad)" filter="url(#shadow)"/>
+  <text x="320" y="55" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 16px; font-weight: 600;">ReActAgent</text>
+  <text x="320" y="73" text-anchor="middle" style="fill: rgba(255,255,255,0.8); font-family: -apple-system, sans-serif; font-size: 11px;">addTool() · addTools() · addMcpClient()</text>
+
+  <!-- Connector -->
+  <path d="M 320 86 L 320 108" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="320" cy="108" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 2: FunctionTool Interface -->
+  <rect x="70" y="108" width="500" height="50" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="70" y="108" width="500" height="50" rx="12" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="0"/>
+  <text x="320" y="138" text-anchor="middle" style="fill: #4f46e5; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 600;">FunctionTool 接口</text>
+
+  <!-- Connector -->
+  <path d="M 320 158 L 320 180" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="320" cy="180" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 3: Adapters - Three columns -->
+  <!-- Adapter 1: MethodTool -->
+  <rect x="70" y="180" width="155" height="70" rx="10" fill="url(#greenGrad)" filter="url(#shadow)"/>
+  <text x="147" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">MethodTool</text>
+  <text x="147" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">Adapter</text>
+
+  <!-- Adapter 2: McpTool -->
+  <rect x="242" y="180" width="155" height="70" rx="10" fill="url(#orangeGrad)" filter="url(#shadow)"/>
+  <text x="319" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">McpTool</text>
+  <text x="319" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">Adapter</text>
+
+  <!-- Adapter 3: Built-in -->
+  <rect x="414" y="180" width="155" height="70" rx="10" fill="url(#pinkGrad)" filter="url(#shadow)"/>
+  <text x="491" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">内置工具</text>
+  <text x="491" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 10px;">Http / Script / Skill</text>
+
+  <!-- Connectors to sources -->
+  <path d="M 147 250 L 147 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="147" cy="272" r="4" fill="#94a3b8"/>
+  <path d="M 319 250 L 319 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="319" cy="272" r="4" fill="#94a3b8"/>
+  <path d="M 491 250 L 491 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="491" cy="272" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 4: Sources -->
+  <rect x="70" y="272" width="155" height="56" rx="10" fill="white" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+  <text x="147" y="305" text-anchor="middle" style="fill: #059669; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">本地方法</text>
+
+  <rect x="242" y="272" width="155" height="56" rx="10" fill="white" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="319" y="305" text-anchor="middle" style="fill: #d97706; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">MCP 服务器</text>
+
+  <rect x="414" y="272" width="155" height="56" rx="10" fill="white" stroke="#ec4899" stroke-width="2" filter="url(#shadow)"/>
+  <text x="491" y="305" text-anchor="middle" style="fill: #db2777; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">框架内置能力</text>
+</svg>

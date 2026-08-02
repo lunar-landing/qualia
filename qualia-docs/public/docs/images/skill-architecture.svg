@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 450">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="640" height="450" fill="#fafafa"/>
+
+  <!-- Layer 1: ReActAgent -->
+  <rect x="70" y="30" width="500" height="56" rx="12" fill="url(#blueGrad)" filter="url(#shadow)"/>
+  <text x="320" y="55" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 16px; font-weight: 600;">ReActAgent</text>
+  <text x="320" y="73" text-anchor="middle" style="fill: rgba(255,255,255,0.8); font-family: -apple-system, sans-serif; font-size: 11px;">addSkill() · findSkill()</text>
+
+  <!-- Connector -->
+  <path d="M 320 86 L 320 108" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="320" cy="108" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 2: Skill Tools -->
+  <rect x="70" y="108" width="500" height="50" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="70" y="108" width="500" height="50" rx="12" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="0"/>
+  <text x="320" y="138" text-anchor="middle" style="fill: #4f46e5; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 600;">Skill 内置工具（渐进式加载）</text>
+
+  <!-- Connector -->
+  <path d="M 320 158 L 320 180" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="320" cy="180" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 3: Four Tools -->
+  <!-- Tool 0: skill-selector -->
+  <rect x="70" y="180" width="115" height="70" rx="10" fill="url(#cyanGrad)" filter="url(#shadow)"/>
+  <text x="127" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">skill-selector</text>
+  <text x="127" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">查询技能列表</text>
+
+  <!-- Arrow from selector to loader -->
+  <path d="M 185 215 L 200 215" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Tool 1: skill-loader -->
+  <rect x="205" y="180" width="115" height="70" rx="10" fill="url(#greenGrad)" filter="url(#shadow)"/>
+  <text x="262" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">skill-loader</text>
+  <text x="262" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">加载技能详情</text>
+
+  <!-- Tool 2: skill-reference-reader -->
+  <rect x="340" y="180" width="115" height="70" rx="10" fill="url(#orangeGrad)" filter="url(#shadow)"/>
+  <text x="397" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">skill-reference-reader</text>
+  <text x="397" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">读取附属文档</text>
+
+  <!-- Tool 3: skill-script-runner -->
+  <rect x="475" y="180" width="115" height="70" rx="10" fill="url(#purpleGrad)" filter="url(#shadow)"/>
+  <text x="532" y="208" text-anchor="middle" style="fill: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600;">skill-script-runner</text>
+  <text x="532" y="226" text-anchor="middle" style="fill: rgba(255,255,255,0.85); font-family: -apple-system, sans-serif; font-size: 11px;">执行脚本</text>
+
+  <!-- Connectors to data -->
+  <path d="M 262 250 L 262 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="262" cy="272" r="4" fill="#94a3b8"/>
+  <path d="M 397 250 L 397 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="397" cy="272" r="4" fill="#94a3b8"/>
+  <path d="M 532 250 L 532 272" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+  <circle cx="532" cy="272" r="4" fill="#94a3b8"/>
+
+  <!-- Layer 4: Skill Data -->
+  <rect x="205" y="272" width="115" height="56" rx="10" fill="white" stroke="#10b981" stroke-width="2" filter="url(#shadow)"/>
+  <text x="262" y="305" text-anchor="middle" style="fill: #059669; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">skill.md</text>
+
+  <rect x="340" y="272" width="115" height="56" rx="10" fill="white" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="397" y="305" text-anchor="middle" style="fill: #d97706; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">references/</text>
+
+  <rect x="475" y="272" width="115" height="56" rx="10" fill="white" stroke="#8b5cf6" stroke-width="2" filter="url(#shadow)"/>
+  <text x="532" y="305" text-anchor="middle" style="fill: #7c3aed; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 500;">script/</text>
+
+  <!-- Bottom labels -->
+  <text x="262" y="350" text-anchor="middle" style="fill: #6b7280; font-family: -apple-system, sans-serif; font-size: 10px;">技能内容</text>
+  <text x="397" y="350" text-anchor="middle" style="fill: #6b7280; font-family: -apple-system, sans-serif; font-size: 10px;">附属文档</text>
+  <text x="532" y="350" text-anchor="middle" style="fill: #6b7280; font-family: -apple-system, sans-serif; font-size: 10px;">Python 脚本</text>
+
+  <!-- Flow label -->
+  <text x="320" y="390" text-anchor="middle" style="fill: #4f46e5; font-family: -apple-system, sans-serif; font-size: 12px; font-weight: 500;">渐进式加载流程：selector → loader → reader/runner</text>
+</svg>

@@ -1,0 +1,899 @@
+/* ============================================
+   Qualia Documentation - Premium Design System
+   ============================================ */
+
+/* ============================================
+   OpenCode Documentation - 1:1 Style Clone
+   ============================================ */
+
+/* CSS Variables - OpenCode Exact Colors */
+:root {
+  /* OpenCode Core Colors */
+  --oc-bg: #201d1d;
+  --oc-bg-surface: #302c2c;
+  --oc-border: #464343;
+  --oc-border-soft: #302c2c;
+  --oc-fg: #fdfcfc;
+  --oc-fg-2: #c8c6c4;
+  --oc-muted: #9a9898;
+  --oc-meta: #6e6e73;
+  --oc-accent: #007aff;
+  --oc-accent-hover: #0056b3;
+  --oc-accent-active: #004085;
+  --oc-success: #30d158;
+  --oc-warning: #ff9f0a;
+  --oc-error: #ff3b30;
+
+  /* Primary Colors (mapped to OpenCode) */
+  --color-primary: #fdfcfc;
+  --color-primary-light: #c8c6c4;
+  --color-primary-lighter: #9a9898;
+  --color-primary-dark: #6e6e73;
+  --color-primary-darker: #464343;
+  --color-primary-50: rgba(253, 252, 252, 0.05);
+  --color-primary-100: rgba(253, 252, 252, 0.08);
+  --color-primary-200: rgba(253, 252, 252, 0.12);
+  --color-primary-300: rgba(253, 252, 252, 0.2);
+  
+  /* Gradient Colors */
+  --gradient-primary: linear-gradient(135deg, #007aff 0%, #0056b3 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  --gradient-dark: linear-gradient(135deg, #201d1d 0%, #302c2c 50%, #464343 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(48,44,44,0.8) 0%, rgba(32,29,29,0.9) 100%);
+  
+  /* Accent Colors */
+  --color-accent-violet: #9a9898;
+  --color-accent-cyan: #6e6e73;
+  --color-accent-emerald: #30d158;
+  --color-accent-amber: #ff9f0a;
+  --color-accent-rose: #ff3b30;
+  
+  /* Neutral Colors - OpenCode Warm Gray Scale */
+  --color-gray-25: #1a1818;
+  --color-gray-50: #201d1d;
+  --color-gray-100: #272323;
+  --color-gray-150: #302c2c;
+  --color-gray-200: #3a3636;
+  --color-gray-300: #464343;
+  --color-gray-400: #6e6e73;
+  --color-gray-500: #9a9898;
+  --color-gray-600: #c8c6c4;
+  --color-gray-700: #e5e3e1;
+  --color-gray-800: #fdfcfc;
+  --color-gray-850: #ffffff;
+  --color-gray-900: #ffffff;
+  --color-gray-950: #ffffff;
+  
+  /* Semantic Colors - OpenCode Exact */
+  --color-success: #30d158;
+  --color-success-light: rgba(48, 209, 88, 0.12);
+  --color-warning: #ff9f0a;
+  --color-warning-light: rgba(255, 159, 10, 0.12);
+  --color-error: #ff3b30;
+  --color-error-light: rgba(255, 59, 48, 0.12);
+  --color-info: #007aff;
+  --color-info-light: rgba(0, 122, 255, 0.12);
+  
+  /* Typography - OpenCode Terminal Style */
+  --font-sans: 'Berkeley Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  --font-mono: 'Berkeley Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  --font-display: 'Berkeley Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  
+  /* Font Sizes - Modular Scale (1.250) */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.875rem;    /* 30px */
+  --text-4xl: 2.25rem;     /* 36px */
+  --text-5xl: 3rem;        /* 48px */
+  --text-6xl: 3.75rem;     /* 60px */
+  
+  /* Font Weights */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+  
+  /* Letter Spacing */
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+  
+  /* Spacing */
+  --spacing-0: 0;
+  --spacing-px: 1px;
+  --spacing-0-5: 0.125rem;
+  --spacing-1: 0.25rem;
+  --spacing-1-5: 0.375rem;
+  --spacing-2: 0.5rem;
+  --spacing-2-5: 0.625rem;
+  --spacing-3: 0.75rem;
+  --spacing-3-5: 0.875rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-7: 1.75rem;
+  --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
+  --spacing-10: 2.5rem;
+  --spacing-11: 2.75rem;
+  --spacing-12: 3rem;
+  --spacing-14: 3.5rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+  --spacing-24: 6rem;
+  --spacing-28: 7rem;
+  --spacing-32: 8rem;
+  --spacing-36: 9rem;
+  --spacing-40: 10rem;
+  --spacing-44: 11rem;
+  --spacing-48: 12rem;
+  --spacing-52: 13rem;
+  --spacing-56: 14rem;
+  --spacing-60: 15rem;
+  --spacing-64: 16rem;
+  --spacing-72: 18rem;
+  --spacing-80: 20rem;
+  --spacing-96: 24rem;
+  
+  /* Border Radius - OpenCode */
+  --radius-none: 0px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
+  
+  /* Shadows - OpenCode Style (Minimal) */
+  --shadow-xs: none;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.3);
+  --shadow-xl: 0 8px 16px 0 rgb(0 0 0 / 0.3);
+  --shadow-2xl: 0 16px 32px 0 rgb(0 0 0 / 0.4);
+  --shadow-inner: inset 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  
+  /* Colored Shadows - OpenCode Style (Subtle) */
+  --shadow-primary: 0 2px 8px 0 rgb(255 255 255 / 0.1);
+  --shadow-primary-lg: 0 4px 12px 0 rgb(255 255 255 / 0.12);
+  --shadow-primary-xl: 0 8px 24px 0 rgb(255 255 255 / 0.15);
+  --shadow-primary-glow: 0 0 20px -5px rgb(255 255 255 / 0.15);
+  --shadow-success: 0 2px 8px 0 rgb(34 197 94 / 0.15);
+  --shadow-warning: 0 2px 8px 0 rgb(234 179 8 / 0.15);
+  --shadow-error: 0 2px 8px 0 rgb(239 68 68 / 0.15);
+  --shadow-violet: 0 2px 8px 0 rgb(163 163 163 / 0.15);
+  --shadow-cyan: 0 2px 8px 0 rgb(115 115 115 / 0.15);
+  --shadow-emerald: 0 2px 8px 0 rgb(82 82 82 / 0.15);
+  --shadow-amber: 0 2px 8px 0 rgb(212 212 212 / 0.15);
+  --shadow-rose: 0 2px 8px 0 rgb(229 229 229 / 0.15);
+  
+  /* Transitions - Refined easing */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  --transition-fast: 150ms var(--ease-in-out);
+  --transition-base: 200ms var(--ease-in-out);
+  --transition-slow: 300ms var(--ease-in-out);
+  --transition-slower: 500ms var(--ease-in-out);
+  --transition-spring: 500ms var(--ease-spring);
+  
+  /* Z-Index Scale */
+  --z-hide: -1;
+  --z-auto: auto;
+  --z-base: 0;
+  --z-docked: 10;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-banner: 1200;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-toast: 1700;
+  --z-tooltip: 1800;
+  
+  /* Backdrop Blur */
+  --blur-sm: 4px;
+  --blur-md: 8px;
+  --blur-lg: 12px;
+  --blur-xl: 16px;
+  --blur-2xl: 24px;
+  --blur-3xl: 40px;
+  
+  /* Glass Effect - OpenCode */
+  --glass-bg: rgba(48, 44, 44, 0.8);
+  --glass-border: #464343;
+  --glass-shadow: 0 0 0 1px #464343;
+  
+  /* Dark Glass Effect */
+  --glass-dark-bg: rgba(32, 29, 29, 0.9);
+  --glass-dark-border: #464343;
+  
+  /* Backdrop Effects */
+  --backdrop-blur-sm: blur(4px);
+  --backdrop-blur-md: blur(8px);
+  --backdrop-blur-lg: blur(12px);
+  --backdrop-blur-xl: blur(16px);
+  
+  /* Border Effects - OpenCode */
+  --border-gradient: linear-gradient(135deg, #464343, #302c2c);
+  --border-glow: 0 0 0 1px #464343;
+  
+  /* OpenCode Motion */
+  --motion-fast: 100ms;
+  --motion-base: 150ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ============================================
+   Light Theme Overrides
+   ============================================ */
+[data-theme="light"] {
+  /* OpenCode Light Theme Colors */
+  --oc-bg: #ffffff;
+  --oc-bg-surface: #f5f5f5;
+  --oc-border: #e5e5e5;
+  --oc-border-soft: #f0f0f0;
+  --oc-fg: #1a1a1a;
+  --oc-fg-2: #4a4a4a;
+  --oc-muted: #8a8a8a;
+  --oc-meta: #b0b0b0;
+  --oc-accent: #007aff;
+  --oc-accent-hover: #0056b3;
+  --oc-accent-active: #004085;
+  --oc-success: #30d158;
+  --oc-warning: #ff9f0a;
+  --oc-error: #ff3b30;
+
+  /* Primary Colors */
+  --color-primary: #1a1a1a;
+  --color-primary-light: #4a4a4a;
+  --color-primary-lighter: #8a8a8a;
+  --color-primary-dark: #0a0a0a;
+  --color-primary-darker: #000000;
+  --color-primary-50: rgba(0, 0, 0, 0.03);
+  --color-primary-100: rgba(0, 0, 0, 0.05);
+  --color-primary-200: rgba(0, 0, 0, 0.08);
+  --color-primary-300: rgba(0, 0, 0, 0.12);
+
+  /* Gradient Colors */
+  --gradient-primary: linear-gradient(135deg, #007aff 0%, #0056b3 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  --gradient-dark: linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #e5e5e5 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(245,245,245,0.95) 100%);
+
+  /* Accent Colors */
+  --color-accent-violet: #8a8a8a;
+  --color-accent-cyan: #b0b0b0;
+  --color-accent-emerald: #30d158;
+  --color-accent-amber: #ff9f0a;
+  --color-accent-rose: #ff3b30;
+
+  /* Neutral Colors - Light Scale */
+  --color-gray-25: #ffffff;
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-150: #e5e5e5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-600: #525252;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-850: #171717;
+  --color-gray-900: #0a0a0a;
+  --color-gray-950: #000000;
+
+  /* Semantic Colors */
+  --color-success: #16a34a;
+  --color-success-light: rgba(22, 163, 74, 0.08);
+  --color-warning: #ca8a04;
+  --color-warning-light: rgba(202, 138, 4, 0.08);
+  --color-error: #dc2626;
+  --color-error-light: rgba(220, 38, 38, 0.08);
+  --color-info: #2563eb;
+  --color-info-light: rgba(37, 99, 235, 0.08);
+
+  /* Shadows - Light */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+
+  /* Colored Shadows */
+  --shadow-primary: 0 4px 14px 0 rgb(0 0 0 / 0.08);
+  --shadow-primary-lg: 0 10px 25px -3px rgb(0 0 0 / 0.1);
+  --shadow-primary-xl: 0 20px 40px -5px rgb(0 0 0 / 0.12);
+  --shadow-primary-glow: 0 0 40px -10px rgb(0 0 0 / 0.1);
+  --shadow-success: 0 4px 14px 0 rgb(22 163 74 / 0.1);
+  --shadow-warning: 0 4px 14px 0 rgb(202 138 4 / 0.1);
+  --shadow-error: 0 4px 14px 0 rgb(220 38 38 / 0.1);
+  --shadow-violet: 0 4px 14px 0 rgb(82 82 82 / 0.1);
+  --shadow-cyan: 0 4px 14px 0 rgb(64 64 64 / 0.1);
+  --shadow-emerald: 0 4px 14px 0 rgb(38 38 38 / 0.1);
+  --shadow-amber: 0 4px 14px 0 rgb(115 115 115 / 0.1);
+  --shadow-rose: 0 4px 14px 0 rgb(163 163 163 / 0.1);
+
+  /* Glass Effect */
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-shadow: 0 4px 16px 0 rgb(0 0 0 / 0.08);
+
+  /* Dark Glass Effect */
+  --glass-dark-bg: rgba(245, 245, 245, 0.95);
+  --glass-dark-border: rgba(0, 0, 0, 0.08);
+
+  /* Border Effects */
+  --border-gradient: linear-gradient(135deg, rgba(0,0,0,0.08), rgba(0,0,0,0.04));
+  --border-glow: 0 0 0 1px rgba(0,0,0,0.06);
+}
+
+/* Light Theme Body & Base Overrides */
+[data-theme="light"] body {
+  color: var(--oc-fg);
+  background-color: var(--oc-bg);
+}
+
+[data-theme="light"] ::selection {
+  background-color: rgba(0, 122, 255, 0.15);
+  color: var(--oc-fg);
+}
+
+/* Light Theme Scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border: 2px solid var(--color-gray-100);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+[data-theme="light"] * {
+  scrollbar-color: var(--color-gray-300) var(--color-gray-100);
+}
+
+/* Light Theme Typography */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6 {
+  color: var(--color-gray-900);
+}
+
+[data-theme="light"] h6 {
+  color: var(--color-gray-700);
+}
+
+/* Light Theme Utility Classes */
+[data-theme="light"] .text-gradient {
+  background: linear-gradient(135deg, #171717 0%, #404040 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+[data-theme="light"] .glass-dark {
+  background: rgba(245, 245, 245, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .gradient-primary {
+  background: linear-gradient(135deg, #171717 0%, #404040 100%);
+}
+
+[data-theme="light"] .gradient-dark {
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 50%, #f5f5f5 100%);
+}
+
+/* Light Theme Glow Animations - Softer */
+[data-theme="light"] .glow {
+  box-shadow: 0 0 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Light Theme Highlight.js - OpenCode Light */
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag {
+  color: #171717;
+  font-weight: 600;
+}
+
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-template-variable {
+  color: #525252;
+}
+
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-doctag {
+  color: #a3a3a3;
+  font-style: italic;
+}
+
+[data-theme="light"] .hljs-type,
+[data-theme="light"] .hljs-class .hljs-title,
+[data-theme="light"] .hljs-title.class_ {
+  color: #262626;
+}
+
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal {
+  color: #737373;
+}
+
+[data-theme="light"] .hljs-function,
+[data-theme="light"] .hljs-title.function_ {
+  color: #171717;
+}
+
+[data-theme="light"] .hljs-params {
+  color: #525252;
+}
+
+[data-theme="light"] .hljs-built_in {
+  color: #262626;
+}
+
+[data-theme="light"] .hljs-meta,
+[data-theme="light"] .hljs-meta .hljs-keyword {
+  color: #737373;
+}
+
+[data-theme="light"] .hljs-variable,
+[data-theme="light"] .hljs-attr {
+  color: #171717;
+}
+
+[data-theme="light"] .hljs-symbol,
+[data-theme="light"] .hljs-bullet {
+  color: #525252;
+}
+
+[data-theme="light"] .hljs-addition {
+  color: #16a34a;
+}
+
+[data-theme="light"] .hljs-deletion {
+  color: #dc2626;
+}
+
+/* ============================================
+   Reset & Base Styles
+   ============================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--oc-fg);
+  background-color: var(--oc-bg);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================
+   Typography
+   ============================================ */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--oc-fg);
+  font-weight: 700;
+  line-height: 1.0;
+  letter-spacing: var(--tracking-tight);
+}
+
+h1 {
+  font-size: 2.375rem; /* 38px - OpenCode exact */
+  font-weight: 700;
+  letter-spacing: var(--tracking-tighter);
+}
+
+h2 {
+  font-size: 1.75rem; /* 28px - OpenCode exact */
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 1.375rem; /* 22px - OpenCode exact */
+  font-weight: 600;
+}
+
+h4 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+}
+
+h5 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-medium);
+}
+
+h6 {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-gray-600);
+}
+
+p {
+  line-height: var(--leading-relaxed);
+}
+
+a {
+  color: var(--oc-accent);
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+a:hover {
+  color: var(--oc-accent-hover);
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(0, 122, 255, 0.3);
+  color: var(--oc-fg);
+}
+
+/* ============================================
+   Scrollbar Styles
+   ============================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-gray-100);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 5px;
+  border: 2px solid var(--color-gray-100);
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-300) var(--color-gray-100);
+}
+
+/* ============================================
+   Focus Styles
+   ============================================ */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   Button Reset
+   ============================================ */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* ============================================
+   Image
+   ============================================ */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================
+   Code
+   ============================================ */
+code {
+  font-family: var(--font-mono);
+  font-feature-settings: 'liga' 1, 'calt' 1;
+}
+
+/* ============================================
+   Vue Transitions
+   ============================================ */
+/* Fade */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--transition-base);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Slide */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform var(--transition-slow);
+}
+
+.slide-enter-from {
+  transform: translateX(-100%);
+}
+
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+/* Slide Up */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all var(--transition-base);
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Scale */
+.scale-enter-active,
+.scale-leave-active {
+  transition: all var(--transition-base);
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+/* Text Gradient - Neon */
+.text-gradient {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass Effect - Dark Neon */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-dark {
+  background: rgba(10, 15, 30, 0.9);
+  backdrop-filter: blur(var(--blur-xl));
+  -webkit-backdrop-filter: blur(var(--blur-xl));
+  border: 1px solid rgba(129, 140, 248, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(129, 140, 248, 0.05);
+}
+
+/* Gradient Backgrounds - Dark Neon */
+.gradient-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+}
+
+.gradient-dark {
+  background: linear-gradient(135deg, #030712 0%, #0a0f1e 50%, #0f172a 100%);
+}
+
+/* Animated Gradient */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animated-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Glow Animation - Enhanced Neon */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px -5px rgba(129, 140, 248, 0.35); }
+  50% { box-shadow: 0 0 40px -5px rgba(129, 140, 248, 0.6); }
+}
+
+/* Border Glow Animation - Neon Pulse */
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(129, 140, 248, 0.2); }
+  50% { border-color: rgba(129, 140, 248, 0.6); }
+}
+
+/* Spin Animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Bounce Animation */
+@keyframes bounce {
+  0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+}
+
+/* Ping Animation */
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+/* Shine Animation */
+@keyframes shine {
+  from { left: -100%; }
+  to { left: 100%; }
+}
+
+/* Float Animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Subtle Float */
+@keyframes subtle-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-5px) rotate(1deg); }
+  66% { transform: translateY(3px) rotate(-1deg); }
+}
+
+/* ============================================
+   Highlight.js Theme - OpenCode Exact
+   ============================================ */
+.hljs-keyword,
+.hljs-selector-tag {
+  color: var(--oc-fg);
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-template-variable {
+  color: var(--oc-fg-2);
+}
+
+.hljs-comment,
+.hljs-doctag {
+  color: var(--oc-muted);
+  font-style: italic;
+}
+
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-title.class_ {
+  color: var(--oc-fg-2);
+}
+
+.hljs-number,
+.hljs-literal {
+  color: var(--oc-muted);
+}
+
+.hljs-function,
+.hljs-title.function_ {
+  color: var(--oc-fg);
+}
+
+.hljs-params {
+  color: var(--oc-fg-2);
+}
+
+.hljs-built_in {
+  color: var(--oc-fg-2);
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: var(--oc-muted);
+}
+
+.hljs-variable,
+.hljs-attr {
+  color: var(--oc-fg);
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--oc-fg-2);
+}
+
+.hljs-addition {
+  color: var(--oc-success);
+}
+
+.hljs-deletion {
+  color: var(--oc-error);
+}
+
+/* ============================================
+   Responsive Breakpoints (for reference)
+   ============================================ */
+/* sm: 640px */
+/* md: 768px */
+/* lg: 1024px */
+/* xl: 1280px */
+/* 2xl: 1536px */

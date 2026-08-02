@@ -1,0 +1,30 @@
+{
+  "$schema": "https://qualia.lunarlanding.com/schemas/qualia-code-config.json",
+  "version": "1.0.0",
+  "description": "Qualia Code 配置文件模板 - 首次运行时自动生成",
+  "defaultModel": "dashscope-qwen",
+  "models": [
+    {
+      "name": "dashscope-qwen",
+      "provider": "dashscope",
+      "apiKey": "${DASHSCOPE_API_KEY}",
+      "model": "qwen-max",
+      "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
+      "description": "通义千问 - 阿里云DashScope",
+      "enabled": true,
+      "type": "chat"
+    }
+  ],
+  "mcpServers": [
+    {
+      "name": "ragflow",
+      "transport": "streamable-http",
+      "url": "${RAGFLOW_BASE_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${RAGFLOW_API_KEY}"
+      },
+      "description": "RAGFlow知识库检索",
+      "enabled": false
+    }
+  ]
+}

@@ -13,7 +13,7 @@
 
     <properties>
 
-        <revision>1.5.1</revision>
+        <revision>0.1.0</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
@@ -30,6 +30,14 @@
         <module>qualia-code-desktop</module>
         <module>qualia-core</module>
     </modules>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
+        </repository>
+    </distributionManagement>
 
     <build>
         <plugins>

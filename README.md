@@ -128,7 +128,7 @@ Web IDE 模块，提供：
 #### 方式二：源码构建
 
 ```bash
-git clone https://github.com/your-org/qualia.git
+git clone https://github.com/lunar-landing/qualia.git
 cd qualia
 mvn clean install
 ```
@@ -299,6 +299,57 @@ agent.addSkill(skill);
 // 智能体会自动在系统提示词中注册可用技能列表
 ```
 
+## 📦 发布
+
+### GitHub Packages
+
+本项目使用 GitHub Packages 发布 Maven 包。
+
+#### 配置认证
+
+在项目根目录创建 `settings.xml`（已添加到 `.gitignore`）：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <localRepository>C:\Users\你的用户名\.m2\repository</localRepository>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>lunar-landing</username>
+            <password>你的GitHub Token</password>
+        </server>
+    </servers>
+</settings>
+```
+
+#### 发布命令
+
+```bash
+# 发布 qualia-core
+mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
+
+# 发布所有模块
+mvn clean deploy -DskipTests -s settings.xml
+```
+
+#### 引用依赖
+
+```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
+    </repository>
+</repositories>
+
+<dependency>
+    <groupId>com.lunarlanding</groupId>
+    <artifactId>qualia-core</artifactId>
+    <version>1.5.1</version>
+</dependency>
+```
+
 ## 🤝 贡献
 
 欢迎贡献代码、报告问题或提出改进建议！
@@ -324,9 +375,9 @@ agent.addSkill(skill);
 
 ## 🔗 相关链接
 
-- [文档站点](https://your-org.github.io/qualia)
-- [问题反馈](https://github.com/your-org/qualia/issues)
-- [讨论区](https://github.com/your-org/qualia/discussions)
+- [GitHub Packages](https://github.com/lunar-landing/qualia/packages)
+- [问题反馈](https://github.com/lunar-landing/qualia/issues)
+- [讨论区](https://github.com/lunar-landing/qualia/discussions)
 
 ## ⭐ Star History
 

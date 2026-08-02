@@ -36,6 +36,7 @@ build/
 .qualia/memory/
 logs/
 .worktrees/
+settings.xml
 
 # Local knowledge parsing/import artifacts
 /outputs/

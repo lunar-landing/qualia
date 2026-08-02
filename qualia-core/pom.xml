@@ -14,7 +14,30 @@
     <version>${revision}</version>
 
     <name>qualia-core</name>
-    <description>qualia-core</description>
+    <description>Qualia Core - 轻量级 Java AI 智能体框架，基于 ReAct 模式，支持多模型适配、工具系统、记忆管理和 RAG 检索</description>
+    <url>https://github.com/lunar-landing/qualia</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Lunar Landing</name>
+            <email>contact@lunar-landing.dev</email>
+            <url>https://github.com/lunar-landing</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/lunar-landing/qualia.git</connection>
+        <developerConnection>scm:git:ssh://github.com/lunar-landing/qualia.git</developerConnection>
+        <url>https://github.com/lunar-landing/qualia</url>
+    </scm>
 
     <properties>
         <java.version>17</java.version>
@@ -137,6 +160,38 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
+            <!-- 生成源码包 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 生成 Javadoc 包 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <doclint>none</doclint>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

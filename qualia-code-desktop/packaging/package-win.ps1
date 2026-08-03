@@ -7,15 +7,24 @@
 # 用法（在项目根目录 PowerShell 执行）：
 #   .\qualia-code-desktop\packaging\package-win.ps1
 #
-# 产物：qualia-code-desktop\target\dist\Qualia Code\Qualia Code.exe（免安装目录，可整体 zip 分发）
+# 产物：qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe（免安装目录，可整体 zip 分发）
 
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path "$PSScriptRoot\..\.."
 $ModuleDir = Join-Path $ProjectRoot "qualia-code-desktop"
 $TargetDir = Join-Path $ModuleDir "target"
-$DistDir = Join-Path $TargetDir "dist"
-$Version = "1.5.0"
+
+# 从父 pom.xml 读取 revision 属性作为版本号
+$PomContent = Get-Content (Join-Path $ProjectRoot "pom.xml") -Raw
+if ($PomContent -match '<revision>(.+?)</revision>') {
+    $Version = $Matches[1]
+} else {
+    throw "未在 pom.xml 中找到 revision 属性"
+}
+Write-Host "==> 版本号: $Version"
+
+$DistDir = Join-Path (Join-Path $TargetDir "dist") $Version
 
 Write-Host "==> 构建可执行 jar（含全部依赖）..."
 Set-Location $ProjectRoot

@@ -143,35 +143,6 @@ mvn clean deploy -DskipTests -s settings.xml
 </dependency>
 ```
 
-## 🤝 贡献
-
-欢迎贡献代码、报告问题或提出改进建议！
-
-### 贡献流程
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/your-feature`)
-3. 提交更改 (`git commit -m 'Add some feature'`)
-4. 推送到分支 (`git push origin feature/your-feature`)
-5. 创建 Pull Request
-
-### 开发规范
-
-- 遵循 Java 编码规范
-- 添加必要的单元测试
-- 更新相关文档
-- 确保所有测试通过
-
 ## 📄 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 许可证。
-
-## 🔗 相关链接
-
-- [GitHub Packages](https://github.com/lunar-landing/qualia/packages)
-- [问题反馈](https://github.com/lunar-landing/qualia/issues)
-- [讨论区](https://github.com/lunar-landing/qualia/discussions)
-
-## ⭐ Star History
-
-如果这个项目对你有帮助，请考虑给它一个 Star！

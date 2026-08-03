@@ -130,6 +130,8 @@ mvn clean deploy -DskipTests -s settings.xml
 
 #### 引用依赖
 
+在项目 `pom.xml` 中添加仓库和依赖：
+
 ```xml
 <repositories>
     <repository>
@@ -141,7 +143,7 @@ mvn clean deploy -DskipTests -s settings.xml
 <dependency>
     <groupId>com.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>1.5.1</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 

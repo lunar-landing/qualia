@@ -145,6 +145,18 @@ mvn clean deploy -DskipTests -s settings.xml
 </dependency>
 ```
 
+### 构建桌面应用
+
+```powershell
+# 构建可执行 jar
+mvn -pl qualia-code-desktop -am clean package -DskipTests
+
+# 打包成 Windows 应用（免安装）
+.\qualia-code-desktop\packaging\package-win.ps1
+```
+
+产物：`qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe`
+
 ## 📄 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 许可证。

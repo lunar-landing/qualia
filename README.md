@@ -24,6 +24,8 @@ Qualia 是一个轻量级、模块化的 Java 框架，用于构建基于大语�
 
 基于 ReAct（Reasoning + Acting）推理模式，通过思考-行动-观察循环支持复杂任务分解；统一接口适配 DashScope、OpenAI、Claude 等主流 LLM；采用注解驱动 + MCP 协议集成的工具系统，轻松扩展工具能力；基于 JSON/MySQL 的会话记忆管理，支持滑动窗口和摘要压缩; 以及可复用的提示词模板与脚本执行的技能系统，支持渐进式加载。
 
+![官方首页](./docs/images/img-0.png)
+
 ## 项目
 
 ```
@@ -90,9 +92,15 @@ public class MyTools {
 
 **Qualia Code** 是基于 Qualia Core 框架构建的 AI 编码助手产品，提供完整的 Web IDE 体验。
 
-![Qualia Code 主界面](./docs/images/code-main.png)
+![img.png](docs/images/img.png)
 
-![Qualia Code 工具调用](./docs/images/code-tools.png)
+![img_1.png](docs/images/img_1.png)
+
+![img_2.png](docs/images/img_2.png)
+
+![img_4.png](docs/images/img_4.png)
+
+![img_5.png](docs/images/img_5.png)
 
 ## 📦 发布
 

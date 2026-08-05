@@ -578,9 +578,15 @@
                 }
             }
 
-            // 未配置模型时自动打开设置面板引导用户先完成配置
+            // 未配置模型时自动打开设置面板引导用户先完成配置；
+            // 但若尚未选择工作区，工作区强制弹窗优先，设置引导顺延到选完工作区重载后
             async function checkModelConfigured() {
                 try {
+                    const wsRes = await fetch('/api/workspace');
+                    if (wsRes.ok) {
+                        const ws = await wsRes.json().catch(() => null);
+                        if (ws && !ws.current) return;
+                    }
                     const res = await fetch('/api/config/model');
                     if (!res.ok) return;
                     const info = await res.json();
@@ -590,26 +596,31 @@
                 }
             }
 
-            // 模型选择器初始化
+            // 模型选择器：事件只绑定一次，渲染可重复执行（设置保存后回调刷新）
             let currentSelectedModel = '';
             let defaultModelName = '';
-            
-            async function initModelSelector() {
+            let modelSelectorBound = false;
+
+            async function refreshModelSelector() {
                 try {
                     const res = await fetch('/api/config');
                     const config = await res.json();
                     const models = config.models || [];
                     defaultModelName = config.defaultModel || '';
-                    
-                    const selector = document.getElementById('modelSelector');
+
                     const dropdown = document.getElementById('modelDropdown');
                     const modelNameEl = document.getElementById('modelName');
-                    
+
+                    // 当前选中在新列表中不存在时回退默认模型（模型被删改名的保存场景）
+                    if (!models.some(m => m.name === currentSelectedModel)) {
+                        currentSelectedModel = defaultModelName;
+                    }
+
                     // 生成下拉菜单项
                     dropdown.innerHTML = '';
                     models.forEach(model => {
                         const item = document.createElement('div');
-                        item.className = 'model-dropdown-item' + (model.name === defaultModelName ? ' active' : '');
+                        item.className = 'model-dropdown-item' + (model.name === currentSelectedModel ? ' active' : '');
                         item.dataset.value = model.name;
                         item.innerHTML = `
                             <span>${model.name}${model.name === defaultModelName ? '<span class="default-badge">默认</span>' : ''}</span>
@@ -618,24 +629,29 @@
                         item.addEventListener('click', () => selectModel(model.name));
                         dropdown.appendChild(item);
                     });
-                    
-                    // 设置默认选中
-                    currentSelectedModel = defaultModelName;
-                    modelNameEl.textContent = defaultModelName || '未配置';
-                    
-                    // 点击切换下拉
-                    selector.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        selector.classList.toggle('open');
-                    });
-                    
-                    // 点击外部关闭
-                    document.addEventListener('click', () => {
-                        selector.classList.remove('open');
-                    });
+
+                    modelNameEl.textContent = currentSelectedModel || '未配置';
                 } catch (e) {
                     console.error('加载模型列表失败:', e);
                 }
+            }
+            window.refreshModelSelector = refreshModelSelector;
+
+            async function initModelSelector() {
+                await refreshModelSelector();
+                if (modelSelectorBound) return;
+                modelSelectorBound = true;
+
+                const selector = document.getElementById('modelSelector');
+                // 点击切换下拉
+                selector.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selector.classList.toggle('open');
+                });
+                // 点击外部关闭
+                document.addEventListener('click', () => {
+                    selector.classList.remove('open');
+                });
             }
             
             function selectModel(modelName) {

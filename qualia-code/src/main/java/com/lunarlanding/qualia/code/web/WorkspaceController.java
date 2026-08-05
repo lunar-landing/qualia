@@ -31,15 +31,21 @@ public class WorkspaceController {
 
     /**
      * 当前工作区 + 最近打开列表
+     *
+     * current 为 null 表示启动时未绑定工作区，前端据此强制弹出选择弹窗
      */
     @GetMapping
     public ResponseEntity<Map<String, Object>> getWorkspaceInfo() {
         Path current = WebApplication.getCurrentWorkspace();
         Map<String, Object> result = new HashMap<>();
-        result.put("current", Map.of(
-                "path", current.toAbsolutePath().toString(),
-                "name", current.getFileName() != null ? current.getFileName().toString() : current.toString()
-        ));
+        if (current != null) {
+            result.put("current", Map.of(
+                    "path", current.toAbsolutePath().toString(),
+                    "name", current.getFileName() != null ? current.getFileName().toString() : current.toString()
+            ));
+        } else {
+            result.put("current", null);
+        }
         result.put("recent", WorkspaceHistory.list());
         result.put("streaming", ChatService.isStreaming());
         return ResponseEntity.ok(result);

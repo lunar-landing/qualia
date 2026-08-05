@@ -4,9 +4,7 @@ import com.lunarlanding.qualia.code.WebApplication;
 import com.lunarlanding.qualia.code.service.WorkspaceHistory;
 import org.eclipse.swt.SWTError;
 import org.eclipse.swt.program.Program;
-import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -19,14 +17,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
-import java.util.Map;
 
 /**
  * 桌面应用入口。
  *
- * <p>启动流程：单实例检查 → 选空闲端口 → 确定工作区 → 非阻塞启动内嵌 Web 服务
+ * <p>启动流程：单实例检查 → 确定工作区（静默复用最近历史，无则空启动）→ 非阻塞启动内嵌 Web 服务
  * → 打开原生窗口加载本地界面 → 窗口关闭后停止服务并退出。
+ *
+ * <p>空启动（无可用历史工作区）时由前端页面强制弹出工作区选择弹窗，
+ * 避免在应用启动前弹出用户不知用途的原生文件夹对话框。
  *
  * <p>检测不到系统 WebView（如缺失 WebView2 运行时）时降级为打开系统默认浏览器。
  */
@@ -82,12 +81,9 @@ public final class DesktopLauncher {
 
         Display display = new Display();
         try {
-            // 2. 确定工作区（可能弹出目录选择对话框，需在 Display 就绪后进行）
-            Path workspace = resolveWorkspace(display);
-            if (workspace == null) {
-                // 用户取消选择，退出
-                return;
-            }
+            // 2. 确定工作区：静默复用最近仍存在的历史；无则以空工作区启动，
+            //    由前端页面强制弹出选择弹窗（用户此时已看到应用界面，知道弹窗用途）
+            Path workspace = WorkspaceHistory.latestValid();
 
             // 3. 选空闲端口并非阻塞启动 Web 服务
             int port = pickFreePort();
@@ -164,36 +160,6 @@ public final class DesktopLauncher {
         } catch (IOException e) {
             // 极端情况回退到默认端口
             return 8080;
-        }
-    }
-
-    /**
-     * 确定工作区：优先取最近使用且仍存在的目录，否则弹出目录选择对话框。
-     *
-     * @return 工作区路径；用户取消选择时返回 null
-     */
-    private static Path resolveWorkspace(Display display) {
-        List<Map<String, Object>> recent = WorkspaceHistory.list();
-        for (Map<String, Object> entry : recent) {
-            if (Boolean.TRUE.equals(entry.get("exists"))) {
-                return Path.of((String) entry.get("path"));
-            }
-        }
-        return chooseDirectory(display);
-    }
-
-    /**
-     * 弹出目录选择对话框选取工作区。
-     */
-    private static Path chooseDirectory(Display display) {
-        Shell dialogShell = new Shell(display);
-        try {
-            DirectoryDialog dialog = new DirectoryDialog(dialogShell);
-            dialog.setText("选择工作区目录");
-            String selected = dialog.open();
-            return selected != null ? Path.of(selected) : null;
-        } finally {
-            dialogShell.dispose();
         }
     }
 

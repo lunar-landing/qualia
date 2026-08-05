@@ -1,0 +1,19 @@
+{
+	"createdAt":1785827942883,
+	"id":"plan_f3437dee",
+	"status":"PLANNING",
+	"tasks":[
+		{
+			"createdAt":1785827942886,
+			"dependencies":[],
+			"description":"创建login.html文件到根目录",
+			"id":"task_77258d97",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 1",
+			"updatedAt":1785827967815
+		}
+	],
+	"title":"创建login.html文件",
+	"updatedAt":1785827967815
+}

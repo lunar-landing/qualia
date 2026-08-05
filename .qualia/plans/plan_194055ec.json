@@ -1,0 +1,59 @@
+{
+	"createdAt":1785828945439,
+	"id":"plan_194055ec",
+	"status":"PLANNING",
+	"tasks":[
+		{
+			"createdAt":1785828945445,
+			"dependencies":[],
+			"description":"分析当前登录页面的样式问题",
+			"id":"task_72de7c56",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 1",
+			"updatedAt":1785828952498
+		},
+		{
+			"createdAt":1785828945447,
+			"dependencies":["task1"],
+			"description":"优化页面整体布局和响应式设计",
+			"id":"task_5af39407",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 2",
+			"updatedAt":1785829000360
+		},
+		{
+			"createdAt":1785828945447,
+			"dependencies":["task2"],
+			"description":"改进表单元素的视觉设计和交互效果",
+			"id":"task_9c56f0df",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 3",
+			"updatedAt":1785829035475
+		},
+		{
+			"createdAt":1785828945447,
+			"dependencies":["task3"],
+			"description":"添加现代化的视觉元素和动画效果",
+			"id":"task_355ecea4",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 4",
+			"updatedAt":1785829061000
+		},
+		{
+			"createdAt":1785828945448,
+			"dependencies":["task4"],
+			"description":"测试优化后的页面效果",
+			"id":"task_a51d0b1a",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"任务 5",
+			"updatedAt":1785829066368
+		}
+	],
+	"title":"登录页面样式优化计划",
+	"updatedAt":1785829066368
+}

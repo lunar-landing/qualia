@@ -22,7 +22,7 @@ public class WebApplication {
     /**
      * 启动 Web 应用（阻塞，CLI/web 子命令使用：主线程保活直到 Ctrl+C）
      *
-     * @param workspacePath 工作区路径
+     * @param workspacePath 工作区路径，null 表示启动时未指定（由前端强制选择）
      * @param port          服务端口
      */
     public static void start(Path workspacePath, int port) {
@@ -31,7 +31,8 @@ public class WebApplication {
         // 打印启动信息
         System.out.println();
         System.out.println("Qualia Code Web 服务已启动");
-        System.out.println("访问地址: http://localhost:" + port);
+        System.out.println("访问地址: http://localhost:" + port
+                + (workspacePath == null ? "（未指定工作区，请在页面中选择）" : ""));
         System.out.println("按 Ctrl+C 停止服务");
         System.out.println();
 
@@ -46,12 +47,14 @@ public class WebApplication {
     /**
      * 启动 Web 应用（非阻塞，桌面壳使用：启动后立即返回，调用方通过 isRunning 轮询就绪状态）
      *
-     * @param workspacePath 工作区路径
+     * @param workspacePath 工作区路径，null 表示启动时未指定，前端检测到后强制弹出选择弹窗
      * @param port          服务端口
      */
     public static void startAsync(Path workspacePath, int port) {
         currentWorkspace = workspacePath;
-        WorkspaceHistory.record(workspacePath);
+        if (workspacePath != null) {
+            WorkspaceHistory.record(workspacePath);
+        }
 
         Map<String, Object> props = new HashMap<>();
         props.put("server.port", port);

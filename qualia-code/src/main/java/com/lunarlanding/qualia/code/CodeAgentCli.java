@@ -7,6 +7,7 @@ import com.lunarlanding.qualia.core.agent.spec.AgentStep;
 import com.lunarlanding.qualia.code.cmd.InitCommand;
 import com.lunarlanding.qualia.code.cmd.WebCommand;
 import com.lunarlanding.qualia.code.service.ChatService;
+import com.lunarlanding.qualia.code.service.WorkspaceHistory;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -23,7 +24,7 @@ import java.util.concurrent.Callable;
         subcommands = {InitCommand.class, WebCommand.class})
 public class CodeAgentCli implements Callable<Integer> {
 
-    @Option(names = {"-w", "--workspace"}, description = "工作区路径（默认当前目录）")
+    @Option(names = {"-w", "--workspace"}, description = "工作区路径（CLI 模式默认当前目录，Web 模式默认复用最近打开的工作区）")
     private Path workspace;
 
     @Option(names = {"-p", "--port"}, description = "Web服务端口（默认 8080）")
@@ -40,8 +41,14 @@ public class CodeAgentCli implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            Path workspacePath = workspace != null ? workspace : Path.of(System.getProperty("user.dir"));
-            
+            // CLI 交互模式回退当前目录；Web 模式未指定 -w 时复用最近历史，无历史则空启动由页面选择
+            Path workspacePath;
+            if (cliMode) {
+                workspacePath = workspace != null ? workspace : Path.of(System.getProperty("user.dir"));
+            } else {
+                workspacePath = workspace != null ? workspace : WorkspaceHistory.latestValid();
+            }
+
             // 根据模式选择启动方式
             if (cliMode) {
                 // CLI 交互模式 - 使用统一的 ChatService

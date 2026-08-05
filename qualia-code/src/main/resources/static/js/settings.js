@@ -997,13 +997,13 @@
         if (!data) return;
         const btn = document.getElementById('settingsSaveBtn');
         // 校验失败时切到对应 Tab 提示
-        if (data.models.some(m => !m.name.trim())) {
+        if (data.models.some(m => !String(m.name || '').trim())) {
             activeTab = 'models';
             render();
             flash(btn, '模型名称不能为空', false);
             return;
         }
-        if (data.mcpServers.some(s => !s.name.trim())) {
+        if (data.mcpServers.some(s => !String(s.name || '').trim())) {
             activeTab = 'mcp';
             render();
             flash(btn, 'MCP 名称不能为空', false);
@@ -1011,13 +1011,18 @@
         }
         const payload = {
             defaultModel: data.defaultIndex >= 0 ? data.models[data.defaultIndex].name.trim() : '',
+            // 各字段统一 String() 兜底，避免历史/新增对象缺字段时 trim 崩溃
             models: data.models.map(m => ({
-                name: m.name.trim(), provider: m.provider.trim(), type: m.type,
-                model: m.model.trim(), baseUrl: m.baseUrl.trim(), apiKey: m.apiKey.trim()
+                name: String(m.name || '').trim(), provider: String(m.provider || '').trim(), type: m.type,
+                model: String(m.model || '').trim(), baseUrl: String(m.baseUrl || '').trim(), apiKey: String(m.apiKey || '').trim()
             })),
             mcpServers: data.mcpServers.map(s => ({
-                name: s.name.trim(), transport: s.transport, url: s.url.trim(), enabled: s.enabled !== false,
-                headers: s.headers.reduce((o, h) => { if (h.k.trim()) o[h.k.trim()] = h.v; return o; }, {})
+                name: String(s.name || '').trim(), transport: s.transport, url: String(s.url || '').trim(), enabled: s.enabled !== false,
+                headers: (s.headers || []).reduce((o, h) => {
+                    const k = String(h.k || '').trim();
+                    if (k) o[k] = String(h.v || '');
+                    return o;
+                }, {})
             })),
             disabledSkills: data.disabledSkills || [],
             disabledTools: data.disabledTools || []
@@ -1032,10 +1037,12 @@
             });
             const result = await res.json();
             btn.disabled = false;
+            btn.textContent = '保存配置';
             if (result.success) {
-                flash(btn, '已保存并生效', true);
-                load(); // 重新拉取，apiKey 回显为掩码
                 if (window.loadMcpBadge) window.loadMcpBadge(); // 同步顶栏 MCP 数量
+                if (window.refreshModelSelector) window.refreshModelSelector(); // 同步输入区模型下拉
+                closeSettings();
+                load(); // 重新拉取，下次打开时 apiKey 回显为掩码
             } else {
                 flash(btn, result.error || '保存失败', false);
             }
@@ -1107,7 +1114,7 @@
             data.models.push({
                 name: '', provider: 'dashscope', type: 'pay-as-you-go',
                 model: MODEL_PRESETS.dashscope.models[0],
-                apiKey: ''
+                baseUrl: '', apiKey: ''
             });
             if (data.defaultIndex < 0) data.defaultIndex = 0;
             render();

@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Qualia Code · 打开项目（设计稿 v3）</title>
+<style>
+    /* ===== 设计令牌：与 index.css 一致 ===== */
+    :root {
+        --bg-app: #080a10;
+        --bg-surface: #12161f;
+        --bg-raise: rgba(255, 255, 255, 0.025);
+        --bg-hover: rgba(255, 255, 255, 0.035);
+        --bg-active: rgba(124, 108, 240, 0.10);
+        --bg-input: rgba(255, 255, 255, 0.03);
+
+        --text-primary: #e8ecf4;
+        --text-secondary: #8f97ae;
+        --text-muted: #565e75;
+
+        --line: rgba(255, 255, 255, 0.06);
+        --line-active: rgba(124, 108, 240, 0.35);
+
+        --accent: #7c6cf0;
+        --accent-light: #b3a8ff;
+        --accent-gradient: linear-gradient(145deg, #7c6cf0, #5b4ad0);
+        --glow: 0 6px 20px rgba(124, 108, 240, 0.28);
+        --shadow: 0 40px 80px rgba(0, 0, 0, 0.55), 0 16px 32px rgba(0, 0, 0, 0.4);
+
+        --r-window: 14px;
+        --r-item: 9px;
+
+        --mono: ui-monospace, "JetBrains Mono", Consolas, monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+        background:
+            radial-gradient(1000px 560px at 18% -12%, rgba(124, 108, 240, 0.07), transparent 62%),
+            var(--bg-app);
+        color: var(--text-primary);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    svg { display: block; }
+
+    /* ===== 窗口 ===== */
+    .win {
+        width: min(860px, 100%);
+        height: 540px;
+        background: var(--bg-surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-window);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes pop {
+        from { opacity: 0; transform: translateY(12px) scale(0.985); }
+        to   { opacity: 1; transform: none; }
+    }
+
+    /* 标题栏 */
+    .titlebar {
+        height: 40px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        user-select: none;
+    }
+    .tb-brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-secondary);
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+    .tb-brand .dot {
+        width: 15px; height: 15px;
+        border-radius: 5px;
+        background: var(--accent-gradient);
+        display: flex; align-items: center; justify-content: center;
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(124, 108, 240, 0.4);
+    }
+    .tb-brand .dot svg { width: 8px; height: 8px; }
+    .tb-ctrl { margin-left: auto; display: flex; gap: 4px; }
+    .tb-ctrl button {
+        width: 28px; height: 24px;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+    }
+    .tb-ctrl button:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .tb-ctrl svg { width: 11px; height: 11px; }
+
+    .body { flex: 1; display: flex; min-height: 0; }
+
+    /* ===== 左侧栏：品牌 + 操作入口 ===== */
+    .side {
+        width: 248px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        padding: 28px 22px 20px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand .logo {
+        width: 42px; height: 42px;
+        border-radius: 12px;
+        background: var(--accent-gradient);
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        flex-shrink: 0;
+    }
+    .brand .logo svg { width: 20px; height: 20px; }
+    .brand .name { font-size: 14.5px; font-weight: 650; letter-spacing: 0.1px; }
+    .brand .ver { margin-top: 2px; font-size: 10px; color: var(--text-muted); }
+
+    .side h1 {
+        margin-top: 34px;
+        font-size: 19px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+    }
+    .side .sub {
+        margin-top: 8px;
+        font-size: 11.5px;
+        line-height: 1.65;
+        color: var(--text-muted);
+    }
+
+    .open-btn {
+        margin-top: 22px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: none;
+        border-radius: var(--r-item);
+        background: var(--accent-gradient);
+        color: #fff;
+        font-size: 12.5px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: var(--glow);
+        transition: filter 0.15s;
+    }
+    .open-btn:hover { filter: brightness(1.12); }
+    .open-btn svg { width: 14px; height: 14px; }
+
+    .side-foot {
+        margin-top: auto;
+        font-size: 10px;
+        color: var(--text-muted);
+        line-height: 1.7;
+    }
+
+    /* ===== 右侧内容区 ===== */
+    .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .view { display: none; flex-direction: column; flex: 1; min-height: 0; }
+    .view.on { display: flex; animation: fade 0.22s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* --- 视图 A：最近项目 --- */
+    .recent-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 24px 26px 14px;
+    }
+    .recent-head h2 {
+        font-size: 13px;
+        font-weight: 620;
+        letter-spacing: 0.2px;
+        color: var(--text-secondary);
+    }
+    .recent-head .n { color: var(--text-muted); font-weight: 500; margin-left: 2px; }
+    .search {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 218px;
+        height: 30px;
+        padding: 0 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg-input);
+        color: var(--text-muted);
+        transition: all 0.15s;
+    }
+    .search:focus-within { border-color: var(--line-active); box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.12); }
+    .search svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .search input {
+        flex: 1; min-width: 0;
+        border: none; outline: none;
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 11.5px;
+        font-family: inherit;
+    }
+    .search input::placeholder { color: var(--text-muted); }
+
+    .rp-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 16px; }
+    .rp-list::-webkit-scrollbar { width: 3px; }
+    .rp-list::-webkit-scrollbar-thumb { background: #2c3344; border-radius: 4px; }
+
+    .rp {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 11px 13px;
+        border-radius: var(--r-item);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background 0.13s, border-color 0.13s;
+    }
+    .rp + .rp { margin-top: 2px; }
+    .rp:hover { background: var(--bg-hover); }
+    .rp.on { background: var(--bg-active); border-color: var(--line-active); }
+    .rp .ico {
+        width: 34px; height: 34px;
+        flex-shrink: 0;
+        border-radius: 9px;
+        border: 1px solid var(--line);
+        background: var(--bg-raise);
+        color: var(--text-muted);
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.13s;
+    }
+    .rp:hover .ico, .rp.on .ico { color: var(--accent-light); border-color: var(--line-active); }
+    .rp .ico svg { width: 15px; height: 15px; }
+    .rp .meta { flex: 1; min-width: 0; }
+    .rp .nm { font-size: 12.5px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp .pt {
+        margin-top: 3px;
+        font-size: 10.5px;
+        color: var(--text-muted);
+        font-family: var(--mono);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rp .tm { flex-shrink: 0; font-size: 10px; color: var(--text-muted); }
+    .rp .go {
+        flex-shrink: 0;
+        width: 13px; height: 13px;
+        color: var(--accent-light);
+        opacity: 0;
+        transform: translateX(-3px);
+        transition: all 0.15s;
+    }
+    .rp:hover .go { opacity: 1; transform: none; }
+    .rp.gone { opacity: 0.4; cursor: default; }
+    .rp.gone .tm { color: #e2726b; }
+
+    .rp-foot {
+        flex-shrink: 0;
+        padding: 12px 26px 16px;
+        border-top: 1px solid var(--line);
+        font-size: 10.5px;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .rp-foot svg { width: 11px; height: 11px; }
+
+    /* --- 视图 B：目录浏览 --- */
+    .pane-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 22px 26px 0;
+    }
+    .pane-head .back {
+        width: 30px; height: 30px;
+        flex-shrink: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+    }
+    .pane-head .back:hover { color: var(--accent-light); border-color: var(--line-active); background: var(--bg-active); }
+    .pane-head .back svg { width: 13px; height: 13px; }
+    .pane-head h2 { font-size: 14px; font-weight: 620; letter-spacing: -0.01em; }
+    .pane-head .sub { margin-top: 3px; font-size: 10.5px; color: var(--text-muted); }
+
+    .addr { display: flex; gap: 8px; margin: 18px 26px 0; }
+    .addr .nav {
+        width: 32px; height: 32px;
+        flex-shrink: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg-input);
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+    }
+    .addr .nav:hover { color: var(--accent-light); border-color: var(--line-active); background: var(--bg-active); }
+    .addr .nav svg { width: 13px; height: 13px; }
+    .addr input {
+        flex: 1; min-width: 0;
+        height: 32px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: 11.5px;
+        font-family: var(--mono);
+        outline: none;
+        transition: all 0.15s;
+    }
+    .addr input:focus { border-color: var(--line-active); box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.12); }
+
+    .drives { display: flex; gap: 6px; margin: 10px 26px 0; }
+    .drive {
+        display: inline-flex;
+        align-items: center;
+        height: 26px;
+        padding: 0 11px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 10.5px;
+        font-weight: 550;
+        font-family: var(--mono);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .drive:hover, .drive.on {
+        color: var(--accent-light);
+        border-color: var(--line-active);
+        background: var(--bg-active);
+    }
+
+    .dirs {
+        flex: 1;
+        min-height: 0;
+        margin: 14px 26px 0;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 5px;
+        overflow-y: auto;
+    }
+    .dirs::-webkit-scrollbar { width: 3px; }
+    .dirs::-webkit-scrollbar-thumb { background: #2c3344; border-radius: 4px; }
+    .dir {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        height: 40px;
+        padding: 0 12px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: background 0.12s, border-color 0.12s;
+    }
+    .dir svg { width: 15px; height: 15px; color: var(--text-muted); transition: color 0.12s; flex-shrink: 0; }
+    .dir:hover { background: var(--bg-hover); }
+    .dir:hover svg { color: var(--text-secondary); }
+    .dir.sel { background: var(--bg-active); border-color: var(--line-active); }
+    .dir.sel svg { color: var(--accent-light); }
+    .dir .chev {
+        margin-left: auto;
+        width: 13px; height: 13px;
+        color: var(--text-muted);
+        opacity: 0;
+        transition: opacity 0.12s;
+    }
+    .dir:hover .chev { opacity: 1; }
+
+    .pane-foot {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 26px 20px;
+    }
+    .sel-path {
+        flex: 1; min-width: 0;
+        display: flex; align-items: center; gap: 8px;
+        font-size: 10.5px;
+        color: var(--text-muted);
+    }
+    .sel-path svg { width: 12px; height: 12px; color: var(--accent-light); flex-shrink: 0; }
+    .sel-path .p {
+        font-family: var(--mono);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        direction: rtl; text-align: left;
+    }
+    .btn {
+        height: 34px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 550;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn:hover { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.12); background: var(--bg-hover); }
+    .btn.primary {
+        background: var(--accent-gradient);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        box-shadow: var(--glow);
+    }
+    .btn.primary:hover { filter: brightness(1.12); }
+</style>
+</head>
+<body>
+
+<div class="win">
+
+    <!-- 标题栏 -->
+    <div class="titlebar">
+        <div class="tb-brand">
+            <span class="dot">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg>
+            </span>
+            Qualia Code
+        </div>
+        <div class="tb-ctrl">
+            <button title="最小化"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+            <button title="最大化"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
+            <button title="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        </div>
+    </div>
+
+    <div class="body">
+
+        <!-- ===== 左侧栏：品牌 + 操作 ===== -->
+        <aside class="side">
+            <div class="brand">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg>
+                </div>
+                <div>
+                    <div class="name">Qualia Code</div>
+                    <div class="ver">AI 编程搭档 · v1.0</div>
+                </div>
+            </div>
+
+            <h1>打开项目</h1>
+            <div class="sub">工作区是 Qualia Code 的活动范围，会话、文件树与技能都存放在这里</div>
+
+            <button class="open-btn" onclick="showBrowse()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                打开文件夹
+            </button>
+
+            <div class="side-foot">双击右侧项目可直接打开<br/>历史记录保存于 ~/.qualia</div>
+        </aside>
+
+        <!-- ===== 右侧内容区 ===== -->
+        <main class="pane">
+
+            <!-- 视图 A：最近项目 -->
+            <div class="view on" id="viewRecent">
+                <div class="recent-head">
+                    <h2>最近打开<span class="n">· 4</span></h2>
+                    <label class="search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+                        <input type="text" placeholder="搜索项目" />
+                    </label>
+                </div>
+
+                <div class="rp-list">
+                    <div class="rp on">
+                        <span class="ico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </span>
+                        <div class="meta">
+                            <div class="nm">qualia</div>
+                            <div class="pt">D:\Projects\qualia</div>
+                        </div>
+                        <span class="tm">今天 14:20</span>
+                        <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="rp">
+                        <span class="ico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </span>
+                        <div class="meta">
+                            <div class="nm">lunar-landing-web</div>
+                            <div class="pt">D:\Projects\lunar-landing-web</div>
+                        </div>
+                        <span class="tm">昨天</span>
+                        <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="rp">
+                        <span class="ico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </span>
+                        <div class="meta">
+                            <div class="nm">data-pipeline</div>
+                            <div class="pt">E:\Work\data-pipeline</div>
+                        </div>
+                        <span class="tm">3 天前</span>
+                        <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="rp gone">
+                        <span class="ico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        </span>
+                        <div class="meta">
+                            <div class="nm">demo-scratch</div>
+                            <div class="pt">C:\tmp\demo-scratch</div>
+                        </div>
+                        <span class="tm">不存在</span>
+                    </div>
+                </div>
+
+                <div class="rp-foot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    双击项目直接打开；已删除的项目会从列表中移除
+                </div>
+            </div>
+
+            <!-- 视图 B：目录浏览 -->
+            <div class="view" id="viewBrowse">
+                <div class="pane-head">
+                    <button class="back" onclick="showRecent()" title="返回">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                    </button>
+                    <div>
+                        <h2>选择文件夹</h2>
+                        <div class="sub">进入目标目录后点击「打开」</div>
+                    </div>
+                </div>
+
+                <div class="addr">
+                    <button class="nav" title="上级目录">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                    </button>
+                    <button class="nav" title="用户主目录">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 20z"/><polyline points="9 21.5 9 14 15 14 15 21.5"/></svg>
+                    </button>
+                    <input type="text" value="D:\Projects" spellcheck="false" />
+                </div>
+
+                <div class="drives">
+                    <button class="drive">C:\</button>
+                    <button class="drive on">D:\</button>
+                    <button class="drive">E:\</button>
+                </div>
+
+                <div class="dirs">
+                    <div class="dir">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        archived
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="dir">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        experiments
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="dir">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        lunar-landing-web
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="dir sel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        qualia
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="dir">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        sandbox
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                </div>
+
+                <div class="pane-foot">
+                    <div class="sel-path">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span class="p">D:\Projects\qualia</span>
+                    </div>
+                    <button class="btn" onclick="showRecent()">取消</button>
+                    <button class="btn primary">打开</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<script>
+    function showBrowse() {
+        document.getElementById('viewRecent').classList.remove('on');
+        document.getElementById('viewBrowse').classList.add('on');
+    }
+    function showRecent() {
+        document.getElementById('viewBrowse').classList.remove('on');
+        document.getElementById('viewRecent').classList.add('on');
+    }
+    document.querySelectorAll('.dir').forEach(d => {
+        d.addEventListener('click', () => {
+            document.querySelectorAll('.dir').forEach(x => x.classList.remove('sel'));
+            d.classList.add('sel');
+            document.querySelector('.sel-path .p').textContent =
+                'D:\\Projects\\' + d.textContent.trim().split('\n')[0].trim();
+        });
+    });
+    document.querySelectorAll('.rp:not(.gone)').forEach(r => {
+        r.addEventListener('click', () => {
+            document.querySelectorAll('.rp').forEach(x => x.classList.remove('on'));
+            r.classList.add('on');
+        });
+    });
+</script>
+
+</body>
+</html>

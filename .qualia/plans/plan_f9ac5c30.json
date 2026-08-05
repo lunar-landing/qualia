@@ -1,0 +1,49 @@
+{
+	"createdAt":1785835700234,
+	"id":"plan_f9ac5c30",
+	"status":"PLANNING",
+	"tasks":[
+		{
+			"createdAt":1785835700238,
+			"dependencies":[],
+			"description":"确定 home.html 页面的功能、布局和内容需求",
+			"id":"task_c0873ae8",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"分析需求并设计页面结构",
+			"updatedAt":1785835907726
+		},
+		{
+			"createdAt":1785835700240,
+			"dependencies":[],
+			"description":"创建 home.html 文件，编写基本的 HTML 骨架代码",
+			"id":"task_095221ea",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"编写 HTML 基础结构",
+			"updatedAt":1785835913233
+		},
+		{
+			"createdAt":1785835700240,
+			"dependencies":[],
+			"description":"填充页面内容，添加 CSS 样式美化页面",
+			"id":"task_df933751",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"添加页面内容和样式",
+			"updatedAt":1785835913240
+		},
+		{
+			"createdAt":1785835700242,
+			"dependencies":[],
+			"description":"测试页面功能，优化代码和用户体验",
+			"id":"task_2723a43f",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"测试和优化",
+			"updatedAt":1785835913242
+		}
+	],
+	"title":"编写 home.html 页面",
+	"updatedAt":1785835913242
+}

@@ -162,6 +162,10 @@ public class CodeAgentConfig {
      * 初始化工作区目录
      */
     private static void initWorkspace(Path workspacePath) {
+        // 启动时可能尚未选择工作区（前端强制选择流程），此时不做目录初始化
+        if (workspacePath == null) {
+            return;
+        }
         Path qualiaDir = workspacePath.resolve(".qualia");
         if (!Files.exists(qualiaDir)) {
             try {

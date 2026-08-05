@@ -1,16 +1,19 @@
 /**
  * ProjectPanel —— 工作区切换面板（自包含：样式自注入、DOM 自创建，无外部依赖）
  *
+ * 布局（IDE「打开项目」风格，左右双栏）：
+ *   - 左栏：品牌块 + 「打开项目」标题引导 + 「打开文件夹」主按钮
+ *   - 右侧双视图：
+ *     · 最近打开视图：最近项目列表（~/.qualia/workspaces.json）+ 搜索过滤
+ *     · 目录浏览视图：地址栏 + 磁盘快捷入口 + 子目录列表 + 创建并打开
+ *
  * 职责：
  *   1. 侧边栏入口按钮回填当前工作区名称与路径（#wsSwitchName / #wsSwitchPath）
- *   2. 切换弹窗（双视图）：
- *      - 主视图：当前工作区 + 最近打开列表（~/.qualia/workspaces.json）+ 浏览入口
- *      - 浏览视图：全尺寸目录选择器（地址栏 + 磁盘快捷入口 + 子目录大列表）
- *   3. 地址栏输入不存在的目录时提供「创建并打开」；流式对话期间入口置灰、动作拦截
- *   4. 切换成功后回调 window.onWorkspaceSwitched() 完成整页状态刷新
+ *   2. 流式对话期间切换动作拦截；切换成功后回调 window.onWorkspaceSwitched()
+ *   3. 强制模式（启动未绑定工作区）：弹窗不可关闭，选定后整页重载
  *
  * 对外 API：
- *   window.openWorkspaceSwitcher()   打开弹窗（每次打开都重新拉取最新数据，回到主视图）
+ *   window.openWorkspaceSwitcher()   打开弹窗（每次打开都重新拉取最新数据，回到最近视图）
  *   window.closeWorkspaceSwitcher()  关闭弹窗
  *   （内部事件处理统一挂在 window.QWorkspace 命名空间下，供生成的 DOM 引用）
  */
@@ -19,7 +22,7 @@
 
     // ===== 样式注入 =====
     const CSS = `
-        /* ===== 工作区切换弹窗 ===== */
+        /* ===== 工作区切换弹窗：IDE「打开项目」风格双栏 ===== */
         .ws-sw-overlay {
             position: fixed;
             inset: 0;
@@ -40,292 +43,343 @@
             to { opacity: 1; }
         }
         .ws-sw-dialog {
-            width: min(504px, calc(100vw - 48px));
-            max-height: min(78vh, 648px);
+            display: flex;
+            width: min(860px, calc(100vw - 48px));
+            height: min(540px, calc(100vh - 64px));
+            min-height: 380px;
             background: var(--bg-surface);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
             overflow: hidden;
         }
         .ws-sw-overlay.open .ws-sw-dialog {
-            animation: wsSwPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: wsSwPop 0.26s cubic-bezier(0.16, 1, 0.3, 1);
         }
         @keyframes wsSwPop {
-            from { opacity: 0; transform: translateY(10px) scale(0.97); }
+            from { opacity: 0; transform: translateY(12px) scale(0.985); }
             to { opacity: 1; transform: none; }
         }
-        /* 头部：渐变图标块 + 标题（随视图切换），浏览视图下左侧出现返回按钮 */
-        .ws-sw-head {
-            display: flex;
-            align-items: center;
-            gap: 11px;
-            padding: 16px 18px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .ws-sw-head .back-btn {
-            display: none;
+
+        /* ----- 左栏：品牌 + 操作入口 ----- */
+        .ws-sw-side {
+            width: 248px;
             flex-shrink: 0;
-            width: 31px;
-            height: 31px;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--border-color);
-            border-radius: 9px;
-            background: transparent;
-            color: var(--text-secondary);
-            font-size: 11.5px;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .ws-sw-head .back-btn:hover {
-            color: var(--accent-light);
-            border-color: var(--border-active);
-            background: var(--bg-active);
-        }
-        .ws-sw-dialog.browsing .back-btn { display: flex; }
-        .ws-sw-dialog.browsing .head-icon { display: none; }
-        .ws-sw-head .head-icon {
-            width: 31px;
-            height: 31px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 9px;
-            background: var(--accent-gradient);
-            color: var(--white);
-            font-size: 12.5px;
-            box-shadow: var(--shadow-input);
-        }
-        .ws-sw-head .head-text { flex: 1; min-width: 0; }
-        .ws-sw-head h4 {
-            font-size: 13.5px;
-            font-weight: 600;
-            color: var(--text-primary);
-            line-height: 1.3;
-        }
-        .ws-sw-head .head-sub {
-            font-size: 10.5px;
-            color: var(--text-muted);
-            margin-top: 1px;
-        }
-        .ws-sw-head .close-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 12.5px;
-            cursor: pointer;
-            width: 27px;
-            height: 27px;
-            border-radius: 7px;
-            transition: all 0.15s;
-        }
-        .ws-sw-head .close-btn:hover {
-            color: var(--text-primary);
-            background: var(--bg-hover);
-        }
-        .ws-sw-body {
-            padding: 16px 18px 18px;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            padding: 24px 22px 18px;
+            border-right: 1px solid var(--border-color);
         }
-        .ws-sw-body::-webkit-scrollbar { width: 4px; }
-        .ws-sw-body::-webkit-scrollbar-track { background: transparent; }
-        .ws-sw-body::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
-
-        .ws-sw-label {
-            font-size: 10.5px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            margin-bottom: 7px;
+        .ws-sw-side-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
         }
-        .ws-sw-ico {
+        .ws-sw-brand { display: flex; align-items: center; gap: 11px; }
+        .ws-sw-logo {
+            width: 40px;
+            height: 40px;
             flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
+            border-radius: 12px;
+            background: var(--accent-gradient);
+            color: var(--white);
+            box-shadow: var(--shadow-input), inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
-        /* 当前工作区卡片：品牌色高亮 */
-        .ws-sw-current {
+        .ws-sw-logo svg { width: 19px; height: 19px; }
+        .ws-sw-brand-name {
+            font-size: 14px;
+            font-weight: 650;
+            color: var(--text-primary);
+            letter-spacing: 0.1px;
+        }
+        .ws-sw-brand-ver {
+            margin-top: 2px;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .ws-sw-close {
+            flex-shrink: 0;
+            width: 27px;
+            height: 27px;
+            border: none;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ws-sw-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+        .ws-sw-side-title {
+            margin-top: 30px;
+            font-size: 18px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+            color: var(--text-primary);
+        }
+        .ws-sw-side-sub {
+            margin-top: 8px;
+            font-size: 11.5px;
+            line-height: 1.65;
+            color: var(--text-muted);
+        }
+        .ws-sw-open-btn {
+            margin-top: 20px;
+            height: 38px;
             display: flex;
             align-items: center;
-            gap: 11px;
-            padding: 11px 13px;
-            border: 1px solid var(--border-active);
-            border-radius: var(--radius-sm);
-            background: var(--bg-active);
-        }
-        .ws-sw-current .ws-sw-ico {
-            width: 31px;
-            height: 31px;
+            justify-content: center;
+            gap: 9px;
+            border: none;
+            border-radius: 9px;
             background: var(--accent-gradient);
             color: var(--white);
             font-size: 12.5px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
             box-shadow: var(--shadow-input);
+            transition: filter 0.15s;
         }
-        .ws-sw-current .info { flex: 1; min-width: 0; }
-        .ws-sw-current .name {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-primary);
+        .ws-sw-open-btn:hover { filter: brightness(1.12); }
+        .ws-sw-open-btn i { font-size: 12.5px; }
+        .ws-sw-side-foot {
+            margin-top: auto;
+            padding-top: 16px;
+            font-size: 10px;
+            line-height: 1.7;
+            color: var(--text-muted);
         }
-        .ws-sw-current .path {
-            font-size: 10.5px;
-            color: var(--text-secondary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            margin-top: 2px;
+
+        /* ----- 右侧内容区 ----- */
+        .ws-sw-pane {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
         }
-        .ws-sw-current .cur-tag {
-            flex-shrink: 0;
-            font-size: 10.5px;
-            font-weight: 600;
-            color: var(--accent-light);
-            background: var(--bg-surface);
-            border: 1px solid var(--border-active);
-            border-radius: 999px;
-            padding: 2px 9px;
-        }
-        /* 最近打开列表 */
-        .ws-sw-recent { display: flex; flex-direction: column; gap: 3px; }
-        .ws-sw-item {
+        .ws-sw-view { display: none; flex-direction: column; flex: 1; min-height: 0; }
+        .ws-sw-view.on { display: flex; animation: wsSwFade 0.2s ease; }
+
+        /* --- 最近打开视图 --- */
+        .ws-sw-rp-head {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 7px 9px;
+            gap: 12px;
+            padding: 22px 24px 12px;
+        }
+        .ws-sw-rp-head h3 {
+            font-size: 13px;
+            font-weight: 620;
+            letter-spacing: 0.2px;
+            color: var(--text-secondary);
+        }
+        .ws-sw-rp-count { color: var(--text-muted); font-weight: 500; margin-left: 3px; }
+        .ws-sw-search {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 208px;
+            height: 30px;
+            padding: 0 11px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-input);
+            color: var(--text-muted);
+            font-size: 11px;
+            transition: all 0.15s;
+        }
+        .ws-sw-search:focus-within {
+            border-color: var(--border-active);
+            box-shadow: var(--shadow-input);
+        }
+        .ws-sw-search input {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 11.5px;
+            font-family: inherit;
+        }
+        .ws-sw-search input::placeholder { color: var(--text-muted); }
+
+        .ws-sw-rp-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 2px 18px 12px;
+        }
+        .ws-sw-rp-list::-webkit-scrollbar { width: 4px; }
+        .ws-sw-rp-list::-webkit-scrollbar-track { background: transparent; }
+        .ws-sw-rp-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
+
+        .ws-sw-rp {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
             border-radius: 9px;
             border: 1px solid transparent;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background 0.13s, border-color 0.13s;
         }
-        .ws-sw-item:hover {
-            background: var(--bg-hover);
-            border-color: var(--border-color);
-        }
-        .ws-sw-item .ws-sw-ico {
-            width: 25px;
-            height: 25px;
-            background: var(--bg-hover);
+        .ws-sw-rp + .ws-sw-rp { margin-top: 2px; }
+        .ws-sw-rp:hover { background: var(--bg-hover); }
+        .ws-sw-rp.current { background: var(--bg-active); border-color: var(--border-active); }
+        .ws-sw-rp .ico {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
             border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            font-size: 11px;
-            transition: all 0.15s;
+            background: var(--bg-hover);
+            color: var(--text-muted);
+            font-size: 13px;
+            transition: all 0.13s;
         }
-        .ws-sw-item:hover .ws-sw-ico {
+        .ws-sw-rp:hover .ico, .ws-sw-rp.current .ico {
             color: var(--accent-light);
             border-color: var(--border-active);
         }
-        .ws-sw-item .info { flex: 1; min-width: 0; }
-        .ws-sw-item .name {
-            font-size: 11.5px;
-            font-weight: 500;
+        .ws-sw-rp .meta { flex: 1; min-width: 0; }
+        .ws-sw-rp .nm {
+            font-size: 12.5px;
+            font-weight: 550;
             color: var(--text-primary);
-            transition: color 0.15s;
-        }
-        .ws-sw-item:hover .name { color: var(--accent-light); }
-        .ws-sw-item .path {
-            font-size: 10.5px;
-            color: var(--text-muted);
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
-            margin-top: 1px;
         }
-        .ws-sw-item .tag {
-            flex-shrink: 0;
+        .ws-sw-rp .pt {
+            margin-top: 3px;
             font-size: 10.5px;
             color: var(--text-muted);
-            padding: 1px 4px;
+            font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .ws-sw-item .go {
+        .ws-sw-rp .cur-tag {
             flex-shrink: 0;
-            display: none;
+            font-size: 10px;
+            font-weight: 600;
             color: var(--accent-light);
-            font-size: 11px;
-            padding: 1px 4px;
+            border: 1px solid var(--border-active);
+            border-radius: 999px;
+            padding: 2px 8px;
         }
-        .ws-sw-item:hover .tag { display: none; }
-        .ws-sw-item:hover .go { display: block; }
-        .ws-sw-item.missing { opacity: 0.45; cursor: not-allowed; }
-        .ws-sw-item.missing:hover { background: transparent; border-color: transparent; }
-        .ws-sw-item.missing:hover .tag { display: block; }
-        .ws-sw-item.missing:hover .go { display: none; }
-        .ws-sw-item.missing:hover .ws-sw-ico { color: var(--text-secondary); border-color: var(--border-color); }
-        .ws-sw-item.missing:hover .name { color: var(--text-primary); }
-        .ws-sw-empty {
-            font-size: 11px;
-            color: var(--text-muted);
-            padding: 6px 2px;
-        }
-        /* 浏览入口：整行虚线卡片，视觉上与列表项同族 */
-        .ws-sw-browse-entry {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            padding: 9px 11px;
-            border: 1px dashed var(--border-color);
-            border-radius: 9px;
-            background: transparent;
-            cursor: pointer;
-            text-align: left;
+        .ws-sw-rp .tm { flex-shrink: 0; font-size: 10px; color: var(--text-muted); }
+        .ws-sw-rp .go {
+            flex-shrink: 0;
+            color: var(--accent-light);
+            font-size: 10.5px;
+            opacity: 0;
+            transform: translateX(-3px);
             transition: all 0.15s;
         }
-        .ws-sw-browse-entry:hover {
+        .ws-sw-rp:hover .go { opacity: 1; transform: none; }
+        .ws-sw-rp.missing { opacity: 0.4; cursor: not-allowed; }
+        .ws-sw-rp.missing:hover { background: transparent; }
+        .ws-sw-rp.missing:hover .ico { color: var(--text-muted); border-color: var(--border-color); }
+        .ws-sw-rp.missing:hover .go { opacity: 0; }
+        .ws-sw-rp.missing .tm { color: var(--error); }
+        .ws-sw-rp.hidden { display: none; }
+        .ws-sw-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 34px 20px;
+            font-size: 11.5px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .ws-sw-empty i { font-size: 18px; opacity: 0.5; }
+        .ws-sw-rp-foot {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 11px 24px 14px;
+            border-top: 1px solid var(--border-color);
+            font-size: 10.5px;
+            color: var(--text-muted);
+        }
+        .ws-sw-rp-foot i { font-size: 10.5px; }
+        .ws-sw-rp-foot .foot-close {
+            margin-left: auto;
+            flex-shrink: 0;
+            height: 26px;
+            padding: 0 13px;
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 550;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ws-sw-rp-foot .foot-close:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.12);
+            background: var(--bg-hover);
+        }
+
+        /* --- 目录浏览视图 --- */
+        .ws-sw-br-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px 24px 0;
+        }
+        .ws-sw-br-head .back-btn {
+            width: 30px;
+            height: 30px;
+            flex-shrink: 0;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 11.5px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ws-sw-br-head .back-btn:hover {
+            color: var(--accent-light);
             border-color: var(--border-active);
             background: var(--bg-active);
         }
-        .ws-sw-browse-entry .ws-sw-ico {
-            width: 25px;
-            height: 25px;
-            background: var(--bg-hover);
-            border: 1px solid var(--border-color);
-            color: var(--accent-light);
-            font-size: 11px;
-        }
-        .ws-sw-browse-entry .info { flex: 1; min-width: 0; }
-        .ws-sw-browse-entry .name {
-            font-size: 11.5px;
-            font-weight: 500;
+        .ws-sw-br-head h3 {
+            font-size: 14px;
+            font-weight: 620;
+            letter-spacing: -0.01em;
             color: var(--text-primary);
         }
-        .ws-sw-browse-entry .path {
-            font-size: 10.5px;
-            color: var(--text-muted);
-            margin-top: 1px;
-        }
-        .ws-sw-browse-entry .go {
-            color: var(--text-muted);
-            font-size: 10.5px;
-            transition: color 0.15s;
-        }
-        .ws-sw-browse-entry:hover .go { color: var(--accent-light); }
-        /* ===== 浏览视图 ===== */
-        .ws-sw-browse-view {
-            display: flex;
-            flex-direction: column;
-            gap: 11px;
-            min-height: 0;
-        }
+        .ws-sw-br-head .sub { margin-top: 3px; font-size: 10.5px; color: var(--text-muted); }
+
         /* 地址栏：上级/主目录 + 可编辑路径输入（回车跳转） */
-        .ws-sw-addr-row { display: flex; gap: 7px; }
+        .ws-sw-addr-row { display: flex; gap: 8px; margin: 16px 24px 0; }
         .ws-sw-addr-row .nav-btn {
             flex-shrink: 0;
             width: 32px;
             height: 32px;
             border: 1px solid var(--border-color);
-            border-radius: 9px;
+            border-radius: 8px;
             background: var(--bg-input);
             color: var(--text-secondary);
             font-size: 11px;
@@ -344,11 +398,11 @@
             height: 32px;
             padding: 0 12px;
             border: 1px solid var(--border-color);
-            border-radius: 9px;
+            border-radius: 8px;
             background: var(--bg-input);
             color: var(--text-primary);
             font-size: 11.5px;
-            font-family: inherit;
+            font-family: var(--font-mono, ui-monospace, Consolas, monospace);
             outline: none;
             transition: all 0.15s;
         }
@@ -357,42 +411,42 @@
             box-shadow: var(--shadow-input);
         }
         .ws-sw-addr-row input::placeholder { color: var(--text-muted); }
-        /* 磁盘/主目录快捷 chips */
-        .ws-sw-drives { display: flex; flex-wrap: wrap; gap: 5px; }
+
+        /* 磁盘快捷 chips */
+        .ws-sw-drives { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 24px 0; }
+        .ws-sw-drives:empty { display: none; }
         .ws-sw-drives .drive-chip {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 5px 11px;
+            gap: 6px;
+            height: 26px;
+            padding: 0 11px;
             border: 1px solid var(--border-color);
             border-radius: 7px;
             background: transparent;
             color: var(--text-secondary);
             font-size: 10.5px;
-            font-weight: 500;
+            font-weight: 550;
+            font-family: var(--font-mono, ui-monospace, Consolas, monospace);
             cursor: pointer;
             transition: all 0.15s;
         }
-        .ws-sw-drives .drive-chip:hover {
+        .ws-sw-drives .drive-chip:hover, .ws-sw-drives .drive-chip.on {
             color: var(--accent-light);
             border-color: var(--border-active);
             background: var(--bg-active);
         }
-        .ws-sw-drives .drive-chip i { font-size: 10.5px; }
-        .ws-sw-drives .drive-chip.on {
-            color: var(--accent-light);
-            border-color: var(--border-active);
-            background: var(--bg-active);
-        }
-        /* 子目录大列表 */
+        .ws-sw-drives .drive-chip i { font-size: 10px; }
+
+        /* 子目录列表 */
         .ws-sw-br-list {
             flex: 1;
-            min-height: 198px;
-            max-height: 288px;
-            overflow-y: auto;
+            min-height: 0;
+            margin: 12px 24px 0;
             border: 1px solid var(--border-color);
-            border-radius: 9px;
+            border-radius: 11px;
             padding: 5px;
+            overflow-y: auto;
         }
         .ws-sw-br-list::-webkit-scrollbar { width: 4px; }
         .ws-sw-br-list::-webkit-scrollbar-track { background: transparent; }
@@ -400,37 +454,42 @@
         .ws-sw-br-item {
             display: flex;
             align-items: center;
-            gap: 9px;
-            padding: 7px 10px;
-            border-radius: 7px;
-            font-size: 11.5px;
+            gap: 11px;
+            height: 38px;
+            padding: 0 12px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            font-size: 12px;
+            font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
-            transition: background 0.12s;
+            transition: background 0.12s, border-color 0.12s;
         }
-        .ws-sw-br-item:hover { background: var(--bg-hover); }
         .ws-sw-br-item i {
-            font-size: 11px;
-            color: var(--text-secondary);
-            width: 14px;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            width: 15px;
             text-align: center;
             transition: color 0.12s;
         }
-        .ws-sw-br-item:hover i { color: var(--accent-light); }
+        .ws-sw-br-item:hover { background: var(--bg-hover); }
+        .ws-sw-br-item:hover i { color: var(--text-secondary); }
         .ws-sw-br-item .enter {
             margin-left: auto;
-            display: none;
             color: var(--text-muted);
             font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.12s;
         }
-        .ws-sw-br-item:hover .enter { display: block; }
+        .ws-sw-br-item:hover .enter { opacity: 1; }
         .ws-sw-br-empty {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 7px;
-            min-height: 162px;
+            min-height: 150px;
+            height: 100%;
             font-size: 11px;
             color: var(--text-muted);
             text-align: center;
@@ -450,50 +509,13 @@
         }
         .ws-sw-br-empty .create-btn:hover { background: var(--accent-light); color: var(--white); }
         .ws-sw-br-empty.error { color: var(--error); }
-        /* 底部动作栏：选中路径 + 打开按钮 */
-        .ws-sw-br-foot {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-        }
-        .ws-sw-br-foot .sel {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 10.5px;
-            color: var(--text-secondary);
-        }
-        .ws-sw-br-foot .sel i { color: var(--accent-light); font-size: 11px; flex-shrink: 0; }
-        .ws-sw-br-foot .sel .p {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            direction: rtl;
-            text-align: left;
-        }
-        .ws-sw-br-foot .pick-btn {
-            flex-shrink: 0;
-            height: 31px;
-            padding: 0 16px;
-            border: none;
-            border-radius: 9px;
-            background: var(--accent-gradient);
-            color: var(--white);
-            font-size: 11.5px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: var(--shadow-input);
-            transition: all 0.15s;
-        }
-        .ws-sw-br-foot .pick-btn:hover { filter: brightness(1.1); }
-        .ws-sw-br-foot .pick-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        /* 提示行：错误信息（两个视图共用 #wsSwHint） */
+
+        /* 提示行：错误信息（两个视图各一条） */
         .ws-sw-hint {
             display: none;
             align-items: center;
             gap: 9px;
+            margin: 10px 24px 0;
             padding: 8px 12px;
             border: 1px dashed var(--border-color);
             border-radius: 9px;
@@ -503,10 +525,102 @@
         }
         .ws-sw-hint.show { display: flex; }
         .ws-sw-hint.error { color: var(--error); border-color: var(--error); }
+
+        /* 底部动作栏：选中路径 + 取消 + 打开 */
+        .ws-sw-br-foot {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 24px 18px;
+        }
+        .ws-sw-br-foot .sel {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10.5px;
+            color: var(--text-muted);
+        }
+        .ws-sw-br-foot .sel i { color: var(--accent-light); font-size: 11px; flex-shrink: 0; }
+        .ws-sw-br-foot .sel .p {
+            font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            direction: rtl;
+            text-align: left;
+        }
+        .ws-sw-br-foot .ghost-btn {
+            flex-shrink: 0;
+            height: 34px;
+            padding: 0 17px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 550;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ws-sw-br-foot .ghost-btn:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.12);
+            background: var(--bg-hover);
+        }
+        .ws-sw-br-foot .pick-btn {
+            flex-shrink: 0;
+            height: 34px;
+            padding: 0 20px;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent-gradient);
+            color: var(--white);
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            box-shadow: var(--shadow-input);
+            transition: filter 0.15s;
+        }
+        .ws-sw-br-foot .pick-btn:hover { filter: brightness(1.1); }
+        .ws-sw-br-foot .pick-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+        /* ----- 强制模式（启动时未绑定工作区）：拦截一切关闭路径 ----- */
+        .ws-sw-overlay.forced .ws-sw-close { display: none; }
+        .ws-sw-overlay.forced .ws-sw-rp-foot .foot-close { display: none; }
+        .ws-sw-overlay.forced .ws-sw-br-foot .ghost-btn { display: none; }
+
+        /* ----- 窄屏：左栏收窄为顶部条 ----- */
+        @media (max-width: 720px) {
+            .ws-sw-dialog {
+                flex-direction: column;
+                width: min(520px, calc(100vw - 32px));
+                height: auto;
+                max-height: calc(100vh - 48px);
+            }
+            .ws-sw-side {
+                width: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 16px 18px;
+            }
+            .ws-sw-side-title, .ws-sw-side-sub, .ws-sw-side-foot { display: none; }
+            .ws-sw-open-btn { margin-top: 12px; }
+            .ws-sw-rp-list { min-height: 220px; }
+            .ws-sw-br-list { min-height: 180px; }
+        }
     `;
 
     let switching = false;
-    let mainData = null;        // 主视图数据缓存（返回时免重新请求）
+    let forced = false;         // 强制选择模式：启动时未绑定工作区，弹窗不可关闭
+
+    // 品牌四角星（与聊天区 AI 头像同款）
+    const STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg>';
+    let mainData = null;        // 最近视图数据缓存（返回时免重新请求）
     let browsePath = '';        // 浏览视图当前目录
     let browseParent = null;    // 当前目录上级（null=已在盘符列表层）
     let rootsCache = null;      // 盘符列表 + 主目录（进入浏览视图时拉取一次）
@@ -517,12 +631,19 @@
         return div.innerHTML;
     }
 
-    function fmtTime(iso) {
+    // 相对时间：今天 HH:mm / 昨天 / N 天前 / yyyy-MM-dd
+    function relTime(iso) {
         if (!iso) return '';
         const d = new Date(iso);
         if (isNaN(d.getTime())) return '';
         const pad = n => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const now = new Date();
+        const dayStart = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const diffDays = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+        if (diffDays <= 0) return `今天 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        if (diffDays === 1) return '昨天';
+        if (diffDays < 7) return `${diffDays} 天前`;
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
     // Windows 绝对路径的父目录（仅用于确定浏览起点，失败时回退主目录）
@@ -533,87 +654,82 @@
         return t.slice(0, i);
     }
 
-    // ===== 头部视图态 =====
-    function setHead(browsing) {
+    // ===== 视图切换 =====
+    function setView(browsing) {
         const dialog = document.querySelector('#wsSwOverlay .ws-sw-dialog');
         if (dialog) dialog.classList.toggle('browsing', browsing);
-        const title = document.getElementById('wsSwTitle');
-        const sub = document.getElementById('wsSwSub');
-        if (title) title.textContent = browsing ? '选择目录' : '切换工作区';
-        if (sub) sub.textContent = browsing
-            ? '进入目标目录后点击「打开此目录」'
-            : '会话、文件树与技能将切换到新工作区';
+        document.getElementById('wsSwViewRecent').classList.toggle('on', !browsing);
+        document.getElementById('wsSwViewBrowse').classList.toggle('on', browsing);
+        hideHint();
     }
 
-    // ===== 主视图 =====
+    // ===== 最近打开视图 =====
     async function load() {
-        const body = document.getElementById('wsSwBody');
+        const list = document.getElementById('wsSwRecentList');
         try {
             const res = await fetch('/api/workspace');
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             mainData = data;
-            renderMain(data);
+            renderRecent(data);
             applyCurrentToSidebar(data.current);
         } catch (e) {
-            body.innerHTML = `<div class="ws-sw-empty">加载失败：${esc(e.message)}</div>`;
+            list.innerHTML = `<div class="ws-sw-empty"><i class="fas fa-circle-exclamation"></i><span>加载失败：${esc(e.message)}</span></div>`;
         }
     }
 
-    function renderMain(data) {
-        setHead(false);
-        const cur = data.current || {};
-        const curPath = (cur.path || '').toLowerCase();
-        // 当前工作区已用高亮卡片展示，最近列表中不再重复
-        const recent = (Array.isArray(data.recent) ? data.recent : [])
-            .filter(item => (item.path || '').toLowerCase() !== curPath);
+    function renderRecent(data) {
+        setView(false);
+        const cur = data.current || null;
+        const curPath = cur ? String(cur.path || '').toLowerCase() : '';
+        const recent = Array.isArray(data.recent) ? data.recent : [];
 
         const items = recent.map(item => {
             const missing = item.exists === false;
-            const tag = missing ? '<span class="tag">不存在</span>'
-                      : (fmtTime(item.lastOpened) ? `<span class="tag">${esc(fmtTime(item.lastOpened))}</span>` : '');
+            const isCurrent = (item.path || '').toLowerCase() === curPath;
+            const tm = missing ? '不存在' : relTime(item.lastOpened);
             const click = missing ? '' :
                 ` onclick="QWorkspace.switchTo(this.dataset.path)" data-path="${esc(item.path)}"`;
             return `
-                <div class="ws-sw-item${missing ? ' missing' : ''}"${click}>
-                    <span class="ws-sw-ico"><i class="fas fa-folder"></i></span>
-                    <div class="info">
-                        <div class="name">${esc(item.name)}</div>
-                        <div class="path">${esc(item.path)}</div>
+                <div class="ws-sw-rp${missing ? ' missing' : ''}${isCurrent ? ' current' : ''}"${click}>
+                    <span class="ico"><i class="fas fa-folder${isCurrent ? '-open' : ''}"></i></span>
+                    <div class="meta">
+                        <div class="nm">${esc(item.name)}</div>
+                        <div class="pt">${esc(item.path)}</div>
                     </div>
-                    ${tag}
-                    <span class="go"><i class="fas fa-arrow-right"></i></span>
+                    ${isCurrent ? '<span class="cur-tag">使用中</span>' : ''}
+                    <span class="tm">${esc(tm)}</span>
+                    <i class="fas fa-arrow-right go"></i>
                 </div>`;
         }).join('');
 
-        document.getElementById('wsSwBody').innerHTML = `
-            <div>
-                <div class="ws-sw-label">当前工作区</div>
-                <div class="ws-sw-current">
-                    <span class="ws-sw-ico"><i class="fas fa-folder-open"></i></span>
-                    <div class="info">
-                        <div class="name">${esc(cur.name)}</div>
-                        <div class="path">${esc(cur.path)}</div>
-                    </div>
-                    <span class="cur-tag">使用中</span>
-                </div>
-            </div>
-            <div>
-                <div class="ws-sw-label">最近打开</div>
-                <div class="ws-sw-recent">${items || '<div class="ws-sw-empty">暂无其他历史记录</div>'}</div>
-            </div>
-            <div>
-                <div class="ws-sw-label">打开其他目录</div>
-                <button class="ws-sw-browse-entry" onclick="QWorkspace.showBrowse()">
-                    <span class="ws-sw-ico"><i class="fas fa-folder-plus"></i></span>
-                    <div class="info">
-                        <div class="name">浏览本机目录…</div>
-                        <div class="path">从磁盘中选择一个目录作为工作区，也可粘贴路径跳转</div>
-                    </div>
-                    <span class="go"><i class="fas fa-chevron-right"></i></span>
-                </button>
-                <div class="ws-sw-hint" id="wsSwHint"></div>
+        const count = document.getElementById('wsSwCount');
+        if (count) count.textContent = recent.length ? ' · ' + recent.length : '';
+
+        document.getElementById('wsSwRecentList').innerHTML = items || `
+            <div class="ws-sw-empty">
+                <i class="far fa-folder-open"></i>
+                <span>${forced ? '暂无打开记录，点击左侧「打开文件夹」从本机选择' : '暂无历史记录'}</span>
             </div>`;
+
+        const search = document.getElementById('wsSwSearch');
+        if (search) {
+            search.value = '';
+            search.style.display = recent.length ? '' : 'none';
+        }
+        const foot = document.getElementById('wsSwRpFoot');
+        if (foot) foot.innerHTML = `
+            <i class="fas fa-circle-info"></i>
+            <span>${forced ? '首次启动，任选一个目录作为工作区即可开始' : '点击项目立即切换；已删除的目录会置灰显示'}</span>
+            <button class="foot-close" onclick="closeWorkspaceSwitcher()">关闭</button>`;
+    }
+
+    // 最近列表搜索过滤（纯前端）
+    function filterRecent(q) {
+        const kw = String(q || '').trim().toLowerCase();
+        document.querySelectorAll('#wsSwRecentList .ws-sw-rp').forEach(row => {
+            row.classList.toggle('hidden', !!kw && !row.textContent.toLowerCase().includes(kw));
+        });
     }
 
     function applyCurrentToSidebar(cur) {
@@ -626,31 +742,7 @@
         if (btn) btn.title = '切换工作区（当前：' + (cur.path || '') + '）';
     }
 
-    // ===== 浏览视图 =====
-    function renderBrowseSkeleton() {
-        setHead(true);
-        document.getElementById('wsSwBody').innerHTML = `
-            <div class="ws-sw-browse-view">
-                <div class="ws-sw-addr-row">
-                    <button class="nav-btn" id="wsSwBrUp" title="上级目录" onclick="QWorkspace.browseUp()"><i class="fas fa-arrow-up"></i></button>
-                    <button class="nav-btn" title="用户主目录" onclick="QWorkspace.browseHome()"><i class="fas fa-house"></i></button>
-                    <input type="text" id="wsSwAddr" placeholder="输入或粘贴目录路径，回车跳转" spellcheck="false">
-                </div>
-                <div class="ws-sw-drives" id="wsSwDrives"></div>
-                <div class="ws-sw-br-list" id="wsSwBrList"></div>
-                <div class="ws-sw-hint" id="wsSwHint"></div>
-                <div class="ws-sw-br-foot">
-                    <div class="sel"><i class="fas fa-folder-open"></i><span class="p" id="wsSwBrSel"></span></div>
-                    <button class="pick-btn" id="wsSwBrPick" onclick="QWorkspace.pickBrowsed()" disabled>打开此目录</button>
-                </div>
-            </div>`;
-
-        const addr = document.getElementById('wsSwAddr');
-        addr.addEventListener('keydown', e => {
-            if (e.key === 'Enter') browseTo(addr.value.trim());
-        });
-    }
-
+    // ===== 目录浏览视图 =====
     // 磁盘快捷 chips（首次进入浏览视图拉取一次盘符列表）
     async function loadDrives() {
         if (!rootsCache) {
@@ -719,7 +811,7 @@
             : `<div class="ws-sw-br-empty">
                    <i class="far fa-folder-open"></i>
                    <span>该目录下没有子目录</span>
-                   <span>可直接点击右下角「打开此目录」</span>
+                   <span>可直接点击右下角「打开」</span>
                </div>`;
     }
 
@@ -736,18 +828,26 @@
                     <i class="fas fa-folder-plus"></i> 创建并打开该目录
                 </button>` : ''}
             </div>`;
-        document.getElementById('wsSwBrPick').disabled = true;
+        const pick = document.getElementById('wsSwBrPick');
+        if (pick) pick.disabled = true;
         document.getElementById('wsSwBrSel').textContent = '';
     }
 
     // ===== 提示行 =====
+    function hintEl() {
+        const browsing = document.querySelector('#wsSwOverlay .ws-sw-dialog.browsing');
+        return document.getElementById(browsing ? 'wsSwBrHint' : 'wsSwHint');
+    }
+
     function hideHint() {
-        const hint = document.getElementById('wsSwHint');
-        if (hint) { hint.className = 'ws-sw-hint'; hint.innerHTML = ''; }
+        ['wsSwHint', 'wsSwBrHint'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.className = 'ws-sw-hint'; el.innerHTML = ''; }
+        });
     }
 
     function showError(msg) {
-        const hint = document.getElementById('wsSwHint');
+        const hint = hintEl();
         if (!hint) return;
         hint.className = 'ws-sw-hint show error';
         hint.innerHTML = `<i class="fas fa-circle-exclamation"></i><span>${esc(msg)}</span>`;
@@ -757,7 +857,7 @@
     window.QWorkspace = {
         // 进入浏览视图：起点为当前工作区的上级目录（项目通常是兄弟目录，一步可达）
         async showBrowse() {
-            renderBrowseSkeleton();
+            setView(true);
             await loadDrives();
             const curPath = mainData && mainData.current ? mainData.current.path : '';
             const start = curPath ? parentOf(curPath) : ((rootsCache && rootsCache.home) || '');
@@ -765,7 +865,7 @@
         },
 
         backToMain() {
-            if (mainData) renderMain(mainData);
+            if (mainData) renderRecent(mainData);
             else load();
         },
 
@@ -807,6 +907,11 @@
                 const data = await res.json().catch(() => ({}));
 
                 if (res.ok && data.success) {
+                    if (forced) {
+                        // 首次选择：整页重载让全部模块按新工作区初始化，也顺带解除强制态
+                        location.replace('/');
+                        return;
+                    }
                     applyCurrentToSidebar(data.workspace);
                     window.closeWorkspaceSwitcher();
                     // 路径未变化时无需刷新页面状态
@@ -814,8 +919,8 @@
                         await window.onWorkspaceSwitched();
                     }
                 } else if (data.code === 'NOT_FOUND') {
-                    // 目录不存在（主视图最近列表的兜底场景）：进浏览视图给创建选项
-                    renderBrowseSkeleton();
+                    // 目录不存在（最近列表的兜底场景）：进浏览视图给创建选项
+                    setView(true);
                     loadDrives();
                     showBrowseError(path, '目录不存在');
                 } else {
@@ -825,10 +930,25 @@
                 showError('切换失败：' + e.message);
             } finally {
                 switching = false;
-                if (pickBtn && browsePath) pickBtn.disabled = false;
+                const btn = document.getElementById('wsSwBrPick');
+                if (btn && browsePath) btn.disabled = false;
             }
         }
     };
+
+    // 强制选择（启动时未绑定工作区）：同一弹窗，但拦截一切关闭路径
+    function openForced() {
+        forced = true;
+        window.isWorkspacePickerForced = () => true;
+        const overlay = document.getElementById('wsSwOverlay');
+        overlay.classList.add('open', 'forced');
+        // 左栏文案切到首次启动语境
+        const sub = document.getElementById('wsSwSideSub');
+        if (sub) sub.textContent = '首次启动，请选择一个工作区目录——会话、文件树与技能都会存放在这里';
+        document.getElementById('wsSwRecentList').innerHTML =
+            '<div class="ws-sw-empty"><i class="fas fa-spinner fa-spin"></i><span>加载中...</span></div>';
+        load();
+    }
 
     // ===== 挂载 =====
     function mount() {
@@ -842,18 +962,62 @@
         overlay.id = 'wsSwOverlay';
         overlay.innerHTML = `
             <div class="ws-sw-dialog">
-                <div class="ws-sw-head">
-                    <button class="back-btn" title="返回" onclick="QWorkspace.backToMain()"><i class="fas fa-arrow-left"></i></button>
-                    <span class="head-icon"><i class="fas fa-folder-tree"></i></span>
-                    <div class="head-text">
-                        <h4 id="wsSwTitle">切换工作区</h4>
-                        <div class="head-sub" id="wsSwSub">会话、文件树与技能将切换到新工作区</div>
+                <aside class="ws-sw-side">
+                    <div class="ws-sw-side-top">
+                        <div class="ws-sw-brand">
+                            <div class="ws-sw-logo">${STAR_SVG}</div>
+                            <div>
+                                <div class="ws-sw-brand-name">Qualia Code</div>
+                                <div class="ws-sw-brand-ver">AI 编程搭档</div>
+                            </div>
+                        </div>
+                        <button class="ws-sw-close" title="关闭" onclick="closeWorkspaceSwitcher()"><i class="fas fa-times"></i></button>
                     </div>
-                    <button class="close-btn" title="关闭" onclick="closeWorkspaceSwitcher()"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="ws-sw-body" id="wsSwBody">
-                    <div class="ws-sw-empty">加载中...</div>
-                </div>
+                    <h2 class="ws-sw-side-title">打开项目</h2>
+                    <div class="ws-sw-side-sub" id="wsSwSideSub">工作区是 Qualia Code 的活动范围，会话、文件树与技能都存放在这里</div>
+                    <button class="ws-sw-open-btn" onclick="QWorkspace.showBrowse()">
+                        <i class="fas fa-folder"></i><span>打开文件夹</span>
+                    </button>
+                    <div class="ws-sw-side-foot">点击项目即可直接打开<br/>历史记录保存于 ~/.qualia</div>
+                </aside>
+                <main class="ws-sw-pane">
+                    <section class="ws-sw-view on" id="wsSwViewRecent">
+                        <div class="ws-sw-rp-head">
+                            <h3>最近打开<span class="ws-sw-rp-count" id="wsSwCount"></span></h3>
+                            <label class="ws-sw-search">
+                                <i class="fas fa-magnifying-glass"></i>
+                                <input type="text" id="wsSwSearch" placeholder="搜索项目">
+                            </label>
+                        </div>
+                        <div class="ws-sw-rp-list" id="wsSwRecentList">
+                            <div class="ws-sw-empty"><i class="fas fa-spinner fa-spin"></i><span>加载中...</span></div>
+                        </div>
+                        <div class="ws-sw-hint" id="wsSwHint"></div>
+                        <div class="ws-sw-rp-foot" id="wsSwRpFoot"></div>
+                    </section>
+                    <section class="ws-sw-view" id="wsSwViewBrowse">
+                        <div class="ws-sw-br-head">
+                            <button class="back-btn" title="返回" onclick="QWorkspace.backToMain()"><i class="fas fa-arrow-left"></i></button>
+                            <div>
+                                <h3>选择文件夹</h3>
+                                <div class="sub">进入目标目录后点击「打开」，也可粘贴路径跳转</div>
+                            </div>
+                        </div>
+                        <div class="ws-sw-addr-row">
+                            <button class="nav-btn" id="wsSwBrUp" title="上级目录" onclick="QWorkspace.browseUp()"><i class="fas fa-arrow-up"></i></button>
+                            <button class="nav-btn" title="用户主目录" onclick="QWorkspace.browseHome()"><i class="fas fa-house"></i></button>
+                            <input type="text" id="wsSwAddr" placeholder="输入或粘贴目录路径，回车跳转" spellcheck="false">
+                        </div>
+                        <div class="ws-sw-drives" id="wsSwDrives"></div>
+                        <div class="ws-sw-br-list" id="wsSwBrList"></div>
+                        <div class="ws-sw-hint" id="wsSwBrHint"></div>
+                        <div class="ws-sw-br-foot">
+                            <div class="sel"><i class="fas fa-folder-open"></i><span class="p" id="wsSwBrSel"></span></div>
+                            <button class="ghost-btn" onclick="QWorkspace.backToMain()">取消</button>
+                            <button class="pick-btn" id="wsSwBrPick" onclick="QWorkspace.pickBrowsed()" disabled>打开</button>
+                        </div>
+                    </section>
+                </main>
             </div>`;
         document.body.appendChild(overlay);
 
@@ -864,16 +1028,27 @@
             if (e.key !== 'Escape') return;
             const open = document.getElementById('wsSwOverlay').classList.contains('open');
             if (!open) return;
-            // 浏览视图下 Esc 先返回主视图，再次 Esc 才关闭
+            // 浏览视图下 Esc 先返回最近视图，再次 Esc 才关闭
             const browsing = document.querySelector('#wsSwOverlay .ws-sw-dialog.browsing');
             if (browsing) QWorkspace.backToMain();
             else closeWorkspaceSwitcher();
         });
+        document.getElementById('wsSwSearch').addEventListener('input', e => filterRecent(e.target.value));
+        document.getElementById('wsSwAddr').addEventListener('keydown', e => {
+            if (e.key === 'Enter') browseTo(e.target.value.trim());
+        });
 
-        // 启动即回填侧边栏当前工作区名称
+        // 启动即拉取当前工作区：有则回填侧边栏；未绑定则强制弹出选择弹窗
         fetch('/api/workspace')
             .then(res => res.ok ? res.json() : null)
-            .then(data => { if (data) applyCurrentToSidebar(data.current); })
+            .then(data => {
+                if (!data) return;
+                if (!data.current) {
+                    openForced();
+                    return;
+                }
+                applyCurrentToSidebar(data.current);
+            })
             .catch(() => {});
     }
 
@@ -888,12 +1063,15 @@
         // 流式期间入口已置灰，此处为直接调用的兜底拦截
         if (window.isChatStreaming && window.isChatStreaming()) return;
         document.getElementById('wsSwOverlay').classList.add('open');
-        setHead(false);
-        document.getElementById('wsSwBody').innerHTML = '<div class="ws-sw-empty">加载中...</div>';
+        setView(false);
+        document.getElementById('wsSwRecentList').innerHTML =
+            '<div class="ws-sw-empty"><i class="fas fa-spinner fa-spin"></i><span>加载中...</span></div>';
         load();
     };
 
     window.closeWorkspaceSwitcher = function () {
+        // 强制模式下不允许关闭：只有选择成功后的整页重载能解除
+        if (forced) return;
         document.getElementById('wsSwOverlay').classList.remove('open');
     };
 })();

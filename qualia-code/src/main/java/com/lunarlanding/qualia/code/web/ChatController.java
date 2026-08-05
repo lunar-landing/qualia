@@ -32,10 +32,21 @@ public class ChatController {
     }
 
     /**
+     * 启动时未绑定工作区（等待前端强制选择）：读接口返回空、写接口拒绝，
+     * 避免 ChatService 拿 null 路径初始化报 500
+     */
+    private boolean noWorkspace() {
+        return WebApplication.getCurrentWorkspace() == null;
+    }
+
+    /**
      * 创建新会话
      */
     @PostMapping("/sessions")
     public ResponseEntity<SessionInfo> createSession(@RequestBody(required = false) Map<String, String> body) {
+        if (noWorkspace()) {
+            return ResponseEntity.badRequest().build();
+        }
         String title = body != null ? body.get("title") : null;
         SessionInfo session = chatService().createSession(title);
         return ResponseEntity.ok(session);
@@ -46,6 +57,9 @@ public class ChatController {
      */
     @GetMapping("/sessions")
     public ResponseEntity<List<SessionInfo>> getSessions() {
+        if (noWorkspace()) {
+            return ResponseEntity.ok(List.of());
+        }
         return ResponseEntity.ok(chatService().getSessions());
     }
 
@@ -55,6 +69,9 @@ public class ChatController {
     @GetMapping("/stats/tokens")
     public ResponseEntity<List<Map<String, Object>>> getTokenStats(
             @RequestParam(defaultValue = "30") int days) {
+        if (noWorkspace()) {
+            return ResponseEntity.ok(List.of());
+        }
         return ResponseEntity.ok(chatService().getDailyTokenStats(Math.min(Math.max(days, 1), 90)));
     }
 
@@ -63,6 +80,9 @@ public class ChatController {
      */
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<SessionInfo> getSession(@PathVariable String sessionId) {
+        if (noWorkspace()) {
+            return ResponseEntity.notFound().build();
+        }
         List<SessionInfo> sessions = chatService().getSessions();
         return sessions.stream()
                 .filter(s -> s.id.equals(sessionId))
@@ -76,6 +96,9 @@ public class ChatController {
      */
     @DeleteMapping("/sessions/{sessionId}")
     public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId) {
+        if (noWorkspace()) {
+            return ResponseEntity.badRequest().build();
+        }
         boolean deleted = chatService().deleteSession(sessionId);
         return ResponseEntity.ok(Map.of("success", deleted));
     }
@@ -92,6 +115,16 @@ public class ChatController {
         System.out.println("[SSE] New connection: sessionId=" + sessionId + ", message=" + message + ", model=" + model);
 
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
+
+        // 未选择工作区时直接回错（正常流程下前端强制弹窗拦截，此处为直接访问接口的兜底）
+        if (noWorkspace()) {
+            try {
+                emitter.send(SseEmitter.event().data("发生错误: 尚未选择工作区"));
+            } catch (IOException ignored) {
+            }
+            emitter.complete();
+            return emitter;
+        }
 
         // 活跃流记账：工作区切换前据此互斥，流终止（完成/出错）时销账
         ChatService.beginStream();
@@ -174,6 +207,9 @@ public class ChatController {
      */
     @GetMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<List<Map<String, Object>>> getMessages(@PathVariable String sessionId) {
+        if (noWorkspace()) {
+            return ResponseEntity.ok(List.of());
+        }
         List<MemoryMessage> messages = chatService().getSessionHistory(sessionId);
         List<Map<String, Object>> result = messages.stream()
                 .map(msg -> {

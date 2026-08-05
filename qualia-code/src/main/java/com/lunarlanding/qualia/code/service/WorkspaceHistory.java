@@ -90,6 +90,18 @@ public final class WorkspaceHistory {
         return result;
     }
 
+    /**
+     * 最近一条仍然存在的目录（供启动时静默复用，避免每次弹选择框）；无则返回 null
+     */
+    public static Path latestValid() {
+        for (Map<String, Object> entry : list()) {
+            if (Boolean.TRUE.equals(entry.get("exists"))) {
+                return Path.of((String) entry.get("path"));
+            }
+        }
+        return null;
+    }
+
     private static JSONArray readRecent() {
         try {
             if (Files.exists(HISTORY_FILE)) {

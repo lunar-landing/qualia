@@ -1,0 +1,19 @@
+{
+	"createdAt":1785826132470,
+	"id":"plan_20ca2421",
+	"status":"PLANNING",
+	"tasks":[
+		{
+			"createdAt":1785826132472,
+			"dependencies":[],
+			"description":"在根目录创建一个登录页面的HTML文件，包含基本的登录表单结构",
+			"id":"task_96558dcd",
+			"priority":3,
+			"status":"COMPLETED",
+			"title":"创建login.html文件",
+			"updatedAt":1785826148584
+		}
+	],
+	"title":"创建login.html文件",
+	"updatedAt":1785826148584
+}

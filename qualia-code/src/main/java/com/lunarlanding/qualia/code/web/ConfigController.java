@@ -41,7 +41,8 @@ public class ConfigController {
             CodeAgentConfig config = CodeAgentConfig.load(workspacePath);
 
             Map<String, Object> result = new HashMap<>();
-            result.put("workspace", workspacePath.toAbsolutePath().toString());
+            // 启动时未绑定工作区（前端强制选择流程）时下发 null，全局配置仍可用
+            result.put("workspace", workspacePath != null ? workspacePath.toAbsolutePath().toString() : null);
             result.put("defaultModel", config.getDefaultModel());
             // apiKey 掩码后下发，避免明文密钥暴露给前端
             result.put("models", config.getModels().stream().map(m -> {
@@ -145,8 +146,13 @@ public class ConfigController {
     public ResponseEntity<Map<String, Object>> getWorkspace() {
         Path workspacePath = WebApplication.getCurrentWorkspace();
         Map<String, Object> result = new HashMap<>();
-        result.put("path", workspacePath.toAbsolutePath().toString());
-        result.put("name", workspacePath.getFileName().toString());
+        if (workspacePath != null) {
+            result.put("path", workspacePath.toAbsolutePath().toString());
+            result.put("name", workspacePath.getFileName().toString());
+        } else {
+            result.put("path", null);
+            result.put("name", null);
+        }
         return ResponseEntity.ok(result);
     }
 
@@ -232,6 +238,10 @@ public class ConfigController {
     public ResponseEntity<List<Map<String, Object>>> getWorkspaceFiles(@RequestParam(defaultValue = "") String path) {
         try {
             Path workspacePath = WebApplication.getCurrentWorkspace();
+            if (workspacePath == null) {
+                // 未绑定工作区：空列表，文件树自然呈空态
+                return ResponseEntity.ok(List.of());
+            }
             Path targetPath = path.isEmpty() ? workspacePath : workspacePath.resolve(path);
             
             // 安全检查：确保路径在 workspace 内
@@ -287,6 +297,9 @@ public class ConfigController {
     public ResponseEntity<Map<String, Object>> getWorkspaceFile(@RequestParam String path) {
         try {
             Path workspacePath = WebApplication.getCurrentWorkspace();
+            if (workspacePath == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "尚未选择工作区"));
+            }
             Path target = workspacePath.resolve(path).normalize();
 
             // 安全检查：确保路径在 workspace 内
@@ -337,6 +350,9 @@ public class ConfigController {
     public ResponseEntity<byte[]> getWorkspaceFileRaw(@RequestParam String path) {
         try {
             Path workspacePath = WebApplication.getCurrentWorkspace();
+            if (workspacePath == null) {
+                return ResponseEntity.badRequest().build();
+            }
             Path target = workspacePath.resolve(path).normalize();
 
             if (!target.startsWith(workspacePath.normalize())

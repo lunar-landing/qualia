@@ -50,13 +50,41 @@ qualia/
 
 ### 安装
 
-#### 方式一：Maven 依赖（推荐）
+qualia-core 通过 GitHub Packages 发布，引用依赖需要配置仓库认证与仓库地址：
+
+#### 1. 配置认证
+
+在 Maven 的 `settings.xml`（或项目根目录的 `settings.xml`）中添加 GitHub 认证信息：
 
 ```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>你的GitHub用户名</username>
+            <password>你的GitHub Token（需 read:packages 权限）</password>
+        </server>
+    </servers>
+</settings>
+```
+
+#### 2. 添加仓库与依赖
+
+在项目 `pom.xml` 中添加：
+
+```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
+    </repository>
+</repositories>
+
 <dependency>
     <groupId>com.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>1.5.1</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
@@ -114,27 +142,7 @@ public class MyTools {
 
 ### GitHub Packages
 
-本项目使用 GitHub Packages 发布 Maven 包。
-
-#### 配置认证
-
-在项目根目录创建 `settings.xml`（已添加到 `.gitignore`）：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-    <localRepository>C:\Users\你的用户名\.m2\repository</localRepository>
-    <servers>
-        <server>
-            <id>github</id>
-            <username>lunar-landing</username>
-            <password>你的GitHub Token</password>
-        </server>
-    </servers>
-</settings>
-```
-
-#### 发布命令
+本项目使用 GitHub Packages 发布 Maven 包，认证与仓库配置见[快速开始 · 安装](#安装)。
 
 ```bash
 # 发布 qualia-core
@@ -142,25 +150,6 @@ mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
 
 # 发布所有模块
 mvn clean deploy -DskipTests -s settings.xml
-```
-
-#### 引用依赖
-
-在项目 `pom.xml` 中添加仓库和依赖：
-
-```xml
-<repositories>
-    <repository>
-        <id>github</id>
-        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
-    </repository>
-</repositories>
-
-<dependency>
-    <groupId>com.lunarlanding</groupId>
-    <artifactId>qualia-core</artifactId>
-    <version>0.1.0</version>
-</dependency>
 ```
 
 ### 构建桌面应用

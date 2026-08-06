@@ -3,6 +3,7 @@ package com.lunarlanding.qualia.code.service;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.lunarlanding.qualia.code.CodeAgentConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 工作区打开历史（用户级，存于 ~/.qualia/workspaces.json）
+ * 工作区打开历史（用户级，存于 ~/.qualia/code/workspaces.json）
  *
- * 历史天然跨工作区，因此与模型/MCP 配置、全局技能一样归入用户级目录，
+ * 历史天然跨工作区，因此与模型/MCP 配置、全局技能一样归入用户级产品目录，
  * 而不是某个工作区内的 .qualia。启动绑定与运行期切换成功后各记录一次。
  */
 public final class WorkspaceHistory {
@@ -26,7 +27,7 @@ public final class WorkspaceHistory {
     private static final Logger logger = LoggerFactory.getLogger(WorkspaceHistory.class);
 
     private static final Path HISTORY_FILE =
-            Path.of(System.getProperty("user.home"), ".qualia", "workspaces.json");
+            CodeAgentConfig.GLOBAL_CONFIG_DIR.resolve("workspaces.json");
 
     /** 最近列表上限 */
     private static final int MAX_RECENT = 10;
@@ -103,6 +104,8 @@ public final class WorkspaceHistory {
     }
 
     private static JSONArray readRecent() {
+        // 旧版历史文件先迁移到产品目录（幂等）
+        CodeAgentConfig.migrateLegacyConfigIfNeeded();
         try {
             if (Files.exists(HISTORY_FILE)) {
                 JSONObject root = JSON.parseObject(Files.readString(HISTORY_FILE, StandardCharsets.UTF_8));

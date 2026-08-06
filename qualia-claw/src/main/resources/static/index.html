@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Claw · 职能办公</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="stylesheet" id="hljsTheme" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="js/browser.js"></script>
+    <script src="js/tool-chip.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/agent-panel.js"></script>
+    <script src="js/workspace-files.js"></script>
+    <script src="js/skill-panel.js"></script>
+    <script src="js/mcp-panel.js"></script>
+    <script src="js/token-map.js"></script>
+    <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+
+    <div class="app">
+
+        <!-- ===== TOPBAR ===== -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="logo">
+                    <svg class="logo-mark" viewBox="0 0 24 24" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="clawLogoGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                                <stop offset="0" stop-color="#a78bfa"/>
+                                <stop offset="1" stop-color="#5b4ad0"/>
+                            </linearGradient>
+                        </defs>
+                        <path fill="url(#clawLogoGrad)" d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/>
+                    </svg>
+                    <span>Qualia Claw</span>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button class="topbar-btn mcp-badge" id="mcpBadge" title="MCP 服务器" onclick="openSettings()">
+                    <i class="fas fa-server"></i><span id="mcpBadgeCount">0</span>
+                </button>
+                <button class="topbar-btn" title="工作区面板" onclick="toggleStepsPanel()">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="topbar-btn" id="themeToggle" title="切换主题">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- ===== MAIN ===== -->
+        <div class="main">
+
+            <!-- ===== SIDEBAR ===== -->
+            <aside class="sidebar">
+                <!-- 上半部分：智能体平铺列表（由 agent-panel.js 渲染，点击切换，编辑走管理弹窗） -->
+                <!-- 全宽新建按钮：直接打开新建表单 -->
+                <button class="new-agent-btn" onclick="openAgentManager(true)">
+                    <i class="fas fa-plus"></i> 新建智能体
+                </button>
+                <div class="agent-list" id="agentList">
+                    <!-- 智能体列表由 agent-panel.js 动态渲染 -->
+                </div>
+
+                <!-- 下半部分：当前智能体的会话 -->
+                <div class="sidebar-header">
+                    <h4><i class="far fa-clock history-icon"></i>会话</h4>
+                    <button title="新建会话" onclick="createSession()"><i class="fas fa-plus"></i></button>
+                </div>
+                <ul class="conversation-list">
+                    <!-- 会话列表由JS动态渲染 -->
+                </ul>
+
+                <div class="sidebar-footer">
+                    <!-- 技能管理：点击将聊天区替换为技能网格视图（js/skill-panel.js） -->
+                    <button class="settings-btn" id="skillsMenuBtn" title="技能管理" onclick="SkillPanel.toggle()">
+                        <i class="fas fa-shapes"></i>
+                        <span>技能管理</span>
+                    </button>
+                    <!-- MCP 管理：点击将聊天区替换为 MCP 服务器网格视图（js/mcp-panel.js） -->
+                    <button class="settings-btn" id="mcpMenuBtn" title="MCP 管理" onclick="McpPanel.toggle()">
+                        <i class="fas fa-server"></i>
+                        <span>Mcp管理</span>
+                    </button>
+                    <button class="settings-btn" title="系统设置" onclick="openSettings()">
+                        <i class="fas fa-sliders-h"></i>
+                        <span>系统设置</span>
+                    </button>
+                </div>
+
+                <!-- 近 30 日 token 用量热力矩阵（骨架与样式由 js/token-map.js 自包含注入） -->
+                <div id="tokenHeatmap"></div>
+            </aside>
+
+            <!-- ===== CHAT AREA ===== -->
+            <section class="chat-area">
+
+                <!-- ===== MESSAGES ===== -->
+                <div class="messages" id="messageContainer">
+
+                    <!-- 消息由JS动态渲染；空会话时显示欢迎Hero -->
+
+                    <!-- Typing indicator -->
+                    <div class="typing-indicator" id="typingIndicator">
+                        <div class="avatar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg></div>
+                        <div class="typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ===== INPUT ===== -->
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <textarea id="chatInput" rows="3" placeholder="向当前智能体下达任务，或描述你想让它完成的工作…"></textarea>
+                        <div class="input-actions">
+                            <button title="附件"><i class="fas fa-paperclip"></i></button>
+                            <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
+                        </div>
+                    </div>
+                    <div class="input-hint">
+                        <span>Qualia Claw 多智能体职能办公 · 每个智能体独立工作区</span>
+                        <span class="keys">
+                            <div class="model-selector" id="modelSelector">
+                                <span class="model-icon"></span>
+                                <span class="model-name" id="modelName">加载中...</span>
+                                <i class="fas fa-chevron-down model-arrow"></i>
+                                <div class="model-dropdown" id="modelDropdown">
+                                    <!-- 动态生成 -->
+                                </div>
+                            </div>
+                        </span>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- ===== 右侧面板：工作区文件（默认页签）与 HTML 预览 ===== -->
+            <aside class="steps-panel" id="stepsPanel">
+                <div class="ws-resizer" id="wsResizer"></div>
+                <div class="steps-panel-header">
+                    <div class="ws-tabs">
+                        <button class="ws-tab active" data-tab="wsFiles" onclick="switchWsTab('wsFiles', this)"><i class="fas fa-folder-open"></i> 工作区</button>
+                        <button class="ws-tab" data-tab="wsPreview" onclick="switchWsTab('wsPreview', this)"><i class="fas fa-globe"></i> 预览</button>
+                    </div>
+                    <div class="steps-panel-actions">
+                        <button title="放大" id="wsMaxBtn" onclick="toggleWsMaximize()"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
+                        <button title="关闭" onclick="toggleStepsPanel()"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <div class="ws-pane active" id="wsFiles">
+                    <div class="ws-tree-view" id="wsTreeView">
+                        <div class="ws-bar">
+                            <i class="fas fa-folder"></i>
+                            <span class="ws-path" id="wsPath"></span>
+                            <button title="刷新" onclick="WorkspaceFiles.reload()"><i class="fas fa-rotate"></i></button>
+                        </div>
+                        <div class="tree" id="wsTree"></div>
+                    </div>
+                    <div class="ws-file-view" id="wsFileView" style="display: none;">
+                        <div class="file-view-bar">
+                            <button title="返回文件树" onclick="WorkspaceFiles.back()"><i class="fas fa-arrow-left"></i></button>
+                            <span class="fname" id="wsFileName"></span>
+                            <span class="fmeta" id="wsFileMeta"></span>
+                        </div>
+                        <div class="file-content" id="wsFileContent"></div>
+                    </div>
+                </div>
+                <div class="ws-pane" id="wsPreview">
+                    <div class="empty-steps" id="previewEmpty">
+                        <i class="fas fa-globe"></i>
+                        <span>暂无浏览内容</span>
+                    </div>
+                    <!-- allow-popups*：允许浏览器页内链接在新标签打开（如搜索结果页），且新标签不受沙箱限制 -->
+                    <iframe class="ws-preview-frame" id="htmlPreviewFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" style="display:none"></iframe>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- 设置弹窗由 js/settings.js 自创建并挂载到 body -->
+
+    <script>
+        (function() {
+            'use strict';
+
+            const container = document.getElementById('messageContainer');
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const typing = document.getElementById('typingIndicator');
+
+            // AI 头像（四角星火花）
+            const AI_AVATAR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg>';
+            
+            // 用户头像（简洁人像）
+            const USER_AVATAR = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21c0-3.87-3.58-7-8-7s-8 3.13-8 7"/></svg>';
+            
+            // 初始隐藏typing indicator
+            if (typing) typing.style.display = 'none';
+
+            // ===== 状态管理 =====
+            let currentSessionId = null;
+            let sessions = [];
+            let isProcessing = false;
+            let currentSteps = [];
+            let messageStepsMap = new Map(); // 消息ID到步骤的映射
+
+            // 供 agent-panel.js 判断流式状态（切换入口置灰/拦截）
+            window.isChatStreaming = () => isProcessing;
+            
+            // ===== 步骤/预览面板 =====
+            // 挂到 window 上供内联 onclick 调用
+            window.toggleStepsPanel = function() {
+                const panel = document.getElementById('stepsPanel');
+                // 关闭时立即清理放大态（不播还原动画，避免与折叠动画打架）
+                if (!panel.classList.contains('collapsed') && panel.classList.contains('maximized')) {
+                    panel.classList.remove('maximized', 'overlay');
+                    document.getElementById('wsPlaceholder')?.remove();
+                    const btn = document.getElementById('wsMaxBtn');
+                    btn.title = '放大';
+                    btn.querySelector('i').className = 'fas fa-up-right-and-down-left-from-center';
+                }
+                panel.classList.toggle('collapsed');
+            };
+
+            // 放大：面板转为覆盖层从右向左平滑铺开盖住聊天区（侧边栏保留），再次点击反向滑回。
+            // 聊天区底下原样保留，由同宽占位符钉住布局避免任何重排。
+            window.toggleWsMaximize = function() {
+                const panel = document.getElementById('stepsPanel');
+                const btn = document.getElementById('wsMaxBtn');
+                const maximized = !panel.classList.contains('maximized');
+                if (maximized) {
+                    // 占位符接管面板原来的 flex 位置，宽度与当前面板一致
+                    const holder = document.createElement('div');
+                    holder.id = 'wsPlaceholder';
+                    holder.style.cssText = 'width:' + panel.getBoundingClientRect().width + 'px;flex-shrink:0;';
+                    panel.parentNode.insertBefore(holder, panel);
+                    // 先以当前宽度进入 overlay（右缘位置不变），强制回流后再加 maximized 触发宽度过渡
+                    panel.classList.add('overlay');
+                    void panel.offsetWidth;
+                    panel.classList.add('maximized');
+                } else {
+                    // 反向：先撤 maximized 让宽度滑回原值，动画结束后再退出 overlay 并移除占位符
+                    panel.classList.remove('maximized');
+                    const onEnd = (e) => {
+                        if (e.propertyName !== 'width') return;
+                        panel.removeEventListener('transitionend', onEnd);
+                        panel.classList.remove('overlay');
+                        document.getElementById('wsPlaceholder')?.remove();
+                    };
+                    panel.addEventListener('transitionend', onEnd);
+                }
+                btn.title = maximized ? '还原' : '放大';
+                btn.querySelector('i').className = maximized ? 'fas fa-down-left-and-up-right-to-center' : 'fas fa-up-right-and-down-left-from-center';
+            };
+
+            window.switchWsTab = function(paneId, tabBtn) {
+                document.querySelectorAll('.ws-pane').forEach(p => p.classList.remove('active'));
+                document.getElementById(paneId).classList.add('active');
+                // 同步 Tab 栏高亮（data-tab 与页签 id 一致）
+                document.querySelectorAll('.ws-tab').forEach(t =>
+                    t.classList.toggle('active', t.dataset.tab === paneId));
+            };
+
+            // 聊天 API 前缀：所有会话/流式接口均挂在当前智能体下（由 agent-panel.js 维护当前选择）
+            function chatApi(path) {
+                return `/api/agents/${window.QAgent.currentId()}/chat${path}`;
+            }
+
+            // 工作区宽度：默认 540px（CSS 控制）；左边缘拖拽调整，252px ~ 视口余宽，仅当前会话生效，刷新后恢复默认
+            (function initWsResize() {
+                const panel = document.getElementById('stepsPanel');
+                const resizer = document.getElementById('wsResizer');
+                if (!panel || !resizer) return;
+                // 清除旧版本持久化的宽度，避免残留值让面板异常变宽
+                localStorage.removeItem('wsPanelWidth');
+                const applyWidth = (w) => {
+                    // 上限受视口约束：给侧边栏+聊天区保留至少 690px
+                    const max = Math.max(252, window.innerWidth - 690);
+                    w = Math.min(max, Math.max(252, w));
+                    panel.style.width = w + 'px';
+                    panel.style.minWidth = w + 'px';
+                    return w;
+                };
+                // 暴露给文件预览等场景程序化调宽（同一套钳制规则）
+                window.wsApplyWidth = applyWidth;
+                resizer.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    panel.classList.add('resizing');
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                    const onMove = (ev) => {
+                        applyWidth(panel.getBoundingClientRect().right - ev.clientX);
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        panel.classList.remove('resizing');
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+            })();
+
+            function extractThought(step) {
+                try {
+                    const content = JSON.parse(step.content);
+                    if (content.thought) return content.thought;
+                } catch (e) {}
+                return '';
+            }
+
+            // ===== 聊天流内联活动（chip 创建与详情展开封装在 js/tool-chip.js）=====
+            function truncateText(s, n) {
+                s = String(s || '');
+                return s.length > n ? s.slice(0, n) + '…' : s;
+            }
+
+            function createActivityMsg(msgId) {
+                removeWelcomeHero();
+                const msgEl = document.createElement('div');
+                msgEl.className = 'msg codex';
+                if (msgId) msgEl.dataset.msgId = msgId;
+                msgEl.innerHTML = `
+                    <div class="avatar">${AI_AVATAR}</div>
+                    <div class="act-col">
+                        <div class="act-flow"></div>
+                        <div class="think-bar" style="display: none;">
+                            <i class="fas fa-circle-notch fa-spin"></i>
+                            <span class="tb-text">思考中…</span>
+                        </div>
+                    </div>
+                `;
+                container.insertBefore(msgEl, typing);
+                return msgEl;
+            }
+
+            // 将一个步骤应用到活动容器；思考与 chip 按时间顺序交替追加到 .act-flow
+            function applyStepToActivity(msgEl, step, idx, stepsRef, live) {
+                const thinkBar = msgEl.querySelector('.think-bar');
+                const flow = msgEl.querySelector('.act-flow');
+                const thought = extractThought(step);
+
+                if (thought) {
+                    const seg = document.createElement('div');
+                    seg.className = 'act-thought';
+                    seg.textContent = thought;
+                    flow.appendChild(seg);
+                    if (live) {
+                        // 脉冲节点跟随最新思考；状态条在流末尾表示"正在进行"
+                        flow.querySelectorAll('.act-thought.current').forEach(t => t.classList.remove('current'));
+                        seg.classList.add('current');
+                        thinkBar.style.display = 'flex';
+                        thinkBar.classList.add('running');
+                    }
+                }
+
+                if (step.stepType === 'ACTION') {
+                    // 紧随其思考之后成组；连续无思考的 ACTION 复用上一组 chips
+                    // 详情块默认展开插在组后，判断时需跳过 .tc-detail
+                    let last = flow.lastElementChild;
+                    while (last && last.classList.contains('tc-detail')) last = last.previousElementSibling;
+                    let chips = last;
+                    if (!chips || !chips.classList.contains('tool-chips')) {
+                        chips = document.createElement('div');
+                        chips.className = 'tool-chips';
+                        flow.appendChild(chips);
+                    }
+                    const chip = ToolChip.create(step, idx, stepsRef, live);
+                    chips.appendChild(chip);
+                    // 详情默认展开（实时与历史一致），点击 chip 可单独收起
+                    ToolChip.open(chip);
+                } else if (step.stepType === 'OBSERVATION') {
+                    ToolChip.resolveRunning(flow, true);
+                } else if (step.stepType === 'ERROR') {
+                    ToolChip.resolveRunning(flow, false);
+                }
+            }
+
+            // 执行结束：状态条隐藏、脉冲节点复位，未完成 chip 置为完成（详情保持展开）
+            function finalizeActivity(msgEl) {
+                if (!msgEl) return;
+                ToolChip.resolveAll(msgEl);
+                msgEl.querySelector('.think-bar').style.display = 'none';
+                msgEl.querySelectorAll('.act-thought.current').forEach(t => t.classList.remove('current'));
+            }
+
+            // 回答写入活动容器（活动 + 回答同列）
+            function setActivityAnswer(msgEl, content) {
+                const col = msgEl.querySelector('.act-col');
+                let bubble = col.querySelector('.bubble');
+                if (!bubble) {
+                    const now = new Date();
+                    const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                        now.getMinutes().toString().padStart(2, '0');
+                    bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    const time = document.createElement('div');
+                    time.className = 'time';
+                    time.textContent = timeStr;
+                    col.appendChild(bubble);
+                    col.appendChild(time);
+                }
+                bubble.innerHTML = renderMarkdown(content);
+                enhanceCodeBlocks(col);
+            }
+
+            // ===== 主题切换 =====
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            const HLJS_THEMES = {
+                dark: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css',
+                light: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css'
+            };
+
+            function applyHljsTheme(isLight) {
+                document.getElementById('hljsTheme').href = HLJS_THEMES[isLight ? 'light' : 'dark'];
+            }
+
+            // 日间模式太阳图标：FA 免费版没有圆头光芒的实心太阳（fa-sun 光芒是三角形），改用内联 SVG：实心圆心 + 8 根圆头短线
+            const SUN_SVG = '<svg viewBox="0 0 24 24" style="width:1em;height:1em;vertical-align:-0.125em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+                + '<circle cx="12" cy="12" r="4.6" fill="currentColor" stroke="none"/>'
+                + '<line x1="12" y1="1.8" x2="12" y2="4.2"/><line x1="12" y1="19.8" x2="12" y2="22.2"/>'
+                + '<line x1="1.8" y1="12" x2="4.2" y2="12"/><line x1="19.8" y1="12" x2="22.2" y2="12"/>'
+                + '<line x1="4.8" y1="4.8" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.2" y2="19.2"/>'
+                + '<line x1="4.8" y1="19.2" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.2" y2="4.8"/>'
+                + '</svg>';
+
+            function setThemeIcon(isLight) {
+                if (isLight) {
+                    themeIcon.className = '';
+                    themeIcon.innerHTML = SUN_SVG;
+                } else {
+                    themeIcon.innerHTML = '';
+                    themeIcon.className = 'fas fa-moon';
+                }
+            }
+
+            function toggleTheme() {
+                document.body.classList.toggle('light-theme');
+                const isLight = document.body.classList.contains('light-theme');
+                setThemeIcon(isLight);
+                applyHljsTheme(isLight);
+                localStorage.setItem('codex-theme', isLight ? 'light' : 'dark');
+                // 通知浏览器 Tab 内的预览页（搜索结果/阅读模式）同步切主题
+                const previewFrame = document.getElementById('htmlPreviewFrame');
+                if (previewFrame && previewFrame.contentWindow) {
+                    previewFrame.contentWindow.postMessage({ type: 'qualia-theme', light: isLight }, '*');
+                }
+            }
+
+            const savedTheme = localStorage.getItem('codex-theme');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-theme');
+                setThemeIcon(true);
+                applyHljsTheme(true);
+            }
+            themeToggle.addEventListener('click', toggleTheme);
+
+            // ===== 初始化 =====
+            document.addEventListener('DOMContentLoaded', () => {
+                loadSessions();
+                TokenHeatmap.init(document.getElementById('tokenHeatmap'), () => window.QAgent.currentId());
+                checkModelConfigured();
+                loadMcpBadge();
+                initModelSelector();
+                // 智能体列表拉取与侧边栏回填；无智能体时进入强制创建引导
+                window.QAgent.init();
+            });
+
+            // 顶栏 MCP 徽章：展示已配置的 MCP 服务器数量，点击打开设置（保存后由 settings.js 回调刷新）
+            window.loadMcpBadge = async function() {
+                const badge = document.getElementById('mcpBadge');
+                try {
+                    const res = await fetch('/api/config/mcp');
+                    if (!res.ok) return;
+                    const servers = await res.json();
+                    const count = Array.isArray(servers) ? servers.length : 0;
+                    document.getElementById('mcpBadgeCount').textContent = count;
+                    badge.title = count > 0 ? `已配置 ${count} 个 MCP 服务器` : '未配置 MCP 服务器';
+                    badge.classList.add('show');
+                } catch (e) {
+                    badge.classList.remove('show');
+                }
+            }
+
+            // 未配置模型时自动打开设置面板引导用户先完成配置
+            async function checkModelConfigured() {
+                try {
+                    const res = await fetch('/api/config/model');
+                    if (!res.ok) return;
+                    const info = await res.json();
+                    if (info && info.configured === false) openSettings();
+                } catch (e) {
+                    // 静默失败，不影响主界面
+                }
+            }
+
+            // 模型选择器：事件只绑定一次，渲染可重复执行（设置保存后回调刷新）
+            let currentSelectedModel = '';
+            let defaultModelName = '';
+            let modelSelectorBound = false;
+
+            async function refreshModelSelector() {
+                try {
+                    const res = await fetch('/api/config');
+                    const config = await res.json();
+                    const models = config.models || [];
+                    defaultModelName = config.defaultModel || '';
+
+                    const dropdown = document.getElementById('modelDropdown');
+                    const modelNameEl = document.getElementById('modelName');
+
+                    // 当前选中在新列表中不存在时回退默认模型（模型被删改名的保存场景）
+                    if (!models.some(m => m.name === currentSelectedModel)) {
+                        currentSelectedModel = defaultModelName;
+                    }
+
+                    // 生成下拉菜单项
+                    dropdown.innerHTML = '';
+                    models.forEach(model => {
+                        const item = document.createElement('div');
+                        item.className = 'model-dropdown-item' + (model.name === currentSelectedModel ? ' active' : '');
+                        item.dataset.value = model.name;
+                        item.innerHTML = `
+                            <span>${model.name}${model.name === defaultModelName ? '<span class="default-badge">默认</span>' : ''}</span>
+                            <i class="fas fa-check check-icon"></i>
+                        `;
+                        item.addEventListener('click', () => selectModel(model.name));
+                        dropdown.appendChild(item);
+                    });
+
+                    modelNameEl.textContent = currentSelectedModel || '未配置';
+                } catch (e) {
+                    console.error('加载模型列表失败:', e);
+                }
+            }
+            window.refreshModelSelector = refreshModelSelector;
+
+            async function initModelSelector() {
+                await refreshModelSelector();
+                if (modelSelectorBound) return;
+                modelSelectorBound = true;
+
+                const selector = document.getElementById('modelSelector');
+                // 点击切换下拉
+                selector.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selector.classList.toggle('open');
+                });
+                // 点击外部关闭
+                document.addEventListener('click', () => {
+                    selector.classList.remove('open');
+                });
+            }
+            
+            function selectModel(modelName) {
+                currentSelectedModel = modelName;
+                document.getElementById('modelName').textContent = modelName;
+                
+                // 更新选中状态
+                document.querySelectorAll('.model-dropdown-item').forEach(item => {
+                    item.classList.toggle('active', item.dataset.value === modelName);
+                });
+            }
+
+            // ===== 会话管理 =====
+            async function loadSessions() {
+                try {
+                    // 尚无当前智能体（首次启动引导中）：展示空态，待智能体选定后由 onAgentSwitched 重拉
+                    if (!window.QAgent.currentId()) {
+                        sessions = [];
+                        renderSessionList();
+                        showWelcome();
+                        return;
+                    }
+                    const response = await fetch(chatApi('/sessions'));
+                    // 接口异常时降级为空列表，避免错误对象进入渲染流程
+                    const data = response.ok ? await response.json() : [];
+                    sessions = Array.isArray(data) ? data : [];
+                    renderSessionList();
+                    if (sessions.length > 0 && !currentSessionId) {
+                        await selectSession(sessions[0].id);
+                    } else if (sessions.length === 0) {
+                        showWelcome();
+                    }
+                } catch (error) {
+                    console.error('加载会话列表失败:', error);
+                    sessions = [];
+                    renderSessionList();
+                    showWelcome();
+                }
+            }
+
+            // 会话日期分组：今天 / 昨天 / 近 7 天 / 近 30 天 / 更早
+            function sessionGroupLabel(ts) {
+                if (!ts) return '更早';
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const dayMs = 24 * 60 * 60 * 1000;
+                if (ts >= startOfToday) return '今天';
+                if (ts >= startOfToday - dayMs) return '昨天';
+                if (ts >= startOfToday - 7 * dayMs) return '近 7 天';
+                if (ts >= startOfToday - 30 * dayMs) return '近 30 天';
+                return '更早';
+            }
+
+            function renderSessionList() {
+                const list = document.querySelector('.conversation-list');
+                let lastGroup = null;
+                list.innerHTML = sessions.map(session => {
+                    const msgCount = session.messages ? session.messages.length : 0;
+                    const group = sessionGroupLabel(session.createdAt);
+                    let groupHtml = '';
+                    if (group !== lastGroup) {
+                        lastGroup = group;
+                        groupHtml = `<li class="conv-group">${group}</li>`;
+                    }
+                    return `${groupHtml}
+                    <li data-id="${session.id}" class="${session.id === currentSessionId ? 'active' : ''}">
+                        <i class="far fa-comment-dots"></i>
+                        <span class="session-title">${escapeHtml(session.title)}</span>
+                        <span class="session-actions">
+                            ${msgCount > 0 ? `<span class="badge">${msgCount}</span>` : ''}
+                            <button class="delete-session" onclick="event.stopPropagation(); deleteSession('${session.id}')">
+                                <i class="fas fa-times delete-icon"></i>
+                            </button>
+                        </span>
+                    </li>`;
+                }).join('');
+
+                // 绑定点击事件（分组标题除外）
+                list.querySelectorAll('li[data-id]').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const id = this.dataset.id;
+                        selectSession(id);
+                    });
+                });
+            }
+
+            async function selectSession(sessionId) {
+                window.SkillPanel.hide(); // 选择会话即回到对话视图
+                window.McpPanel.hide();
+                currentSessionId = sessionId;
+                renderSessionList();
+                await loadMessages(sessionId);
+            }
+
+            window.createSession = async function() {
+                window.SkillPanel.hide();
+                window.McpPanel.hide();
+                try {
+                    const response = await fetch(chatApi('/sessions'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: '新会话' })
+                    });
+                    const session = await response.json();
+                    sessions.unshift(session);
+                    currentSessionId = session.id;
+                    currentSteps = [];
+                    renderSessionList();
+                    clearChat();
+                } catch (error) {
+                    console.error('创建会话失败:', error);
+                }
+            }
+
+            window.deleteSession = async function(sessionId) {
+                if (!confirm('确定删除这个会话吗？')) return;
+                try {
+                    await fetch(chatApi(`/sessions/${sessionId}`), { method: 'DELETE' });
+                    sessions = sessions.filter(s => s.id !== sessionId);
+                    if (currentSessionId === sessionId) {
+                        currentSessionId = sessions.length > 0 ? sessions[0].id : null;
+                        if (currentSessionId) {
+                            await loadMessages(currentSessionId);
+                        } else {
+                            clearChat();
+                        }
+                    }
+                    renderSessionList();
+                } catch (error) {
+                    console.error('删除会话失败:', error);
+                }
+            };
+
+            // 切换智能体后的整页状态刷新（由 agent-panel.js 调用）：
+            // 会话/步骤全部清空，重拉新智能体的会话列表与热力图
+            window.onAgentSwitched = async function() {
+                window.SkillPanel.hide(); // 切换智能体即回到对话视图
+                window.McpPanel.hide();
+                window.WorkspaceFiles.reload(); // 右侧文件树切换到新智能体的工作区
+                currentSessionId = null;
+                sessions = [];
+                currentSteps = [];
+                messageStepsMap.clear();
+                clearChat();
+                await loadSessions();
+                TokenHeatmap.refresh();
+            };
+
+            // ===== 消息管理 =====
+            async function loadMessages(sessionId) {
+                try {
+                    const response = await fetch(chatApi(`/sessions/${sessionId}/messages`));
+                    const messages = await response.json();
+                    renderMessages(messages);
+                } catch (error) {
+                    console.error('加载消息失败:', error);
+                }
+            }
+
+            function renderMessages(messages) {
+                // 清空现有消息（保留typing indicator）
+                const msgs = container.querySelectorAll('.msg');
+                msgs.forEach(m => m.remove());
+
+                // 清空步骤映射
+                messageStepsMap.clear();
+                let allSteps = [];
+                
+                if (messages.length === 0) {
+                    showWelcome();
+                    return;
+                }
+
+                messages.forEach((msg, index) => {
+                    const msgId = `msg-${index}`;
+                    const hasSteps = msg.steps && msg.steps.length > 0;
+                    // 存储消息和步骤的关联
+                    if (hasSteps) {
+                        messageStepsMap.set(msgId, msg.steps);
+                        allSteps = allSteps.concat(msg.steps);
+                    }
+                    if (msg.role !== 'user' && hasSteps) {
+                        // 带步骤的 AI 消息：渲染完成态活动容器（chips + 回答）
+                        const actEl = createActivityMsg(msgId);
+                        msg.steps.forEach((s, i) => applyStepToActivity(actEl, s, i, msg.steps, false));
+                        finalizeActivity(actEl);
+                        setActivityAnswer(actEl, msg.content);
+                    } else {
+                        // 显示最终内容，传递消息ID
+                        appendMessage(msg.role, msg.content, msgId);
+                    }
+                });
+                
+                currentSteps = allSteps;
+                scrollToBottom();
+            }
+
+            function appendMessage(role, content, msgId) {
+                removeWelcomeHero();
+                const now = new Date();
+                const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                    now.getMinutes().toString().padStart(2, '0');
+
+                const msgEl = document.createElement('div');
+                msgEl.className = `msg ${role === 'user' ? 'user' : 'codex'}`;
+                if (msgId) msgEl.dataset.msgId = msgId;
+                
+                // AI消息使用markdown渲染，用户消息使用纯文本
+                const renderedContent = role === 'user' ? escapeHtml(content) : renderMarkdown(content);
+                
+                msgEl.innerHTML = `
+                    <div class="avatar">${role === 'user' ? USER_AVATAR : AI_AVATAR}</div>
+                    <div>
+                        <div class="bubble">${renderedContent}</div>
+                        <div class="time">${timeStr}</div>
+                    </div>
+                `;
+
+                if (role !== 'user') enhanceCodeBlocks(msgEl);
+                
+                container.insertBefore(msgEl, typing);
+                return msgEl;
+            }
+            
+            function renderMarkdown(text) {
+                if (!text) return '';
+                try {
+                    // 配置marked选项
+                    marked.setOptions({
+                        breaks: true,  // 支持换行符
+                        gfm: true      // 支持GitHub风格markdown
+                    });
+                    return marked.parse(text);
+                } catch (e) {
+                    // 如果解析失败，返回转义后的原文
+                    return escapeHtml(text);
+                }
+            }
+
+            // ===== 代码块增强：语法高亮 + 工具条 + 复制/预览按钮 =====
+            // HTML 预览渲染到右侧工作区的「浏览器」Tab，可边看对话边看效果
+            // 挂到 window 供外部模块复用（如 js/browser.js 搜索详情的「查看全部」）
+            // 沙箱策略：srcdoc（自建页）绝不可给 allow-same-origin，否则可逆向操作父页；
+            // 外部 URL（源网页）则需要它，否则站点访问 cookie/localStorage 会报错白屏
+            const SRCDOC_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
+            const URL_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox';
+
+            function showPreviewFrame(frame) {
+                const empty = document.getElementById('previewEmpty');
+                frame.style.display = '';
+                if (empty) empty.style.display = 'none';
+                // 展开工作区并切到浏览器 Tab
+                document.getElementById('stepsPanel').classList.remove('collapsed');
+                switchWsTab('wsPreview', document.querySelector('.ws-tab[data-tab="wsPreview"]'));
+            }
+
+            window.openHtmlPreview = function openHtmlPreview(html) {
+                const frame = document.getElementById('htmlPreviewFrame');
+                frame.setAttribute('sandbox', SRCDOC_SANDBOX);
+                frame.removeAttribute('src');
+                frame.srcdoc = html;
+                showPreviewFrame(frame);
+            };
+
+            // 在浏览器 Tab 直接加载外部网页（如 web_fetch 的「打开源网页」）
+            // 注意：部分站点用 X-Frame-Options/CSP 禁止嵌入，会显示空白
+            window.openUrlPreview = function openUrlPreview(url) {
+                const frame = document.getElementById('htmlPreviewFrame');
+                frame.setAttribute('sandbox', URL_SANDBOX);
+                frame.removeAttribute('srcdoc');
+                frame.src = url;
+                showPreviewFrame(frame);
+            };
+
+            // ===== 设置弹窗：已封装到 js/settings.js（openSettings/closeSettings/QSettings）=====
+
+            function enhanceCodeBlocks(scope) {
+                scope.querySelectorAll('pre code').forEach(code => {
+                    if (code.dataset.enhanced) return;
+                    code.dataset.enhanced = '1';
+
+                    if (window.hljs) {
+                        try { hljs.highlightElement(code); } catch (e) {}
+                    }
+
+                    const pre = code.parentElement;
+                    if (!pre || pre.tagName !== 'PRE') return;
+
+                    const lang = (code.className.match(/language-([\w#+-]+)/) || [])[1] || 'code';
+                    const canPreview = /^(html|htm|xhtml)$/i.test(lang);
+                    const wrap = document.createElement('div');
+                    wrap.className = 'code-wrap';
+                    wrap.innerHTML = `
+                        <div class="code-head">
+                            <span>${escapeHtml(lang)}</span>
+                            <div class="code-actions">
+                                ${canPreview ? '<button class="code-preview" title="预览"><i class="far fa-eye"></i></button>' : ''}
+                                <button class="code-copy" title="复制代码"><i class="far fa-copy"></i></button>
+                            </div>
+                        </div>
+                    `;
+                    pre.parentNode.insertBefore(wrap, pre);
+                    wrap.appendChild(pre);
+
+                    const previewBtn = wrap.querySelector('.code-preview');
+                    if (previewBtn) {
+                        previewBtn.addEventListener('click', () => openHtmlPreview(code.textContent));
+                    }
+
+                    wrap.querySelector('.code-copy').addEventListener('click', function() {
+                        const btn = this;
+                        navigator.clipboard.writeText(code.textContent).then(() => {
+                            btn.classList.add('copied');
+                            btn.innerHTML = '<i class="fas fa-check"></i>';
+                            setTimeout(() => {
+                                btn.classList.remove('copied');
+                                btn.innerHTML = '<i class="far fa-copy"></i>';
+                            }, 1500);
+                        });
+                    });
+                });
+            }
+
+            function removeWelcomeHero() {
+                const hero = document.getElementById('welcomeHero');
+                if (!hero) return;
+                // 输入框还原回聊天区底部（移动 DOM 节点，事件与内容都保留）
+                const inputArea = hero.querySelector('.input-area');
+                if (inputArea) document.querySelector('.chat-area').appendChild(inputArea);
+                hero.remove();
+            }
+
+            function showWelcome() {
+                const msgs = container.querySelectorAll('.msg');
+                msgs.forEach(m => m.remove());
+                removeWelcomeHero();
+
+                const hero = document.createElement('div');
+                hero.className = 'welcome-hero';
+                hero.id = 'welcomeHero';
+                hero.innerHTML = `
+                    <div class="hero-head">
+                        <div class="hero-logo">${AI_AVATAR}</div>
+                        <div class="hero-title">Qualia Claw</div>
+                    </div>
+                    <div class="hero-sub">你的多智能体职能团队 —— 每位伙伴都有自己的工作区与专长，各司其职</div>
+                `;
+                container.insertBefore(hero, typing);
+
+                // 输入框移入 Hero（标题下方），垂直水平居中
+                const inputArea = document.querySelector('.chat-area > .input-area');
+                if (inputArea) hero.appendChild(inputArea);
+                input.focus();
+            }
+
+            function clearChat() {
+                showWelcome();
+            }
+
+            // ===== 自动调整输入框高度 =====
+            function autoResize(textarea) {
+                // 空值直接回基准高（3 行 = 80px）：空 textarea 的 scrollHeight 会算入 placeholder 折行高度
+                if (!textarea.value) { textarea.style.height = '80px'; return; }
+                // 先压回基准高再测量，避免 flex 容器中 height:auto 测量不稳
+                textarea.style.height = '80px';
+                textarea.style.height = Math.max(80, Math.min(textarea.scrollHeight, 200)) + 'px';
+            }
+
+            input.addEventListener('input', function() {
+                autoResize(this);
+            });
+
+            // ===== 发送消息(SSE) =====
+            let activeEventSource = null;
+
+            // 发送按钮在生成期间切换为停止态
+            function setSendBtnStop(stop) {
+                sendBtn.classList.toggle('stop', stop);
+                sendBtn.innerHTML = stop ? '<i class="fas fa-stop"></i>' : '<i class="fas fa-arrow-up"></i>';
+                sendBtn.title = stop ? '停止生成' : '发送';
+                // 流式期间智能体列表同步置灰（后端删除/编辑接口另有 BUSY 兜底）
+                const agentList = document.getElementById('agentList');
+                if (agentList) agentList.classList.toggle('disabled', stop);
+                const hint = document.querySelector('.input-hint > span:first-child');
+                if (hint) {
+                    if (stop) {
+                        if (!hint.dataset.orig) hint.dataset.orig = hint.textContent;
+                        hint.textContent = '生成中，点击红色按钮停止（仅断开前端，后端任务继续）';
+                    } else if (hint.dataset.orig) {
+                        hint.textContent = hint.dataset.orig;
+                    }
+                }
+            }
+
+            function resetProcessingState() {
+                activeEventSource = null;
+                isProcessing = false;
+                typing.style.display = 'none';
+                setSendBtnStop(false);
+            }
+
+            // 停止生成：仅断开前端流，后端任务继续执行
+            window.stopGeneration = function() {
+                if (activeEventSource) activeEventSource.close();
+                const acts = container.querySelectorAll('.msg.codex');
+                const actEl = acts.length ? acts[acts.length - 1] : null;
+                if (actEl && actEl.querySelector('.act-col')) finalizeActivity(actEl);
+                resetProcessingState();
+            };
+
+            async function sendMessage() {
+                const text = input.value.trim();
+                if (!text || isProcessing) return;
+
+                if (!currentSessionId) {
+                    await createSession();
+                }
+
+                input.value = '';
+                autoResize(input);
+                isProcessing = true;
+                setSendBtnStop(true);
+
+                // 重置本轮步骤
+                currentSteps = [];
+
+                appendMessage('user', text);
+                scrollToBottom();
+
+                // 显示typing indicator（首个 step 到达后由思考状态条接管）
+                typing.style.display = 'flex';
+
+                try {
+                    // 获取选择的模型
+                    const modelParam = currentSelectedModel ? `&model=${encodeURIComponent(currentSelectedModel)}` : '';
+                    
+                    // 使用EventSource进行SSE连接
+                    const url = chatApi(`/stream?sessionId=${encodeURIComponent(currentSessionId)}&message=${encodeURIComponent(text)}${modelParam}`);
+                    console.log('Connecting to SSE:', url);
+                    const eventSource = new EventSource(url);
+                    activeEventSource = eventSource;
+                    let fullAnswer = '';
+                    let activityEl = null;
+                    let currentMsgSteps = [];
+                    const currentMsgId = `msg-${Date.now()}`;
+
+                    eventSource.onopen = function() {
+                        console.log('SSE connection opened');
+                    };
+
+                    eventSource.onmessage = function(event) {
+                        if (event.data === '[DONE]') {
+                            console.log('SSE stream done');
+                            eventSource.close();
+                            if (activityEl) finalizeActivity(activityEl);
+                            resetProcessingState();
+                            return;
+                        }
+
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.responseType === 'answer' && data.answer) {
+                                // 最终答案：写入活动容器同列；无步骤时走普通气泡
+                                fullAnswer = data.answer;
+                                typing.style.display = 'none';
+                                if (!activityEl && currentMsgSteps.length === 0) {
+                                    activityEl = appendMessage('assistant', fullAnswer, currentMsgId);
+                                    activityEl._plainBubble = true;
+                                }
+                                if (activityEl && activityEl._plainBubble) {
+                                    activityEl.querySelector('.bubble').innerHTML = renderMarkdown(fullAnswer);
+                                    enhanceCodeBlocks(activityEl);
+                                } else if (activityEl) {
+                                    finalizeActivity(activityEl);
+                                    setActivityAnswer(activityEl, fullAnswer);
+                                }
+                                // 关联步骤到消息
+                                if (currentMsgSteps.length > 0) {
+                                    messageStepsMap.set(currentMsgId, currentMsgSteps);
+                                }
+                                scrollToBottom();
+                            } else if (data.responseType === 'step' && data.steps && data.steps.length > 0) {
+                                // 步骤到达：驱动聊天流内联活动容器
+                                const step = data.steps[0];
+                                if (!activityEl) {
+                                    typing.style.display = 'none';
+                                    activityEl = createActivityMsg(currentMsgId);
+                                }
+                                currentMsgSteps.push(step);
+                                currentSteps.push(step);
+                                applyStepToActivity(activityEl, step, currentMsgSteps.length - 1, currentMsgSteps, true);
+                                scrollToBottom();
+                            }
+                        } catch (e) {
+                            console.error('Parse error:', e, event.data);
+                        }
+                    };
+
+                    eventSource.onerror = function(error) {
+                        console.error('SSE error:', error);
+                        eventSource.close();
+                        if (activityEl && !activityEl._plainBubble) finalizeActivity(activityEl);
+                        if (!fullAnswer && !activityEl) {
+                            appendMessage('assistant', '连接失败，请重试');
+                        }
+                        resetProcessingState();
+                    };
+                } catch (error) {
+                    appendMessage('assistant', '发送失败: ' + error.message);
+                    resetProcessingState();
+                }
+            }
+
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = str || '';
+                return div.innerHTML;
+            }
+
+            function scrollToBottom() {
+                container.scrollTop = container.scrollHeight;
+            }
+
+            sendBtn.addEventListener('click', function() {
+                if (isProcessing) {
+                    stopGeneration();
+                } else {
+                    sendMessage();
+                }
+            });
+            input.addEventListener('keydown', function(e) {
+                // 回车发送（Shift+Enter 换行）；输入法选词中的回车（isComposing / keyCode 229）不触发
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+                    e.preventDefault();
+                    if (!isProcessing) sendMessage();
+                }
+            });
+
+            setTimeout(scrollToBottom, 50);
+
+            // ===== 新建对话 =====
+            document.querySelector('.topbar-btn[title="新建对话"]')?.addEventListener('click', function() {
+                createSession();
+            });
+
+            console.log('🦞 Qualia Claw UI 已启动');
+        })();
+    </script>
+
+</body>
+</html>

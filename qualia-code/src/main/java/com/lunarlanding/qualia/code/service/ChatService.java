@@ -39,8 +39,8 @@ public class ChatService {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatService.class);
 
-    /** 全局技能目录（~/.qualia/skills），所有工作区共享 */
-    private static final Path GLOBAL_SKILLS_DIR = Path.of(System.getProperty("user.home"), ".qualia", "skills");
+    /** 全局技能目录（~/.qualia/code/skills），所有工作区共享 */
+    private static final Path GLOBAL_SKILLS_DIR = CodeAgentConfig.GLOBAL_SKILLS_DIR;
 
     private static ChatService instance;
 
@@ -238,7 +238,7 @@ public class ChatService {
     }
 
     /**
-     * 加载全局技能（~/.qualia/skills），与工作区技能同名时项目级优先、全局不覆盖
+     * 加载全局技能（~/.qualia/code/skills），与工作区技能同名时项目级优先、全局不覆盖
      */
     private void loadGlobalSkills() {
         if (!Files.exists(GLOBAL_SKILLS_DIR)) {

@@ -31,9 +31,12 @@ import java.nio.file.StandardOpenOption;
  */
 public final class DesktopLauncher {
 
+    /** 产品目录（锁文件与崩溃日志的存放根，与 Qualia Claw 隔离，可同开） */
+    private static final Path PRODUCT_DIR =
+            Path.of(System.getProperty("user.home"), ".qualia", "code");
+
     /** 单实例锁文件 */
-    private static final Path LOCK_FILE =
-            Path.of(System.getProperty("user.home"), ".qualia", "desktop.lock");
+    private static final Path LOCK_FILE = PRODUCT_DIR.resolve("desktop.lock");
 
     /** Web 服务启动就绪等待上限（毫秒） */
     private static final long READY_TIMEOUT_MS = 30_000;
@@ -42,11 +45,11 @@ public final class DesktopLauncher {
     private static FileChannel lockChannel;
 
     /**
-     * 将启动崩溃堆栈写入 ~/.qualia/desktop-error.log（GUI 模式无控制台时的唯一排查依据）。
+     * 将启动崩溃堆栈写入 ~/.qualia/code/desktop-error.log（GUI 模式无控制台时的唯一排查依据）。
      */
     private static void writeCrashLog(Throwable t) {
         try {
-            Path log = Path.of(System.getProperty("user.home"), ".qualia", "desktop-error.log");
+            Path log = PRODUCT_DIR.resolve("desktop-error.log");
             Files.createDirectories(log.getParent());
             StringWriter sw = new StringWriter();
             sw.write("[" + java.time.Instant.now() + "] Qualia Code 启动失败\n");

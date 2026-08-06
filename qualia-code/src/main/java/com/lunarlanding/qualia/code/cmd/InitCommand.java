@@ -2,6 +2,7 @@ package com.lunarlanding.qualia.code.cmd;
 
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSON;
+import com.lunarlanding.qualia.code.CodeAgentConfig;
 import picocli.CommandLine.Command;
 
 import java.io.IOException;
@@ -19,8 +20,8 @@ import java.util.concurrent.Callable;
 @Command(name = "init", description = "初始化 Qualia Code 配置文件")
 public class InitCommand implements Callable<Integer> {
 
-    private static final Path GLOBAL_CONFIG_DIR = Path.of(System.getProperty("user.home"), ".qualia");
-    private static final Path GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR.resolve("qualia-code.json");
+    private static final Path GLOBAL_CONFIG_DIR = CodeAgentConfig.GLOBAL_CONFIG_DIR;
+    private static final Path GLOBAL_CONFIG_FILE = CodeAgentConfig.GLOBAL_CONFIG_FILE;
 
     /** 预设的模型提供商 */
     private static final Map<String, ModelPreset> PRESETS = new LinkedHashMap<>();
@@ -39,6 +40,9 @@ public class InitCommand implements Callable<Integer> {
         System.out.println();
         System.out.println("=== Qualia Code 配置初始化 ===");
         System.out.println();
+
+        // 旧路径配置先迁移，避免 init 感知不到已有配置
+        CodeAgentConfig.migrateLegacyConfigIfNeeded();
 
         // 检查是否已存在配置
         if (Files.exists(GLOBAL_CONFIG_FILE)) {

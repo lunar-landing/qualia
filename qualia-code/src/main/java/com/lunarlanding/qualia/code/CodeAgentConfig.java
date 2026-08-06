@@ -18,17 +18,29 @@ import java.util.stream.Collectors;
 
 /**
  * 配置管理类
+ *
+ * 配置路径：~/.qualia/code/（产品目录隔离，与 claw 分开）：
+ * config.json 模型/MCP 配置、workspaces.json 工作区历史、skills/ 全局技能
  */
 public class CodeAgentConfig {
     
     /** 环境变量正则：${ENV_VAR} */
     private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([a-zA-Z_][a-zA-Z0-9_]*)}");
     
-    /** 全局配置目录 */
-    private static final Path GLOBAL_CONFIG_DIR = Path.of(System.getProperty("user.home"), ".qualia");
+    /** Qualia 主目录（旧版共享资源的路径根，仅用于迁移） */
+    public static final Path QUALIA_HOME = Path.of(System.getProperty("user.home"), ".qualia");
     
-    /** 全局配置文件 */
-    private static final Path GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR.resolve("qualia-code.json");
+    /** 产品配置目录 */
+    public static final Path GLOBAL_CONFIG_DIR = QUALIA_HOME.resolve("code");
+    
+    /** 产品配置文件 */
+    public static final Path GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR.resolve("config.json");
+    
+    /** 产品全局技能目录 */
+    public static final Path GLOBAL_SKILLS_DIR = GLOBAL_CONFIG_DIR.resolve("skills");
+    
+    /** 旧版配置文件（产品目录隔离前的路径，首启自动迁移） */
+    private static final Path LEGACY_CONFIG_FILE = QUALIA_HOME.resolve("qualia-code.json");
     
     private final Path workspacePath;
     private final String defaultModel;
@@ -142,6 +154,9 @@ public class CodeAgentConfig {
         // 初始化工作区目录
         initWorkspace(workspacePath);
         
+        // 旧路径配置自动迁移到产品目录
+        migrateLegacyConfigIfNeeded();
+        
         // 加载全局配置
         JSONObject config = loadJsonFile(GLOBAL_CONFIG_FILE);
         
@@ -156,6 +171,54 @@ public class CodeAgentConfig {
         resolveEnvVars(models, mcpServers);
         
         return new CodeAgentConfig(workspacePath, defaultModel, models, mcpServers, disabledSkills, disabledTools);
+    }
+    
+    /**
+     * 旧版共享资源迁移到产品目录（新路径已存在时跳过，原文件保留）：
+     * config.json、workspaces.json、skills/
+     */
+    public static void migrateLegacyConfigIfNeeded() {
+        try {
+            // 配置文件
+            if (!Files.exists(GLOBAL_CONFIG_FILE) && Files.exists(LEGACY_CONFIG_FILE)) {
+                Files.createDirectories(GLOBAL_CONFIG_DIR);
+                Files.copy(LEGACY_CONFIG_FILE, GLOBAL_CONFIG_FILE);
+                System.out.println("已将旧配置迁移到: " + GLOBAL_CONFIG_FILE);
+            }
+            // 工作区历史
+            Path legacyWorkspaces = QUALIA_HOME.resolve("workspaces.json");
+            Path workspacesFile = GLOBAL_CONFIG_DIR.resolve("workspaces.json");
+            if (!Files.exists(workspacesFile) && Files.exists(legacyWorkspaces)) {
+                Files.createDirectories(GLOBAL_CONFIG_DIR);
+                Files.copy(legacyWorkspaces, workspacesFile);
+                System.out.println("已将工作区历史迁移到: " + workspacesFile);
+            }
+            // 全局技能目录（旧版两产品共享，各产品各自复制一份）
+            Path legacySkills = QUALIA_HOME.resolve("skills");
+            if (!Files.exists(GLOBAL_SKILLS_DIR) && Files.isDirectory(legacySkills)) {
+                copyDirectory(legacySkills, GLOBAL_SKILLS_DIR);
+                System.out.println("已将全局技能迁移到: " + GLOBAL_SKILLS_DIR);
+            }
+        } catch (IOException e) {
+            System.err.println("迁移旧版资源失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 递归复制目录
+     */
+    private static void copyDirectory(Path source, Path target) throws IOException {
+        Files.createDirectories(target);
+        try (var stream = Files.walk(source)) {
+            for (Path src : (Iterable<Path>) stream::iterator) {
+                Path dest = target.resolve(source.relativize(src).toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(dest);
+                } else {
+                    Files.copy(src, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
     
     /**

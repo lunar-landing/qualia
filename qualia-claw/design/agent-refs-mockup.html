@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>智能体引用设计稿 —— 技能 / MCP 按智能体勾选</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<style>
+    /* ============================================================
+       智能体引用设计稿 —— 与现有 index.css 同一套变量与视觉语言
+       方案：技能管理/MCP 管理仍是全局资源池；
+             智能体创建/编辑弹窗内新增「引用技能」「引用 MCP」勾选区，
+             取消勾选即该智能体不使用（黑名单语义，默认全部引用）。
+       生效规则：智能体可用 = 全局已启用 − 智能体取消勾选的
+       ============================================================ */
+    :root {
+        --bg-app: #080a10;
+        --bg-panel: #0d1017;
+        --bg-input: #12161f;
+        --bg-hover: rgba(255, 255, 255, 0.045);
+        --bg-active: rgba(124, 108, 240, 0.10);
+        --border-color: rgba(255, 255, 255, 0.07);
+        --border-active: rgba(124, 108, 240, 0.45);
+        --text-primary: #eceef4;
+        --text-secondary: #a8aebd;
+        --text-muted: #666d7e;
+        --accent: #7c6cf0;
+        --accent-light: #b3a8ff;
+        --accent-gradient: linear-gradient(135deg, #8a79f5, #6d5ce7);
+        --error: #f87171;
+        --white: #fff;
+        --radius-sm: 11px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--bg-app);
+        color: var(--text-primary);
+        font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        gap: 26px;
+    }
+
+    /* ===== 设计说明条 ===== */
+    .notes {
+        max-width: 900px; width: 100%;
+        border: 1px solid var(--border-color);
+        background: var(--bg-panel);
+        border-radius: var(--radius-sm);
+        padding: 18px 22px;
+        font-size: 12px; line-height: 2;
+        color: var(--text-secondary);
+    }
+    .notes b { color: var(--accent-light); font-weight: 650; }
+    .notes code {
+        font-family: 'JetBrains Mono', Consolas, monospace;
+        background: var(--bg-hover);
+        border-radius: 5px; padding: 1px 6px;
+        font-size: 11px; color: var(--text-primary);
+    }
+
+    /* ===== 弹窗（模拟 agent-panel 管理弹窗） ===== */
+    .manager {
+        max-width: 900px; width: 100%;
+        border: 1px solid var(--border-color);
+        background: var(--bg-panel);
+        border-radius: 16px;
+        display: flex;
+        overflow: hidden;
+        min-height: 620px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    /* 左栏：智能体列表 */
+    .m-left {
+        width: 230px; flex-shrink: 0;
+        border-right: 1px solid var(--border-color);
+        padding: 16px 12px;
+        display: flex; flex-direction: column;
+    }
+    .m-left h4 {
+        font-size: 11px; font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.5px; text-transform: uppercase;
+        padding: 0 8px 10px;
+    }
+    .m-item {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 10px;
+        border-radius: var(--radius-sm);
+        font-size: 12.5px; color: var(--text-secondary);
+        cursor: pointer; margin-bottom: 3px;
+    }
+    .m-item:hover { background: var(--bg-hover); }
+    .m-item.active { background: var(--bg-active); color: var(--accent-light); }
+    .m-item .em {
+        width: 26px; height: 26px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--bg-hover); border-radius: 8px; font-size: 14px;
+    }
+    .m-item.active .em { background: rgba(124,108,240,0.15); }
+
+    /* 右栏：编辑表单 */
+    .m-right { flex: 1; padding: 22px 26px; overflow-y: auto; }
+    .m-right h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+
+    .ag-field { margin-bottom: 15px; }
+    .ag-field > label {
+        display: block;
+        font-size: 11px; font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.4px;
+        margin-bottom: 6px;
+    }
+    .ag-field input[type=text], .ag-field textarea {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 12.5px;
+        padding: 9px 11px;
+        outline: none;
+        font-family: inherit;
+        resize: none;
+    }
+    .ag-field input:focus, .ag-field textarea:focus { border-color: var(--border-active); }
+
+    /* ===== 引用区（新增部分） ===== */
+    .ref-section { margin-bottom: 18px; }
+    .ref-head {
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 8px;
+    }
+    .ref-head > label {
+        font-size: 11px; font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.4px;
+        margin: 0;
+    }
+    .ref-count {
+        font-size: 10px; font-weight: 650;
+        color: var(--accent-light);
+        background: var(--bg-active);
+        border-radius: 100px; padding: 2px 8px;
+    }
+    .ref-hint {
+        margin-left: auto;
+        font-size: 10px; color: var(--text-muted);
+    }
+    .ref-list {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: var(--bg-input);
+        max-height: 190px;
+        overflow-y: auto;
+        padding: 6px;
+    }
+    .ref-list::-webkit-scrollbar { width: 5px; }
+    .ref-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+
+    .ref-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .ref-row:hover { background: var(--bg-hover); }
+    .ref-row.off { opacity: 0.5; }
+    .ref-row.global-off { opacity: 0.45; cursor: not-allowed; }
+
+    .ref-row input[type=checkbox] {
+        width: 15px; height: 15px; flex-shrink: 0;
+        accent-color: var(--accent);
+        cursor: pointer;
+    }
+    .ref-icon {
+        width: 28px; height: 28px; flex-shrink: 0;
+        border-radius: 8px;
+        background: var(--accent-gradient);
+        color: var(--white); font-size: 12px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ref-row.off .ref-icon, .ref-row.global-off .ref-icon {
+        background: var(--bg-hover); color: var(--text-muted);
+    }
+    .ref-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .ref-name {
+        font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ref-sub {
+        font-size: 10.5px; color: var(--text-muted);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ref-badge {
+        font-size: 9.5px; font-weight: 650; flex-shrink: 0;
+        color: var(--error);
+        background: rgba(248,113,113,0.1);
+        border-radius: 5px; padding: 2px 7px;
+    }
+
+    .ref-empty {
+        padding: 18px; text-align: center;
+        font-size: 11px; color: var(--text-muted); line-height: 1.9;
+    }
+    .ref-empty a { color: var(--accent-light); cursor: pointer; text-decoration: none; }
+
+    /* 保存按钮 */
+    .m-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .btn-save {
+        border: none; border-radius: 8px;
+        background: var(--accent);
+        color: var(--white);
+        font-size: 12px; font-weight: 600;
+        padding: 9px 26px;
+        cursor: pointer;
+    }
+    .btn-save:hover { background: #8d7df5; }
+</style>
+</head>
+<body>
+
+    <!-- 设计说明 -->
+    <div class="notes">
+        <b>语义说明（白名单）</b>：技能管理 / MCP 管理维护<b>全局资源池</b>；智能体创建/编辑时<b>逐个勾选</b>要引用的资源，
+        只有勾选的才对该智能体可用。<br/>
+        <b>生效规则</b>：智能体可用 = 勾选的 ∩ 全局已启用。全局禁用（灰显 + 徽标）为总开关，勾选也不可用。<br/>
+        <b>数据模型</b>：<code>ClawAgentDefinition</code> 新增 <code>skills[]</code> / <code>mcpServers[]</code>（按名称引用）；
+        字段缺失（存量智能体）= 引用全部，空数组 = 不引用任何资源；
+        <code>ClawAgentService.loadGlobalSkills / connectMcpServers</code> 各加一道白名单过滤。
+    </div>
+
+    <!-- 智能体管理弹窗（编辑态） -->
+    <div class="manager">
+        <div class="m-left">
+            <h4>智能体</h4>
+            <div class="m-item"><span class="em">📊</span> 数据分析员</div>
+            <div class="m-item active"><span class="em">📣</span> 市场专员</div>
+            <div class="m-item"><span class="em">🧑‍💼</span> HR 助理</div>
+        </div>
+
+        <div class="m-right">
+            <h3>编辑智能体</h3>
+
+            <div class="ag-field">
+                <label>名称</label>
+                <input type="text" value="市场专员" />
+            </div>
+            <div class="ag-field">
+                <label>职能角色（叠加到系统提示词）</label>
+                <textarea rows="2">资深市场营销专员，擅长活动策划、文案撰写与竞品分析</textarea>
+            </div>
+
+            <!-- ===== 新增：引用技能 ===== -->
+            <div class="ref-section">
+                <div class="ref-head">
+                    <label>引用技能</label>
+                    <span class="ref-count">2 / 4 引用</span>
+                    <span class="ref-hint">仅勾选的技能对该智能体可用，全局开关见「技能管理」</span>
+                </div>
+                <div class="ref-list">
+                    <label class="ref-row">
+                        <input type="checkbox" checked onchange="this.closest('.ref-row').classList.toggle('off', !this.checked)">
+                        <span class="ref-icon"><i class="fas fa-shapes"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">query-data-skill</span>
+                            <span class="ref-sub">查询业务数据库并生成结构化报表</span>
+                        </span>
+                    </label>
+                    <label class="ref-row">
+                        <input type="checkbox" checked onchange="this.closest('.ref-row').classList.toggle('off', !this.checked)">
+                        <span class="ref-icon"><i class="fas fa-shapes"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">weekly-report</span>
+                            <span class="ref-sub">整理三段式周报，自动附风险清单</span>
+                        </span>
+                    </label>
+                    <label class="ref-row off">
+                        <input type="checkbox" onchange="this.closest('.ref-row').classList.toggle('off', !this.checked)">
+                        <span class="ref-icon"><i class="fas fa-shapes"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">ppt-outline</span>
+                            <span class="ref-sub">生成演示文稿大纲与分页要点</span>
+                        </span>
+                    </label>
+                    <label class="ref-row global-off" title="已在全局禁用，无法引用">
+                        <input type="checkbox" disabled>
+                        <span class="ref-icon"><i class="fas fa-shapes"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">web-monitor</span>
+                            <span class="ref-sub">定时抓取网页并对比内容差异</span>
+                        </span>
+                        <span class="ref-badge">全局已禁用</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- ===== 新增：引用 MCP ===== -->
+            <div class="ref-section">
+                <div class="ref-head">
+                    <label>引用 MCP</label>
+                    <span class="ref-count">1 / 2 引用</span>
+                    <span class="ref-hint">仅勾选的服务器对该智能体可用，配置见「MCP 管理」</span>
+                </div>
+                <div class="ref-list">
+                    <label class="ref-row">
+                        <input type="checkbox" checked onchange="this.closest('.ref-row').classList.toggle('off', !this.checked)">
+                        <span class="ref-icon"><i class="fas fa-server"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">baidu-search</span>
+                            <span class="ref-sub">streamable-http · http://127.0.0.1:8081/mcp</span>
+                        </span>
+                    </label>
+                    <label class="ref-row off">
+                        <input type="checkbox" onchange="this.closest('.ref-row').classList.toggle('off', !this.checked)">
+                        <span class="ref-icon"><i class="fas fa-server"></i></span>
+                        <span class="ref-info">
+                            <span class="ref-name">filesystem</span>
+                            <span class="ref-sub">http-sse · http://127.0.0.1:8082/sse</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="m-actions">
+                <button class="btn-save">保存</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

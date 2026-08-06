@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Qualia Claw · 极简工具风设计稿</title>
+<style>
+    /* ============================================================
+       Qualia Claw —— 浅色极简工具风（Linear / Notion 气质）
+       原则：纯白底、细线分隔、克制的单一强调色、无阴影无渐变，
+       信息密度靠字号层级与留白组织，而不是卡片与装饰。
+       ============================================================ */
+    :root {
+        --bg: #ffffff;
+        --bg-subtle: #fafafa;
+        --bg-hover: #f5f5f4;
+        --line: #ececea;
+        --line-strong: #e2e2df;
+        --ink: #1a1a19;
+        --ink-2: #6b6b66;
+        --ink-3: #a3a39d;
+        --accent: #2563eb;
+        --accent-bg: #eff4ff;
+        --green: #16a34a;
+        --amber: #d97706;
+        --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        font-size: 13.5px;
+        line-height: 1.6;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+
+    .app { display: flex; height: 100vh; }
+
+    /* ============ 左栏：伙伴 ============ */
+    .side {
+        width: 236px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+    }
+    .side-top {
+        height: 52px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+    }
+    .logo {
+        font-size: 13.5px;
+        font-weight: 700;
+        letter-spacing: -0.2px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .logo-mark {
+        width: 20px; height: 20px;
+        border-radius: 5px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 11px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800;
+    }
+
+    .side-section {
+        padding: 14px 10px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-3);
+        letter-spacing: 0.6px;
+        display: flex;
+        align-items: center;
+    }
+    .side-section .n { margin-left: auto; color: var(--ink-3); font-weight: 500; }
+
+    .agents { flex: 1; overflow-y: auto; padding: 0 8px; }
+    .agent-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.1s;
+        position: relative;
+    }
+    .agent-row:hover { background: var(--bg-hover); }
+    .agent-row.active { background: var(--bg-hover); }
+    .agent-row.active::before {
+        content: '';
+        position: absolute;
+        left: -8px; top: 8px; bottom: 8px;
+        width: 2.5px;
+        border-radius: 2px;
+        background: var(--accent);
+    }
+    .agent-emoji { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+    .agent-name {
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .agent-row .role {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--ink-3);
+        flex-shrink: 0;
+    }
+    .dot-online {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        flex-shrink: 0;
+        margin-left: 6px;
+    }
+    .dot-online.busy { background: var(--amber); animation: breathe 1.4s ease-in-out infinite; }
+    @keyframes breathe { 50% { opacity: 0.3; } }
+
+    .add-row {
+        margin: 6px 8px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        color: var(--ink-2);
+        width: calc(100% - 16px);
+        text-align: left;
+        transition: background 0.1s;
+    }
+    .add-row:hover { background: var(--bg-hover); color: var(--ink); }
+    .add-row .plus {
+        width: 20px; text-align: center;
+        color: var(--ink-3); font-weight: 600;
+    }
+
+    .side-bottom {
+        border-top: 1px solid var(--line);
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .usage {
+        flex: 1;
+        font-size: 11px;
+        color: var(--ink-3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .usage .bar {
+        flex: 1;
+        height: 3px;
+        background: var(--line);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    .usage .fill { width: 42%; height: 100%; background: var(--ink-2); border-radius: 2px; }
+    .icon-ghost {
+        width: 26px; height: 26px;
+        border-radius: 6px;
+        color: var(--ink-3);
+        font-size: 13px;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.1s;
+    }
+    .icon-ghost:hover { background: var(--bg-hover); color: var(--ink); }
+
+    /* ============ 中栏：工作区 ============ */
+    .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+
+    .ws-top {
+        height: 52px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--line);
+        gap: 14px;
+    }
+    .ws-title { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .ws-title .sep { color: var(--ink-3); font-weight: 400; }
+    .ws-title .sess { color: var(--ink-2); font-weight: 500; }
+    .ws-actions { margin-left: auto; display: flex; gap: 6px; }
+    .btn-ghost {
+        padding: 5px 11px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        border: 1px solid transparent;
+        transition: all 0.1s;
+    }
+    .btn-ghost:hover { background: var(--bg-hover); color: var(--ink); }
+    .btn-solid {
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 12.5px;
+        font-weight: 500;
+        background: var(--ink);
+        color: #fff;
+        transition: opacity 0.1s;
+    }
+    .btn-solid:hover { opacity: 0.85; }
+
+    /* 会话 tab（下划线式） */
+    .sessions {
+        flex-shrink: 0;
+        display: flex;
+        gap: 2px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--line);
+        overflow-x: auto;
+    }
+    .sess-tab {
+        padding: 9px 12px 8px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        white-space: nowrap;
+        transition: color 0.1s;
+    }
+    .sess-tab:hover { color: var(--ink); }
+    .sess-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); }
+
+    /* 消息流 */
+    .thread {
+        flex: 1;
+        overflow-y: auto;
+        padding: 28px 0 16px;
+    }
+    .thread-inner { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+    .turn { margin-bottom: 30px; }
+
+    .turn-user {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 11px 14px;
+        background: var(--bg-subtle);
+        border-radius: 8px;
+        font-size: 13.5px;
+    }
+    .turn-user .time { font-size: 11px; color: var(--ink-3); flex-shrink: 0; padding-top: 2px; }
+
+    .turn-agent-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .turn-agent-head .who { font-size: 12.5px; font-weight: 600; }
+    .turn-agent-head .meta { font-size: 11px; color: var(--ink-3); }
+
+    /* 工具步骤：极简行式 */
+    .steps { margin: 2px 0 12px; }
+    .step {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 3px 0;
+        font-size: 12px;
+        color: var(--ink-2);
+    }
+    .step .sym {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        width: 14px;
+        text-align: center;
+        color: var(--ink-3);
+        flex-shrink: 0;
+    }
+    .step .tool {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+        background: var(--bg-subtle);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 6px;
+        flex-shrink: 0;
+    }
+    .step .arg {
+        color: var(--ink-3);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .step:hover .arg { color: var(--ink-2); }
+    .steps-toggle {
+        font-size: 11.5px;
+        color: var(--ink-3);
+        padding: 2px 0;
+        transition: color 0.1s;
+    }
+    .steps-toggle:hover { color: var(--ink-2); }
+
+    .answer { font-size: 14px; line-height: 1.8; color: var(--ink); }
+    .answer p + p { margin-top: 10px; }
+    .answer .file-link {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+    }
+    .answer .file-link:hover { border-bottom-color: var(--accent); }
+    .answer strong { font-weight: 600; }
+
+    /* 打字指示：极简 */
+    .working {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+    }
+    .spinner {
+        width: 13px; height: 13px;
+        border: 1.5px solid var(--line-strong);
+        border-top-color: var(--ink-2);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 输入区 */
+    .composer-zone { flex-shrink: 0; padding: 4px 0 20px; }
+    .composer {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 24px;
+    }
+    .composer-box {
+        border: 1px solid var(--line-strong);
+        border-radius: 10px;
+        background: var(--bg);
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .composer-box:focus-within {
+        border-color: var(--ink);
+        box-shadow: 0 0 0 3px rgba(26, 26, 25, 0.06);
+    }
+    .composer-box textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        resize: none;
+        background: transparent;
+        padding: 12px 14px 4px;
+        font-family: inherit;
+        font-size: 13.5px;
+        line-height: 1.6;
+        color: var(--ink);
+        height: 62px;
+    }
+    .composer-box textarea::placeholder { color: var(--ink-3); }
+    .composer-bar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 8px 8px;
+    }
+    .pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--ink-2);
+        transition: background 0.1s;
+    }
+    .pill:hover { background: var(--bg-hover); }
+    .pill .caret { color: var(--ink-3); font-size: 10px; }
+    .send {
+        margin-left: auto;
+        padding: 6px 16px;
+        border-radius: 7px;
+        background: var(--ink);
+        color: #fff;
+        font-size: 12.5px;
+        font-weight: 500;
+        transition: opacity 0.1s;
+    }
+    .send:hover { opacity: 0.85; }
+    .composer-hint {
+        text-align: center;
+        font-size: 11px;
+        color: var(--ink-3);
+        margin-top: 10px;
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; border: 2px solid var(--bg); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+    ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="app">
+
+    <!-- ============ 左栏 ============ -->
+    <aside class="side">
+        <div class="side-top">
+            <div class="logo"><span class="logo-mark">Q</span> Qualia Claw</div>
+        </div>
+
+        <div class="side-section">伙伴 <span class="n">3</span></div>
+
+        <div class="agents">
+            <div class="agent-row active" onclick="pick(this,'市场专员')">
+                <span class="agent-emoji">📣</span>
+                <span class="agent-name">市场专员</span>
+                <span class="dot-online busy"></span>
+            </div>
+            <div class="agent-row" onclick="pick(this,'文案写手')">
+                <span class="agent-emoji">📝</span>
+                <span class="agent-name">文案写手</span>
+                <span class="dot-online"></span>
+            </div>
+            <div class="agent-row" onclick="pick(this,'数据分析师')">
+                <span class="agent-emoji">📊</span>
+                <span class="agent-name">数据分析师</span>
+                <span class="dot-online"></span>
+            </div>
+        </div>
+
+        <button class="add-row"><span class="plus">＋</span> 新建伙伴</button>
+
+        <div class="side-bottom">
+            <div class="usage">
+                <span>Token</span>
+                <div class="bar"><div class="fill"></div></div>
+                <span>42%</span>
+            </div>
+            <button class="icon-ghost" title="设置">⚙</button>
+        </div>
+    </aside>
+
+    <!-- ============ 中栏 ============ -->
+    <main class="workspace">
+        <div class="ws-top">
+            <div class="ws-title">
+                📣 市场专员 <span class="sep">/</span> <span class="sess" id="curSess">Q3 发布会策划</span>
+            </div>
+            <div class="ws-actions">
+                <button class="btn-ghost">档案</button>
+                <button class="btn-solid">新会话</button>
+            </div>
+        </div>
+
+        <div class="sessions">
+            <button class="sess-tab active" onclick="tab(this)">Q3 发布会策划</button>
+            <button class="sess-tab" onclick="tab(this)">竞品周报</button>
+            <button class="sess-tab" onclick="tab(this)">渠道预算案</button>
+        </div>
+
+        <div class="thread">
+            <div class="thread-inner">
+
+                <div class="turn">
+                    <div class="turn-user">
+                        <span>帮我梳理一份 Q3 产品发布会的活动策划框架，重点是线下体验环节。</span>
+                        <span class="time">10:23</span>
+                    </div>
+                </div>
+
+                <div class="turn">
+                    <div class="turn-agent-head">
+                        <span class="who">市场专员</span>
+                        <span class="meta">10:24 · 38s · 3 步</span>
+                    </div>
+                    <div class="steps">
+                        <button class="steps-toggle">▾ 执行过程</button>
+                        <div class="step"><span class="sym">→</span><span class="tool">web_search</span><span class="arg">"产品发布会 线下体验 案例"</span></div>
+                        <div class="step"><span class="sym">→</span><span class="tool">read_file</span><span class="arg">复盘/Q2发布会复盘.md</span></div>
+                        <div class="step"><span class="sym">✓</span><span class="tool">write_file</span><span class="arg">策划/Q3发布会策划框架.md</span></div>
+                    </div>
+                    <div class="answer">
+                        <p>框架已整理好，保存在 <a class="file-link" href="#">策划/Q3发布会策划框架.md</a>。核心思路分四个阶段：</p>
+                        <p><strong>预热期</strong> — 悬念海报与 KOL 埋点；<strong>引爆期</strong> — 主会场发布加体验区动线；<strong>体验期</strong> — 三大互动展台，建议设置「盲盒任务墙」；<strong>长尾期</strong> — UGC 征集二次传播。</p>
+                        <p>线下体验环节预算占比建议不低于 35%，需要细化任何一段随时说。</p>
+                    </div>
+                </div>
+
+                <div class="turn">
+                    <div class="turn-user">
+                        <span>盲盒任务墙具体怎么玩？给我三个可落地的玩法。</span>
+                        <span class="time">10:26</span>
+                    </div>
+                </div>
+
+                <div class="turn">
+                    <div class="turn-agent-head">
+                        <span class="who">市场专员</span>
+                        <span class="meta">正在工作</span>
+                    </div>
+                    <div class="working"><span class="spinner"></span> 检索互动装置案例…</div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="composer-zone">
+            <div class="composer">
+                <div class="composer-box">
+                    <textarea placeholder="给 市场专员 布置任务…"></textarea>
+                    <div class="composer-bar">
+                        <button class="pill">qwen-max <span class="caret">▾</span></button>
+                        <button class="pill">记忆 已开启</button>
+                        <button class="send">发送</button>
+                    </div>
+                </div>
+                <div class="composer-hint">Enter 发送 · Shift + Enter 换行 · 产出保存在伙伴工位</div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    function pick(el, name) {
+        document.querySelectorAll('.agent-row').forEach(r => r.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelector('.ws-title').childNodes[0].textContent = el.querySelector('.agent-emoji').textContent + ' ' + name + ' ';
+        document.querySelector('textarea').placeholder = '给 ' + name + ' 布置任务…';
+    }
+    function tab(el) {
+        document.querySelectorAll('.sess-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('curSess').textContent = el.textContent;
+    }
+</script>
+</body>
+</html>

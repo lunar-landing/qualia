@@ -28,8 +28,9 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/config")
 public class ConfigController {
 
-    private static final Path GLOBAL_CONFIG_DIR = Path.of(System.getProperty("user.home"), ".qualia");
-    private static final Path GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR.resolve("qualia-code.json");
+    /** 技能等资源随产品目录隔离，配置与技能读写都在 ~/.qualia/code/ 下 */
+    private static final Path GLOBAL_CONFIG_DIR = CodeAgentConfig.GLOBAL_CONFIG_DIR;
+    private static final Path GLOBAL_CONFIG_FILE = CodeAgentConfig.GLOBAL_CONFIG_FILE;
 
     /**
      * 获取当前配置
@@ -371,7 +372,7 @@ public class ConfigController {
     }
 
     /**
-     * 获取全局技能列表（直接读 ~/.qualia/skills，不依赖 agent，未配置模型时也可展示）
+     * 获取全局技能列表（直接读 ~/.qualia/code/skills，不依赖 agent，未配置模型时也可展示）
      */
     @GetMapping("/skills")
     public ResponseEntity<List<Map<String, Object>>> getGlobalSkills() {

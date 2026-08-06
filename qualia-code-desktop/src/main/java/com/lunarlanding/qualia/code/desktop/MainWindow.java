@@ -14,13 +14,18 @@ import java.nio.file.Path;
 /**
  * 应用主窗口：承载内嵌浏览器，负责窗口尺寸位置记忆与关闭生命周期。
  *
- * <p>窗口状态（尺寸、位置、是否最大化）持久化到 {@code ~/.qualia/desktop.json}，
+ * <p>窗口状态（尺寸、位置、是否最大化）持久化到 {@code ~/.qualia/code/desktop.json}，
  * 下次启动还原；跨平台一致。
  */
 final class MainWindow {
 
-    /** 窗口状态文件（用户级，跨工作区共享） */
-    private static final Path STATE_FILE = Path.of(System.getProperty("user.home"), ".qualia", "desktop.json");
+    /** 窗口状态文件（产品级，与其他产品隔离） */
+    private static final Path STATE_FILE =
+            Path.of(System.getProperty("user.home"), ".qualia", "code", "desktop.json");
+
+    /** 旧版状态文件（产品目录隔离改造前的路径，首启一次性迁移） */
+    private static final Path LEGACY_STATE_FILE =
+            Path.of(System.getProperty("user.home"), ".qualia", "desktop.json");
 
     private static final int DEFAULT_WIDTH = 1280;
     private static final int DEFAULT_HEIGHT = 800;
@@ -34,6 +39,7 @@ final class MainWindow {
         // 不显示系统标题栏的 logo 与标题文字，保留纯净的着色标题栏
         shell.setText("");
         shell.setLayout(new FillLayout());
+        migrateLegacyState();
         restoreState();
 
         // 系统标题栏默认深色（与应用默认深色主题一致），随后由网页主题回调实时校正
@@ -57,6 +63,20 @@ final class MainWindow {
             if (!display.readAndDispatch()) {
                 display.sleep();
             }
+        }
+    }
+
+    /**
+     * 旧版状态文件迁移：新路径不存在且旧文件存在时复制过来（幂等，旧文件保留）
+     */
+    private static void migrateLegacyState() {
+        try {
+            if (!Files.exists(STATE_FILE) && Files.exists(LEGACY_STATE_FILE)) {
+                Files.createDirectories(STATE_FILE.getParent());
+                Files.copy(LEGACY_STATE_FILE, STATE_FILE);
+            }
+        } catch (Exception e) {
+            // 迁移失败不影响启动，退回默认窗口尺寸即可
         }
     }
 

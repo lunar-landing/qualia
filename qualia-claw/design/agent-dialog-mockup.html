@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>智能体编辑弹窗重设计 —— 加大窗体 + 技能/MCP 卡片选择区</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<style>
+    /* ============================================================
+       智能体编辑弹窗重设计稿 —— 与现有 index.css 同一套变量
+       变更 1：弹窗尺寸 880×560 → 1080×680，基础字段两列排布
+       变更 2：技能/MCP 选择区采用方案 B（Tab 切换单面板 + 全宽卡片网格，
+              详见 refs-select-mockup.html），本草稿中的双栏面板仅为历史版本
+       变更 3：工作区降级为底栏提示文字；删除按钮移至左侧列表 hover 露出
+       ============================================================ */
+    :root {
+        --bg-app: #080a10;
+        --bg-surface: #0d1018;
+        --bg-input: #10141f;
+        --bg-hover: rgba(255, 255, 255, 0.045);
+        --bg-active: rgba(124, 108, 240, 0.1);
+        --border-color: rgba(255, 255, 255, 0.07);
+        --border-active: rgba(124, 108, 240, 0.45);
+        --text-primary: #e8eaf2;
+        --text-secondary: #b3b8c8;
+        --text-muted: #767d90;
+        --accent: #7c6cf0;
+        --accent-light: #b3a8ff;
+        --accent-gradient: linear-gradient(135deg, #7c6cf0, #a78bfa);
+        --danger: #f87171;
+        --white: #fff;
+        --radius-sm: 11px;
+        --radius-md: 16px;
+        --shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        background: var(--bg-app);
+        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+    }
+    .mock-note {
+        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+        font-size: 11px; color: var(--text-muted);
+        background: var(--bg-surface); border: 1px solid var(--border-color);
+        border-radius: 100px; padding: 6px 16px;
+    }
+
+    /* ===== 弹窗骨架（新尺寸 1080×680） ===== */
+    .ag-dialog {
+        display: flex;
+        width: min(1080px, calc(100vw - 48px));
+        height: min(680px, calc(100vh - 64px));
+        min-height: 480px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    /* ----- 左栏：智能体列表（不变） ----- */
+    .ag-side {
+        width: 250px; flex-shrink: 0;
+        display: flex; flex-direction: column;
+        border-right: 1px solid var(--border-color);
+    }
+    .ag-side-head {
+        padding: 16px 16px 10px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .ag-side-head h4 {
+        font-size: 13px; font-weight: 650; color: var(--text-primary);
+        display: flex; align-items: center; gap: 7px; margin-right: auto;
+    }
+    .ag-side-head h4 i { color: var(--accent-light); font-size: 12px; }
+    .ag-close {
+        width: 27px; height: 27px; border: none; border-radius: 7px;
+        background: transparent; color: var(--text-muted);
+        font-size: 12px; cursor: pointer;
+    }
+    .ag-list { flex: 1; overflow-y: auto; padding: 4px 10px; }
+    .ag-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 9px 10px; border-radius: 9px; cursor: pointer;
+        border: 1px solid transparent;
+    }
+    .ag-item:hover { background: var(--bg-hover); }
+    .ag-item.active { background: var(--bg-active); border-color: var(--border-active); }
+    .ag-item-emoji {
+        width: 32px; height: 32px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 17px; border-radius: 9px; background: var(--bg-hover);
+    }
+    .ag-item-info { min-width: 0; flex: 1; }
+    .ag-item-name {
+        font-size: 12px; font-weight: 600; color: var(--text-primary);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ag-item-path {
+        font-size: 10px; color: var(--text-muted);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+    }
+    /* 删除按钮：hover 智能体卡片时露出 */
+    .ag-item-del {
+        display: none;
+        align-items: center; justify-content: center;
+        width: 24px; height: 24px; flex-shrink: 0;
+        border: none; border-radius: 6px;
+        background: transparent; color: var(--text-muted);
+        font-size: 11px; cursor: pointer;
+    }
+    .ag-item:hover .ag-item-del { display: inline-flex; }
+    .ag-item-del:hover { color: var(--danger); background: rgba(248, 113, 113, 0.1); }
+    .ag-side-foot { padding: 10px 12px 14px; border-top: 1px solid var(--border-color); }
+    .ag-add-btn {
+        width: 100%;
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+        padding: 9px 0;
+        border: 1px dashed var(--border-active); border-radius: 9px;
+        background: transparent; color: var(--accent-light);
+        font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+
+    /* ----- 右栏：表单 ----- */
+    .ag-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .ag-main-head {
+        padding: 16px 24px 12px;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 13px; font-weight: 650; color: var(--text-primary);
+        display: flex; align-items: center; gap: 8px;
+    }
+    .ag-main-head i { color: var(--accent-light); font-size: 12px; }
+    .ag-form { flex: 1; overflow-y: auto; padding: 18px 24px; }
+    .ag-form::-webkit-scrollbar { width: 5px; }
+    .ag-form::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+
+    /* 基础字段：两列网格（变更 1） */
+    .ag-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+    .ag-field { margin-bottom: 14px; }
+    .ag-field label {
+        display: block; font-size: 11px; font-weight: 600;
+        color: var(--text-muted); margin-bottom: 6px;
+    }
+    .ag-field input[type="text"], .ag-field textarea, .ag-field select {
+        width: 100%; padding: 8px 11px;
+        border: 1px solid var(--border-color); border-radius: 8px;
+        background: var(--bg-app); color: var(--text-primary);
+        font-size: 12.5px; font-family: inherit; outline: none;
+    }
+    .ag-field textarea { resize: vertical; min-height: 60px; line-height: 1.6; }
+    .ag-emoji-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ag-emoji-opt {
+        width: 32px; height: 32px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px; border-radius: 8px;
+        border: 1px solid var(--border-color); background: var(--bg-app);
+        cursor: pointer;
+    }
+    .ag-emoji-opt.active { border-color: var(--border-active); background: var(--bg-active); }
+
+    /* ===== 引用选择区（变更 2）：双栏面板 ===== */
+    .refs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .ref-panel {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: var(--bg-input);
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .ref-panel-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 10px 13px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .ref-panel-head > i { color: var(--accent-light); font-size: 12px; }
+    .ref-panel-title { font-size: 12px; font-weight: 650; color: var(--text-primary); }
+    .ref-count {
+        font-size: 10px; font-weight: 650;
+        color: var(--accent-light);
+        background: var(--bg-active);
+        border-radius: 100px; padding: 2px 8px;
+    }
+    .ref-quick {
+        margin-left: auto; display: flex; gap: 2px;
+    }
+    .ref-quick button {
+        border: none; background: transparent;
+        color: var(--text-muted); font-size: 10.5px;
+        padding: 3px 7px; border-radius: 5px; cursor: pointer; font-family: inherit;
+    }
+    .ref-quick button:hover { color: var(--accent-light); background: var(--bg-active); }
+
+    /* 可点选卡片网格 */
+    .ref-items {
+        padding: 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        overflow-y: auto;
+        max-height: 236px;
+    }
+    .ref-items::-webkit-scrollbar { width: 5px; }
+    .ref-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+
+    .ref-card {
+        position: relative;
+        border: 1px solid var(--border-color);
+        border-radius: 9px;
+        background: var(--bg-app);
+        padding: 10px 11px;
+        cursor: pointer;
+        transition: all 0.15s;
+        display: flex; flex-direction: column; gap: 5px;
+    }
+    .ref-card:hover { border-color: rgba(255, 255, 255, 0.16); }
+
+    /* 选中态：主题色描边 + 淡紫底 + 右上角对勾角标 */
+    .ref-card.on {
+        border-color: var(--border-active);
+        background: var(--bg-active);
+    }
+    .ref-card.on::after {
+        content: "\f00c";
+        font-family: "Font Awesome 6 Free"; font-weight: 900;
+        position: absolute; top: -1px; right: -1px;
+        width: 18px; height: 18px;
+        background: var(--accent);
+        color: var(--white); font-size: 8.5px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 0 8px 0 8px;
+    }
+
+    /* 全局已禁用：灰显 + 徽标，不可点选 */
+    .ref-card.off-global {
+        opacity: 0.45; cursor: not-allowed;
+    }
+    .ref-card.off-global::after { display: none; }
+
+    .ref-card-name {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 11.5px; font-weight: 650; color: var(--text-primary);
+        min-width: 0;
+    }
+    .ref-card-name i { color: var(--accent-light); font-size: 10.5px; flex-shrink: 0; }
+    .ref-card.on .ref-card-name i { color: var(--accent-light); }
+    .ref-card-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ref-card-desc {
+        font-size: 10px; color: var(--text-muted); line-height: 1.55;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .ref-badge-off {
+        font-size: 9px; font-weight: 650;
+        color: var(--danger);
+        background: rgba(248, 113, 113, 0.12);
+        border-radius: 4px; padding: 1px 6px;
+        align-self: flex-start;
+    }
+
+    /* ----- 底部 ----- */
+    .ag-foot {
+        padding: 12px 24px 16px;
+        border-top: 1px solid var(--border-color);
+        display: flex; align-items: center; gap: 9px;
+    }
+    .ag-foot .spacer { flex: 1; }
+    .ag-btn {
+        padding: 8px 18px; border-radius: 8px;
+        font-size: 12.5px; font-weight: 600; cursor: pointer;
+        border: 1px solid var(--border-color);
+        background: var(--bg-hover); color: var(--text-primary);
+        font-family: inherit;
+    }
+    .ag-btn.primary { background: var(--accent-gradient); border: none; color: var(--white); }
+
+    /* 工作区提示：底部弱展示，非控件 */
+    .ag-ws-hint {
+        flex: 1; min-width: 0;
+        display: flex; align-items: center; gap: 7px;
+        font-size: 10.5px; color: var(--text-muted);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ag-ws-hint i { font-size: 10px; color: var(--accent-light); opacity: 0.7; flex-shrink: 0; }
+</style>
+</head>
+<body>
+    <div class="mock-note">原型稿 v2：窗体 1080×680 · 工作区改为底部提示 · 删除按钮移至左侧卡片 hover 露出 · 技能/MCP 可点选卡片网格</div>
+
+    <div class="ag-dialog">
+        <!-- 左栏 -->
+        <div class="ag-side">
+            <div class="ag-side-head">
+                <h4><i class="fas fa-users"></i> 智能体</h4>
+                <button class="ag-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="ag-list">
+                <div class="ag-item active">
+                    <div class="ag-item-emoji">🦞</div>
+                    <div class="ag-item-info">
+                        <div class="ag-item-name">市场专员</div>
+                        <div class="ag-item-path">~/.qualia/claw/workspaces/市场专员</div>
+                    </div>
+                    <button class="ag-item-del" title="删除智能体"><i class="fas fa-trash"></i></button>
+                </div>
+                <div class="ag-item">
+                    <div class="ag-item-emoji">📊</div>
+                    <div class="ag-item-info">
+                        <div class="ag-item-name">数据分析师</div>
+                        <div class="ag-item-path">~/.qualia/claw/workspaces/数据分析师</div>
+                    </div>
+                    <button class="ag-item-del" title="删除智能体"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="ag-side-foot">
+                <button class="ag-add-btn"><i class="fas fa-plus"></i> 新建智能体</button>
+            </div>
+        </div>
+
+        <!-- 右栏 -->
+        <div class="ag-main">
+            <div class="ag-main-head"><i class="fas fa-pen"></i> 编辑智能体</div>
+            <div class="ag-form">
+
+                <!-- 基础字段：两列 -->
+                <div class="ag-grid2">
+                    <div class="ag-field">
+                        <label>名称</label>
+                        <input type="text" value="市场专员" />
+                    </div>
+                    <div class="ag-field">
+                        <label>模型（缺省使用全局默认模型）</label>
+                        <select><option>默认模型</option><option>qwen-max（默认）</option></select>
+                    </div>
+                </div>
+
+                <div class="ag-field">
+                    <label>头像表情</label>
+                    <div class="ag-emoji-row">
+                        <button class="ag-emoji-opt active">🦞</button>
+                        <button class="ag-emoji-opt">🧑‍💼</button>
+                        <button class="ag-emoji-opt">📊</button>
+                        <button class="ag-emoji-opt">📣</button>
+                        <button class="ag-emoji-opt">📝</button>
+                        <button class="ag-emoji-opt">🎨</button>
+                    </div>
+                </div>
+
+                <div class="ag-field">
+                    <label>职能角色（叠加到系统提示词）</label>
+                    <textarea>资深市场营销专员，擅长活动策划、文案撰写与竞品分析</textarea>
+                </div>
+
+                <!-- 引用选择区：双栏面板 -->
+                <div class="refs-grid">
+
+                    <!-- 技能面板 -->
+                    <div class="ref-panel">
+                        <div class="ref-panel-head">
+                            <i class="fas fa-shapes"></i>
+                            <span class="ref-panel-title">引用技能</span>
+                            <span class="ref-count">2 / 4 引用</span>
+                            <div class="ref-quick">
+                                <button>全选</button>
+                                <button>清空</button>
+                            </div>
+                        </div>
+                        <div class="ref-items">
+                            <div class="ref-card on" onclick="this.classList.toggle('on')">
+                                <div class="ref-card-name"><i class="fas fa-shapes"></i><span>Attendance Query</span></div>
+                                <div class="ref-card-desc">模拟考勤查询技能：按日期/部门查询员工打卡记录与迟到统计</div>
+                            </div>
+                            <div class="ref-card on" onclick="this.classList.toggle('on')">
+                                <div class="ref-card-name"><i class="fas fa-shapes"></i><span>Invoice Calc</span></div>
+                                <div class="ref-card-desc">模拟发票计算技能：按金额与税率规则计算含税价与税额明细</div>
+                            </div>
+                            <div class="ref-card" onclick="this.classList.toggle('on')">
+                                <div class="ref-card-name"><i class="fas fa-shapes"></i><span>Writing Style Guide</span></div>
+                                <div class="ref-card-desc">公司对外文案写作风格指南：统一语气、称谓与排版规范</div>
+                            </div>
+                            <div class="ref-card off-global">
+                                <div class="ref-card-name"><i class="fas fa-shapes"></i><span>System Data Query</span></div>
+                                <div class="ref-card-desc">系统数据查询技能</div>
+                                <span class="ref-badge-off">全局已禁用</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MCP 面板 -->
+                    <div class="ref-panel">
+                        <div class="ref-panel-head">
+                            <i class="fas fa-server"></i>
+                            <span class="ref-panel-title">引用 MCP</span>
+                            <span class="ref-count">1 / 2 引用</span>
+                            <div class="ref-quick">
+                                <button>全选</button>
+                                <button>清空</button>
+                            </div>
+                        </div>
+                        <div class="ref-items">
+                            <div class="ref-card on" onclick="this.classList.toggle('on')">
+                                <div class="ref-card-name"><i class="fas fa-server"></i><span>baidu-search</span></div>
+                                <div class="ref-card-desc">streamable-http · http://localhost:8090/mcp</div>
+                            </div>
+                            <div class="ref-card" onclick="this.classList.toggle('on')">
+                                <div class="ref-card-name"><i class="fas fa-server"></i><span>internal-db</span></div>
+                                <div class="ref-card-desc">http-sse · http://10.0.0.5:9100/sse</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+            <div class="ag-foot">
+                <!-- 工作区降级为提示文字（新建时提示自动生成路径） -->
+                <div class="ag-ws-hint" title="~/.qualia/claw/workspaces/市场专员">
+                    <i class="fas fa-folder"></i> 工作区：~/.qualia/claw/workspaces/市场专员
+                </div>
+                <div class="spacer"></div>
+                <button class="ag-btn">取消</button>
+                <button class="ag-btn primary">保存</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

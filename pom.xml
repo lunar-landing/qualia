@@ -28,6 +28,8 @@
     <modules>
         <module>qualia-code</module>
         <module>qualia-code-desktop</module>
+        <module>qualia-claw</module>
+        <module>qualia-claw-desktop</module>
         <module>qualia-core</module>
     </modules>
 

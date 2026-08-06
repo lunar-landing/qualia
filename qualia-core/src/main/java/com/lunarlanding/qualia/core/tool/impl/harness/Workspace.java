@@ -59,6 +59,8 @@ public interface Workspace {
     
     /**
      * 获取 Skills 目录（.qualia/skills）
+     *
+     * 实现可返回 null 表示禁用工作区级技能（如技能统一由产品级全局目录管理）
      */
     default Path getSkillsDir() {
         return getConfigDir().resolve("skills");
@@ -66,6 +68,8 @@ public interface Workspace {
     
     /**
      * 获取 AGENT.md 文件路径（.qualia/AGENT.md）
+     *
+     * 实现可返回 null 表示禁用工作区级提示词（如人设由产品配置接管）
      */
     default Path getAgentFile() {
         return getConfigDir().resolve("AGENT.md");

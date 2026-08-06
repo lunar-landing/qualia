@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Qualia Claw · WorkBuddy 风格设计稿</title>
+<style>
+    /* ============================================================
+       Qualia Claw —— WorkBuddy 风格界面设计稿
+       设计语言：温暖中性底色 + 圆角卡片 + 柔和阴影 + 品牌紫点缀，
+       强调「团队工位」感：左侧伙伴列表，中间对话，轻量不打扰。
+       ============================================================ */
+    :root {
+        --bg-app: #f5f4f0;
+        --bg-surface: #ffffff;
+        --bg-soft: #faf9f6;
+        --bg-hover: #f0eee9;
+        --bg-active: #ece9fb;
+        --border: #e7e4dd;
+        --border-soft: #efede7;
+        --text-primary: #2b2a33;
+        --text-secondary: #5c5b66;
+        --text-muted: #9a98a3;
+        --accent: #7c6cf0;
+        --accent-deep: #6455e0;
+        --accent-soft: #ece9fb;
+        --green: #34b37e;
+        --orange: #f0994c;
+        --radius-lg: 18px;
+        --radius-md: 13px;
+        --radius-sm: 9px;
+        --shadow-card: 0 1px 2px rgba(43, 42, 51, 0.04), 0 4px 16px rgba(43, 42, 51, 0.05);
+        --shadow-pop: 0 12px 40px rgba(43, 42, 51, 0.14);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app);
+        color: var(--text-primary);
+        font-size: 14px;
+        overflow: hidden;
+    }
+    button { font-family: inherit; cursor: pointer; }
+
+    .app { display: flex; height: 100vh; }
+
+    /* ================= 左侧：伙伴栏 ================= */
+    .sidebar {
+        width: 264px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 18px 14px 14px;
+        gap: 4px;
+    }
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 8px 18px;
+    }
+    .brand-logo {
+        width: 34px; height: 34px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, #8b7bf5, #6455e0);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 17px;
+        box-shadow: 0 4px 12px rgba(100, 85, 224, 0.35);
+    }
+    .brand-name { font-size: 15.5px; font-weight: 700; letter-spacing: 0.2px; }
+    .brand-sub { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+
+    .side-label {
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 1.2px;
+        padding: 10px 10px 8px;
+        display: flex;
+        align-items: center;
+    }
+    .side-label .count {
+        margin-left: auto;
+        background: var(--bg-hover);
+        border-radius: 100px;
+        padding: 1px 8px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .agent-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .agent-card {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 11px 12px;
+        border-radius: var(--radius-md);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        cursor: pointer;
+        transition: all 0.16s ease;
+        position: relative;
+    }
+    .agent-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-card); }
+    .agent-card.active {
+        background: var(--bg-active);
+        border-color: rgba(124, 108, 240, 0.45);
+        box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.1);
+    }
+    .agent-avatar {
+        width: 40px; height: 40px;
+        border-radius: 13px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+        position: relative;
+    }
+    .av-a { background: #fdeee1; }
+    .av-b { background: #e3f1ea; }
+    .av-c { background: #e8eafb; }
+    .av-d { background: #fbe9ec; }
+    .status-dot {
+        position: absolute;
+        right: -2px; bottom: -2px;
+        width: 11px; height: 11px;
+        border-radius: 50%;
+        border: 2.5px solid var(--bg-surface);
+        background: var(--green);
+    }
+    .status-dot.busy { background: var(--orange); animation: pulse 1.3s infinite; }
+    @keyframes pulse { 50% { opacity: 0.4; } }
+    .agent-info { min-width: 0; flex: 1; }
+    .agent-name { font-size: 13px; font-weight: 650; }
+    .agent-role {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 2px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .agent-card.active .agent-role { color: var(--accent-deep); }
+    .agent-badge {
+        font-size: 9.5px;
+        font-weight: 700;
+        padding: 3px 7px;
+        border-radius: 100px;
+        flex-shrink: 0;
+    }
+    .badge-busy { background: #fdf0e2; color: #c96a15; }
+    .badge-idle { background: var(--bg-hover); color: var(--text-muted); }
+
+    .new-agent-btn {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 0;
+        border-radius: var(--radius-md);
+        border: 1.5px dashed #cfc9f2;
+        background: transparent;
+        color: var(--accent-deep);
+        font-size: 12.5px;
+        font-weight: 650;
+        transition: all 0.15s;
+    }
+    .new-agent-btn:hover { background: var(--accent-soft); border-style: solid; }
+
+    .side-foot {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .side-foot .gear {
+        width: 30px; height: 30px;
+        border-radius: 9px;
+        border: none;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        font-size: 13px;
+        transition: all 0.15s;
+    }
+    .side-foot .gear:hover { background: var(--accent-soft); color: var(--accent-deep); }
+    .token-mini { flex: 1; min-width: 0; }
+    .token-mini .t-title { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+    .token-mini .t-bar {
+        margin-top: 5px;
+        height: 5px;
+        border-radius: 100px;
+        background: var(--bg-hover);
+        overflow: hidden;
+    }
+    .token-mini .t-fill {
+        width: 42%;
+        height: 100%;
+        border-radius: 100px;
+        background: linear-gradient(90deg, #8b7bf5, #6455e0);
+    }
+
+    /* ================= 中间：对话区 ================= */
+    .main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 18px 22px 18px 8px;
+    }
+    .chat-card {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
+    }
+
+    /* --- 顶栏：当前工位信息 + 会话操作 --- */
+    .chat-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    .head-agent {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .head-agent .agent-avatar { width: 34px; height: 34px; border-radius: 11px; font-size: 16px; }
+    .head-name { font-size: 14px; font-weight: 700; }
+    .head-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .head-actions { margin-left: auto; display: flex; gap: 8px; }
+    .icon-btn {
+        display: flex; align-items: center; gap: 6px;
+        padding: 7px 13px;
+        border-radius: 100px;
+        border: 1px solid var(--border);
+        background: var(--bg-surface);
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.15s;
+    }
+    .icon-btn:hover { background: var(--bg-soft); border-color: #d8d4ca; }
+    .icon-btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+    }
+    .icon-btn.primary:hover { background: var(--accent-deep); }
+
+    /* --- 会话条（横向 chips）--- */
+    .session-strip {
+        display: flex;
+        gap: 8px;
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--border-soft);
+        overflow-x: auto;
+        flex-shrink: 0;
+    }
+    .session-chip {
+        flex-shrink: 0;
+        padding: 6px 13px;
+        border-radius: 100px;
+        border: 1px solid var(--border);
+        background: var(--bg-soft);
+        color: var(--text-secondary);
+        font-size: 12px;
+        transition: all 0.14s;
+    }
+    .session-chip:hover { background: var(--bg-hover); }
+    .session-chip.active {
+        background: var(--accent-soft);
+        border-color: rgba(124, 108, 240, 0.5);
+        color: var(--accent-deep);
+        font-weight: 650;
+    }
+
+    /* --- 消息流 --- */
+    .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 26px 30px 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+    }
+    .msg-row { width: 100%; max-width: 780px; }
+
+    .msg-user {
+        margin-left: auto;
+        max-width: 72%;
+        background: linear-gradient(135deg, #8b7bf5, #6c5ce8);
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 16px 16px 5px 16px;
+        font-size: 13.5px;
+        line-height: 1.65;
+        box-shadow: 0 3px 10px rgba(100, 85, 224, 0.22);
+    }
+
+    .msg-agent { display: flex; gap: 12px; }
+    .msg-agent .agent-avatar { width: 36px; height: 36px; border-radius: 12px; font-size: 17px; }
+    .agent-body { flex: 1; min-width: 0; }
+    .agent-head-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 7px;
+    }
+    .agent-head-row .a-name { font-size: 12.5px; font-weight: 700; }
+    .agent-head-row .a-time { font-size: 10.5px; color: var(--text-muted); }
+
+    /* 工作过程：步骤胶囊时间线 */
+    .work-trace {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-bottom: 10px;
+    }
+    .trace-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 11px;
+        border-radius: 100px;
+        background: var(--bg-soft);
+        border: 1px solid var(--border-soft);
+        font-size: 11.5px;
+        color: var(--text-secondary);
+    }
+    .trace-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .trace-chip.read .dot { background: #60a5fa; }
+    .trace-chip.write .dot { background: var(--orange); }
+    .trace-chip.net .dot { background: var(--accent); }
+    .trace-chip.done { color: var(--text-muted); }
+
+    .answer-bubble {
+        background: var(--bg-soft);
+        border: 1px solid var(--border-soft);
+        border-radius: 4px 16px 16px 16px;
+        padding: 14px 17px;
+        font-size: 13.5px;
+        line-height: 1.75;
+        color: var(--text-primary);
+    }
+    .answer-bubble strong { color: var(--accent-deep); }
+    .answer-bubble .file-tag {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        border-radius: 7px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* 正在输入 */
+    .typing-row { display: flex; gap: 12px; align-items: center; }
+    .typing-pill {
+        display: flex; align-items: center; gap: 9px;
+        background: var(--bg-soft);
+        border: 1px solid var(--border-soft);
+        border-radius: 100px;
+        padding: 8px 16px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    .typing-dots { display: flex; gap: 4px; }
+    .typing-dots span {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--accent);
+        animation: blink 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 50% { opacity: 0.25; transform: translateY(-2px); } }
+
+    /* --- 欢迎页（无消息时）--- */
+    .welcome { display: none; flex: 1; overflow-y: auto; padding: 40px 30px 20px; }
+    .welcome.show { display: block; }
+    .w-inner { max-width: 640px; margin: 0 auto; text-align: center; }
+    .w-avatar {
+        width: 68px; height: 68px;
+        margin: 0 auto 18px;
+        border-radius: 22px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 34px;
+        box-shadow: var(--shadow-card);
+    }
+    .w-title { font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
+    .w-sub { font-size: 13px; color: var(--text-muted); margin-top: 8px; line-height: 1.7; }
+    .quick-actions {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        text-align: left;
+    }
+    .qa-card {
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+        padding: 14px 15px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-soft);
+        background: var(--bg-surface);
+        cursor: pointer;
+        transition: all 0.16s;
+    }
+    .qa-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); border-color: rgba(124,108,240,0.4); }
+    .qa-icon {
+        width: 32px; height: 32px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px;
+        flex-shrink: 0;
+    }
+    .qa-t { font-size: 12.5px; font-weight: 700; }
+    .qa-d { font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+
+    /* --- 输入区 --- */
+    .input-zone { padding: 6px 22px 18px; flex-shrink: 0; }
+    .input-box {
+        max-width: 780px;
+        margin: 0 auto;
+        background: var(--bg-soft);
+        border: 1.5px solid var(--border);
+        border-radius: 16px;
+        transition: all 0.18s;
+        overflow: hidden;
+    }
+    .input-box:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(124, 108, 240, 0.12);
+        background: var(--bg-surface);
+    }
+    .input-box textarea {
+        width: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
+        resize: none;
+        padding: 14px 16px 6px;
+        font-family: inherit;
+        font-size: 13.5px;
+        line-height: 1.6;
+        color: var(--text-primary);
+        height: 64px;
+    }
+    .input-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px 10px;
+    }
+    .model-pill {
+        display: flex; align-items: center; gap: 6px;
+        padding: 5px 12px;
+        border-radius: 100px;
+        border: 1px solid var(--border);
+        background: var(--bg-surface);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        transition: all 0.14s;
+    }
+    .model-pill:hover { border-color: var(--accent); color: var(--accent-deep); }
+    .model-pill .m-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .send-btn {
+        margin-left: auto;
+        width: 36px; height: 36px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #8b7bf5, #6455e0);
+        color: #fff;
+        font-size: 14px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 3px 10px rgba(100, 85, 224, 0.3);
+        transition: all 0.15s;
+    }
+    .send-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(100, 85, 224, 0.4); }
+    .input-hint {
+        text-align: center;
+        font-size: 10.5px;
+        color: var(--text-muted);
+        margin-top: 9px;
+    }
+
+    /* ================= 右侧：工位档案（可选栏） ================= */
+    .rightbar {
+        width: 250px;
+        flex-shrink: 0;
+        padding: 18px 18px 18px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
+    }
+    .rb-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-md);
+        padding: 15px;
+        box-shadow: var(--shadow-card);
+    }
+    .rb-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+        margin-bottom: 11px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .profile-head { display: flex; align-items: center; gap: 11px; }
+    .profile-head .agent-avatar { width: 44px; height: 44px; border-radius: 14px; font-size: 21px; }
+    .p-name { font-size: 14px; font-weight: 700; }
+    .p-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .p-desc {
+        margin-top: 12px;
+        font-size: 11.5px;
+        line-height: 1.7;
+        color: var(--text-secondary);
+        background: var(--bg-soft);
+        border-radius: var(--radius-sm);
+        padding: 10px 12px;
+    }
+    .kv-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11.5px;
+        padding: 6px 0;
+        border-bottom: 1px dashed var(--border-soft);
+    }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-row .k { color: var(--text-muted); }
+    .kv-row .v { font-weight: 650; color: var(--text-primary); }
+    .kv-row .v.link { color: var(--accent-deep); cursor: pointer; }
+
+    .task-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 0;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-bottom: 1px dashed var(--border-soft);
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-check {
+        width: 16px; height: 16px;
+        border-radius: 5px;
+        border: 1.5px solid #d5d1c8;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px;
+        color: #fff;
+    }
+    .task-item.done .task-check { background: var(--green); border-color: var(--green); }
+    .task-item.done .task-text { text-decoration: line-through; color: var(--text-muted); }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #d9d5cc; border-radius: 100px; }
+    ::-webkit-scrollbar-thumb:hover { background: #c8c3b8; }
+    ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="app">
+
+    <!-- ================= 左侧：伙伴栏 ================= -->
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-logo">🦞</div>
+            <div>
+                <div class="brand-name">Qualia Claw</div>
+                <div class="brand-sub">多智能体职能团队</div>
+            </div>
+        </div>
+
+        <div class="side-label">我的伙伴 <span class="count">3</span></div>
+
+        <div class="agent-list">
+            <div class="agent-card active" onclick="switchAgent(this, 'market')">
+                <div class="agent-avatar av-a">📣<span class="status-dot busy"></span></div>
+                <div class="agent-info">
+                    <div class="agent-name">市场专员</div>
+                    <div class="agent-role">活动策划 · 竞品分析</div>
+                </div>
+                <span class="agent-badge badge-busy">工作中</span>
+            </div>
+            <div class="agent-card" onclick="switchAgent(this, 'writer')">
+                <div class="agent-avatar av-b">📝<span class="status-dot"></span></div>
+                <div class="agent-info">
+                    <div class="agent-name">文案写手</div>
+                    <div class="agent-role">公众号 · 品牌文案</div>
+                </div>
+                <span class="agent-badge badge-idle">空闲</span>
+            </div>
+            <div class="agent-card" onclick="switchAgent(this, 'analyst')">
+                <div class="agent-avatar av-c">📊<span class="status-dot"></span></div>
+                <div class="agent-info">
+                    <div class="agent-name">数据分析师</div>
+                    <div class="agent-role">报表 · 趋势洞察</div>
+                </div>
+                <span class="agent-badge badge-idle">空闲</span>
+            </div>
+        </div>
+
+        <button class="new-agent-btn">＋ 招募新伙伴</button>
+
+        <div class="side-foot">
+            <button class="gear" title="设置">⚙</button>
+            <div class="token-mini">
+                <div class="t-title">本月 Token · 42%</div>
+                <div class="t-bar"><div class="t-fill"></div></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ================= 中间：对话区 ================= -->
+    <main class="main">
+        <div class="chat-card">
+            <!-- 顶栏 -->
+            <div class="chat-head">
+                <div class="head-agent">
+                    <div class="agent-avatar av-a">📣</div>
+                    <div>
+                        <div class="head-name" id="headName">市场专员</div>
+                        <div class="head-meta" id="headMeta">工位 workspaces/市场专员 · 会话 3</div>
+                    </div>
+                </div>
+                <div class="head-actions">
+                    <button class="icon-btn">🗂 会话列表</button>
+                    <button class="icon-btn primary">＋ 新任务</button>
+                </div>
+            </div>
+
+            <!-- 会话条 -->
+            <div class="session-strip">
+                <button class="session-chip active">Q3 发布会策划</button>
+                <button class="session-chip">竞品周报</button>
+                <button class="session-chip">渠道预算案</button>
+            </div>
+
+            <!-- 消息流 -->
+            <div class="messages" id="msgArea">
+                <div class="msg-row">
+                    <div class="msg-user">帮我梳理一份 Q3 产品发布会的活动策划框架，重点是线下体验环节。</div>
+                </div>
+
+                <div class="msg-row msg-agent">
+                    <div class="agent-avatar av-a">📣</div>
+                    <div class="agent-body">
+                        <div class="agent-head-row">
+                            <span class="a-name">市场专员</span>
+                            <span class="a-time">10:24 · 用时 38s</span>
+                        </div>
+                        <div class="work-trace">
+                            <span class="trace-chip net"><span class="dot"></span>检索 3 个行业案例</span>
+                            <span class="trace-chip read"><span class="dot"></span>阅读 上次发布会复盘</span>
+                            <span class="trace-chip write"><span class="dot"></span>写入 策划框架.md</span>
+                            <span class="trace-chip done">✓ 完成 3 步</span>
+                        </div>
+                        <div class="answer-bubble">
+                            框架已整理好，保存在 <span class="file-tag">📄 策划框架.md</span>。核心思路分四层：
+                            <strong>预热期</strong>（悬念海报 + KOL 埋点）→ <strong>引爆期</strong>（主会场发布 + 体验区动线）→
+                            <strong>体验期</strong>（三大互动展台，建议设「盲盒任务墙」）→ <strong>长尾期</strong>（UGC 征集二次传播）。
+                            线下体验环节的预算占比建议不低于 35%，细节可以继续问我。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="msg-row">
+                    <div class="msg-user">盲盒任务墙具体怎么玩？给我三个可落地的玩法。</div>
+                </div>
+
+                <div class="msg-row msg-agent">
+                    <div class="agent-avatar av-a">📣</div>
+                    <div class="agent-body">
+                        <div class="agent-head-row">
+                            <span class="a-name">市场专员</span>
+                            <span class="a-time">10:26</span>
+                        </div>
+                        <div class="typing-pill">
+                            <span class="typing-dots"><span></span><span></span><span></span></span>
+                            正在构思玩法方案…
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 欢迎页（设计稿示意：切换演示用） -->
+            <div class="welcome" id="welcomeArea">
+                <div class="w-inner">
+                    <div class="w-avatar av-b">📝</div>
+                    <div class="w-title" id="wTitle">文案写手已就位</div>
+                    <div class="w-sub">每位伙伴都有自己的工位与记忆，交给 TA 一个任务开始吧</div>
+                    <div class="quick-actions">
+                        <div class="qa-card">
+                            <div class="qa-icon av-a">✍️</div>
+                            <div>
+                                <div class="qa-t">写一篇公众号推文</div>
+                                <div class="qa-d">给我主题和目标读者，产出初稿 + 三个备选标题</div>
+                            </div>
+                        </div>
+                        <div class="qa-card">
+                            <div class="qa-icon av-c">📋</div>
+                            <div>
+                                <div class="qa-t">润色一份周报</div>
+                                <div class="qa-d">把流水账改写成有重点、有结论的汇报体</div>
+                            </div>
+                        </div>
+                        <div class="qa-card">
+                            <div class="qa-icon av-b">💡</div>
+                            <div>
+                                <div class="qa-t">品牌 slogan 脑暴</div>
+                                <div class="qa-d">基于产品定位给出 10 个方向并附推荐理由</div>
+                            </div>
+                        </div>
+                        <div class="qa-card">
+                            <div class="qa-icon av-d">🎯</div>
+                            <div>
+                                <div class="qa-t">起一个活动名</div>
+                                <div class="qa-d">朗朗上口、可注册、适配海报排版</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输入区 -->
+            <div class="input-zone">
+                <div class="input-box">
+                    <textarea placeholder="给 市场专员 布置任务…（Enter 发送，Shift+Enter 换行）"></textarea>
+                    <div class="input-bar">
+                        <button class="model-pill"><span class="m-dot"></span> qwen-max ▾</button>
+                        <button class="model-pill">🧠 记忆</button>
+                        <button class="send-btn">↑</button>
+                    </div>
+                </div>
+                <div class="input-hint">伙伴的产出保存在各自工位 · 可长期记忆你的偏好</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ================= 右侧：工位档案 ================= -->
+    <aside class="rightbar">
+        <div class="rb-card">
+            <div class="rb-title">👤 伙伴档案</div>
+            <div class="profile-head">
+                <div class="agent-avatar av-a">📣</div>
+                <div>
+                    <div class="p-name">市场专员</div>
+                    <div class="p-role">资深市场营销 · 3 年经验设定</div>
+                </div>
+            </div>
+            <div class="p-desc">擅长活动策划、文案撰写与竞品分析。沟通风格直接，习惯先给结论再给依据。</div>
+            <div style="margin-top: 10px;">
+                <div class="kv-row"><span class="k">模型</span><span class="v">qwen-max</span></div>
+                <div class="kv-row"><span class="k">工位</span><span class="v link">workspaces/市场专员</span></div>
+                <div class="kv-row"><span class="k">会话数</span><span class="v">3</span></div>
+                <div class="kv-row"><span class="k">本月用量</span><span class="v">128k tokens</span></div>
+            </div>
+        </div>
+
+        <div class="rb-card">
+            <div class="rb-title">📌 当前任务</div>
+            <div class="task-item done"><span class="task-check">✓</span><span class="task-text">发布会策划框架</span></div>
+            <div class="task-item"><span class="task-check"></span><span class="task-text">盲盒任务墙玩法 ×3</span></div>
+            <div class="task-item"><span class="task-check"></span><span class="task-text">体验区物料清单</span></div>
+        </div>
+    </aside>
+</div>
+
+<script>
+    // 设计稿轻量演示：点伙伴卡片切换「当前工位」高亮与顶栏文案
+    const AGENTS = {
+        market:  { name: '市场专员',   meta: '工位 workspaces/市场专员 · 会话 3' },
+        writer:  { name: '文案写手',   meta: '工位 workspaces/文案写手 · 会话 5', welcome: true },
+        analyst: { name: '数据分析师', meta: '工位 workspaces/数据分析师 · 会话 2' }
+    };
+    function switchAgent(el, key) {
+        document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        const a = AGENTS[key];
+        document.getElementById('headName').textContent = a.name;
+        document.getElementById('headMeta').textContent = a.meta;
+        // 文案写手卡片演示「欢迎页」形态（实际由是否有历史消息决定）
+        document.getElementById('msgArea').style.display = a.welcome ? 'none' : '';
+        document.getElementById('welcomeArea').classList.toggle('show', !!a.welcome);
+        if (a.welcome) document.getElementById('wTitle').textContent = a.name + '已就位';
+    }
+    // 会话条切换高亮
+    document.querySelectorAll('.session-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            document.querySelectorAll('.session-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+        });
+    });
+</script>
+</body>
+</html>

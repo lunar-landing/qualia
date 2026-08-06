@@ -31,6 +31,8 @@ qualia/
 ├── qualia-core/          # 核心模块
 ├── qualia-code/          # Code 模块 (包括 web 服务)
 ├── qualia-code-desktop/  # Code 桌面应用
+├── qualia-claw/          # Claw 模块 (包括 web 服务)
+├── qualia-claw-desktop/  # Claw 桌面应用
 └── qualia-docs/          # 项目文档
 ```
 
@@ -39,6 +41,10 @@ qualia/
 **Qualia-code** AI 编码助手产品，基于 Qualia 框架构建，提供完整的 Web IDE 体验，支持多会话管理与工作区切换、代码生成与分析、文件读写与搜索、终端命令执行、工具调用可视化展示、MCP 服务器管理、多模型配置与动态切换，以及流式响应和实时交互，支持桌面应用和 Web 两种部署模式。
 
 **Qualia-code-desktop** 桌面应用模块，基于 SWT 构建，内嵌浏览器加载 Web IDE 界面，提供原生桌面应用体验，支持窗口状态持久化（尺寸、位置、最大化状态）、系统标题栏主题联动（深色/浅色自动适配）以及跨平台支持（Windows/macOS）。
+
+**Qualia-claw** 多智能体协作产品，基于 Qualia 框架构建，每个智能体拥有独立工位（系统托管工作区 + 独立会话记忆），支持职能角色设定、多智能体并行对话、全局技能与 MCP 服务器按智能体白名单引用、工作区文件浏览与预览、会话 token 用量统计，配置统一收敛在用户目录按产品隔离存储，同样支持桌面应用和 Web 两种部署模式。
+
+**Qualia-claw-desktop** Claw 桌面应用模块，与 Qualia-code-desktop 同构（SWT + 系统 WebView），锁文件、窗口状态、崩溃日志按产品目录隔离，可与 Qualia Code 桌面版同时运行。
 
 ## 🚀 快速开始
 
@@ -88,13 +94,21 @@ public class MyTools {
 
 ### 产品展示
 
-**Qualia Code** 是基于 Qualia Core 框架构建的 AI 编码助手产品，提供完整的 Web IDE 体验。
+**Qualia Code** 是基于 Qualia Core 框架构建的 AI 编码助手产品，提供完整的 Web IDE 体验。支持多会话管理与工作区切换、代码生成与分析、文件读写与搜索、终端命令执行，工具调用过程可视化展示。同时提供 MCP 服务器管理、多模型配置与动态切换、全局与工作区级技能扩展，支持桌面应用和 Web 两种部署模式。
 
 ![img.png](docs/images/img.png)
 
 ![img_1.png](docs/images/img_1.png)
 
 ![img_2.png](docs/images/img_2.png)
+
+**Qualia Claw** 是基于 Qualia Core 框架构建的多智能体协作产品，每个智能体拥有独立工位（系统托管工作区 + 独立会话记忆），支持职能角色设定与多智能体并行对话。全局技能与 MCP 服务器按智能体白名单引用，内置工作区文件浏览与预览、会话 token 用量统计。配置统一收敛在用户目录按产品隔离存储，同样支持桌面应用和 Web 两种部署模式。
+
+![img_3.png](docs/images/img-3.png)
+
+![img_4.png](docs/images/img-4.png)
+
+![img_5.png](docs/images/img-5.png)
 
 ## 📦 发布
 
@@ -154,12 +168,14 @@ mvn clean deploy -DskipTests -s settings.xml
 ```powershell
 # 构建可执行 jar
 mvn -pl qualia-code-desktop -am clean package -DskipTests
+mvn -pl qualia-claw-desktop -am clean package -DskipTests
 
 # 打包成 Windows 应用（免安装）
 .\qualia-code-desktop\packaging\package-win.ps1
+.\qualia-claw-desktop\packaging\package-win.ps1
 ```
 
-产物：`qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe`
+产物：`qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe` 与 `qualia-claw-desktop\target\dist\<version>\Qualia Claw\Qualia Claw.exe`
 
 ## 📄 许可证
 

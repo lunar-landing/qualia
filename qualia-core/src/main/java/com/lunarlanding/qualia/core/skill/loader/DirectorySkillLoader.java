@@ -29,6 +29,9 @@ public class DirectorySkillLoader {
     private static final String SKILL_FILE = "skill.md";
     private static final String SCRIPT_DIR = "script";
 
+    /** PEP 263 编码声明匹配（# -*- coding: utf-8 -*- / # coding=utf-8 等） */
+    private static final Pattern CODING_PATTERN = Pattern.compile("coding[:=]\\s*[-\\w.]+");
+
     private final Path skillsDir;
     private final ScriptEngine scriptExecutor;
 
@@ -215,6 +218,8 @@ public class DirectorySkillLoader {
                 line = line.trim();
                 // 跳过 shebang 和严格模式声明
                 if (line.startsWith("#!") || line.startsWith("'use strict'") || line.startsWith("\"use strict\"")) continue;
+                // 跳过 PEP 263 编码声明（如 # -*- coding: utf-8 -*-），避免误当描述
+                if (line.startsWith("#") && CODING_PATTERN.matcher(line).find()) continue;
                 // 取第一个注释作为描述（Python # / JS //）
                 if (line.startsWith("#") && line.length() > 1) {
                     return line.substring(1).trim();

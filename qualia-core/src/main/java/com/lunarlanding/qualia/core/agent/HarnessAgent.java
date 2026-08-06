@@ -75,7 +75,7 @@ public class HarnessAgent extends ReActAgent {
 
         this.setMemory(new JsonMemory(memoryDir));
 
-        if (Files.exists(agentFile)) {
+        if (agentFile != null && Files.exists(agentFile)) {
             try {
                 String prompt = Files.readString(agentFile);
                 setSystemPrompt(prompt);
@@ -84,7 +84,7 @@ public class HarnessAgent extends ReActAgent {
             }
         }
 
-        if (Files.exists(skillsDir)) {
+        if (skillsDir != null && Files.exists(skillsDir)) {
             DirectorySkillLoader loader = new DirectorySkillLoader(skillsDir);
             List<Skill> skills = loader.loadAll();
             skills.forEach(this::addSkill);

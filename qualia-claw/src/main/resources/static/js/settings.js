@@ -1,14 +1,14 @@
 /**
- * SettingsDialog —— 全局配置弹窗组件（自包含：样式自注入、DOM 自创建，无外部依赖）
+ * SettingsDialog —— 全局设置弹窗组件（自包含：样式自注入、DOM 自创建，无外部依赖）
  *
  * 职责：
- *   1. 居中弹窗承载全局配置（~/.qualia/qualia-code.json），与工作区无关
- *   2. 「模型配置」「工具管理」两个 Tab；技能管理、MCP 管理已迁移到主界面（js/skill-panel.js、js/mcp-panel.js）
- *   3. 模型表单联动：厂商/类型下拉 → Base URL 回显、模型 datalist 候选
- *   4. 保存成功后回调 window.loadMcpBadge 同步顶栏 MCP 数量
+ *   1. 居中弹窗承载全局的展示型设置，与工作区无关
+ *   2. 工具管理已下沉到智能体编辑弹窗（智能体级关联，js/agent-panel.js）；
+ *      技能管理、MCP 管理、模型管理在主界面（js/skill-panel.js、js/mcp-panel.js、js/model-panel.js）
+ *   3. 仅展示：配置文件路径 + 夜间模式切换（即时生效，无需保存按钮）
  *
  * 对外 API：
- *   window.openSettings()   打开弹窗（首次打开时拉取配置）
+ *   window.openSettings()   打开弹窗（首次打开时拉取配置文件路径）
  *   window.closeSettings()  关闭弹窗
  *   （内部事件处理统一挂在 window.QSettings 命名空间下，供生成的 DOM 引用）
  */
@@ -17,7 +17,7 @@
 
     // ===== 样式注入 =====
     const CSS = `
-        /* ===== 设置弹窗（全局配置，与工作区无关）===== */
+        /* ===== 设置弹窗（全局展示型设置）===== */
         .settings-overlay {
             position: fixed;
             inset: 0;
@@ -31,8 +31,7 @@
             display: flex;
         }
         .settings-dialog {
-            width: min(648px, calc(100vw - 48px));
-            height: min(82vh, 774px);
+            width: min(520px, calc(100vw - 48px));
             background: var(--bg-surface);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
@@ -48,7 +47,8 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 13px 16px 0;
+            padding: 13px 16px;
+            border-bottom: 1px solid var(--border-color);
         }
         .settings-dialog-head h4 {
             font-size: 12.5px;
@@ -76,78 +76,19 @@
             background: var(--bg-hover);
             color: var(--text-primary);
         }
-        .settings-main {
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            margin-top: 9px;
-            border-top: 1px solid var(--border-color);
-        }
-        .settings-tabs {
-            flex-shrink: 0;
-            width: 133px;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-            padding: 9px 7px;
-            border-right: 1px solid var(--border-color);
-        }
-        .settings-tab {
-            background: transparent;
-            border: none;
-            border-radius: 7px;
-            padding: 7px 9px;
-            font-size: 11.5px;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            text-align: left;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        .settings-tab i {
-            width: 13px;
-            text-align: center;
-            font-size: 10.5px;
-            color: var(--text-muted);
-        }
-        .settings-tab:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        .settings-tab.active {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        .settings-tab.active i {
-            color: var(--accent);
-        }
-        .settings-content {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-        }
         .settings-body {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding: 13px;
+            padding: 15px 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 18px;
         }
         .set-empty {
-            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 9px;
+            padding: 26px 0;
             color: var(--text-muted);
             font-size: 11.5px;
         }
@@ -155,264 +96,94 @@
             font-size: 20px;
             opacity: 0.6;
         }
-        .set-card {
-            border: 1px solid var(--border-color);
-            border-radius: 9px;
-            background: var(--bg-input);
-            padding: 11px;
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            margin-bottom: 9px;
-        }
-        .set-card.is-default {
-            border-color: var(--accent);
-        }
-        .set-card-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-        }
-        .set-card-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-            flex: 1;
-        }
-        .set-card-actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-        .set-card-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding-top: 8px;
-            margin-top: 4px;
-            border-top: 1px solid var(--border-color);
-        }
-        .set-default-pick {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            user-select: none;
-        }
-        .set-default-pick input {
-            accent-color: var(--accent);
-            cursor: pointer;
-        }
-        .set-card-del {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
+        .set-section-title {
             font-size: 10.5px;
-            padding: 4px 5px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: color 0.15s ease, background 0.15s ease;
-            opacity: 0.6;
-        }
-        .set-card-del:hover {
-            opacity: 1;
-            background: rgba(239, 68, 68, 0.12);
-            color: var(--error);
-        }
-        .set-row {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .set-row label {
-            font-size: 10.5px;
-            font-weight: 500;
+            font-weight: 650;
             color: var(--text-muted);
             letter-spacing: 0.3px;
+            margin-bottom: 8px;
         }
-        .set-row input, .set-row select {
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 6px 8px;
-            font-size: 11.5px;
-            color: var(--text-primary);
-            outline: none;
-            transition: border-color 0.15s ease;
-            font-family: inherit;
-        }
-        .set-row input:focus, .set-row select:focus {
-            border-color: var(--accent);
-        }
-        /* 自定义下拉选择器 */
-        .custom-select {
-            position: relative;
-            flex: 1;
-            min-width: 0;
-        }
-        .custom-select-trigger {
+        /* 配置文件路径展示 */
+        .set-path-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 6px 8px;
-            font-size: 11.5px;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: border-color 0.15s ease;
-            gap: 6px;
-        }
-        .custom-select-trigger:hover {
-            border-color: var(--accent);
-        }
-        .custom-select.open .custom-select-trigger {
-            border-color: var(--accent);
-        }
-        .custom-select-trigger .trigger-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0;
-            flex: 1;
-        }
-        .custom-select-trigger .trigger-arrow {
-            font-size: 8px;
-            color: var(--text-muted);
-            transition: transform 0.2s ease;
-            flex-shrink: 0;
-        }
-        .custom-select.open .trigger-arrow {
-            transform: rotate(180deg);
-        }
-        .custom-select-dropdown {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            right: 0;
-            background: #1a1f2e;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 4px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(-4px);
-            transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .custom-select.open .custom-select-dropdown {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0);
-        }
-        .custom-option {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: background 0.15s ease, color 0.15s ease;
             gap: 8px;
+            padding: 9px 11px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-input);
         }
-        .custom-option:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        .custom-option.active {
-            color: var(--text-primary);
-            background: #252a3a;
-        }
-        .custom-option .option-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0;
-            flex: 1;
-        }
-        .custom-option .check-icon {
-            font-size: 10px;
-            color: var(--success);
-            opacity: 0;
+        .set-path-row > i {
+            color: var(--text-muted);
+            font-size: 11px;
             flex-shrink: 0;
         }
-        .custom-option.active .check-icon {
-            opacity: 1;
-        }
-        body.light-theme .custom-select-dropdown {
-            background: #ffffff;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-        body.light-theme .custom-option:hover {
-            background: rgba(0, 0, 0, 0.04);
-        }
-        .set-add-btn {
-            width: 100%;
-            background: transparent;
-            border: 1px dashed var(--border-color);
-            border-radius: 8px;
-            color: var(--text-secondary);
-            font-size: 11.5px;
-            padding: 7px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        .set-add-btn:hover {
-            border-color: var(--accent);
-            color: var(--accent-light);
-        }
-        .set-add-btn.mini {
-            padding: 5px;
-            font-size: 10.5px;
-            border-radius: 6px;
-        }
-        .set-env-item {
+        .set-path {
+            flex: 1;
+            min-width: 0;
+            font-family: 'JetBrains Mono', Consolas, monospace;
             font-size: 11px;
             color: var(--text-secondary);
-            word-break: break-all;
-            line-height: 1.6;
-            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .settings-footer {
+        .set-copy-btn {
             flex-shrink: 0;
-            padding: 11px 13px;
-            border-top: 1px solid var(--border-color);
-        }
-        .settings-save {
-            width: 100%;
-            background: var(--accent);
-            border: none;
-            border-radius: 8px;
-            color: var(--white);
-            font-size: 11.5px;
-            font-weight: 600;
-            padding: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-app);
+            color: var(--text-muted);
+            font-size: 10.5px;
+            font-family: inherit;
+            padding: 3px 9px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
         }
-        .settings-save:hover {
-            background: var(--accent-light);
+        .set-copy-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-active);
         }
-        .settings-save.saved {
-            background: var(--success);
+        .set-copy-btn.ok {
+            color: var(--success);
+            border-color: var(--success);
         }
-        .settings-save:disabled {
-            opacity: 0.6;
-            cursor: default;
+        .set-hint {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            line-height: 1.6;
+        }
+        /* 夜间模式行 */
+        .set-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-input);
+        }
+        .set-row-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .set-row-name i {
+            color: var(--accent-light);
+            font-size: 11px;
+        }
+        .set-row-desc {
+            font-size: 10.5px;
+            color: var(--text-muted);
+            margin-top: 3px;
         }
         /* 启用/禁用开关 */
         .toggle-switch {
@@ -454,90 +225,6 @@
         .toggle-switch input:checked + .toggle-slider:before {
             transform: translateX(18px);
         }
-        .set-card.disabled {
-            opacity: 0.5;
-        }
-        /* ===== 工具管理 Tab ===== */
-        .tool-category {
-            margin-bottom: 16px;
-        }
-        .tool-category-title {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            letter-spacing: 0.3px;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 8px;
-        }
-        .tool-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            border-radius: 8px;
-            transition: background 0.15s;
-        }
-        .tool-card:hover {
-            background: var(--bg-hover);
-        }
-        .tool-card.disabled {
-            opacity: 0.5;
-        }
-        .tool-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex: 1;
-            min-width: 0;
-        }
-        .tool-icon {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-input);
-            border-radius: 6px;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-        .tool-details {
-            flex: 1;
-            min-width: 0;
-        }
-        .tool-name {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 2px;
-        }
-        .tool-desc {
-            font-size: 11px;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-        .tool-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        .tool-status-text {
-            font-size: 10px;
-            color: var(--text-muted);
-        }
-        .tool-footer-info {
-            padding: 12px 0 0;
-            margin-top: 8px;
-            border-top: 1px solid var(--border-color);
-            font-size: 11px;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-        .tool-footer-info strong {
-            color: var(--text-secondary);
-        }
     `;
 
     // ===== 内部工具函数 =====
@@ -547,41 +234,10 @@
         return div.innerHTML;
     }
 
-    // 属性值转义（esc 基于 textContent，不处理双引号，不能直接用于 value=""）
-    function escAttr(s) {
-        return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    }
-
-    // ===== 预设 =====
-    // 服务类型：决定对接协议与 baseUrl（当前仅开放按量付费）
-    const MODEL_TYPES = [
-        { id: 'pay-as-you-go', label: '按量付费' },
-        { id: 'token-plan', label: '令牌计划' }
-    ];
-
-    // 厂商预设（OpenAI 兼容协议，baseUrl 可手改）
-    const MODEL_PRESETS = {
-        dashscope: {
-            label: '通义千问（阿里云百炼）',
-            models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus']
-        },
-        xiaomi: {
-            label: '小米MiMo',
-            models: ['MiMo']
-        },
-        openai: {
-            label: 'OpenAI',
-            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']
-        }
-    };
-
-    // baseUrl 由后端 Java 代码自动管理，前端不再需要 presetBaseUrl
-
     // ===== 状态 =====
-    // defaultIndex 指向默认模型，避免改名后丢失默认标记
-    let data = null;
+    let configFile = '';
     let loading = false;
-    let activeTab = 'models'; // 'models' | 'tools'
+    let loaded = false;
 
     // ===== DOM 创建 =====
     function mount() {
@@ -599,23 +255,8 @@
                     <h4><i class="fas fa-sliders-h"></i> 系统设置</h4>
                     <button title="关闭" onclick="closeSettings()"><i class="fas fa-times"></i></button>
                 </div>
-                <div class="settings-main">
-                    <div class="settings-tabs">
-                        <button class="settings-tab active" data-tab="models" onclick="QSettings.switchTab('models')">
-                            <i class="fas fa-robot"></i> 模型
-                        </button>
-                        <button class="settings-tab" data-tab="tools" onclick="QSettings.switchTab('tools')">
-                            <i class="fas fa-wrench"></i> 工具
-                        </button>
-                    </div>
-                    <div class="settings-content">
-                        <div class="settings-body" id="settingsBody">
-                            <div class="set-empty"><i class="fas fa-sliders-h"></i><span>加载中...</span></div>
-                        </div>
-                        <div class="settings-footer">
-                            <button class="settings-save" id="settingsSaveBtn" onclick="QSettings.save()">保存配置</button>
-                        </div>
-                    </div>
+                <div class="settings-body" id="settingsBody">
+                    <div class="set-empty"><i class="fas fa-sliders-h"></i><span>加载中...</span></div>
                 </div>
             </div>`;
         document.body.appendChild(overlay);
@@ -636,16 +277,10 @@
     }
 
     // ===== 打开 / 关闭 =====
-    // 点击外部关闭所有自定义下拉
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.custom-select')) {
-            document.querySelectorAll('.custom-select.open').forEach(el => el.classList.remove('open'));
-        }
-    });
-
     window.openSettings = function () {
         document.getElementById('settingsOverlay').classList.add('open');
-        if (!data && !loading) load();
+        if (!loaded && !loading) load();
+        else render(); // 夜间模式状态可能在弹窗外被顶栏按钮改变，每次打开重新回显
     };
 
     window.closeSettings = function () {
@@ -658,26 +293,8 @@
         try {
             const res = await fetch('/api/config');
             const cfg = await res.json();
-            const models = (cfg.models || []).map(m => ({
-                name: m.name || '', provider: m.provider || 'dashscope',
-                // 仅开放按量付费，历史配置中的其他类型归一化
-                type: MODEL_TYPES.some(t => t.id === m.type) ? m.type : 'pay-as-you-go',
-                model: m.model || '', baseUrl: m.baseUrl || '', apiKey: m.apiKey || ''
-            }));
-            let defaultIndex = models.findIndex(m => m.name === cfg.defaultModel);
-            if (defaultIndex < 0) defaultIndex = models.length > 0 ? 0 : -1;
-            data = {
-                defaultIndex,
-                models,
-                disabledSkills: cfg.disabledSkills || [],
-                disabledTools: cfg.disabledTools || [],
-                tools: []
-            };
-            // 工具列表（独立接口）
-            try {
-                const tres = await fetch('/api/config/tools');
-                if (tres.ok) data.tools = await tres.json();
-            } catch (e) { /* 工具拉取失败不阻断配置展示 */ }
+            configFile = cfg.configFile || '';
+            loaded = true;
             render();
         } catch (e) {
             document.getElementById('settingsBody').innerHTML =
@@ -689,262 +306,60 @@
 
     // ===== 渲染 =====
     function render() {
-        document.querySelectorAll('.settings-tab').forEach(t =>
-            t.classList.toggle('active', t.dataset.tab === activeTab));
-        const footer = document.querySelector('.settings-footer');
-        if (footer) footer.style.display = '';
         const body = document.getElementById('settingsBody');
-        if (activeTab === 'models') body.innerHTML = renderModels();
-        else body.innerHTML = renderTools();
-    }
-
-    function renderTools() {
-        const tools = (data && data.tools) || [];
-        if (!tools.length) {
-            return '<div class="set-empty"><i class="fas fa-wrench"></i><span>暂无可用工具</span></div>';
-        }
-        const disabledTools = (data && data.disabledTools) || [];
-        
-        // 工具图标映射
-        const toolIcons = {
-            read: '📖', grep: '🔍', glob: '📂', replace: '✏️', write: '📝',
-            delete_file: '🗑️', bash: '💻', web_fetch: '🌍', baidu_search: '🔎', http: '🔗'
-        };
-        
-        // 按类别分组
-        const categories = {};
-        tools.forEach(t => {
-            const cat = t.category || '其他';
-            if (!categories[cat]) categories[cat] = [];
-            categories[cat].push(t);
-        });
-        
-        const categoryLabels = { file: '📁 文件操作', network: '🌐 网络操作', other: '📦 其他' };
-        
-        let html = '';
-        for (const [cat, catTools] of Object.entries(categories)) {
-            html += `<div class="tool-category"><div class="tool-category-title">${categoryLabels[cat] || cat}</div>`;
-            html += catTools.map(t => {
-                const isEnabled = !disabledTools.includes(t.name);
-                const icon = toolIcons[t.name] || '🔧';
-                return `
-                <div class="tool-card ${isEnabled ? '' : 'disabled'}">
-                    <div class="tool-info">
-                        <div class="tool-icon">${icon}</div>
-                        <div class="tool-details">
-                            <div class="tool-name">${esc(t.name)}</div>
-                            <div class="tool-desc">${esc(t.description)}</div>
-                        </div>
+        if (!body) return;
+        // 夜间模式 = 非日间主题（顶栏主题按钮与本地存储由 index.html 的 toggleTheme 统一管理）
+        const isDark = !document.body.classList.contains('light-theme');
+        body.innerHTML = `
+            <div class="set-section">
+                <div class="set-section-title">配置文件</div>
+                <div class="set-path-row">
+                    <i class="fas fa-file-code"></i>
+                    <code class="set-path" title="${esc(configFile)}">${esc(configFile || '未知')}</code>
+                    <button class="set-copy-btn" onclick="QSettings.copyPath(this)">
+                        <i class="fas fa-copy"></i> 复制
+                    </button>
+                </div>
+                <div class="set-hint">模型、MCP、技能与各智能体配置均保存在该文件中，可手动备份或编辑。</div>
+            </div>
+            <div class="set-section">
+                <div class="set-section-title">外观</div>
+                <div class="set-row">
+                    <div>
+                        <div class="set-row-name"><i class="fas fa-moon"></i> 夜间模式</div>
+                        <div class="set-row-desc">深色外观，适合低光环境使用</div>
                     </div>
-                    <div class="tool-status">
-                        <span class="tool-status-text">${isEnabled ? '启用' : '禁用'}</span>
-                        <label class="toggle-switch" title="${isEnabled ? '点击禁用' : '点击启用'}">
-                            <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="QSettings.toggleTool('${escAttr(t.name)}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>`;
-            }).join('');
-            html += '</div>';
-        }
-        html += `<div class="tool-footer-info"><strong>提示：</strong>禁用后新对话将不可用，高风险工具建议按需启用。</div>`;
-        return `<div>${html}</div>`;
-    }
-
-    function renderModels() {
-        const providerIds = Object.keys(MODEL_PRESETS);
-        const cards = data.models.map((m, i) => {
-            // 配置中出现预设外的厂商标识时附加为选项，避免回显丢失
-            const pids = providerIds.includes(m.provider) ? providerIds : providerIds.concat(m.provider);
-            const currentProvider = MODEL_PRESETS[m.provider] || { label: m.provider };
-            const currentType = MODEL_TYPES.find(t => t.id === m.type) || { label: m.type };
-            const modelOpts = ((MODEL_PRESETS[m.provider] || {}).models || []).map(v =>
-                `<option value="${escAttr(v)}"></option>`
-            ).join('');
-            return `
-            <div class="set-card ${i === data.defaultIndex ? 'is-default' : ''}">
-                <div class="set-card-head">
-                    <label class="set-default-pick">
-                        <input type="radio" name="defaultModelPick" ${i === data.defaultIndex ? 'checked' : ''} onchange="QSettings.setDefaultModel(${i})">
-                        默认模型
+                    <label class="toggle-switch" title="${isDark ? '点击切换到日间模式' : '点击切换到夜间模式'}">
+                        <input type="checkbox" ${isDark ? 'checked' : ''} onchange="QSettings.toggleDark(this.checked)">
+                        <span class="toggle-slider"></span>
                     </label>
-                    <button class="set-card-del" title="删除模型" onclick="QSettings.delModel(${i})"><i class="far fa-trash-alt"></i></button>
                 </div>
-                <div class="set-row"><label>名称</label><input value="${escAttr(m.name)}" placeholder="如 qwen-max" oninput="QSettings.setModelField(${i},'name',this.value)"></div>
-                <div class="set-row"><label>厂商</label>
-                    <div class="custom-select" data-index="${i}" data-field="provider">
-                        <div class="custom-select-trigger" onclick="QSettings.toggleSelect(this)">
-                            <span class="trigger-text">${esc(currentProvider.label)}</span>
-                            <i class="fas fa-chevron-down trigger-arrow"></i>
-                        </div>
-                        <div class="custom-select-dropdown">
-                            ${pids.map(pid => `
-                                <div class="custom-option${m.provider === pid ? ' active' : ''}" data-value="${escAttr(pid)}" onclick="QSettings.selectOption(this)">
-                                    <span class="option-text">${esc((MODEL_PRESETS[pid] || {}).label || pid)}</span>
-                                    <i class="fas fa-check check-icon"></i>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-                <div class="set-row"><label>类型</label>
-                    <div class="custom-select" data-index="${i}" data-field="type">
-                        <div class="custom-select-trigger" onclick="QSettings.toggleSelect(this)">
-                            <span class="trigger-text">${esc(currentType.label)}</span>
-                            <i class="fas fa-chevron-down trigger-arrow"></i>
-                        </div>
-                        <div class="custom-select-dropdown">
-                            ${MODEL_TYPES.map(t => `
-                                <div class="custom-option${m.type === t.id ? ' active' : ''}" data-value="${escAttr(t.id)}" onclick="QSettings.selectOption(this)">
-                                    <span class="option-text">${esc(t.label)}</span>
-                                    <i class="fas fa-check check-icon"></i>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-                <div class="set-row"><label>模型</label>
-                    <input list="modelOpts${i}" value="${escAttr(m.model)}" placeholder="选择或输入模型标识" oninput="QSettings.setModelField(${i},'model',this.value)">
-                    <datalist id="modelOpts${i}">${modelOpts}</datalist>
-                </div>
-                <div class="set-row"><label>API Key（含 **** 时保持原值不变）</label><input value="${escAttr(m.apiKey)}" placeholder="输入 API Key" oninput="QSettings.setModelField(${i},'apiKey',this.value)"></div>
             </div>`;
-        }).join('');
-
-        return `
-            <div>
-                ${cards || '<div class="set-env-item">尚未配置模型</div>'}
-                <button class="set-add-btn" onclick="QSettings.addModel()"><i class="fas fa-plus"></i> 新增模型</button>
-            </div>`;
-    }
-
-    // ===== 保存 =====
-    async function save() {
-        if (!data) return;
-        const btn = document.getElementById('settingsSaveBtn');
-        // 校验失败时切到对应 Tab 提示
-        if (data.models.some(m => !String(m.name || '').trim())) {
-            activeTab = 'models';
-            render();
-            flash(btn, '模型名称不能为空', false);
-            return;
-        }
-        const payload = {
-            defaultModel: data.defaultIndex >= 0 ? data.models[data.defaultIndex].name.trim() : '',
-            // 各字段统一 String() 兜底，避免历史/新增对象缺字段时 trim 崩溃
-            models: data.models.map(m => ({
-                name: String(m.name || '').trim(), provider: String(m.provider || '').trim(), type: m.type,
-                model: String(m.model || '').trim(), baseUrl: String(m.baseUrl || '').trim(), apiKey: String(m.apiKey || '').trim()
-            })),
-            // mcpServers 已迁移到主界面「MCP 管理」（js/mcp-panel.js），此处不提交，后端按键合并保留原值
-            disabledSkills: data.disabledSkills || [],
-            disabledTools: data.disabledTools || []
-        };
-        btn.disabled = true;
-        btn.textContent = '保存中...';
-        try {
-            const res = await fetch('/api/config', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await res.json();
-            btn.disabled = false;
-            btn.textContent = '保存配置';
-            if (result.success) {
-                if (window.loadMcpBadge) window.loadMcpBadge(); // 同步顶栏 MCP 数量
-                if (window.refreshModelSelector) window.refreshModelSelector(); // 同步输入区模型下拉
-                closeSettings();
-                load(); // 重新拉取，下次打开时 apiKey 回显为掩码
-            } else {
-                flash(btn, result.error || '保存失败', false);
-            }
-        } catch (e) {
-            btn.disabled = false;
-            flash(btn, '保存失败', false);
-        }
-    }
-
-    function flash(btn, text, ok) {
-        btn.textContent = text;
-        btn.classList.toggle('saved', ok);
-        setTimeout(() => {
-            btn.textContent = '保存配置';
-            btn.classList.remove('saved');
-        }, 1800);
     }
 
     // ===== 事件处理命名空间（供生成的 DOM 的 inline handler 引用）=====
     window.QSettings = {
-        switchTab(tab) {
-            activeTab = tab;
-            if (data) render();
-            else document.querySelectorAll('.settings-tab').forEach(t =>
-                t.classList.toggle('active', t.dataset.tab === tab));
-        },
-        save,
-
-        // 文本输入只更新状态不重渲染（避免失焦）；结构变更才重渲染
-        setModelField(i, field, value) { data.models[i][field] = value; },
-        // 切换厂商：模型回显该厂商首个常用模型
-        setModelProvider(i, v) {
-            const m = data.models[i];
-            m.provider = v;
-            const p = MODEL_PRESETS[v];
-            m.model = p && p.models.length ? p.models[0] : '';
-            render();
-        },
-        // 切换类型
-        setModelType(i, v) {
-            const m = data.models[i];
-            m.type = v;
-            render();
-        },
-        // 自定义下拉：切换展开/收起
-        toggleSelect(triggerEl) {
-            const select = triggerEl.closest('.custom-select');
-            // 先关闭其他已打开的下拉
-            document.querySelectorAll('.custom-select.open').forEach(el => {
-                if (el !== select) el.classList.remove('open');
-            });
-            select.classList.toggle('open');
-        },
-        // 自定义下拉：选择选项
-        selectOption(optionEl) {
-            const select = optionEl.closest('.custom-select');
-            const index = parseInt(select.dataset.index);
-            const field = select.dataset.field;
-            const value = optionEl.dataset.value;
-            if (field === 'provider') {
-                QSettings.setModelProvider(index, value);
-            } else if (field === 'type') {
-                QSettings.setModelType(index, value);
+        // 复用顶栏主题切换逻辑（index.html 全局函数，同步本地存储与代码高亮主题）
+        toggleDark() {
+            if (typeof window.toggleTheme === 'function') {
+                window.toggleTheme();
             }
-            select.classList.remove('open');
-        },
-        setDefaultModel(i) { data.defaultIndex = i; render(); },
-        addModel() {
-            data.models.push({
-                name: '', provider: 'dashscope', type: 'pay-as-you-go',
-                model: MODEL_PRESETS.dashscope.models[0],
-                baseUrl: '', apiKey: ''
-            });
-            if (data.defaultIndex < 0) data.defaultIndex = 0;
-            render();
-        },
-        delModel(i) {
-            data.models.splice(i, 1);
-            if (data.defaultIndex === i) data.defaultIndex = data.models.length > 0 ? 0 : -1;
-            else if (data.defaultIndex > i) data.defaultIndex--;
-            render();
         },
 
-        toggleTool(name, enabled) {
-            if (!data.disabledTools) data.disabledTools = [];
-            if (enabled) {
-                data.disabledTools = data.disabledTools.filter(n => n !== name);
+        copyPath(btn) {
+            if (!configFile) return;
+            const done = (ok) => {
+                btn.classList.toggle('ok', ok);
+                btn.innerHTML = ok ? '<i class="fas fa-check"></i> 已复制' : '<i class="fas fa-copy"></i> 复制';
+                setTimeout(() => {
+                    btn.classList.remove('ok');
+                    btn.innerHTML = '<i class="fas fa-copy"></i> 复制';
+                }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(configFile).then(() => done(true)).catch(() => done(false));
             } else {
-                if (!data.disabledTools.includes(name)) data.disabledTools.push(name);
+                done(false);
             }
         }
     };

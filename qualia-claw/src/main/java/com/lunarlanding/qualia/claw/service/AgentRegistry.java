@@ -74,12 +74,14 @@ public final class AgentRegistry {
     /**
      * 创建智能体：工作区固定生成在 ~/.qualia/claw/workspaces/{名称}（目录自动创建）
      *
-     * @param skills     引用的全局技能白名单（null = 引用全部）
-     * @param mcpServers 引用的全局 MCP 服务器白名单（null = 引用全部）
+     * @param skills        引用的全局技能白名单（null = 引用全部）
+     * @param mcpServers    引用的全局 MCP 服务器白名单（null = 引用全部）
+     * @param disabledTools 禁用的内置工具名单（null = 不禁用）
      * @return 新定义；校验失败抛出 IllegalArgumentException（message 可直接展示）
      */
     public synchronized ClawAgentDefinition create(String name, String emoji, String role, String model,
-                                                   List<String> skills, List<String> mcpServers) {
+                                                   List<String> skills, List<String> mcpServers,
+                                                   List<String> disabledTools) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("智能体名称不能为空");
         }
@@ -99,6 +101,7 @@ public final class AgentRegistry {
         def.setModel(model);
         def.setSkills(skills);
         def.setMcpServers(mcpServers);
+        def.setDisabledTools(disabledTools);
         def.setCreatedAt(System.currentTimeMillis());
 
         definitions.add(def);
@@ -108,13 +111,15 @@ public final class AgentRegistry {
     }
 
     /**
-     * 更新智能体定义（名称/表情/角色/模型/技能与 MCP 引用白名单）；工作区创建后固定不变，改名不搬目录
+     * 更新智能体定义（名称/表情/角色/模型/技能与 MCP 引用白名单/工具禁用名单）；工作区创建后固定不变，改名不搬目录
      *
-     * @param skills     技能白名单，null = 保持原值不变
-     * @param mcpServers MCP 白名单，null = 保持原值不变
+     * @param skills        技能白名单，null = 保持原值不变
+     * @param mcpServers    MCP 白名单，null = 保持原值不变
+     * @param disabledTools 工具禁用名单，null = 保持原值不变
      */
     public synchronized ClawAgentDefinition update(String id, String name, String emoji, String role, String model,
-                                                   List<String> skills, List<String> mcpServers) {
+                                                   List<String> skills, List<String> mcpServers,
+                                                   List<String> disabledTools) {
         ClawAgentDefinition def = getDefinition(id);
         if (def == null) {
             throw new IllegalArgumentException("智能体不存在");
@@ -148,6 +153,11 @@ public final class AgentRegistry {
         }
         if (mcpServers != null && !mcpServers.equals(def.getMcpServers())) {
             def.setMcpServers(mcpServers);
+            refsChanged = true;
+        }
+        // 工具禁用名单变化影响工具注册，同样需要惰性重建
+        if (disabledTools != null && !disabledTools.equals(def.getDisabledTools())) {
+            def.setDisabledTools(disabledTools);
             refsChanged = true;
         }
 

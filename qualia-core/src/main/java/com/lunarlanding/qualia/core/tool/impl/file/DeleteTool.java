@@ -23,20 +23,26 @@ public class DeleteTool extends FunctionTool {
                 new Parameter("path", "文件路径（相对于工作区）", "string", true)
             }
         );
-        this.rootPath = rootPath.toAbsolutePath().normalize();
+        // rootPath 仅执行期使用，构造期不解引用（允许仅取元信息的场景传 null）
+        this.rootPath = rootPath;
     }
 
     @Override
     public String execute(Map<String, Object> arguments) {
+        if (rootPath == null) {
+            return "错误：未配置工作区根路径，无法执行删除";
+        }
+
         String filePath = (String) arguments.get("path");
         if (filePath == null || filePath.isEmpty()) {
             return "错误：path 参数不能为空";
         }
 
-        Path path = rootPath.resolve(filePath).normalize();
+        Path root = rootPath.toAbsolutePath().normalize();
+        Path path = root.resolve(filePath).normalize();
 
         // 安全检查：删除属高危操作，路径必须在工作区内
-        if (!path.startsWith(rootPath)) {
+        if (!path.startsWith(root)) {
             return "错误：路径超出工作区范围 - " + filePath;
         }
 

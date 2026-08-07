@@ -9,6 +9,17 @@ import com.lunarlanding.qualia.claw.ClawModelConfig;
 import com.lunarlanding.qualia.claw.service.AgentRegistry;
 import com.lunarlanding.qualia.core.skill.Skill;
 import com.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
+import com.lunarlanding.qualia.core.tool.FunctionTool;
+import com.lunarlanding.qualia.core.tool.impl.file.BashTool;
+import com.lunarlanding.qualia.core.tool.impl.file.DeleteTool;
+import com.lunarlanding.qualia.core.tool.impl.file.GlobTool;
+import com.lunarlanding.qualia.core.tool.impl.file.GrepTool;
+import com.lunarlanding.qualia.core.tool.impl.file.ReadTool;
+import com.lunarlanding.qualia.core.tool.impl.file.ReplaceTool;
+import com.lunarlanding.qualia.core.tool.impl.file.WriteTool;
+import com.lunarlanding.qualia.core.tool.impl.internet.HttpTool;
+import com.lunarlanding.qualia.core.tool.impl.internet.WebFetchTool;
+import com.lunarlanding.qualia.core.tool.impl.search.BaiduSearchTool;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,7 +31,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 配置管理 API（全局：模型/MCP/技能/工具，所有智能体共享）
+ * 配置管理 API（全局：模型/MCP/技能，所有智能体共享；
+ * 工具启用状态已下沉到智能体级，见 AgentController 的 disabledTools 字段）
  */
 @RestController
 @RequestMapping("/api/config")
@@ -53,7 +65,6 @@ public class ConfigController {
             }).collect(Collectors.toList()));
             result.put("mcpServers", config.getMcpServers());
             result.put("disabledSkills", config.getDisabledSkills());
-            result.put("disabledTools", config.getDisabledTools());
             result.put("configFile", GLOBAL_CONFIG_FILE.toAbsolutePath().toString());
 
             return ResponseEntity.ok(result);
@@ -91,10 +102,6 @@ public class ConfigController {
 
             if (configData.containsKey("disabledSkills")) {
                 config.put("disabledSkills", configData.get("disabledSkills"));
-            }
-
-            if (configData.containsKey("disabledTools")) {
-                config.put("disabledTools", configData.get("disabledTools"));
             }
 
             // 保存配置
@@ -176,34 +183,36 @@ public class ConfigController {
     }
 
     /**
-     * 获取可用工具列表（内置工具定义，不依赖 Agent 初始化）
+     * 获取可用工具列表（供智能体编辑表单勾选）
+     *
+     * 名称与描述直接取自工具实例（与 HarnessAgent.initializeAgent 同批构造），
+     * 保证与运行期注册名严格一致；rootPath 仅执行期使用，构造传 null 安全
      */
     @GetMapping("/tools")
     public ResponseEntity<List<Map<String, Object>>> getAvailableTools() {
-        // 内置工具清单（与 HarnessAgent.initializeAgent 一致）
         List<Map<String, Object>> tools = new ArrayList<>();
 
         // 文件操作
-        tools.add(toolInfo("read", "读取文件", "file"));
-        tools.add(toolInfo("grep", "搜索文件内容", "file"));
-        tools.add(toolInfo("glob", "文件匹配", "file"));
-        tools.add(toolInfo("replace", "替换文件内容", "file"));
-        tools.add(toolInfo("write", "写入文件", "file"));
-        tools.add(toolInfo("delete_file", "删除文件", "file"));
-        tools.add(toolInfo("bash", "执行命令", "file"));
+        tools.add(toolInfo(new ReadTool(null), "file"));
+        tools.add(toolInfo(new GrepTool(null), "file"));
+        tools.add(toolInfo(new GlobTool(null), "file"));
+        tools.add(toolInfo(new ReplaceTool(null), "file"));
+        tools.add(toolInfo(new WriteTool(null), "file"));
+        tools.add(toolInfo(new DeleteTool(null), "file"));
+        tools.add(toolInfo(new BashTool(null), "file"));
 
         // 网络操作
-        tools.add(toolInfo("web_fetch", "网页抓取", "network"));
-        tools.add(toolInfo("baidu_search", "百度搜索", "network"));
-        tools.add(toolInfo("http", "HTTP请求", "network"));
+        tools.add(toolInfo(new WebFetchTool(), "network"));
+        tools.add(toolInfo(new BaiduSearchTool(), "network"));
+        tools.add(toolInfo(new HttpTool(), "network"));
 
         return ResponseEntity.ok(tools);
     }
 
-    private Map<String, Object> toolInfo(String name, String description, String category) {
+    private Map<String, Object> toolInfo(FunctionTool tool, String category) {
         Map<String, Object> info = new HashMap<>();
-        info.put("name", name);
-        info.put("description", description);
+        info.put("name", tool.getName());
+        info.put("description", tool.getDescription());
         info.put("category", category);
         return info;
     }

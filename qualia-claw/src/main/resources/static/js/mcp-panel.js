@@ -432,6 +432,7 @@
     function show() {
         injectStyle();
         if (window.SkillPanel) window.SkillPanel.hide(); // 与技能视图互斥
+        if (window.ModelPanel) window.ModelPanel.hide(); // 与模型视图互斥
         open = true;
         ensureView();
         document.querySelector('.chat-area').classList.add('mcp-mode');

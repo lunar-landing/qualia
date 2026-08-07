@@ -45,6 +45,15 @@ public class ClawAgentService {
     /** 全局技能目录（~/.qualia/claw/skills），本产品所有智能体共享 */
     private static final Path GLOBAL_SKILLS_DIR = ClawConfig.GLOBAL_SKILLS_DIR;
 
+    /**
+     * 旧版工具名归一：早期前端展示清单与真实注册名不一致（replace/delete_file/http），
+     * 存量智能体配置中的旧名称按此映射继续生效
+     */
+    private static final Map<String, String> LEGACY_TOOL_NAMES = Map.of(
+            "replace", "edit",
+            "delete_file", "delete",
+            "http", "http_request");
+
     /** 智能体定义（可被 update 替换，替换后需 reloadConfig） */
     private ClawAgentDefinition definition;
 
@@ -293,20 +302,17 @@ public class ClawAgentService {
     }
 
     /**
-     * 根据配置禁用工具
+     * 按智能体级禁用名单移除工具（名单为智能体私有配置，null/空 = 全部可用）
      */
     private void disableTools() {
-        Set<String> disabledTools = new HashSet<>(config.getDisabledTools());
-        if (disabledTools.isEmpty()) {
+        List<String> refs = definition.getDisabledTools();
+        if (refs == null || refs.isEmpty()) {
             return;
         }
-        agent.getTools().removeIf(tool -> {
-            if (disabledTools.contains(tool.getName())) {
-                logger.info("工具 [{}] 已禁用，移除", tool.getName());
-                return true;
-            }
-            return false;
-        });
+        // 注意：getTools() 返回防御性副本，必须走 removeTool 才能真正移除
+        for (String toolName : refs) {
+            agent.removeTool(LEGACY_TOOL_NAMES.getOrDefault(toolName, toolName));
+        }
     }
 
     /**

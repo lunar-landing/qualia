@@ -57,16 +57,14 @@ public class ClawConfig {
     private final List<ClawModelConfig> models;
     private final List<ClawMcpServerConfig> mcpServers;
     private final List<String> disabledSkills;
-    private final List<String> disabledTools;
     private final List<ClawAgentDefinition> agents;
 
     public ClawConfig(String defaultModel, List<ClawModelConfig> models, List<ClawMcpServerConfig> mcpServers,
-                      List<String> disabledSkills, List<String> disabledTools, List<ClawAgentDefinition> agents) {
+                      List<String> disabledSkills, List<ClawAgentDefinition> agents) {
         this.defaultModel = defaultModel;
         this.models = models != null ? models : new ArrayList<>();
         this.mcpServers = mcpServers != null ? mcpServers : new ArrayList<>();
         this.disabledSkills = disabledSkills != null ? disabledSkills : new ArrayList<>();
-        this.disabledTools = disabledTools != null ? disabledTools : new ArrayList<>();
         this.agents = agents != null ? agents : new ArrayList<>();
     }
 
@@ -119,10 +117,6 @@ public class ClawConfig {
         return disabledSkills;
     }
 
-    public List<String> getDisabledTools() {
-        return disabledTools;
-    }
-
     public List<ClawAgentDefinition> getAgents() {
         return agents;
     }
@@ -170,13 +164,12 @@ public class ClawConfig {
         List<ClawModelConfig> models = parseModels(config.getJSONArray("models"));
         List<ClawMcpServerConfig> mcpServers = parseMcpServers(config.getJSONArray("mcpServers"));
         List<String> disabledSkills = parseStringList(config.getJSONArray("disabledSkills"));
-        List<String> disabledTools = parseStringList(config.getJSONArray("disabledTools"));
         List<ClawAgentDefinition> agents = parseAgents(config.getJSONArray("agents"));
 
         // 解析环境变量
         resolveEnvVars(models, mcpServers);
 
-        return new ClawConfig(defaultModel, models, mcpServers, disabledSkills, disabledTools, agents);
+        return new ClawConfig(defaultModel, models, mcpServers, disabledSkills, agents);
     }
 
     /**
@@ -200,6 +193,10 @@ public class ClawConfig {
                 }
                 if (def.getMcpServers() != null) {
                     obj.put("mcpServers", def.getMcpServers());
+                }
+                // 智能体级工具禁用名单：仅非 null 时写入（null = 不禁用，保持字段缺失）
+                if (def.getDisabledTools() != null) {
+                    obj.put("disabledTools", def.getDisabledTools());
                 }
                 obj.put("createdAt", def.getCreatedAt());
                 arr.add(obj);
@@ -267,7 +264,7 @@ public class ClawConfig {
         try {
             JSONObject code = loadJsonFile(source);
             JSONObject seed = new JSONObject();
-            for (String key : List.of("version", "defaultModel", "models", "mcpServers", "disabledSkills", "disabledTools")) {
+            for (String key : List.of("version", "defaultModel", "models", "mcpServers", "disabledSkills")) {
                 if (code.containsKey(key)) {
                     seed.put(key, code.get(key));
                 }
@@ -370,6 +367,9 @@ public class ClawConfig {
             def.setSkills(skillsArr != null ? skillsArr.toJavaList(String.class) : null);
             JSONArray mcpArr = obj.getJSONArray("mcpServers");
             def.setMcpServers(mcpArr != null ? mcpArr.toJavaList(String.class) : null);
+            // 工具禁用名单缺失保持 null（不禁用），不可归一为空列表
+            JSONArray toolsArr = obj.getJSONArray("disabledTools");
+            def.setDisabledTools(toolsArr != null ? toolsArr.toJavaList(String.class) : null);
             def.setCreatedAt(obj.getLongValue("createdAt"));
             agents.add(def);
         }
@@ -377,7 +377,7 @@ public class ClawConfig {
     }
 
     /**
-     * 解析字符串列表（禁用技能/工具）
+     * 解析字符串列表（禁用技能）
      */
     private static List<String> parseStringList(JSONArray array) {
         List<String> list = new ArrayList<>();

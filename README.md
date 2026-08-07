@@ -1,7 +1,5 @@
 <div align="center">
 
-**English** | [简体中文](README.zh-CN.md)
-
 # Qualia
 
 **Enterprise-grade Java AI Agent Framework**
@@ -15,6 +13,8 @@
 [![MCP](https://img.shields.io/badge/MCP-Protocol-purple.svg)](https://modelcontextprotocol.io/)
 
 [Quick Start](#-quick-start) · [Showcase](#showcase) · [Release](#-release)
+
+**English** | [简体中文](README.zh-CN.md)
 
 </div>
 

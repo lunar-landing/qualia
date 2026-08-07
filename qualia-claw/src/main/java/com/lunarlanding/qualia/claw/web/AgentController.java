@@ -39,14 +39,14 @@ public class AgentController {
     /**
      * 创建智能体（工作区由后端固定在 ~/.qualia/claw/workspaces/{名称} 自动生成）
      *
-     * 请求体：{ name, emoji, role, model, skills[], mcpServers[] }
+     * 请求体：{ name, emoji, role, model, skills[], mcpServers[], disabledTools[] }
      */
     @PostMapping
     public ResponseEntity<Map<String, Object>> createAgent(@RequestBody Map<String, Object> body) {
         try {
             ClawAgentDefinition def = registry.create(str(body, "name"), str(body, "emoji"),
                     str(body, "role"), str(body, "model"),
-                    strList(body, "skills"), strList(body, "mcpServers"));
+                    strList(body, "skills"), strList(body, "mcpServers"), strList(body, "disabledTools"));
             return ResponseEntity.ok(Map.of("success", true, "agent", toView(def)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -54,7 +54,7 @@ public class AgentController {
     }
 
     /**
-     * 更新智能体（名称/表情/角色/模型/技能与 MCP 引用白名单，缺省字段保持不变；工作区固定不可改）
+     * 更新智能体（名称/表情/角色/模型/技能与 MCP 引用白名单/工具禁用名单，缺省字段保持不变；工作区固定不可改）
      */
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> updateAgent(@PathVariable String id,
@@ -62,7 +62,7 @@ public class AgentController {
         try {
             ClawAgentDefinition def = registry.update(id,
                     str(body, "name"), str(body, "emoji"), str(body, "role"), str(body, "model"),
-                    strList(body, "skills"), strList(body, "mcpServers"));
+                    strList(body, "skills"), strList(body, "mcpServers"), strList(body, "disabledTools"));
             return ResponseEntity.ok(Map.of("success", true, "agent", toView(def)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -102,6 +102,7 @@ public class AgentController {
         view.put("model", def.getModel());
         view.put("skills", def.getSkills());
         view.put("mcpServers", def.getMcpServers());
+        view.put("disabledTools", def.getDisabledTools());
         view.put("createdAt", def.getCreatedAt());
         ClawAgentService service = registry.getService(def.getId());
         view.put("streaming", service != null && service.isStreaming());

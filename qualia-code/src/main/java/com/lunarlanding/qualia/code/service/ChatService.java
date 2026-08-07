@@ -228,13 +228,10 @@ public class ChatService {
         if (disabledTools.isEmpty()) {
             return;
         }
-        agent.getTools().removeIf(tool -> {
-            if (disabledTools.contains(tool.getName())) {
-                logger.info("工具 [{}] 已禁用，移除", tool.getName());
-                return true;
-            }
-            return false;
-        });
+        // 注意：getTools() 返回防御性副本，必须走 removeTool 才能真正移除
+        for (String toolName : disabledTools) {
+            agent.removeTool(toolName);
+        }
     }
 
     /**

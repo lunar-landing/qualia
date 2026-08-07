@@ -31,6 +31,13 @@
     /** 弹窗内正在编辑的智能体 id（null 表示新建） */
     let editingId = null;
 
+    /** 内置工具表情映射（键为工具真实注册名，与后端 /api/config/tools 下发一致） */
+    const TOOL_EMOJIS = {
+        read: '📖', grep: '🔍', glob: '📂', edit: '✏️', write: '📝',
+        delete: '🗑️', bash: '💻', web_fetch: '🌍', baidu_search: '🔎', http_request: '🔗'
+    };
+    const TOOL_CATEGORY_LABELS = { file: '文件操作', network: '网络操作', other: '其他' };
+
     // ===== 样式注入 =====
     const CSS = `
         /* ===== 智能体管理弹窗 ===== */
@@ -367,6 +374,8 @@
             padding: 24px 16px; text-align: center;
             font-size: 11px; color: var(--text-muted); line-height: 1.9;
         }
+        /* 工具卡片内的表情图标（与技能/MCP 的 FA 图标位置对齐） */
+        .ref-card-name .ref-emoji { font-size: 11.5px; flex-shrink: 0; }
     `;
 
     function injectStyle() {
@@ -584,6 +593,7 @@
                             <div class="seg-tabs">
                                 <button type="button" class="seg-tab active" data-ref-tab="skills"><i class="fas fa-shapes"></i> 技能 <span class="seg-count" id="agSkillCount"></span></button>
                                 <button type="button" class="seg-tab" data-ref-tab="mcp"><i class="fas fa-server"></i> MCP <span class="seg-count" id="agMcpCount"></span></button>
+                                <button type="button" class="seg-tab" data-ref-tab="tools"><i class="fas fa-wrench"></i> 工具 <span class="seg-count" id="agToolCount"></span></button>
                             </div>
                             <div class="ref-quick">
                                 <button type="button" id="agRefAllBtn">全选</button>
@@ -595,6 +605,9 @@
                         </div>
                         <div class="ref-tab-body" id="agRefMcpBody">
                             <div class="ref-items" id="agMcpRefs" data-count="agMcpCount"><div class="ref-empty">加载中</div></div>
+                        </div>
+                        <div class="ref-tab-body" id="agRefToolsBody">
+                            <div class="ref-items" id="agToolRefs" data-count="agToolCount"><div class="ref-empty">加载中</div></div>
                         </div>
                     </div>
                 </div>
@@ -651,6 +664,7 @@
             t.classList.toggle('active', t.dataset.refTab === which));
         document.getElementById('agRefSkillsBody').classList.toggle('show', which === 'skills');
         document.getElementById('agRefMcpBody').classList.toggle('show', which === 'mcp');
+        document.getElementById('agRefToolsBody').classList.toggle('show', which === 'tools');
     }
 
     async function loadModelOptions(selected) {
@@ -679,16 +693,18 @@
     }
 
     /**
-     * 拉取全局技能池与 MCP 资源池，渲染引用勾选区
+     * 拉取全局技能池、MCP 资源池与内置工具清单，渲染引用勾选区
      * 勾选初值：白名单数组按名单回显；null 区分两种来源——
      *   存量智能体（无白名单字段）= 全部勾选；新建 = 全部不勾，逐个挑选
      */
     async function loadRefOptions(agent) {
         const skillBox = document.getElementById('agSkillRefs');
         const mcpBox = document.getElementById('agMcpRefs');
-        if (!skillBox || !mcpBox) return;
+        const toolBox = document.getElementById('agToolRefs');
+        if (!skillBox || !mcpBox || !toolBox) return;
         try {
-            const [sres, cres] = await Promise.all([fetch('/api/config/skills'), fetch('/api/config')]);
+            const [sres, cres, tres] = await Promise.all([
+                fetch('/api/config/skills'), fetch('/api/config'), fetch('/api/config/tools')]);
             const skillPool = sres.ok ? (await sres.json()) : [];
             const config = cres.ok ? (await cres.json()) : {};
             const globalDisabled = Array.isArray(config.disabledSkills) ? config.disabledSkills : [];
@@ -704,9 +720,12 @@
                 icon: 'fa-server',
                 globalOff: m.enabled === false
             })), agent ? agent.mcpServers : [], 'MCP 服务器');
+            // 工具禁用初值：读智能体级名单；无该字段的智能体（存量/新建）默认全部启用
+            const toolInit = agent && Array.isArray(agent.disabledTools) ? agent.disabledTools : [];
+            renderToolCards(tres.ok ? (await tres.json()) : [], toolInit);
         } catch (e) {
             // 拉取失败标记降级：保存时不提交引用字段，后端保留原值
-            [skillBox, mcpBox].forEach(b => {
+            [skillBox, mcpBox, toolBox].forEach(b => {
                 b.dataset.loaded = '';
                 b.innerHTML = '<div class="ref-empty">资源列表加载失败，保存时将保留现有引用</div>';
             });
@@ -752,11 +771,55 @@
         if (el) el.textContent = total ? `${on}/${total}` : '';
     }
 
+    // ===== 工具引用卡片（与技能/MCP 同构：勾选 = 启用，未勾 = 禁用）=====
+
+    /**
+     * 渲染工具勾选卡片
+     * @param {Array} tools 工具定义列表（名称为真实注册名）
+     * @param {string[]} disabled 禁用名单初值
+     */
+    function renderToolCards(tools, disabled) {
+        const box = document.getElementById('agToolRefs');
+        if (!box) return;
+        box.dataset.loaded = '1';
+        if (!tools.length) {
+            box.innerHTML = '<div class="ref-empty">暂无可用工具</div>';
+            updateRefCount('agToolCount', 0, 0);
+            return;
+        }
+        box.innerHTML = tools.map(t => {
+            const on = !disabled.includes(t.name);
+            const cat = TOOL_CATEGORY_LABELS[t.category || 'other'] || '其他';
+            const sub = `${cat} · ${t.description || '（无描述）'}`;
+            return `
+            <div class="ref-card ${on ? 'on' : ''}" data-name="${attrEsc(t.name)}" title="${esc(sub)}">
+                <div class="ref-card-name"><span class="ref-emoji">${TOOL_EMOJIS[t.name] || '🔧'}</span><span>${esc(t.name)}</span></div>
+                <div class="ref-card-desc">${esc(sub)}</div>
+            </div>`;
+        }).join('');
+        // 点卡片切换启用/禁用
+        box.querySelectorAll('.ref-card').forEach(card => {
+            card.addEventListener('click', () => {
+                card.classList.toggle('on');
+                refreshRefCount(box, 'agToolCount');
+            });
+        });
+        refreshRefCount(box, 'agToolCount');
+    }
+
     /** 收集已选中的白名单名称；资源列表加载失败时返回 null（保存不提交该字段，后端保留原值） */
     function collectRefs(boxId) {
         const box = document.getElementById(boxId);
         if (!box || box.dataset.loaded !== '1') return null;
         return [...box.querySelectorAll('.ref-card.on')]
+            .map(c => c.dataset.name);
+    }
+
+    /** 收集未勾选的工具名称（= 禁用名单）；工具列表加载失败时返回 null（保存不提交，后端保留原值） */
+    function collectDisabledTools() {
+        const box = document.getElementById('agToolRefs');
+        if (!box || box.dataset.loaded !== '1') return null;
+        return [...box.querySelectorAll('.ref-card:not(.on)')]
             .map(c => c.dataset.name);
     }
 
@@ -775,7 +838,8 @@
             role: document.getElementById('agRole').value.trim(),
             model: document.getElementById('agModel').value,
             skills: collectRefs('agSkillRefs'),
-            mcpServers: collectRefs('agMcpRefs')
+            mcpServers: collectRefs('agMcpRefs'),
+            disabledTools: collectDisabledTools()
         };
     }
 

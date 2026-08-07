@@ -16,6 +16,7 @@
     <script src="js/workspace-files.js"></script>
     <script src="js/skill-panel.js"></script>
     <script src="js/mcp-panel.js"></script>
+    <script src="js/model-panel.js"></script>
     <script src="js/token-map.js"></script>
     <link rel="stylesheet" href="index.css" />
 </head>
@@ -85,6 +86,11 @@
                     <button class="settings-btn" id="mcpMenuBtn" title="MCP 管理" onclick="McpPanel.toggle()">
                         <i class="fas fa-server"></i>
                         <span>Mcp管理</span>
+                    </button>
+                    <!-- 模型管理：点击将聊天区替换为模型配置网格视图（js/model-panel.js） -->
+                    <button class="settings-btn" id="modelMenuBtn" title="模型管理" onclick="ModelPanel.toggle()">
+                        <i class="fas fa-robot"></i>
+                        <span>模型管理</span>
                     </button>
                     <button class="settings-btn" title="系统设置" onclick="openSettings()">
                         <i class="fas fa-sliders-h"></i>
@@ -648,6 +654,7 @@
             async function selectSession(sessionId) {
                 window.SkillPanel.hide(); // 选择会话即回到对话视图
                 window.McpPanel.hide();
+                window.ModelPanel.hide();
                 currentSessionId = sessionId;
                 renderSessionList();
                 await loadMessages(sessionId);
@@ -656,6 +663,7 @@
             window.createSession = async function() {
                 window.SkillPanel.hide();
                 window.McpPanel.hide();
+                window.ModelPanel.hide();
                 try {
                     const response = await fetch(chatApi('/sessions'), {
                         method: 'POST',
@@ -697,6 +705,7 @@
             window.onAgentSwitched = async function() {
                 window.SkillPanel.hide(); // 切换智能体即回到对话视图
                 window.McpPanel.hide();
+                window.ModelPanel.hide();
                 window.WorkspaceFiles.reload(); // 右侧文件树切换到新智能体的工作区
                 currentSessionId = null;
                 sessions = [];

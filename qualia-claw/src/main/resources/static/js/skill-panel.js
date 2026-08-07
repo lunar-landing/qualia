@@ -305,6 +305,7 @@
     function show() {
         injectStyle();
         if (window.McpPanel) window.McpPanel.hide(); // 与 MCP 视图互斥
+        if (window.ModelPanel) window.ModelPanel.hide(); // 与模型视图互斥
         open = true;
         ensureView();
         document.querySelector('.chat-area').classList.add('skills-mode');

@@ -1,7 +1,5 @@
 <div align="center">
 
-[English](README.md) | **简体中文**
-
 # Qualia
 
 **企业级 Java AI 智能体框架**
@@ -15,6 +13,8 @@
 [![MCP](https://img.shields.io/badge/MCP-Protocol-purple.svg)](https://modelcontextprotocol.io/)
 
 [快速开始](#-快速开始) · [产品展示](#产品展示) · [发布](#-发布)
+
+[English](README.md) | **简体中文**
 
 </div>
 

@@ -186,9 +186,27 @@ public class ReActAgent implements Agent {
 
     /**
      * 获取当前注册的工具列表（用于测试验证）
+     * 注意：返回的是防御性副本，对副本的修改不影响已注册工具；移除请用 {@link #removeTool(String)}
      */
     public List<FunctionTool> getTools() {
         return new ArrayList<>(tools);
+    }
+
+    /**
+     * 按名称移除已注册的工具（用于配置禁用等场景）
+     *
+     * @param toolName 工具名称
+     * @return 找到并移除返回 true，不存在返回 false
+     */
+    public boolean removeTool(String toolName) {
+        if (toolName == null) {
+            return false;
+        }
+        boolean removed = tools.removeIf(tool -> toolName.equals(tool.getName()));
+        if (removed) {
+            logger.info("工具 [{}] 已移除", toolName);
+        }
+        return removed;
     }
 
     /**

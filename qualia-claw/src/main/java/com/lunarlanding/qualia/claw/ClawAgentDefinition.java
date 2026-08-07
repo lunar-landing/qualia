@@ -31,6 +31,9 @@ public class ClawAgentDefinition {
     /** 引用的全局 MCP 服务器白名单（按名称）；null = 引用全部（存量智能体），空列表 = 不引用 */
     private List<String> mcpServers;
 
+    /** 禁用的内置工具名单（按名称）；null/空列表 = 不禁用（全部工具可用） */
+    private List<String> disabledTools;
+
     /** 创建时间戳 */
     private long createdAt;
 
@@ -98,6 +101,14 @@ public class ClawAgentDefinition {
 
     public void setMcpServers(List<String> mcpServers) {
         this.mcpServers = mcpServers;
+    }
+
+    public List<String> getDisabledTools() {
+        return disabledTools;
+    }
+
+    public void setDisabledTools(List<String> disabledTools) {
+        this.disabledTools = disabledTools;
     }
 
     public long getCreatedAt() {

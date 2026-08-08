@@ -36,15 +36,23 @@
     const MODEL_PRESETS = {
         dashscope: {
             label: '通义千问（阿里云百炼）',
-            models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus']
+            models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus'],
+            types: ['pay-as-you-go']
+        },
+        deepseek: {
+            label: 'DeepSeek',
+            models: ['deepseek-chat', 'deepseek-reasoner'],
+            types: ['pay-as-you-go']
         },
         xiaomi: {
             label: '小米MiMo',
-            models: ['MiMo']
+            models: ['MiMo'],
+            types: ['pay-as-you-go', 'token-plan']
         },
         openai: {
             label: 'OpenAI',
-            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']
+            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+            types: ['pay-as-you-go']
         }
     };
 
@@ -191,7 +199,7 @@
             letter-spacing: 0.3px;
             margin-bottom: 4px;
         }
-        .md-input, .md-select {
+        .md-input {
             width: 100%;
             box-sizing: border-box;
             background: var(--bg-hover);
@@ -204,8 +212,101 @@
             transition: border-color 0.15s;
             font-family: inherit;
         }
-        .md-input:focus, .md-select:focus { border-color: var(--accent); }
-        .md-select { cursor: pointer; }
+        .md-input:focus { border-color: var(--accent); }
+        /* 自定义下拉选择器 */
+        .md-cs {
+            position: relative;
+        }
+        .md-cs-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+            padding: 7px 10px;
+            font-size: 11.5px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: border-color 0.15s;
+            gap: 6px;
+        }
+        .md-cs-trigger:hover { border-color: var(--accent); }
+        .md-cs.open .md-cs-trigger { border-color: var(--accent); }
+        .md-cs-trigger .trigger-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+        .md-cs-trigger .trigger-arrow {
+            font-size: 8px;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+        .md-cs.open .trigger-arrow { transform: rotate(180deg); }
+        .md-cs-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: var(--shadow);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .md-cs.open .md-cs-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .md-cs-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+            gap: 8px;
+        }
+        .md-cs-option:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        .md-cs-option.active {
+            color: var(--text-primary);
+            background: var(--bg-active);
+        }
+        .md-cs-option .option-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+        .md-cs-option .check-icon {
+            font-size: 10px;
+            color: var(--success);
+            opacity: 0;
+            flex-shrink: 0;
+        }
+        .md-cs-option.active .check-icon { opacity: 1; }
 
         .md-foot {
             margin-top: 12px; padding-top: 10px;
@@ -390,15 +491,37 @@
                 </div>
                 <div class="md-row">
                     <label>厂商</label>
-                    <select class="md-select" data-idx="${i}" data-field="provider">
-                        ${pids.map(pid => `<option value="${escAttr(pid)}" ${d.provider === pid ? 'selected' : ''}>${esc((MODEL_PRESETS[pid] || {}).label || pid)}</option>`).join('')}
-                    </select>
+                    <div class="md-cs" data-idx="${i}" data-field="provider">
+                        <div class="md-cs-trigger">
+                            <span class="trigger-text">${esc((MODEL_PRESETS[d.provider] || {}).label || d.provider)}</span>
+                            <i class="fas fa-chevron-down trigger-arrow"></i>
+                        </div>
+                        <div class="md-cs-dropdown">
+                            ${pids.map(pid => `
+                                <div class="md-cs-option${d.provider === pid ? ' active' : ''}" data-value="${escAttr(pid)}">
+                                    <span class="option-text">${esc((MODEL_PRESETS[pid] || {}).label || pid)}</span>
+                                    <i class="fas fa-check check-icon"></i>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                 </div>
                 <div class="md-row">
                     <label>类型</label>
-                    <select class="md-select" data-idx="${i}" data-field="type">
-                        ${MODEL_TYPES.map(t => `<option value="${escAttr(t.id)}" ${d.type === t.id ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
-                    </select>
+                    <div class="md-cs" data-idx="${i}" data-field="type">
+                        <div class="md-cs-trigger">
+                            <span class="trigger-text">${esc((MODEL_TYPES.find(t => t.id === d.type) || {}).label || d.type)}</span>
+                            <i class="fas fa-chevron-down trigger-arrow"></i>
+                        </div>
+                        <div class="md-cs-dropdown">
+                            ${MODEL_TYPES.filter(t => !(MODEL_PRESETS[d.provider] || {}).types || MODEL_PRESETS[d.provider].types.includes(t.id)).map(t => `
+                                <div class="md-cs-option${d.type === t.id ? ' active' : ''}" data-value="${escAttr(t.id)}">
+                                    <span class="option-text">${esc(t.label)}</span>
+                                    <i class="fas fa-check check-icon"></i>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                 </div>
                 <div class="md-row">
                     <label>模型</label>
@@ -467,15 +590,43 @@
             }
             if (!el.dataset.field) return;
             draft[el.dataset.field] = el.value;
-            if (el.tagName === 'SELECT' && el.dataset.field === 'provider') {
-                // 切换厂商：模型回显该厂商首个常用模型
+            if (el.dataset.field === 'provider') {
+                // 切换厂商：模型回显该厂商首个常用模型，类型校正为该厂商支持的首个类型
                 const p = MODEL_PRESETS[el.value];
                 if (p && p.models.length) draft.model = p.models[0];
+                if (p && p.types && !p.types.includes(draft.type)) draft.type = p.types[0];
             }
             render();
         });
 
         view.addEventListener('click', async (e) => {
+            // 自定义下拉：切换展开/收起
+            const trigger = e.target.closest('.md-cs-trigger');
+            if (trigger) {
+                const cs = trigger.closest('.md-cs');
+                document.querySelectorAll('.md-cs.open').forEach(el => {
+                    if (el !== cs) el.classList.remove('open');
+                });
+                cs.classList.toggle('open');
+                return;
+            }
+            // 自定义下拉：选择选项
+            const option = e.target.closest('.md-cs-option');
+            if (option) {
+                const cs = option.closest('.md-cs');
+                const idx = parseInt(cs.dataset.idx);
+                const field = cs.dataset.field;
+                const value = option.dataset.value;
+                if (editingIndex === null || idx !== editingIndex || !draft) return;
+                draft[field] = value;
+                if (field === 'provider') {
+                    const p = MODEL_PRESETS[value];
+                    if (p && p.models.length) draft.model = p.models[0];
+                    if (p && p.types && !p.types.includes(draft.type)) draft.type = p.types[0];
+                }
+                render();
+                return;
+            }
             const btn = e.target.closest('[data-act]');
             if (!btn) return;
             const idx = btn.dataset.idx !== undefined ? Number(btn.dataset.idx) : null;

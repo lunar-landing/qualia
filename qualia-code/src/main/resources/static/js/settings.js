@@ -296,11 +296,11 @@
             top: calc(100% + 4px);
             left: 0;
             right: 0;
-            background: #1a1f2e;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 4px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+            box-shadow: var(--shadow);
             opacity: 0;
             visibility: hidden;
             transform: translateY(-4px);
@@ -335,7 +335,7 @@
         }
         .custom-option.active {
             color: var(--text-primary);
-            background: #252a3a;
+            background: var(--bg-active);
         }
         .custom-option .option-text {
             overflow: hidden;
@@ -353,13 +353,7 @@
         .custom-option.active .check-icon {
             opacity: 1;
         }
-        body.light-theme .custom-select-dropdown {
-            background: #ffffff;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-        body.light-theme .custom-option:hover {
-            background: rgba(0, 0, 0, 0.04);
-        }
+
         .set-kv {
             display: flex;
             gap: 5px;
@@ -641,15 +635,23 @@
     const MODEL_PRESETS = {
         dashscope: {
             label: '通义千问（阿里云百炼）',
-            models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus']
+            models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus'],
+            types: ['pay-as-you-go']
+        },
+        deepseek: {
+            label: 'DeepSeek',
+            models: ['deepseek-chat', 'deepseek-reasoner'],
+            types: ['pay-as-you-go']
         },
         xiaomi: {
             label: '小米MiMo',
-            models: ['MiMo']
+            models: ['MiMo'],
+            types: ['pay-as-you-go', 'token-plan']
         },
         openai: {
             label: 'OpenAI',
-            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']
+            models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+            types: ['pay-as-you-go']
         }
     };
 
@@ -928,7 +930,7 @@
                             <i class="fas fa-chevron-down trigger-arrow"></i>
                         </div>
                         <div class="custom-select-dropdown">
-                            ${MODEL_TYPES.map(t => `
+                            ${((MODEL_PRESETS[m.provider] || {}).types ? MODEL_TYPES.filter(t => MODEL_PRESETS[m.provider].types.includes(t.id)) : MODEL_TYPES).map(t => `
                                 <div class="custom-option${m.type === t.id ? ' active' : ''}" data-value="${escAttr(t.id)}" onclick="QSettings.selectOption(this)">
                                     <span class="option-text">${esc(t.label)}</span>
                                     <i class="fas fa-check check-icon"></i>
@@ -1079,6 +1081,7 @@
             m.provider = v;
             const p = MODEL_PRESETS[v];
             m.model = p && p.models.length ? p.models[0] : '';
+            if (p && p.types && !p.types.includes(m.type)) m.type = p.types[0];
             render();
         },
         // 切换类型

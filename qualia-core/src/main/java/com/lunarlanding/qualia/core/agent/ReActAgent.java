@@ -523,9 +523,8 @@ public class ReActAgent implements Agent {
 
             } else {
 
-                // 更新消息（合并所有结果）
-                String toolCallId = "call_" + java.util.UUID.randomUUID().toString().substring(0, 8);
-                ChatMessage toolResultMessage = ChatMessage.tool("工具执行结果:\n" + combinedResult.toString(), toolCallId);
+                // 更新消息（合并所有结果，使用 system 角色避免 DeepSeek 等严格校验 tool_calls 协议）
+                ChatMessage toolResultMessage = ChatMessage.system("工具执行结果:\n" + combinedResult.toString());
                 messages.add(toolResultMessage);
 
                 // 递归继续下一轮
@@ -782,8 +781,7 @@ public class ReActAgent implements Agent {
             }
         }
 
-        String toolCallId = "call_" + java.util.UUID.randomUUID().toString().substring(0, 8);
-        finalAnswerMessages.add(ChatMessage.tool(contextBuilder.toString(), toolCallId));
+        finalAnswerMessages.add(ChatMessage.system(contextBuilder.toString()));
         return finalAnswerMessages;
     }
 

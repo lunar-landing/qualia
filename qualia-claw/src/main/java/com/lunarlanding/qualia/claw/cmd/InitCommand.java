@@ -29,7 +29,7 @@ public class InitCommand implements Callable<Integer> {
     static {
         PRESETS.put("1", new ModelPreset("dashscope", "qwen-max", "https://dashscope.aliyuncs.com/api/v1", "通义千问"));
         PRESETS.put("2", new ModelPreset("openai", "gpt-4o", "https://api.openai.com/v1", "OpenAI"));
-        PRESETS.put("3", new ModelPreset("deepseek", "deepseek-chat", "https://api.deepseek.com", "DeepSeek"));
+        PRESETS.put("3", new ModelPreset("deepseek", "deepseek-chat", "https://api.deepseek.com/v1", "DeepSeek"));
         PRESETS.put("4", new ModelPreset("claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com", "Claude"));
     }
 

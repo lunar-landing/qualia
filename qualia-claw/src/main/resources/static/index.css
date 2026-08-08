@@ -1885,7 +1885,7 @@ body.light-theme .input-area::before {
 }
 
 .model-selector:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--bg-hover);
 }
 
 .model-selector .model-icon {
@@ -1932,8 +1932,8 @@ body.light-theme .input-area::before {
     transform: translateX(-50%);
     min-width: 160px;
     max-width: 280px;
-    background: #1a1f2e;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     padding: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -1981,7 +1981,7 @@ body.light-theme .input-area::before {
 
 .model-dropdown-item.active {
     color: var(--text-primary);
-    background: #252a3a;
+    background: var(--bg-active);
 }
 
 .model-dropdown-item .check-icon {
@@ -1998,25 +1998,15 @@ body.light-theme .input-area::before {
 .model-dropdown-item .default-badge {
     font-size: 9px;
     color: var(--text-muted);
-    background: #2a2f3d;
+    background: var(--bg-avatar);
     padding: 1px 5px;
     border-radius: 3px;
     margin-left: 8px;
 }
 
 .model-dropdown-item.active .default-badge {
-    background: #323848;
+    background: var(--bg-hover);
     color: var(--text-secondary);
-}
-
-/* 日间模式适配 */
-body.light-theme .model-dropdown {
-    background: #ffffff;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-body.light-theme .model-dropdown-item:hover {
-    background: rgba(0, 0, 0, 0.04);
 }
 
 .input-hint {

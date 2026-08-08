@@ -12,6 +12,7 @@ import com.lunarlanding.qualia.core.memory.MemoryMessage;
 import com.lunarlanding.qualia.core.memory.impl.JsonMemory;
 import com.lunarlanding.qualia.core.model.chat.impl.ChatCompletions;
 import com.lunarlanding.qualia.core.model.chat.impl.DashscopeChatModel;
+import com.lunarlanding.qualia.core.model.chat.impl.DeepSeekChatModel;
 import com.lunarlanding.qualia.core.model.chat.impl.MimoChatModel;
 import com.lunarlanding.qualia.core.model.chat.impl.MimoTokenPlanChatModel;
 import com.lunarlanding.qualia.core.model.chat.impl.OpenAIChatModel;
@@ -214,6 +215,9 @@ public class ChatService {
             }
             if (lowerProvider.contains("qwen") || lowerProvider.contains("dashscope") || lowerProvider.contains("tongyi")) {
                 return new DashscopeChatModel(apiKey);
+            }
+            if (lowerProvider.contains("deepseek")) {
+                return new DeepSeekChatModel(apiKey);
             }
         }
         // 默认使用通用OpenAI兼容实现

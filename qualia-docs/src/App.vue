@@ -122,7 +122,7 @@ onUnmounted(() => {
             </div>
           </div>
           <a
-            href="https://github.com"
+            href="https://github.com/lunar-landing/qualia"
             target="_blank"
             rel="noopener noreferrer"
             class="nav-link"
@@ -210,7 +210,7 @@ onUnmounted(() => {
               <span>产品</span>
             </router-link>
             <a
-              href="https://github.com"
+              href="https://github.com/lunar-landing/qualia"
               target="_blank"
               rel="noopener noreferrer"
               class="mobile-link"

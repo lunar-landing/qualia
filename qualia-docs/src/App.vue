@@ -107,7 +107,7 @@ onUnmounted(() => {
           <div class="nav-item-dropdown">
             <button
               class="nav-link dropdown-trigger"
-              :class="{ active: route.path.startsWith('/product/qualia-code') }"
+              :class="{ active: route.path.startsWith('/product/') }"
             >
               <span>产品</span>
               <svg class="dropdown-icon" viewBox="0 0 20 20" fill="currentColor">
@@ -116,8 +116,37 @@ onUnmounted(() => {
             </button>
             <div class="dropdown-menu">
               <router-link to="/product/qualia-code" class="dropdown-item" @click="closeMobileMenu">
-                <span class="dropdown-item-title">Qualia Code</span>
+                <span class="dropdown-item-title dropdown-item-title-code">
+                  <svg class="code-mark" viewBox="0 0 24 24" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="code-mark-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#7c6cf0"/>
+                        <stop offset="100%" stop-color="#5b4ad0"/>
+                      </linearGradient>
+                    </defs>
+                    <g fill="none" stroke="url(#code-mark-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="8 6 2 12 8 18"/>
+                      <polyline points="16 6 22 12 16 18"/>
+                    </g>
+                  </svg>
+                  Qualia Code
+                </span>
                 <span class="dropdown-item-desc">Java Native Programming Assistant</span>
+              </router-link>
+              <router-link to="/product/qualia-claw" class="dropdown-item" @click="closeMobileMenu">
+                <span class="dropdown-item-title dropdown-item-title-claw">
+                  <svg class="claw-spark" viewBox="0 0 24 24" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="claw-spark-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#a78bfa"/>
+                        <stop offset="100%" stop-color="#5b4ad0"/>
+                      </linearGradient>
+                    </defs>
+                    <path fill="url(#claw-spark-gradient)" d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/>
+                  </svg>
+                  Qualia Claw
+                </span>
+                <span class="dropdown-item-desc">Multi-Agent Collaboration Platform</span>
               </router-link>
             </div>
           </div>
@@ -541,6 +570,33 @@ onUnmounted(() => {
   font-weight: 600;
   color: #fdfcfc;
   font-family: "Berkeley Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", Courier New, monospace;
+}
+
+.dropdown-item-title-claw {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #a78bfa, #5b4ad0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dropdown-item-title-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(145deg, #7c6cf0, #5b4ad0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.claw-spark,
+.code-mark {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .dropdown-item-desc {

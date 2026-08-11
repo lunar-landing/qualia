@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模型卡片原型 · qualia-code</title>
+<!--
+  qualia-code 模型管理「预览卡片 + 弹窗编辑」交互原型
+  - 卡片网格：默认模型高亮（accent 描边 + 徽标），悬停浮现操作按钮
+  - 点击卡片 / 编辑按钮 → 打开编辑弹窗（字段：名称、厂商、服务类型、模型标识、API Key）
+  - baseUrl 由后端自动管理，不在卡片/弹窗中暴露编辑
+  - 主题变量直接取自 static/index.css（深色默认，右上角可切浅色验证）
+-->
+<style>
+/* ===== CSS 变量（与 index.css 对齐）===== */
+:root {
+    --bg-app: #080a10;
+    --bg-surface: rgba(19, 24, 32, 0.85);
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --border-active: rgba(124, 108, 240, 0.3);
+    --shadow: 0 32px 64px rgba(0, 0, 0, 0.7), 0 12px 24px rgba(0, 0, 0, 0.5);
+    --accent: #7c6cf0;
+    --accent-light: #b3a8ff;
+    --accent-gradient: linear-gradient(145deg, #7c6cf0, #5b4ad0);
+    --error: #f87171;
+    --success: #34d399;
+    --warning: #f59e0b;
+    --info: #60a5fa;
+    --radius-sm: 11px;
+    --radius-md: 16px;
+}
+body.light-theme {
+    --bg-app: #eef1f5;
+    --bg-surface: #f8faff;
+    --bg-hover: rgba(0, 0, 0, 0.04);
+    --bg-input: #ffffff;
+    --text-primary: #1e232e;
+    --text-secondary: #5f6883;
+    --text-muted: #8f97ae;
+    --border-color: rgba(0, 0, 0, 0.07);
+    --border-active: rgba(124, 108, 240, 0.4);
+    --shadow: 0 20px 48px rgba(0, 0, 0, 0.06);
+    --accent: #6c5ce7;
+    --error: #dc2626;
+    --success: #059669;
+    --warning: #b45309;
+    --info: #2563eb;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 48px 40px;
+    transition: background 0.25s, color 0.25s;
+}
+.mono { font-family: 'SF Mono', 'JetBrains Mono', Consolas, monospace; }
+
+/* ===== 页头（原型说明，非产品 UI）===== */
+.proto-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+}
+.proto-bar h1 { font-size: 18px; font-weight: 600; }
+.proto-bar h1 span { color: var(--text-muted); font-weight: 400; font-size: 13px; margin-left: 10px; }
+.proto-bar .btns { display: flex; gap: 8px; }
+
+/* ===== 通用按钮 ===== */
+.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border-radius: var(--radius-sm); border: 1px solid var(--border-color);
+    background: var(--bg-surface); color: var(--text-primary);
+    padding: 8px 14px; transition: all 0.15s ease;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--border-active); }
+.btn.primary { background: var(--accent-gradient); border: none; color: #fff; }
+.btn.primary:hover { opacity: 0.9; }
+.btn.ghost { background: transparent; color: var(--text-secondary); }
+.btn.ghost:hover { color: var(--text-primary); }
+.btn.danger { color: var(--error); }
+
+/* ===== 卡片网格 ===== */
+.model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    max-width: 1060px;
+}
+
+/* ===== 模型预览卡片 ===== */
+.model-card {
+    position: relative;
+    display: flex; flex-direction: column;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 18px 18px 14px;
+    cursor: pointer;
+    transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    overflow: hidden;
+}
+.model-card:hover {
+    border-color: var(--border-active);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.model-card.is-default {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+body.light-theme .model-card:hover { box-shadow: 0 8px 20px rgba(108, 92, 231, 0.12); }
+
+/* 卡片头部：厂商标识 + 默认徽标 */
+.mc-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+}
+.mc-provider {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 500; color: var(--text-secondary);
+}
+.mc-provider .dot {
+    width: 22px; height: 22px; border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.dot.dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
+.dot.deepseek  { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
+.dot.xiaomi    { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+.dot.openai    { background: linear-gradient(145deg, #30333e, #5a5f70); }
+
+.mc-badge-default {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+    color: var(--accent-light);
+    background: rgba(124, 108, 240, 0.14);
+    border-radius: 100px;
+    padding: 3px 9px;
+}
+body.light-theme .mc-badge-default { color: var(--accent); background: rgba(108, 92, 231, 0.1); }
+.mc-badge-default svg { width: 10px; height: 10px; }
+
+/* 模型标识（主体信息）*/
+.mc-model-id {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+    margin-bottom: 3px;
+}
+.mc-name {
+    font-size: 12.5px; color: var(--text-muted); margin-bottom: 14px;
+}
+
+/* 元信息行 */
+.mc-meta {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-color);
+}
+.mc-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--text-secondary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 100px;
+    padding: 3px 9px;
+}
+.mc-tag .ok { color: var(--success); font-size: 9px; }
+.mc-tag .key { color: var(--text-muted); }
+
+/* 悬停操作层 */
+.mc-actions {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: color-mix(in srgb, var(--bg-app) 55%, transparent);
+    backdrop-filter: blur(6px);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+.model-card:hover .mc-actions { opacity: 1; pointer-events: auto; }
+.mc-actions .btn { font-size: 12px; padding: 7px 13px; }
+
+/* 添加卡片 */
+.model-card.add-card {
+    align-items: center; justify-content: center; gap: 10px;
+    min-height: 152px;
+    border-style: dashed;
+    color: var(--text-muted);
+}
+.model-card.add-card:hover { color: var(--accent); border-color: var(--border-active); }
+.model-card.add-card .plus { font-size: 26px; font-weight: 300; line-height: 1; }
+.model-card.add-card p { font-size: 13px; }
+
+/* ===== 编辑弹窗 ===== */
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4, 6, 12, 0.55);
+    backdrop-filter: blur(6px);
+}
+.modal-overlay[hidden] { display: none; }
+
+.edit-dialog {
+    width: min(520px, calc(100vw - 48px));
+    background: var(--bg-surface);
+    backdrop-filter: blur(24px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    animation: pop 0.2s ease;
+}
+@keyframes pop { from { transform: scale(0.96) translateY(6px); opacity: 0; } }
+
+.edit-dialog-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+.edit-dialog-head h4 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.edit-dialog-head h4 .close-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+.icon-btn {
+    width: 28px; height: 28px; border-radius: 8px; border: none;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    font-size: 15px; line-height: 1; transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.edit-dialog-body { padding: 18px 20px 6px; display: flex; flex-direction: column; gap: 16px; }
+
+.field label {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); margin-bottom: 7px;
+}
+.field label .hint { color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.field input, .field select {
+    width: 100%; font-size: 13px; color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px; outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field input.mono { font-size: 12.5px; letter-spacing: 0.02em; }
+.field input:focus, .field select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.18);
+}
+.field input::placeholder { color: var(--text-muted); }
+
+/* 双列字段 */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* 服务类型分段选择 */
+.seg {
+    display: inline-flex; padding: 3px; gap: 3px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+.seg button {
+    flex: 1; border: none; cursor: pointer;
+    background: transparent; color: var(--text-secondary);
+    font-size: 12.5px; font-weight: 500;
+    padding: 7px 16px; border-radius: 8px;
+    transition: all 0.15s ease;
+}
+.seg button.on { background: var(--accent-gradient); color: #fff; }
+
+/* apiKey 密码框 */
+.key-wrap { position: relative; }
+.key-wrap input { padding-right: 66px; }
+.key-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    border: none; background: transparent; cursor: pointer;
+    font-size: 11px; color: var(--text-muted);
+}
+.key-toggle:hover { color: var(--accent); }
+
+/* baseUrl 只读提示 */
+.baseurl-note {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11.5px; color: var(--text-muted);
+    background: var(--bg-input);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+}
+.baseurl-note .mono { font-size: 11px; color: var(--text-secondary); }
+
+.edit-dialog-foot {
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    padding: 16px 20px 18px;
+}
+.edit-dialog-foot .btn.danger { margin-right: auto; }
+
+/* 原型注释条（非产品 UI）*/
+.proto-note {
+    max-width: 1060px; margin-top: 30px;
+    font-size: 12px; line-height: 1.9; color: var(--text-muted);
+    border-left: 2px solid var(--accent); padding-left: 14px;
+}
+.proto-note b { color: var(--text-secondary); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ===== 原型说明栏（非产品 UI）===== -->
+<div class="proto-bar">
+    <h1>模型卡片原型<span>qualia-code · 预览卡片 + 弹窗编辑</span></h1>
+    <div class="btns">
+        <button class="btn ghost" onclick="document.body.classList.toggle('light-theme')">切换深/浅主题</button>
+        <button class="btn primary" onclick="openEdit()">＋ 添加模型</button>
+    </div>
+</div>
+
+<!-- ===== 模型卡片网格 ===== -->
+<div class="model-grid">
+
+    <!-- 默认模型卡片（高亮描边 + 徽标）-->
+    <div class="model-card is-default" onclick="openEdit()">
+        <div class="mc-head">
+            <span class="mc-provider"><span class="dot dashscope">Q</span>通义千问（阿里云百炼）</span>
+            <span class="mc-badge-default">
+                <svg viewBox="0 0 12 12" fill="currentColor"><path d="M6 0l1.8 3.7L12 4.3 9 7.2l.7 4.1L6 9.4l-3.7 1.9.7-4.1L0 4.3l4.2-.6z"/></svg>
+                默认
+            </span>
+        </div>
+        <div class="mc-model-id mono">qwen3-coder-plus</div>
+        <div class="mc-name">Qwen Coder 主力</div>
+        <div class="mc-meta">
+            <span class="mc-tag">按量付费</span>
+            <span class="mc-tag"><span class="key">API Key</span>&nbsp;sk-a1****9f</span>
+            <span class="mc-tag"><span class="ok">●</span>已配置</span>
+        </div>
+        <div class="mc-actions" onclick="event.stopPropagation()">
+            <button class="btn">编辑</button>
+            <button class="btn ghost">设为默认</button>
+            <button class="btn ghost danger">删除</button>
+        </div>
+    </div>
+
+    <!-- 普通卡片 -->
+    <div class="model-card" onclick="openEdit()">
+        <div class="mc-head">
+            <span class="mc-provider"><span class="dot deepseek">D</span>DeepSeek</span>
+        </div>
+        <div class="mc-model-id mono">deepseek-chat</div>
+        <div class="mc-name">DeepSeek 对话备选</div>
+        <div class="mc-meta">
+            <span class="mc-tag">按量付费</span>
+            <span class="mc-tag"><span class="key">API Key</span>&nbsp;sk-7c****2e</span>
+            <span class="mc-tag"><span class="ok">●</span>已配置</span>
+        </div>
+        <div class="mc-actions" onclick="event.stopPropagation()">
+            <button class="btn">编辑</button>
+            <button class="btn ghost">设为默认</button>
+            <button class="btn ghost danger">删除</button>
+        </div>
+    </div>
+
+    <!-- 令牌计划卡片（厂商支持多服务类型示例）-->
+    <div class="model-card" onclick="openEdit()">
+        <div class="mc-head">
+            <span class="mc-provider"><span class="dot xiaomi">M</span>小米MiMo</span>
+        </div>
+        <div class="mc-model-id mono">MiMo</div>
+        <div class="mc-name">MiMo 包月套餐</div>
+        <div class="mc-meta">
+            <span class="mc-tag">令牌计划</span>
+            <span class="mc-tag"><span class="key">API Key</span>&nbsp;sk-f0****1b</span>
+            <span class="mc-tag"><span class="ok">●</span>已配置</span>
+        </div>
+        <div class="mc-actions" onclick="event.stopPropagation()">
+            <button class="btn">编辑</button>
+            <button class="btn ghost">设为默认</button>
+            <button class="btn ghost danger">删除</button>
+        </div>
+    </div>
+
+    <!-- apiKey 缺失的警示态 -->
+    <div class="model-card" onclick="openEdit()">
+        <div class="mc-head">
+            <span class="mc-provider"><span class="dot openai">O</span>OpenAI</span>
+        </div>
+        <div class="mc-model-id mono">gpt-4o-mini</div>
+        <div class="mc-name">GPT-4o Mini 备用</div>
+        <div class="mc-meta">
+            <span class="mc-tag">按量付费</span>
+            <span class="mc-tag" style="color: var(--warning);"><span class="key">API Key</span>&nbsp;未配置</span>
+        </div>
+        <div class="mc-actions" onclick="event.stopPropagation()">
+            <button class="btn">编辑</button>
+            <button class="btn ghost">设为默认</button>
+            <button class="btn ghost danger">删除</button>
+        </div>
+    </div>
+
+    <!-- 添加占位卡 -->
+    <div class="model-card add-card" onclick="openEdit()">
+        <span class="plus">＋</span>
+        <p>添加模型</p>
+    </div>
+</div>
+
+<!-- 交互说明（非产品 UI）-->
+<div class="proto-note">
+    <b>交互约定：</b>卡片整体可点击进入编辑弹窗；悬停浮现操作层（编辑 / 设为默认 / 删除）。<br>
+    <b>默认模型：</b>accent 描边 + 「默认」徽标标识；「设为默认」即时生效并保存。<br>
+    <b>apiKey 脱敏：</b>卡片仅展示掩码（sk-x****xx）；弹窗内保留「含 **** 时保持原值不变」语义。<br>
+    <b>baseUrl：</b>后端按厂商自动管理，弹窗中以只读提示呈现，不提供编辑入口。
+</div>
+
+<!-- ===== 编辑弹窗 ===== -->
+<div class="modal-overlay" id="editOverlay" hidden onclick="if (event.target === this) closeEdit()">
+    <div class="edit-dialog">
+        <div class="edit-dialog-head">
+            <h4>编辑模型<span class="close-hint">Esc 关闭</span></h4>
+            <button class="icon-btn" onclick="closeEdit()" title="关闭">✕</button>
+        </div>
+        <div class="edit-dialog-body">
+            <div class="field-row">
+                <div class="field">
+                    <label>名称</label>
+                    <input value="Qwen Coder 主力" placeholder="自定义名称">
+                </div>
+                <div class="field">
+                    <label>服务类型</label>
+                    <div class="seg" style="width: 100%;">
+                        <button class="on" onclick="pickSeg(this)">按量付费</button>
+                        <button onclick="pickSeg(this)">令牌计划</button>
+                    </div>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>厂商</label>
+                    <select>
+                        <option selected>通义千问（阿里云百炼）</option>
+                        <option>DeepSeek</option>
+                        <option>小米MiMo</option>
+                        <option>OpenAI</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>模型标识</label>
+                    <input class="mono" value="qwen3-coder-plus" list="modelPresets" placeholder="选择或输入模型标识">
+                    <datalist id="modelPresets">
+                        <option value="qwen3.7-plus"></option>
+                        <option value="qwen-max-latest"></option>
+                        <option value="qwen-plus-latest"></option>
+                        <option value="qwen3-coder-plus"></option>
+                    </datalist>
+                </div>
+            </div>
+            <div class="field">
+                <label>API Key<span class="hint">含 **** 时保持原值不变</span></label>
+                <div class="key-wrap">
+                    <input class="mono" id="keyInput" type="password" value="sk-a1b2c3d4e5f6g7h8i9" placeholder="输入 API Key">
+                    <button class="key-toggle" onclick="toggleKey(this)">显示</button>
+                </div>
+            </div>
+            <div class="baseurl-note">
+                ⚙ baseUrl 由系统按厂商自动管理<span class="mono">https://dashscope.aliyuncs.com/compatible-mode/v1</span>
+            </div>
+        </div>
+        <div class="edit-dialog-foot">
+            <button class="btn ghost danger">删除</button>
+            <button class="btn ghost" onclick="closeEdit()">取消</button>
+            <button class="btn primary" onclick="closeEdit()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// 原型演示脚本：仅负责弹窗开合与控件态切换
+function openEdit() { document.getElementById('editOverlay').hidden = false; }
+function closeEdit() { document.getElementById('editOverlay').hidden = true; }
+function pickSeg(btn) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+}
+function toggleKey(btn) {
+    const input = document.getElementById('keyInput');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.textContent = show ? '隐藏' : '显示';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEdit(); });
+</script>
+
+</body>
+</html>

@@ -1285,7 +1285,7 @@ body.light-theme .input-actions .send-btn.stop:hover {
 
 .msg > div:last-child {
     min-width: 0;
-    max-width: calc(100% - 45px);
+    max-width: 100%;
 }
 
 .msg.user {
@@ -1300,7 +1300,7 @@ body.light-theme .input-actions .send-btn.stop:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14.5px;
+    font-size: 16px;
     font-weight: 600;
     background: var(--bg-avatar);
     color: var(--text-secondary);
@@ -1309,14 +1309,10 @@ body.light-theme .input-actions .send-btn.stop:hover {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.msg.user .avatar {
-    background: var(--bg-avatar);
-    color: var(--text-secondary);
-}
-
-.msg.user .avatar svg {
-    width: 18px;
-    height: 18px;
+/* 智能体 emoji 头像 */
+.avatar-emoji {
+    font-size: 16px;
+    line-height: 1;
 }
 
 .msg.codex .avatar {
@@ -1324,11 +1320,6 @@ body.light-theme .input-actions .send-btn.stop:hover {
     color: var(--white);
     border: none;
     box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.msg .avatar svg, .typing-indicator .avatar svg {
-    width: 15px;
-    height: 15px;
 }
 
 .msg .bubble {
@@ -1605,7 +1596,8 @@ body.light-theme .msg .bubble pre code {
     align-items: center;
     justify-content: center;
     color: var(--white);
-    font-size: 14.5px;
+    font-size: 16px;
+    line-height: 1;
     box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25);
     animation: pulse 2s ease-in-out infinite;
 }

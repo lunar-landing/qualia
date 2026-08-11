@@ -1074,50 +1074,11 @@ body.light-theme .input-actions .send-btn.stop:hover {
 
 .msg > div:last-child {
     min-width: 0;
-    max-width: calc(100% - 45px);
+    max-width: 100%;
 }
 
 .msg.user {
     flex-direction: row-reverse;
-}
-
-.msg .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14.5px;
-    font-weight: 600;
-    background: var(--bg-avatar);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    transition: background 0.25s, border-color 0.25s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-}
-
-.msg.user .avatar {
-    background: var(--bg-avatar);
-    color: var(--text-secondary);
-}
-
-.msg.user .avatar svg {
-    width: 18px;
-    height: 18px;
-}
-
-.msg.codex .avatar {
-    background: var(--bg-avatar-codex);
-    color: var(--white);
-    border: none;
-    box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.msg .avatar svg, .typing-indicator .avatar svg {
-    width: 15px;
-    height: 15px;
 }
 
 .msg .bubble {
@@ -1383,25 +1344,6 @@ body.light-theme .msg .bubble pre code {
     max-width: 690px;
     padding-left: 4px;
     animation: fadeUp 0.3s ease-out;
-}
-
-.typing-indicator .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-avatar-codex);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--white);
-    font-size: 14.5px;
-    box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25);
-    animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25); }
-    50% { box-shadow: 0 4px 24px rgba(108, 92, 231, 0.4); }
 }
 
 .typing-dots {

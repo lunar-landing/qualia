@@ -3,8 +3,8 @@
  *
  * 职责：
  *   1. 居中弹窗承载全局配置（~/.qualia/qualia-code.json），与工作区无关
- *   2. 「模型配置」「MCP 服务器」「技能」三个 Tab；技能 Tab 只读展示 ~/.qualia/skills 下的全局技能
- *   3. 模型表单联动：厂商/类型下拉 → Base URL 回显、模型 datalist 候选
+ *   2. 「模型配置」「MCP 服务器」「技能」「工具」四个 Tab；技能 Tab 只读展示 ~/.qualia/skills 下的全局技能
+ *   3. 模型 Tab 为预览卡片网格，点击卡片进入编辑弹窗；弹窗内保存写回草稿，持久化由「保存配置」完成
  *   4. 保存成功后回调 window.loadMcpBadge 同步顶栏 MCP 数量
  *
  * 对外 API：
@@ -31,7 +31,7 @@
             display: flex;
         }
         .settings-dialog {
-            width: min(648px, calc(100vw - 48px));
+            width: min(800px, calc(100vw - 48px));
             height: min(82vh, 774px);
             background: var(--bg-surface);
             backdrop-filter: blur(24px);
@@ -85,7 +85,7 @@
         }
         .settings-tabs {
             flex-shrink: 0;
-            width: 133px;
+            width: 180px;
             display: flex;
             flex-direction: column;
             gap: 3px;
@@ -195,19 +195,6 @@
             margin-top: 4px;
             border-top: 1px solid var(--border-color);
         }
-        .set-default-pick {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            user-select: none;
-        }
-        .set-default-pick input {
-            accent-color: var(--accent);
-            cursor: pointer;
-        }
         .set-card-del {
             background: transparent;
             border: none;
@@ -223,6 +210,197 @@
             opacity: 1;
             background: rgba(239, 68, 68, 0.12);
             color: var(--error);
+        }
+        /* ===== 模型预览卡片网格 ===== */
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 10px;
+        }
+        .model-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 13px 13px 10px;
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .model-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+        }
+        .model-card.is-default {
+            border-color: var(--accent);
+        }
+        .mc-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .mc-provider {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mc-provider .dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--white);
+            flex-shrink: 0;
+        }
+        .mc-dot-dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
+        .mc-dot-deepseek { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
+        .mc-dot-xiaomi { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+        .mc-dot-openai { background: linear-gradient(145deg, #30333e, #5a5f70); }
+        .mc-dot-custom { background: var(--text-muted); }
+        .mc-badge-default {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent-light);
+            background: var(--bg-active);
+            border-radius: 100px;
+            padding: 2px 7px;
+            flex-shrink: 0;
+        }
+        .mc-model-id {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mc-name {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mc-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding-top: 9px;
+            margin-top: auto;
+            border-top: 1px dashed var(--border-color);
+        }
+        .mc-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            color: var(--text-secondary);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            padding: 2px 7px;
+        }
+        .mc-tag.warn {
+            color: var(--warning);
+        }
+        .mc-actions {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            background: rgba(0, 0, 0, 0.45);
+            /* backdrop-filter 元素不受父级 overflow+圆角裁剪，需自带圆角 */
+            border-radius: inherit;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease;
+        }
+        body.light-theme .mc-actions {
+            background: rgba(238, 241, 245, 0.62);
+        }
+        .model-card:hover .mc-actions {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .mc-btn {
+            font-size: 11px;
+            font-weight: 500;
+            font-family: inherit;
+            padding: 5px 11px;
+            border-radius: 7px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .mc-btn:hover {
+            border-color: var(--accent);
+        }
+        .mc-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--white);
+        }
+        .mc-btn.ghost {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        .mc-btn.ghost:hover {
+            color: var(--text-primary);
+        }
+        .mc-btn.danger {
+            color: var(--error);
+        }
+        .mc-btn.danger:hover {
+            border-color: var(--error);
+        }
+        .model-card.add-card {
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-height: 128px;
+            border-style: dashed;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: inherit;
+        }
+        .model-card.add-card:hover {
+            color: var(--accent-light);
+            border-color: var(--accent);
+            box-shadow: none;
+        }
+        .model-card.add-card .plus {
+            font-size: 18px;
+            line-height: 1;
+        }
+        .model-card.add-card p {
+            font-size: 11.5px;
         }
         .set-row {
             display: flex;
@@ -435,6 +613,209 @@
         .settings-save:disabled {
             opacity: 0.6;
             cursor: default;
+        }
+        /* ===== 模型编辑弹窗 ===== */
+        .model-edit-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.25);
+        }
+        .model-edit-overlay.open {
+            display: flex;
+        }
+        .model-edit-dialog {
+            width: min(480px, calc(100vw - 64px));
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            background: var(--bg-surface);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            animation: med-pop 0.18s ease;
+        }
+        @keyframes med-pop {
+            from { transform: scale(0.96) translateY(6px); opacity: 0; }
+        }
+        .med-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 13px 16px 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .med-head h4 {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .med-head h4 i {
+            color: var(--text-muted);
+            font-size: 11.5px;
+        }
+        .med-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 12px;
+            padding: 4px 7px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .med-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        .med-body {
+            display: flex;
+            flex-direction: column;
+            gap: 13px;
+            padding: 14px 16px 4px;
+        }
+        .med-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .med-field > label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.3px;
+        }
+        .med-field > label .hint {
+            color: var(--text-muted);
+            font-weight: 400;
+            opacity: 0.75;
+            margin-left: 5px;
+        }
+        .med-field input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+            padding: 7px 9px;
+            font-size: 12px;
+            color: var(--text-primary);
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .med-field input.mono {
+            font-size: 11.5px;
+            letter-spacing: 0.02em;
+        }
+        .med-field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.15);
+        }
+        .med-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .med-row .custom-select {
+            flex: none;
+            width: 100%;
+        }
+        .med-seg {
+            display: flex;
+            padding: 3px;
+            gap: 3px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 7px;
+        }
+        .med-seg button {
+            flex: 1;
+            border: none;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 11.5px;
+            font-weight: 500;
+            font-family: inherit;
+            padding: 6px 8px;
+            border-radius: 5px;
+            transition: all 0.15s ease;
+        }
+        .med-seg button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .med-seg button.on {
+            background: var(--accent);
+            color: var(--white);
+        }
+        .med-key-wrap {
+            position: relative;
+        }
+        .med-key-wrap input {
+            padding-right: 52px;
+        }
+        .med-key-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 10.5px;
+            color: var(--text-muted);
+            font-family: inherit;
+        }
+        .med-key-toggle:hover {
+            color: var(--accent);
+        }
+        .med-baseurl-note {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 10.5px;
+            color: var(--text-muted);
+            background: var(--bg-input);
+            border: 1px dashed var(--border-color);
+            border-radius: 7px;
+            padding: 7px 9px;
+            line-height: 1.5;
+        }
+        .med-baseurl-note .mono {
+            font-size: 10px;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+        .med-foot {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 13px 16px 15px;
+        }
+        .med-foot .med-del {
+            margin-right: auto;
+        }
+        .med-save {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--white);
+        }
+        .med-save:hover {
+            background: var(--accent-light);
+            border-color: var(--accent-light);
+        }
+        .med-save.err {
+            background: var(--error);
+            border-color: var(--error);
         }
         /* ===== 技能 Tab（只读展示全局技能）===== */
         .skill-name, .mcp-name {
@@ -706,12 +1087,23 @@
             </div>`;
         document.body.appendChild(overlay);
 
-        // 点击遮罩或按 Esc 关闭
+        // 模型编辑弹窗容器（叠于设置弹窗之上，内容在打开时动态生成）
+        const editOverlay = document.createElement('div');
+        editOverlay.className = 'model-edit-overlay';
+        editOverlay.id = 'modelEditOverlay';
+        editOverlay.addEventListener('click', function (e) {
+            if (e.target === this) window.QSettings.closeEditDialog();
+        });
+        document.body.appendChild(editOverlay);
+
+        // 点击遮罩或按 Esc 关闭（编辑弹窗打开时 Esc 仅关闭弹窗）
         overlay.addEventListener('click', function (e) {
             if (e.target === this) closeSettings();
         });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeSettings();
+            if (e.key !== 'Escape') return;
+            if (editOverlay.classList.contains('open')) { window.QSettings.closeEditDialog(); return; }
+            closeSettings();
         });
     }
 
@@ -887,70 +1279,149 @@
         return `<div>${html}</div>`;
     }
 
+    // 模型预览卡片：厂商标识 → 彩色徽标与渐变色
+    const PROVIDER_DOT_CLASS = {
+        dashscope: 'mc-dot-dashscope',
+        deepseek: 'mc-dot-deepseek',
+        xiaomi: 'mc-dot-xiaomi',
+        openai: 'mc-dot-openai'
+    };
+
+    // apiKey 脱敏：仅保留首 4 位与末 2 位
+    function maskKey(k) {
+        const s = String(k || '');
+        if (!s) return '';
+        if (s.includes('*')) return s; // 后端回显的掩码值原样展示
+        if (s.length <= 6) return s.slice(0, 2) + '****';
+        return s.slice(0, 4) + '****' + s.slice(-2);
+    }
+
     function renderModels() {
-        const providerIds = Object.keys(MODEL_PRESETS);
         const cards = data.models.map((m, i) => {
-            // 配置中出现预设外的厂商标识时附加为选项，避免回显丢失
-            const pids = providerIds.includes(m.provider) ? providerIds : providerIds.concat(m.provider);
-            const currentProvider = MODEL_PRESETS[m.provider] || { label: m.provider };
-            const currentType = MODEL_TYPES.find(t => t.id === m.type) || { label: m.type };
-            const modelOpts = ((MODEL_PRESETS[m.provider] || {}).models || []).map(v =>
-                `<option value="${escAttr(v)}"></option>`
-            ).join('');
+            const preset = MODEL_PRESETS[m.provider] || {};
+            const providerLabel = preset.label || m.provider || '未知厂商';
+            const dotClass = PROVIDER_DOT_CLASS[m.provider] || 'mc-dot-custom';
+            const dotLetter = esc((providerLabel.trim()[0] || '?').toUpperCase());
+            const typeLabel = (MODEL_TYPES.find(t => t.id === m.type) || { label: m.type }).label;
+            const keyTag = m.apiKey
+                ? `<span class="mc-tag">API Key ${esc(maskKey(m.apiKey))}</span>`
+                : '<span class="mc-tag warn">API Key 未配置</span>';
+            const defaultBadge = i === data.defaultIndex
+                ? `<span class="mc-badge-default"><i class="fas fa-star"></i> 默认</span>` : '';
+            const setDefaultBtn = i === data.defaultIndex ? ''
+                : `<button class="mc-btn ghost" onclick="event.stopPropagation(); QSettings.setDefaultModel(${i})">设为默认</button>`;
             return `
-            <div class="set-card ${i === data.defaultIndex ? 'is-default' : ''}">
-                <div class="set-card-head">
-                    <label class="set-default-pick">
-                        <input type="radio" name="defaultModelPick" ${i === data.defaultIndex ? 'checked' : ''} onchange="QSettings.setDefaultModel(${i})">
-                        默认模型
-                    </label>
-                    <button class="set-card-del" title="删除模型" onclick="QSettings.delModel(${i})"><i class="far fa-trash-alt"></i></button>
+            <div class="model-card ${i === data.defaultIndex ? 'is-default' : ''}" onclick="QSettings.openEditDialog(${i})" title="点击编辑">
+                <div class="mc-head">
+                    <span class="mc-provider"><span class="dot ${dotClass}">${dotLetter}</span>${esc(providerLabel)}</span>
+                    ${defaultBadge}
                 </div>
-                <div class="set-row"><label>名称</label><input value="${escAttr(m.name)}" placeholder="如 qwen-max" oninput="QSettings.setModelField(${i},'name',this.value)"></div>
-                <div class="set-row"><label>厂商</label>
-                    <div class="custom-select" data-index="${i}" data-field="provider">
-                        <div class="custom-select-trigger" onclick="QSettings.toggleSelect(this)">
-                            <span class="trigger-text">${esc(currentProvider.label)}</span>
-                            <i class="fas fa-chevron-down trigger-arrow"></i>
-                        </div>
-                        <div class="custom-select-dropdown">
-                            ${pids.map(pid => `
-                                <div class="custom-option${m.provider === pid ? ' active' : ''}" data-value="${escAttr(pid)}" onclick="QSettings.selectOption(this)">
-                                    <span class="option-text">${esc((MODEL_PRESETS[pid] || {}).label || pid)}</span>
-                                    <i class="fas fa-check check-icon"></i>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
+                <div class="mc-model-id">${esc(m.model) || '（未设置模型）'}</div>
+                <div class="mc-name">${esc(m.name) || '（未命名）'}</div>
+                <div class="mc-meta">
+                    <span class="mc-tag">${esc(typeLabel)}</span>
+                    ${keyTag}
                 </div>
-                <div class="set-row"><label>类型</label>
-                    <div class="custom-select" data-index="${i}" data-field="type">
-                        <div class="custom-select-trigger" onclick="QSettings.toggleSelect(this)">
-                            <span class="trigger-text">${esc(currentType.label)}</span>
-                            <i class="fas fa-chevron-down trigger-arrow"></i>
-                        </div>
-                        <div class="custom-select-dropdown">
-                            ${((MODEL_PRESETS[m.provider] || {}).types ? MODEL_TYPES.filter(t => MODEL_PRESETS[m.provider].types.includes(t.id)) : MODEL_TYPES).map(t => `
-                                <div class="custom-option${m.type === t.id ? ' active' : ''}" data-value="${escAttr(t.id)}" onclick="QSettings.selectOption(this)">
-                                    <span class="option-text">${esc(t.label)}</span>
-                                    <i class="fas fa-check check-icon"></i>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
+                <div class="mc-actions" onclick="event.stopPropagation()">
+                    <button class="mc-btn primary" onclick="QSettings.openEditDialog(${i})">编辑</button>
+                    ${setDefaultBtn}
+                    <button class="mc-btn ghost danger" onclick="QSettings.delModel(${i})">删除</button>
                 </div>
-                <div class="set-row"><label>模型</label>
-                    <input list="modelOpts${i}" value="${escAttr(m.model)}" placeholder="选择或输入模型标识" oninput="QSettings.setModelField(${i},'model',this.value)">
-                    <datalist id="modelOpts${i}">${modelOpts}</datalist>
-                </div>
-                <div class="set-row"><label>API Key（含 **** 时保持原值不变）</label><input value="${escAttr(m.apiKey)}" placeholder="输入 API Key" oninput="QSettings.setModelField(${i},'apiKey',this.value)"></div>
             </div>`;
         }).join('');
 
+        const addCard = `
+            <div class="model-card add-card" onclick="QSettings.openEditDialog(-1)" title="添加模型">
+                <span class="plus"><i class="fas fa-plus"></i></span>
+                <p>添加模型</p>
+            </div>`;
+
         return `
-            <div>
-                ${cards || '<div class="set-env-item">尚未配置模型</div>'}
-                <button class="set-add-btn" onclick="QSettings.addModel()"><i class="fas fa-plus"></i> 新增模型</button>
+            <div class="model-grid">
+                ${cards}
+                ${addCard}
+            </div>
+            ${cards ? '' : '<div class="set-env-item">尚未配置模型，点击上方卡片添加</div>'}`;
+    }
+
+    // ===== 模型编辑弹窗（点击卡片进入；弹窗内保存仅写回本地草稿，最终持久化仍由「保存配置」完成）=====
+    let editIndex = -1;   // -1 表示新增
+    let editDraft = null;
+    let dlgKeyVisible = false;
+
+    function renderEditDialog() {
+        const overlay = document.getElementById('modelEditOverlay');
+        if (!overlay || !editDraft) return;
+        const m = editDraft;
+        const providerIds = Object.keys(MODEL_PRESETS);
+        // 配置中出现预设外的厂商标识时附加为选项，避免回显丢失
+        const pids = providerIds.includes(m.provider) ? providerIds : providerIds.concat(m.provider);
+        const preset = MODEL_PRESETS[m.provider] || {};
+        const allowedTypes = preset.types || null;
+        const modelOpts = (preset.models || []).map(v => `<option value="${escAttr(v)}"></option>`).join('');
+        overlay.innerHTML = `
+            <div class="model-edit-dialog">
+                <div class="med-head">
+                    <h4><i class="fas fa-${editIndex < 0 ? 'plus' : 'pen'}"></i> ${editIndex < 0 ? '添加模型' : '编辑模型'}</h4>
+                    <button class="med-close" title="关闭" onclick="QSettings.closeEditDialog()"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="med-body">
+                    <div class="med-row">
+                        <div class="med-field">
+                            <label>名称</label>
+                            <input value="${escAttr(m.name)}" placeholder="自定义名称" oninput="QSettings.dlgSetField('name', this.value)">
+                        </div>
+                        <div class="med-field">
+                            <label>服务类型</label>
+                            <div class="med-seg">
+                                ${MODEL_TYPES.map(t => {
+                                    const disabled = allowedTypes && !allowedTypes.includes(t.id);
+                                    return `<button type="button" class="${m.type === t.id ? 'on' : ''}" ${disabled ? 'disabled' : ''} onclick="QSettings.dlgSetType('${t.id}')">${esc(t.label)}</button>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="med-row">
+                        <div class="med-field">
+                            <label>厂商</label>
+                            <div class="custom-select" data-scope="dlg">
+                                <div class="custom-select-trigger" onclick="QSettings.toggleSelect(this)">
+                                    <span class="trigger-text">${esc(preset.label || m.provider)}</span>
+                                    <i class="fas fa-chevron-down trigger-arrow"></i>
+                                </div>
+                                <div class="custom-select-dropdown">
+                                    ${pids.map(pid => `
+                                        <div class="custom-option${m.provider === pid ? ' active' : ''}" data-value="${escAttr(pid)}" onclick="QSettings.selectOption(this)">
+                                            <span class="option-text">${esc((MODEL_PRESETS[pid] || {}).label || pid)}</span>
+                                            <i class="fas fa-check check-icon"></i>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="med-field">
+                            <label>模型标识</label>
+                            <input class="mono" list="dlgModelOpts" value="${escAttr(m.model)}" placeholder="选择或输入模型标识" oninput="QSettings.dlgSetField('model', this.value)">
+                            <datalist id="dlgModelOpts">${modelOpts}</datalist>
+                        </div>
+                    </div>
+                    <div class="med-field">
+                        <label>API Key<span class="hint">含 **** 时保持原值不变</span></label>
+                        <div class="med-key-wrap">
+                            <input class="mono" id="dlgKeyInput" type="${dlgKeyVisible ? 'text' : 'password'}" value="${escAttr(m.apiKey)}" placeholder="输入 API Key" oninput="QSettings.dlgSetField('apiKey', this.value)">
+                            <button type="button" class="med-key-toggle" onclick="QSettings.dlgToggleKey(this)">${dlgKeyVisible ? '隐藏' : '显示'}</button>
+                        </div>
+                    </div>
+                    <div class="med-baseurl-note">
+                        <i class="fas fa-cog"></i> baseUrl 由系统按厂商自动管理
+                        ${m.baseUrl ? `<span class="mono">${esc(m.baseUrl)}</span>` : ''}
+                    </div>
+                </div>
+                <div class="med-foot">
+                    ${editIndex >= 0 ? '<button type="button" class="mc-btn ghost danger med-del" onclick="QSettings.delInDialog()">删除</button>' : ''}
+                    <button type="button" class="mc-btn ghost" onclick="QSettings.closeEditDialog()">取消</button>
+                    <button type="button" class="mc-btn primary med-save" id="dlgSaveBtn" onclick="QSettings.saveEditDialog()">保存</button>
+                </div>
             </div>`;
     }
 
@@ -1073,23 +1544,6 @@
         },
         save,
 
-        // 文本输入只更新状态不重渲染（避免失焦）；结构变更才重渲染
-        setModelField(i, field, value) { data.models[i][field] = value; },
-        // 切换厂商：模型回显该厂商首个常用模型
-        setModelProvider(i, v) {
-            const m = data.models[i];
-            m.provider = v;
-            const p = MODEL_PRESETS[v];
-            m.model = p && p.models.length ? p.models[0] : '';
-            if (p && p.types && !p.types.includes(m.type)) m.type = p.types[0];
-            render();
-        },
-        // 切换类型
-        setModelType(i, v) {
-            const m = data.models[i];
-            m.type = v;
-            render();
-        },
         // 自定义下拉：切换展开/收起
         toggleSelect(triggerEl) {
             const select = triggerEl.closest('.custom-select');
@@ -1099,34 +1553,84 @@
             });
             select.classList.toggle('open');
         },
-        // 自定义下拉：选择选项
+        // 自定义下拉：选择选项（当前仅编辑弹窗内的厂商下拉使用）
         selectOption(optionEl) {
             const select = optionEl.closest('.custom-select');
-            const index = parseInt(select.dataset.index);
-            const field = select.dataset.field;
-            const value = optionEl.dataset.value;
-            if (field === 'provider') {
-                QSettings.setModelProvider(index, value);
-            } else if (field === 'type') {
-                QSettings.setModelType(index, value);
+            if (select.dataset.scope === 'dlg') {
+                QSettings.dlgSelectProvider(optionEl.dataset.value);
             }
             select.classList.remove('open');
         },
         setDefaultModel(i) { data.defaultIndex = i; render(); },
-        addModel() {
-            data.models.push({
-                name: '', provider: 'dashscope', type: 'pay-as-you-go',
-                model: MODEL_PRESETS.dashscope.models[0],
-                baseUrl: '', apiKey: ''
-            });
-            if (data.defaultIndex < 0) data.defaultIndex = 0;
-            render();
-        },
         delModel(i) {
             data.models.splice(i, 1);
             if (data.defaultIndex === i) data.defaultIndex = data.models.length > 0 ? 0 : -1;
             else if (data.defaultIndex > i) data.defaultIndex--;
             render();
+        },
+
+        // ----- 模型编辑弹窗 -----
+        // 打开编辑弹窗；i 为 -1 时新增（草稿保存后才写入列表）
+        openEditDialog(i) {
+            if (!data) return;
+            editIndex = i;
+            editDraft = i >= 0
+                ? Object.assign({}, data.models[i])
+                : { name: '', provider: 'dashscope', type: 'pay-as-you-go', model: MODEL_PRESETS.dashscope.models[0], baseUrl: '', apiKey: '' };
+            dlgKeyVisible = false;
+            renderEditDialog();
+            document.getElementById('modelEditOverlay').classList.add('open');
+        },
+        closeEditDialog() {
+            editDraft = null;
+            document.getElementById('modelEditOverlay').classList.remove('open');
+        },
+        dlgSetField(field, value) { if (editDraft) editDraft[field] = value; },
+        dlgSetType(v) {
+            if (!editDraft) return;
+            editDraft.type = v;
+            renderEditDialog();
+        },
+        // 切换厂商：模型回显该厂商首个常用模型，类型越界时归一化
+        dlgSelectProvider(v) {
+            if (!editDraft) return;
+            editDraft.provider = v;
+            const p = MODEL_PRESETS[v];
+            editDraft.model = p && p.models.length ? p.models[0] : '';
+            if (p && p.types && !p.types.includes(editDraft.type)) editDraft.type = p.types[0];
+            renderEditDialog();
+        },
+        dlgToggleKey(btn) {
+            const input = document.getElementById('dlgKeyInput');
+            if (!input) return;
+            dlgKeyVisible = input.type === 'password';
+            input.type = dlgKeyVisible ? 'text' : 'password';
+            btn.textContent = dlgKeyVisible ? '隐藏' : '显示';
+        },
+        // 弹窗内保存：草稿写回 data，最终持久化仍由「保存配置」触发
+        saveEditDialog() {
+            if (!editDraft) return;
+            const btn = document.getElementById('dlgSaveBtn');
+            if (!String(editDraft.name || '').trim()) {
+                btn.classList.add('err');
+                btn.textContent = '名称不能为空';
+                setTimeout(() => { btn.classList.remove('err'); btn.textContent = '保存'; }, 1600);
+                return;
+            }
+            if (editIndex >= 0) data.models[editIndex] = editDraft;
+            else {
+                data.models.push(editDraft);
+                if (data.defaultIndex < 0) data.defaultIndex = data.models.length - 1;
+            }
+            QSettings.closeEditDialog();
+            render();
+        },
+        delInDialog() {
+            if (editIndex < 0) return;
+            const m = data.models[editIndex];
+            if (!confirm(`确定要删除模型 "${m.name || m.model}" 吗？`)) return;
+            QSettings.delModel(editIndex);
+            QSettings.closeEditDialog();
         },
 
         setMcpField(i, field, value) { data.mcpServers[i][field] = value; },

@@ -85,9 +85,8 @@
 
                     <!-- 消息由JS动态渲染；空会话时显示欢迎Hero -->
 
-                    <!-- Typing indicator -->
+                    <!-- Typing indicator（单智能体无登录态，不展示头像）-->
                     <div class="typing-indicator" id="typingIndicator">
-                        <div class="avatar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg></div>
                         <div class="typing-dots">
                             <span></span><span></span><span></span>
                         </div>
@@ -173,11 +172,8 @@
             const sendBtn = document.getElementById('sendBtn');
             const typing = document.getElementById('typingIndicator');
 
-            // AI 头像（四角星火花）
+            // AI 品牌符号（四角星火花，用于欢迎 Hero logo；单智能体无登录态，消息不展示头像）
             const AI_AVATAR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></svg>';
-            
-            // 用户头像（简洁人像）
-            const USER_AVATAR = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21c0-3.87-3.58-7-8-7s-8 3.13-8 7"/></svg>';
             
             // 初始隐藏typing indicator
             if (typing) typing.style.display = 'none';
@@ -337,7 +333,6 @@
                 msgEl.className = 'msg codex';
                 if (msgId) msgEl.dataset.msgId = msgId;
                 msgEl.innerHTML = `
-                    <div class="avatar">${AI_AVATAR}</div>
                     <div class="act-col">
                         <div class="act-flow"></div>
                         <div class="think-bar" style="display: none;">
@@ -869,7 +864,6 @@
                 const renderedContent = role === 'user' ? escapeHtml(content) : renderMarkdown(content);
                 
                 msgEl.innerHTML = `
-                    <div class="avatar">${role === 'user' ? USER_AVATAR : AI_AVATAR}</div>
                     <div>
                         <div class="bubble">${renderedContent}</div>
                         <div class="time">${timeStr}</div>

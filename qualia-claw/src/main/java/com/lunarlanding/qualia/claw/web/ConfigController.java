@@ -7,6 +7,9 @@ import com.lunarlanding.qualia.claw.ClawConfig;
 import com.lunarlanding.qualia.claw.ClawMcpServerConfig;
 import com.lunarlanding.qualia.claw.ClawModelConfig;
 import com.lunarlanding.qualia.claw.service.AgentRegistry;
+import com.lunarlanding.qualia.core.mcp.client.McpClient;
+import com.lunarlanding.qualia.core.mcp.client.McpClientParameters;
+import io.modelcontextprotocol.spec.McpSchema;
 import com.lunarlanding.qualia.core.skill.Skill;
 import com.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
 import com.lunarlanding.qualia.core.tool.FunctionTool;
@@ -313,6 +316,88 @@ public class ConfigController {
             }
         }
         return result;
+    }
+
+    /**
+     * 验证 MCP 服务器连接
+     *
+     * 接收单个 MCP 服务器配置（name, transport, url, headers），
+     * 尝试建立 MCP 连接并获取工具列表，返回验证结果。
+     * 不依赖已保存配置，供前端弹窗内「验证连接」按钮调用。
+     */
+    @PostMapping("/mcp/verify")
+    public ResponseEntity<Map<String, Object>> verifyMcpServer(@RequestBody Map<String, Object> body) {
+        String name = String.valueOf(body.getOrDefault("name", ""));
+        String transport = String.valueOf(body.getOrDefault("transport", "streamable-http"));
+        String url = String.valueOf(body.getOrDefault("url", ""));
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) body.getOrDefault("headers", Map.of());
+
+        long start = System.currentTimeMillis();
+        try {
+            McpClientParameters params = switch (transport) {
+                case "streamable-http" -> McpClientParameters.streamableHttp(url);
+                case "http-sse" -> McpClientParameters.httpSse(url);
+                case "stdio" -> {
+                    // STDIO: url 字段存放完整命令行，空格拆分首段为命令，其余为参数
+                    String[] parts = url.split("\s+", 2);
+                    String command = parts[0];
+                    List<String> args = parts.length > 1
+                            ? List.of(parts[1].split("\s+"))
+                            : List.of();
+                    yield McpClientParameters.stdio(command, args);
+                }
+                default -> throw new IllegalArgumentException("不支持的传输方式: " + transport);
+            };
+            params.withName(name).withHeaders(headers);
+
+            try (McpClient client = new McpClient(params)) {
+                client.connect();
+                long latency = System.currentTimeMillis() - start;
+
+                List<McpSchema.Tool> tools = client.getTools();
+                List<String> toolNames = tools.stream()
+                        .map(McpSchema.Tool::name)
+                        .collect(Collectors.toList());
+
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "serverName", name,
+                        "latencyMs", latency,
+                        "toolCount", tools.size(),
+                        "toolNames", toolNames
+                ));
+            }
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            String errorType = classifyMcpError(e);
+            return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "errorType", errorType,
+                    "errorMessage", truncate(e.getMessage(), 200),
+                    "latencyMs", latency
+            ));
+        }
+    }
+
+    /** 根据异常类型归类，便于前端展示友好错误提示 */
+    private static String classifyMcpError(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("timeout") || msg.contains("timed out")) {
+            return "连接超时";
+        } else if (msg.contains("connection refused") || msg.contains("拒绝")) {
+            return "连接被拒绝";
+        } else if (msg.contains("unknownhost") || msg.contains("resolve")) {
+            return "地址无法解析";
+        } else if (msg.contains("not found") || msg.contains("no such file") || msg.contains("找不到")) {
+            return "命令不存在";
+        }
+        return "连接失败";
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
     private String maskApiKey(String apiKey) {

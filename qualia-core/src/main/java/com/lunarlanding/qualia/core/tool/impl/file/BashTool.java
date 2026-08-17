@@ -13,7 +13,10 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 系统命令执行工具
@@ -78,19 +81,27 @@ public class BashTool extends FunctionTool {
 
             // 启动进程
             Process process = processBuilder.start();
-            
-            // 读取原始字节，结束后按行智能解码（兼容 UTF-8 与 GBK 混合输出）
-            ByteArrayOutputStream rawOutput = new ByteArrayOutputStream();
-            try (InputStream in = process.getInputStream()) {
-                in.transferTo(rawOutput);
-            }
 
-            // 等待进程完成
+            // 异步读取进程输出，避免阻塞主线程导致超时机制失效
+            ByteArrayOutputStream rawOutput = new ByteArrayOutputStream();
+            CompletableFuture<Void> readFuture = CompletableFuture.runAsync(() -> {
+                try (InputStream in = process.getInputStream()) {
+                    in.transferTo(rawOutput);
+                } catch (IOException ignored) {
+                    // 进程被强制销毁时流读取可能抛异常，忽略即可
+                }
+            });
+
+            // 主线程等待进程完成（带超时）
             boolean completed = process.waitFor(timeout, TimeUnit.SECONDS);
             if (!completed) {
                 process.destroyForcibly();
+                readFuture.get(5, TimeUnit.SECONDS); // 等待读取线程结束
                 return "错误：命令执行超时（" + timeout + "秒）";
             }
+
+            // 进程正常结束，等待输出读取完成
+            readFuture.get(10, TimeUnit.SECONDS);
 
             String output = decodeOutput(rawOutput.toByteArray());
 
@@ -106,6 +117,8 @@ public class BashTool extends FunctionTool {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return "错误：命令执行被中断";
+        } catch (ExecutionException | TimeoutException e) {
+            return "错误：读取进程输出异常 - " + e.getMessage();
         }
     }
 

@@ -560,6 +560,15 @@ window.ToolChip = (function () {
 
     function toggleDetail(chip, step, idx, stepsRef) {
         const detail = detailOf(chip, true);
+        console.log('[ToolChip] toggleDetail', {
+            idx,
+            toolName: step.toolName,
+            chipActive: chip.classList.contains('active'),
+            detailExists: !!detail,
+            detailOpen: detail ? detail.classList.contains('open') : null,
+            detailDisplay: detail ? getComputedStyle(detail).display : null,
+            parentTag: chip.parentElement ? chip.parentElement.tagName : null
+        });
         if (detail.classList.contains('open')) {
             detail.classList.remove('open');
             chip.classList.remove('active');
@@ -568,6 +577,14 @@ window.ToolChip = (function () {
         chip.classList.add('active');
         renderDetail(detail, step, idx, stepsRef);
         detail.classList.add('open');
+        console.log('[ToolChip] afterToggle', {
+            detailOpen: detail.classList.contains('open'),
+            detailDisplay: getComputedStyle(detail).display,
+            detailChildren: detail.children.length,
+            detailHTML: detail.innerHTML.substring(0, 200),
+            detailParent: detail.parentElement ? detail.parentElement.className : null,
+            chipActive: chip.classList.contains('active')
+        });
     }
 
     // 输出到达后：若该 chip 的详情正展开，刷新为最终内容

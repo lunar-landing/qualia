@@ -38,10 +38,14 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -760,7 +764,10 @@ public class ReActAgent implements Agent {
 
         List<ChatMessage> finalAnswerMessages = new ArrayList<>();
         String langHint = this.detectedLanguage != null ? this.detectedLanguage : "";
-        finalAnswerMessages.add(ChatMessage.system(this.systemPrompt + (langHint.isEmpty() ? "" : "\n\n" + langHint)));
+        String timeHint = buildCurrentTimeHint();
+        finalAnswerMessages.add(ChatMessage.system(this.systemPrompt
+                + (langHint.isEmpty() ? "" : "\n\n" + langHint)
+                + "\n\n" + timeHint));
 
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage msg = messages.get(i);
@@ -899,6 +906,8 @@ public class ReActAgent implements Agent {
         if (this.detectedLanguage != null) {
             prompt.append(this.detectedLanguage).append("\n\n");
         }
+        // 注入当前时间，避免智能体为获取时间而调用工具
+        prompt.append(buildCurrentTimeHint()).append("\n\n");
         // 使用统一的提示词（技能列表已封装为skill-selector工具）
         prompt.append(Constant.REACT_PROMPT_NO_SKILLS);
 
@@ -1015,6 +1024,16 @@ public class ReActAgent implements Agent {
     public String description() {
         return description;
     }
+    /**
+     * 构建当前时间提示，注入到系统提示词中，避免智能体为获取时间而调用 bash 等工具
+     */
+    private static String buildCurrentTimeHint() {
+        LocalDateTime now = LocalDateTime.now();
+        String formatted = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        String dayOfWeek = now.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.CHINA);
+        return "当前时间：" + formatted + " " + dayOfWeek;
+    }
+
     public void setSystemPrompt(String systemPrompt) {
         this.systemPrompt = systemPrompt;
     }

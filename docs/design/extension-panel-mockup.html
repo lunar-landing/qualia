@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>插件管理 UI 设计稿</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+:root {
+    --bg-page: #f0f0ee;
+    --bg-surface: #ffffff;
+    --bg-input: #f8f8f7;
+    --bg-hover: #f3f3f2;
+    --bg-active: rgba(124,108,240,0.1);
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #999;
+    --border-color: #e8e8e6;
+    --border-active: #c8c8c5;
+    --accent: #7c6cf0;
+    --accent-light: #7c6cf0;
+    --accent-gradient: linear-gradient(135deg, #7c6cf0, #9b8cf8);
+    --error: #ef4444;
+    --white: #fff;
+    --shadow: 0 8px 40px rgba(0,0,0,0.12);
+    --shadow-input: 0 1px 3px rgba(0,0,0,0.06);
+    --radius-sm: 10px;
+    --sidebar-bg: #fafaf9;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-page: #141414;
+        --bg-surface: #1e1e1e;
+        --bg-input: #262626;
+        --bg-hover: #2a2a2a;
+        --bg-active: rgba(124,108,240,0.15);
+        --text-primary: #e8e8e6;
+        --text-secondary: #aaa;
+        --text-muted: #777;
+        --border-color: #333;
+        --border-active: #555;
+        --accent: #9b8cf8;
+        --accent-light: #b0a4ff;
+        --error: #f87171;
+        --white: #fff;
+        --shadow: 0 8px 40px rgba(0,0,0,0.4);
+        --shadow-input: 0 1px 3px rgba(0,0,0,0.2);
+        --sidebar-bg: #1a1a1a;
+    }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    padding: 32px;
+    min-height: 100vh;
+}
+
+.page-title {
+    font-size: 20px; font-weight: 700; margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.page-desc {
+    font-size: 13px; color: var(--text-muted);
+    margin-bottom: 32px; line-height: 1.7;
+}
+
+.section-label {
+    font-size: 14px; font-weight: 700;
+    margin: 40px 0 14px;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+}
+.section-label::before {
+    content: ''; width: 3px; height: 16px; border-radius: 2px;
+    background: var(--accent-gradient);
+}
+
+/* ===== 通用：卡片 / 开关 / 标签 ===== */
+
+/* 启用开关 */
+.toggle-switch {
+    position: relative; display: inline-block;
+    width: 40px; height: 22px; flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background-color: var(--text-muted);
+    transition: background-color 0.2s; border-radius: 4px;
+}
+.toggle-slider:before {
+    position: absolute; content: "";
+    height: 18px; width: 18px; left: 2px; bottom: 2px;
+    background-color: var(--white);
+    transition: transform 0.2s; border-radius: 3px;
+}
+.toggle-switch input:checked + .toggle-slider { background-color: var(--accent); }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+/* 删除按钮 */
+.del-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: none; border: none;
+    color: var(--text-muted); font-size: 11.5px;
+    padding: 4px 8px; border-radius: 6px;
+    transition: all 0.15s; cursor: pointer;
+}
+.del-btn:hover { color: var(--error); background: rgba(248,113,113,0.09); }
+
+/* 工具标签 */
+.tool-tag {
+    font-size: 10px; color: var(--text-secondary);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    background: var(--bg-hover); border-radius: 6px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+/* 版本徽章 */
+.ver-badge {
+    font-size: 10px; font-weight: 650; color: var(--accent-light);
+    background: var(--bg-active); border-radius: 5px;
+    padding: 2px 7px; flex-shrink: 0;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+/* 插件图标 */
+.puzzle-icon {
+    border-radius: 10px;
+    background: var(--accent-gradient); color: var(--white);
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.puzzle-icon.dim { background: var(--bg-hover); color: var(--text-muted); }
+
+
+/* ===================================================================
+   qualia-claw 侧边栏插件管理面板
+   =================================================================== */
+
+.claw-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    max-width: 1060px;
+    padding: 26px 30px 34px;
+}
+
+.claw-inner { max-width: 980px; margin: 0 auto; }
+
+.claw-head {
+    display: flex; align-items: center; gap: 11px; margin-bottom: 5px;
+}
+.claw-head-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: var(--accent-gradient); color: var(--white);
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-input);
+}
+.claw-head-title {
+    font-size: 16px; font-weight: 700; color: var(--text-primary);
+}
+.claw-head-stat {
+    font-size: 11px; font-weight: 600; color: var(--text-secondary);
+    background: var(--bg-hover); border-radius: 100px; padding: 3px 10px;
+    margin-left: auto;
+}
+.claw-desc {
+    font-size: 11.5px; color: var(--text-muted);
+    margin: 2px 0 20px; line-height: 1.7;
+}
+.claw-desc code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    color: var(--text-secondary); background: var(--bg-hover);
+    border-radius: 5px; padding: 1px 6px; font-size: 10.5px;
+}
+
+/* 网格 */
+.claw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+/* 卡片 */
+.claw-card {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    transition: all 0.18s;
+}
+.claw-card:hover { border-color: var(--border-active); transform: translateY(-1px); }
+.claw-card.disabled { opacity: 0.55; }
+.claw-card.disabled:hover { opacity: 0.75; }
+
+.claw-card-top {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.claw-card-top .puzzle-icon { width: 34px; height: 34px; font-size: 14px; }
+.claw-card-name {
+    font-size: 13px; font-weight: 650; color: var(--text-primary);
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.claw-card-tools { flex: 1; margin-bottom: 2px; }
+.claw-card-tools-label {
+    font-size: 10.5px; font-weight: 500; color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.claw-card-tool-list {
+    display: flex; flex-wrap: wrap; gap: 5px;
+}
+
+.claw-card-foot {
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    display: flex; align-items: center;
+}
+.claw-card-foot .del-btn { opacity: 0; transition: opacity 0.15s; }
+.claw-card:hover .del-btn { opacity: 1; }
+.claw-card-foot .toggle-switch { margin-left: auto; }
+
+/* 空态 */
+.claw-empty {
+    padding: 60px 20px; text-align: center;
+    color: var(--text-muted); font-size: 12px; line-height: 2.1;
+}
+.claw-empty i { font-size: 30px; display: block; margin-bottom: 12px; opacity: 0.5; }
+
+
+/* ===================================================================
+   侧边栏菜单示意
+   =================================================================== */
+
+.sidebar-demo {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex; flex-direction: column; gap: 2px;
+    width: 200px;
+    margin-bottom: 16px;
+}
+.sb-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 7px;
+    font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; border: none; background: transparent;
+    text-align: left; transition: all 0.15s;
+}
+.sb-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sb-btn.active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
+.sb-btn.active i { color: var(--accent); }
+.sb-btn i { width: 14px; text-align: center; font-size: 11px; color: var(--text-muted); }
+
+
+/* ===================================================================
+   qualia-code 设置弹窗「插件」Tab
+   =================================================================== */
+
+.code-dialog {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    max-width: 800px;
+    overflow: hidden;
+}
+
+.code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+.code-head h4 {
+    font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+    display: flex; align-items: center; gap: 7px;
+}
+.code-head h4 i { color: var(--text-muted); font-size: 11.5px; }
+.code-head button {
+    background: transparent; border: none; color: var(--text-muted);
+    font-size: 12.5px; padding: 4px 7px; border-radius: 6px; cursor: pointer;
+}
+
+.code-main { display: flex; min-height: 360px; }
+
+.code-tabs {
+    flex-shrink: 0; width: 180px;
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 9px 7px;
+    border-right: 1px solid var(--border-color);
+}
+.code-tab {
+    background: transparent; border: none; border-radius: 7px;
+    padding: 7px 9px; font-size: 11.5px; font-weight: 500;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 7px;
+    text-align: left; cursor: pointer; transition: all 0.15s;
+}
+.code-tab i { width: 13px; text-align: center; font-size: 10.5px; color: var(--text-muted); }
+.code-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.code-tab.active { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
+.code-tab.active i { color: var(--accent); }
+
+.code-content {
+    flex: 1; min-width: 0;
+    overflow-y: auto; padding: 13px;
+}
+
+.code-list-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+}
+.code-list-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.code-list-count {
+    font-size: 10.5px; color: var(--text-muted);
+    background: var(--bg-hover); border-radius: 99px; padding: 2px 8px;
+}
+
+.code-row {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--border-color); border-radius: 9px;
+    background: var(--bg-input); padding: 10px 12px;
+    margin-bottom: 8px; transition: all 0.15s;
+}
+.code-row:hover { border-color: var(--border-active); }
+.code-row.disabled { opacity: 0.55; }
+
+.code-row .puzzle-icon { width: 30px; height: 30px; font-size: 12px; }
+
+.code-row-info { flex: 1; min-width: 0; }
+.code-row-name {
+    font-size: 12px; font-weight: 600; color: var(--text-primary);
+    display: flex; align-items: center; gap: 6px;
+}
+.code-row-name .ver {
+    font-size: 9.5px; font-weight: 500; color: var(--text-muted);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+}
+.code-row-tools {
+    margin-top: 3px;
+    display: flex; flex-wrap: wrap; gap: 4px;
+}
+.code-row-tools .tool-tag { font-size: 9.5px; padding: 1px 5px; }
+
+.code-row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.code-row-actions .del-btn { opacity: 0.6; font-size: 10.5px; padding: 4px 5px; }
+.code-row-actions .del-btn:hover { opacity: 1; }
+
+.code-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-color);
+    display: flex; justify-content: flex-end; gap: 8px;
+}
+.btn-save {
+    background: var(--accent); color: var(--white);
+    border: none; border-radius: 7px; padding: 7px 18px;
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-save:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div class="page-title">插件管理 UI 设计稿</div>
+<div class="page-desc">
+    qualia-claw 侧边栏面板 + qualia-code 设置弹窗 Tab，跟随系统深色/浅色主题自动切换。
+</div>
+
+<!-- ======================== qualia-claw ======================== -->
+<div class="section-label">qualia-claw 侧边栏插件管理面板</div>
+
+<!-- 侧边栏菜单示意 -->
+<div class="sidebar-demo">
+    <button class="sb-btn"><i class="fas fa-shapes"></i><span>技能管理</span></button>
+    <button class="sb-btn"><i class="fas fa-server"></i><span>MCP 管理</span></button>
+    <button class="sb-btn"><i class="fas fa-robot"></i><span>模型管理</span></button>
+    <button class="sb-btn active"><i class="fas fa-puzzle-piece"></i><span>插件管理</span></button>
+    <button class="sb-btn"><i class="fas fa-sliders-h"></i><span>系统设置</span></button>
+</div>
+
+<!-- 插件管理面板（替换整个聊天区的视图） -->
+<div class="claw-panel">
+    <div class="claw-inner">
+        <div class="claw-head">
+            <span class="claw-head-icon"><i class="fas fa-puzzle-piece"></i></span>
+            <span class="claw-head-title">插件管理</span>
+            <span class="claw-head-stat">3 已启用 / 共 4</span>
+        </div>
+        <div class="claw-desc">
+            插件通过 Java JAR 扩展智能体工具能力。将 .jar 文件放入 <code>~/.qualia/extensions</code> 后刷新即可识别。
+        </div>
+
+        <div class="claw-grid">
+            <!-- 卡片 1 -->
+            <div class="claw-card">
+                <div class="claw-card-top">
+                    <span class="puzzle-icon"><i class="fas fa-puzzle-piece"></i></span>
+                    <span class="claw-card-name">Weather Extension</span>
+                    <span class="ver-badge">v1.2.0</span>
+                </div>
+                <div class="claw-card-tools">
+                    <div class="claw-card-tools-label">提供工具 (2)</div>
+                    <div class="claw-card-tool-list">
+                        <span class="tool-tag">get_weather</span>
+                        <span class="tool-tag">get_forecast</span>
+                    </div>
+                </div>
+                <div class="claw-card-foot">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i> 删除</button>
+                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- 卡片 2 -->
+            <div class="claw-card">
+                <div class="claw-card-top">
+                    <span class="puzzle-icon"><i class="fas fa-puzzle-piece"></i></span>
+                    <span class="claw-card-name">Database Query</span>
+                    <span class="ver-badge">v0.9.1</span>
+                </div>
+                <div class="claw-card-tools">
+                    <div class="claw-card-tools-label">提供工具 (3)</div>
+                    <div class="claw-card-tool-list">
+                        <span class="tool-tag">query_sql</span>
+                        <span class="tool-tag">show_tables</span>
+                        <span class="tool-tag">describe_table</span>
+                    </div>
+                </div>
+                <div class="claw-card-foot">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i> 删除</button>
+                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- 卡片 3 -->
+            <div class="claw-card">
+                <div class="claw-card-top">
+                    <span class="puzzle-icon"><i class="fas fa-puzzle-piece"></i></span>
+                    <span class="claw-card-name">Notion Sync</span>
+                    <span class="ver-badge">v2.0.0</span>
+                </div>
+                <div class="claw-card-tools">
+                    <div class="claw-card-tools-label">提供工具 (1)</div>
+                    <div class="claw-card-tool-list">
+                        <span class="tool-tag">search_pages</span>
+                    </div>
+                </div>
+                <div class="claw-card-foot">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i> 删除</button>
+                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- 卡片 4: 已禁用 -->
+            <div class="claw-card disabled">
+                <div class="claw-card-top">
+                    <span class="puzzle-icon dim"><i class="fas fa-puzzle-piece"></i></span>
+                    <span class="claw-card-name">Legacy Tools</span>
+                    <span class="ver-badge">v0.3.0</span>
+                </div>
+                <div class="claw-card-tools">
+                    <div class="claw-card-tools-label">提供工具 (4)</div>
+                    <div class="claw-card-tool-list">
+                        <span class="tool-tag">legacy_search</span>
+                        <span class="tool-tag">legacy_fetch</span>
+                        <span class="tool-tag">legacy_parse</span>
+                        <span class="tool-tag">legacy_export</span>
+                    </div>
+                </div>
+                <div class="claw-card-foot">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i> 删除</button>
+                    <label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ======================== qualia-code ======================== -->
+<div class="section-label">qualia-code 设置弹窗「插件」Tab</div>
+
+<div class="code-dialog">
+    <div class="code-head">
+        <h4><i class="fas fa-sliders-h"></i> 系统设置</h4>
+        <button><i class="fas fa-times"></i></button>
+    </div>
+    <div class="code-main">
+        <div class="code-tabs">
+            <button class="code-tab"><i class="fas fa-robot"></i> 模型配置</button>
+            <button class="code-tab"><i class="fas fa-server"></i> MCP 服务器</button>
+            <button class="code-tab"><i class="fas fa-shapes"></i> 技能</button>
+            <button class="code-tab"><i class="fas fa-wrench"></i> 工具</button>
+            <button class="code-tab active"><i class="fas fa-puzzle-piece"></i> 插件</button>
+        </div>
+        <div class="code-content">
+            <div class="code-list-head">
+                <span class="code-list-title">已安装插件</span>
+                <span class="code-list-count">2 已启用 / 共 3</span>
+            </div>
+
+            <div class="code-row">
+                <span class="puzzle-icon"><i class="fas fa-puzzle-piece"></i></span>
+                <div class="code-row-info">
+                    <div class="code-row-name">Weather Extension <span class="ver">v1.2.0</span></div>
+                    <div class="code-row-tools">
+                        <span class="tool-tag">get_weather</span>
+                        <span class="tool-tag">get_forecast</span>
+                    </div>
+                </div>
+                <div class="code-row-actions">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i></button>
+                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <div class="code-row">
+                <span class="puzzle-icon"><i class="fas fa-puzzle-piece"></i></span>
+                <div class="code-row-info">
+                    <div class="code-row-name">Database Query <span class="ver">v0.9.1</span></div>
+                    <div class="code-row-tools">
+                        <span class="tool-tag">query_sql</span>
+                        <span class="tool-tag">show_tables</span>
+                        <span class="tool-tag">describe_table</span>
+                    </div>
+                </div>
+                <div class="code-row-actions">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i></button>
+                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <div class="code-row disabled">
+                <span class="puzzle-icon dim"><i class="fas fa-puzzle-piece"></i></span>
+                <div class="code-row-info">
+                    <div class="code-row-name">Legacy Tools <span class="ver">v0.3.0</span></div>
+                    <div class="code-row-tools">
+                        <span class="tool-tag">legacy_search</span>
+                        <span class="tool-tag">legacy_fetch</span>
+                        <span class="tool-tag">legacy_parse</span>
+                        <span class="tool-tag">legacy_export</span>
+                    </div>
+                </div>
+                <div class="code-row-actions">
+                    <button class="del-btn"><i class="far fa-trash-alt"></i></button>
+                    <label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="code-footer">
+        <button class="btn-save">保存配置</button>
+    </div>
+</div>
+
+
+<!-- ======================== 空态 ======================== -->
+<div class="section-label">空态示意</div>
+
+<div class="claw-panel">
+    <div class="claw-inner">
+        <div class="claw-head">
+            <span class="claw-head-icon"><i class="fas fa-puzzle-piece"></i></span>
+            <span class="claw-head-title">插件管理</span>
+            <span class="claw-head-stat">0 已启用 / 共 0</span>
+        </div>
+        <div class="claw-desc">
+            插件通过 Java JAR 扩展智能体工具能力。将 .jar 文件放入 <code>~/.qualia/extensions</code> 后刷新即可识别。
+        </div>
+        <div class="claw-empty">
+            <i class="fas fa-puzzle-piece"></i>
+            暂无插件<br>将扩展 JAR 文件放入插件目录后刷新页面
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

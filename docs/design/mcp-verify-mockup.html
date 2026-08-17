@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MCP 管理 UI 设计稿 — 弹窗编辑模式</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+:root {
+    --bg-page: #f0f0ee;
+    --bg-surface: #ffffff;
+    --bg-input: #f8f8f7;
+    --bg-hover: #f3f3f2;
+    --bg-active: rgba(124,108,240,0.1);
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #999;
+    --border-color: #e8e8e6;
+    --border-active: #c8c8c5;
+    --accent: #7c6cf0;
+    --accent-light: #7c6cf0;
+    --accent-gradient: linear-gradient(135deg, #7c6cf0, #9b8cf8);
+    --success: #22c55e;
+    --success-bg: rgba(34,197,94,0.09);
+    --success-border: rgba(34,197,94,0.3);
+    --error: #ef4444;
+    --error-bg: rgba(239,68,68,0.09);
+    --error-border: rgba(239,68,68,0.3);
+    --white: #fff;
+    --shadow: 0 8px 40px rgba(0,0,0,0.12);
+    --shadow-modal: 0 16px 48px rgba(0,0,0,0.18);
+    --shadow-input: 0 1px 3px rgba(0,0,0,0.06);
+    --radius-sm: 10px;
+    --radius-md: 12px;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-page: #141414;
+        --bg-surface: #1e1e1e;
+        --bg-input: #262626;
+        --bg-hover: #2a2a2a;
+        --bg-active: rgba(124,108,240,0.15);
+        --text-primary: #e8e8e6;
+        --text-secondary: #aaa;
+        --text-muted: #777;
+        --border-color: #333;
+        --border-active: #555;
+        --accent: #9b8cf8;
+        --accent-light: #b0a4ff;
+        --success-bg: rgba(34,197,94,0.12);
+        --success-border: rgba(34,197,94,0.35);
+        --error-bg: rgba(239,68,68,0.12);
+        --error-border: rgba(239,68,68,0.35);
+        --white: #fff;
+        --shadow: 0 8px 40px rgba(0,0,0,0.4);
+        --shadow-modal: 0 16px 48px rgba(0,0,0,0.5);
+        --shadow-input: 0 1px 3px rgba(0,0,0,0.2);
+    }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    padding: 32px;
+    min-height: 100vh;
+}
+.page-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.page-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 32px; line-height: 1.7; }
+.section-label {
+    font-size: 14px; font-weight: 700; margin: 40px 0 14px;
+    display: flex; align-items: center; gap: 8px;
+}
+.section-label::before {
+    content: ''; width: 3px; height: 16px; border-radius: 2px;
+    background: var(--accent-gradient);
+}
+.section-desc { font-size: 11.5px; color: var(--text-muted); margin: -8px 0 14px 11px; line-height: 1.6; }
+
+
+/* ===================================================================
+   列表卡片（只读展示）
+   =================================================================== */
+
+.mc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+    max-width: 1060px;
+}
+.mc-card {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    transition: all 0.18s;
+    cursor: default;
+}
+.mc-card:hover { border-color: var(--border-active); transform: translateY(-1px); }
+.mc-card.disabled { opacity: 0.55; }
+.mc-card.disabled:hover { opacity: 0.75; }
+
+.mc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.mc-icon {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px;
+    background: var(--accent-gradient); color: var(--white);
+    font-size: 13px; display: flex; align-items: center; justify-content: center;
+}
+.mc-card.disabled .mc-icon { background: var(--bg-hover); color: var(--text-muted); }
+.mc-name-val { flex: 1; min-width: 0; font-size: 13px; font-weight: 650; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-src {
+    font-size: 10px; font-weight: 650; color: var(--accent-light);
+    background: var(--bg-active); border-radius: 5px; padding: 2px 7px; flex-shrink: 0;
+}
+
+/* 信息行 */
+.mc-info {
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+    font-size: 11px; color: var(--text-secondary);
+    padding: 6px 0 8px;
+}
+.mc-info-item { display: flex; align-items: center; gap: 5px; }
+.mc-info-item i { font-size: 10px; color: var(--text-muted); width: 12px; text-align: center; }
+.mc-info-item .mono {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10.5px;
+}
+
+/* 状态徽章 */
+.status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600;
+    border-radius: 99px; padding: 2px 8px; flex-shrink: 0;
+}
+.status-badge.ok { color: var(--success); background: var(--success-bg); }
+.status-badge.fail { color: var(--error); background: var(--error-bg); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.status-dot.ok { background: var(--success); }
+.status-dot.fail { background: var(--error); }
+
+/* 操作栏 */
+.mc-actions {
+    display: flex; align-items: center; gap: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+.mc-act-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: none;
+    color: var(--text-muted); font-size: 11px;
+    padding: 5px 10px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s;
+}
+.mc-act-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.mc-act-btn.primary { color: var(--accent-light); }
+.mc-act-btn.primary:hover { background: var(--bg-active); }
+.mc-act-btn.danger:hover { color: var(--error); background: rgba(248,113,113,0.09); }
+
+/* 启用开关 */
+.toggle-switch {
+    position: relative; display: inline-block;
+    width: 40px; height: 22px; flex-shrink: 0; margin-left: auto;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background-color: var(--text-muted); transition: background-color 0.2s; border-radius: 4px;
+}
+.toggle-slider:before {
+    position: absolute; content: ""; height: 18px; width: 18px;
+    left: 2px; bottom: 2px; background-color: var(--white);
+    transition: transform 0.2s; border-radius: 3px;
+}
+.toggle-switch input:checked + .toggle-slider { background-color: var(--accent); }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+
+/* ===================================================================
+   验证结果栏（卡片内展开）
+   =================================================================== */
+.mc-verify-result {
+    margin-top: 8px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11.5px; line-height: 1.7;
+    animation: fadeSlide 0.2s ease;
+}
+@keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.mc-verify-result.success { background: var(--success-bg); border: 1px solid var(--success-border); }
+.mc-verify-result.error { background: var(--error-bg); border: 1px solid var(--error-border); }
+.vr-header { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; font-weight: 600; }
+.vr-header i.success { color: var(--success); }
+.vr-header i.error { color: var(--error); }
+.vr-body {
+    display: grid; grid-template-columns: auto 1fr; gap: 1px 10px;
+    font-size: 10.5px; color: var(--text-secondary); padding-left: 20px;
+}
+.vr-label { color: var(--text-muted); white-space: nowrap; }
+.vr-value { word-break: break-all; }
+.vr-value.mono { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px; }
+
+
+/* ===================================================================
+   编辑弹窗
+   =================================================================== */
+
+/* 遮罩 */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 弹窗主体 */
+.modal-box {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--shadow-modal);
+    width: 480px;
+    max-height: 82vh;
+    display: flex; flex-direction: column;
+    animation: slideUp 0.2s ease;
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 弹窗头部 */
+.modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+.modal-title {
+    font-size: 14px; font-weight: 700; color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+}
+.modal-title i { color: var(--accent); font-size: 13px; }
+.modal-close {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-muted);
+    border-radius: 7px; cursor: pointer; font-size: 12px;
+    transition: all 0.15s;
+}
+.modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 弹窗内容 */
+.modal-body {
+    flex: 1; overflow-y: auto; padding: 18px 20px;
+}
+
+/* 表单字段 */
+.form-group { margin-bottom: 16px; }
+.form-group:last-child { margin-bottom: 0; }
+.form-label {
+    display: block; font-size: 11.5px; font-weight: 600;
+    color: var(--text-secondary); margin-bottom: 6px;
+}
+.form-input, .form-select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+.form-input:focus, .form-select:focus { border-color: var(--accent); }
+.form-select { cursor: pointer; }
+.form-input.mono { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11.5px; }
+
+/* Headers KV 编辑 */
+.kv-section { margin-top: 4px; }
+.kv-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.kv-row .form-input { flex: 1; min-width: 0; }
+.kv-del {
+    width: 28px; height: 28px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--text-muted);
+    border-radius: 7px; cursor: pointer; font-size: 11px;
+    transition: all 0.15s;
+}
+.kv-del:hover { color: var(--error); background: rgba(248,113,113,0.09); }
+.kv-add {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: none;
+    color: var(--accent-light); font-size: 11px;
+    padding: 4px 0; cursor: pointer;
+}
+.kv-add:hover { text-decoration: underline; }
+
+/* 验证区域 */
+.verify-section {
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+.verify-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 11.5px; font-weight: 600;
+    padding: 8px 16px;
+    cursor: pointer; transition: all 0.15s;
+}
+.verify-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-active); }
+.verify-btn.testing { pointer-events: none; color: var(--accent); border-color: var(--accent); background: var(--bg-active); }
+.verify-btn i.fa-spinner { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 弹窗内验证结果 */
+.modal-verify-result {
+    margin-top: 10px;
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 11.5px; line-height: 1.7;
+    animation: fadeSlide 0.2s ease;
+}
+.modal-verify-result.success { background: var(--success-bg); border: 1px solid var(--success-border); }
+.modal-verify-result.error { background: var(--error-bg); border: 1px solid var(--error-border); }
+
+/* 弹窗底部 */
+.modal-foot {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex; justify-content: flex-end; gap: 8px;
+}
+.btn-cancel {
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: 8px; color: var(--text-secondary);
+    font-size: 11.5px; font-weight: 600; padding: 8px 18px;
+    cursor: pointer; transition: all 0.15s;
+}
+.btn-cancel:hover { background: var(--bg-hover); border-color: var(--border-active); }
+.btn-save {
+    background: var(--accent); color: var(--white);
+    border: none; border-radius: 8px;
+    font-size: 11.5px; font-weight: 600; padding: 8px 22px;
+    cursor: pointer; transition: opacity 0.15s;
+}
+.btn-save:hover { opacity: 0.85; }
+
+
+/* ===================================================================
+   空态
+   =================================================================== */
+.mv-empty {
+    padding: 60px 20px; text-align: center;
+    color: var(--text-muted); font-size: 12px; line-height: 2.1;
+    max-width: 1060px;
+}
+.mv-empty i { font-size: 30px; display: block; margin-bottom: 12px; opacity: 0.5; }
+
+/* ===================================================================
+   说明条
+   =================================================================== */
+.flow-hint {
+    max-width: 1060px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 11.5px; color: var(--text-secondary);
+    line-height: 2;
+}
+.flow-hint code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10.5px; color: var(--accent-light);
+    background: var(--bg-active); border-radius: 4px; padding: 1px 5px;
+}
+</style>
+</head>
+<body>
+
+<div class="page-title">MCP 管理 UI 设计稿 — 弹窗编辑模式</div>
+<div class="page-desc">
+    qualia-claw 侧边栏 MCP 管理面板。卡片改为只读展示，编辑操作通过弹窗完成。跟随系统深色/浅色主题。
+</div>
+
+
+<!-- ===== 交互流程 ===== -->
+<div class="section-label">交互流程</div>
+<div class="flow-hint">
+    1. 卡片只读展示：名称、传输方式、服务地址、验证状态，不提供内联编辑<br>
+    2. 点击卡片上的 <code><i class="fas fa-pen"></i> 编辑</code> 按钮 → 弹出编辑弹窗，弹窗内包含所有可编辑字段 + 验证连接按钮<br>
+    3. 弹窗底部 <code>验证连接</code>：点击后按钮变加载态，结果展现在弹窗内（不影响列表视图）<br>
+    4. 验证通过后点击 <code>保存</code> → 关闭弹窗 → 卡片列表刷新<br>
+    5. 点击 <code>取消</code> 或遮罩 → 关闭弹窗，不保存<br>
+    6. 验证结果在弹窗内有效，关闭弹窗后清除；卡片上的状态徽章记录上次验证结果
+</div>
+
+
+<!-- ===== 列表视图：默认态（已验证/未验证混合） ===== -->
+<div class="section-label">列表视图 — 卡片只读展示</div>
+<div class="section-desc">卡片展示元信息，底部操作栏提供编辑、删除、启用开关。已验证的卡片右上角显示状态徽章。</div>
+
+<div class="mc-grid">
+
+    <!-- 卡片 1：已验证成功 -->
+    <div class="mc-card">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">notion-mcp</span>
+            <span class="status-badge ok"><span class="status-dot ok"></span> 已连接</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> streamable-http</span>
+            <span class="mc-info-item"><i class="fas fa-link"></i> <span class="mono">http://localhost:3001/mcp</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> 8 个工具</span>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- 卡片 2：已验证失败 -->
+    <div class="mc-card">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">weather-mcp</span>
+            <span class="status-badge fail"><span class="status-dot fail"></span> 连接失败</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> streamable-http</span>
+            <span class="mc-info-item"><i class="fas fa-link"></i> <span class="mono">http://192.168.1.100:3000/mcp</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> —</span>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- 卡片 3：未验证 -->
+    <div class="mc-card">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">custom-bridge</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> http-sse</span>
+            <span class="mc-info-item"><i class="fas fa-link"></i> <span class="mono">http://localhost:8080/sse</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> —</span>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- 卡片 4：已禁用 -->
+    <div class="mc-card disabled">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">legacy-tools</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> stdio</span>
+            <span class="mc-info-item"><i class="fas fa-terminal"></i> <span class="mono">npx -y @legacy/server</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> —</span>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 列表视图：展开验证结果（保留在设计中供参考） ===== -->
+<div class="section-label">列表视图 — 卡片展开验证结果</div>
+<div class="section-desc">如果未来改为卡片内验证（非弹窗），卡片可展开绿色/红色结果栏，与之前的设计方案保持兼容。</div>
+
+<div class="mc-grid">
+    <!-- 成功展开 -->
+    <div class="mc-card">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">notion-mcp</span>
+            <span class="status-badge ok"><span class="status-dot ok"></span> 已连接</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> streamable-http</span>
+            <span class="mc-info-item"><i class="fas fa-link"></i> <span class="mono">http://localhost:3001/mcp</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> 8 个工具</span>
+        </div>
+        <div class="mc-verify-result success">
+            <div class="vr-header"><i class="fas fa-check-circle success"></i> 连接成功</div>
+            <div class="vr-body">
+                <span class="vr-label">服务器</span><span class="vr-value">Notion MCP Server v2.1.0</span>
+                <span class="vr-label">响应耗时</span><span class="vr-value mono">126ms</span>
+                <span class="vr-label">可用工具</span><span class="vr-value">8 个（query_database, create_page, ...）</span>
+            </div>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+
+    <!-- 失败展开 -->
+    <div class="mc-card">
+        <div class="mc-top">
+            <span class="mc-icon"><i class="fas fa-server"></i></span>
+            <span class="mc-name-val">broken-server</span>
+            <span class="status-badge fail"><span class="status-dot fail"></span> 连接失败</span>
+            <span class="mc-src">MCP</span>
+        </div>
+        <div class="mc-info">
+            <span class="mc-info-item"><i class="fas fa-exchange-alt"></i> streamable-http</span>
+            <span class="mc-info-item"><i class="fas fa-link"></i> <span class="mono">http://localhost:9999/mcp</span></span>
+            <span class="mc-info-item"><i class="fas fa-wrench"></i> —</span>
+        </div>
+        <div class="mc-verify-result error">
+            <div class="vr-header"><i class="fas fa-times-circle error"></i> 连接失败</div>
+            <div class="vr-body">
+                <span class="vr-label">错误类型</span><span class="vr-value">连接被拒绝</span>
+                <span class="vr-label">错误信息</span><span class="vr-value">Connection refused: localhost:9999 — 请确认服务已启动且端口正确</span>
+            </div>
+        </div>
+        <div class="mc-actions">
+            <button class="mc-act-btn primary"><i class="fas fa-pen"></i> 编辑</button>
+            <button class="mc-act-btn danger"><i class="far fa-trash-alt"></i> 删除</button>
+            <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 编辑弹窗：新建/编辑服务器 ===== -->
+<div class="section-label">编辑弹窗 — 新建 MCP 服务器</div>
+<div class="section-desc">点击列表右上角「新增」或卡片上的「编辑」按钮打开，表单字段编辑 + 验证连接均在弹窗内完成。</div>
+
+<div class="modal-overlay" style="position:relative;background:var(--bg-page);padding:20px 0;">
+    <div class="modal-box">
+        <div class="modal-head">
+            <div class="modal-title"><i class="fas fa-server"></i> 新建 MCP 服务器</div>
+            <button class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">名称</label>
+                <input class="form-input" value="" placeholder="服务唯一标识，如 notion-mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">传输方式</label>
+                <select class="form-select">
+                    <option value="streamable-http" selected>streamable-http</option>
+                    <option value="http-sse">http-sse</option>
+                    <option value="stdio">stdio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">服务地址</label>
+                <input class="form-input mono" value="" placeholder="http(s)://... 或 stdio 命令行">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Headers</label>
+                <div class="kv-section">
+                    <button class="kv-add"><i class="fas fa-plus"></i> 添加 Header</button>
+                </div>
+            </div>
+            <div class="verify-section">
+                <button class="verify-btn"><i class="fas fa-plug"></i> 验证连接</button>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-cancel">取消</button>
+            <button class="btn-save">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 编辑弹窗：验证中 ===== -->
+<div class="section-label">编辑弹窗 — 验证中</div>
+
+<div class="modal-overlay" style="position:relative;background:var(--bg-page);padding:20px 0;">
+    <div class="modal-box">
+        <div class="modal-head">
+            <div class="modal-title"><i class="fas fa-server"></i> 编辑 MCP 服务器</div>
+            <button class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">名称</label>
+                <input class="form-input" value="notion-mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">传输方式</label>
+                <select class="form-select">
+                    <option value="streamable-http" selected>streamable-http</option>
+                    <option value="http-sse">http-sse</option>
+                    <option value="stdio">stdio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">服务地址</label>
+                <input class="form-input mono" value="http://localhost:3001/mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Headers</label>
+                <div class="kv-section">
+                    <div class="kv-row">
+                        <input class="form-input" value="Authorization" placeholder="Header 名">
+                        <input class="form-input" value="Bearer ****" placeholder="Header 值">
+                        <button class="kv-del"><i class="fas fa-times"></i></button>
+                    </div>
+                    <button class="kv-add"><i class="fas fa-plus"></i> 添加 Header</button>
+                </div>
+            </div>
+            <div class="verify-section">
+                <button class="verify-btn testing"><i class="fas fa-spinner"></i> 验证中...</button>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-cancel">取消</button>
+            <button class="btn-save">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 编辑弹窗：验证成功 ===== -->
+<div class="section-label">编辑弹窗 — 验证成功</div>
+
+<div class="modal-overlay" style="position:relative;background:var(--bg-page);padding:20px 0;">
+    <div class="modal-box">
+        <div class="modal-head">
+            <div class="modal-title"><i class="fas fa-server"></i> 编辑 MCP 服务器</div>
+            <button class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">名称</label>
+                <input class="form-input" value="notion-mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">传输方式</label>
+                <select class="form-select">
+                    <option value="streamable-http" selected>streamable-http</option>
+                    <option value="http-sse">http-sse</option>
+                    <option value="stdio">stdio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">服务地址</label>
+                <input class="form-input mono" value="http://localhost:3001/mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Headers</label>
+                <div class="kv-section">
+                    <div class="kv-row">
+                        <input class="form-input" value="Authorization" placeholder="Header 名">
+                        <input class="form-input" value="Bearer ****" placeholder="Header 值">
+                        <button class="kv-del"><i class="fas fa-times"></i></button>
+                    </div>
+                    <button class="kv-add"><i class="fas fa-plus"></i> 添加 Header</button>
+                </div>
+            </div>
+            <div class="verify-section">
+                <button class="verify-btn"><i class="fas fa-redo"></i> 重新验证</button>
+                <div class="modal-verify-result success">
+                    <div class="vr-header"><i class="fas fa-check-circle success"></i> 连接成功</div>
+                    <div class="vr-body">
+                        <span class="vr-label">服务器</span><span class="vr-value">Notion MCP Server v2.1.0</span>
+                        <span class="vr-label">响应耗时</span><span class="vr-value mono">126ms</span>
+                        <span class="vr-label">可用工具</span><span class="vr-value">8 个（query_database, create_page, update_block ...）</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-cancel">取消</button>
+            <button class="btn-save">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 编辑弹窗：验证失败 ===== -->
+<div class="section-label">编辑弹窗 — 验证失败</div>
+
+<div class="modal-overlay" style="position:relative;background:var(--bg-page);padding:20px 0;">
+    <div class="modal-box">
+        <div class="modal-head">
+            <div class="modal-title"><i class="fas fa-server"></i> 编辑 MCP 服务器</div>
+            <button class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">名称</label>
+                <input class="form-input" value="broken-server">
+            </div>
+            <div class="form-group">
+                <label class="form-label">传输方式</label>
+                <select class="form-select">
+                    <option value="streamable-http" selected>streamable-http</option>
+                    <option value="http-sse">http-sse</option>
+                    <option value="stdio">stdio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">服务地址</label>
+                <input class="form-input mono" value="http://localhost:9999/mcp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Headers</label>
+                <div class="kv-section">
+                    <button class="kv-add"><i class="fas fa-plus"></i> 添加 Header</button>
+                </div>
+            </div>
+            <div class="verify-section">
+                <button class="verify-btn"><i class="fas fa-redo"></i> 重新验证</button>
+                <div class="modal-verify-result error">
+                    <div class="vr-header"><i class="fas fa-times-circle error"></i> 连接失败</div>
+                    <div class="vr-body">
+                        <span class="vr-label">错误类型</span><span class="vr-value">连接被拒绝</span>
+                        <span class="vr-label">错误信息</span><span class="vr-value">Connection refused: localhost:9999 — 请确认服务已启动且端口正确</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-cancel">取消</button>
+            <button class="btn-save">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== STDIO 编辑弹窗 ===== -->
+<div class="section-label">编辑弹窗 — STDIO 传输类型</div>
+<div class="section-desc">STDIO 类型的「服务地址」字段变为命令行输入，验证逻辑检测进程能否启动。</div>
+
+<div class="modal-overlay" style="position:relative;background:var(--bg-page);padding:20px 0;">
+    <div class="modal-box">
+        <div class="modal-head">
+            <div class="modal-title"><i class="fas fa-server"></i> 编辑 MCP 服务器</div>
+            <button class="modal-close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">名称</label>
+                <input class="form-input" value="filesystem">
+            </div>
+            <div class="form-group">
+                <label class="form-label">传输方式</label>
+                <select class="form-select">
+                    <option value="streamable-http">streamable-http</option>
+                    <option value="http-sse">http-sse</option>
+                    <option value="stdio" selected>stdio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">命令</label>
+                <input class="form-input mono" value="npx -y @modelcontextprotocol/server-filesystem /tmp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Headers</label>
+                <div class="kv-section">
+                    <button class="kv-add"><i class="fas fa-plus"></i> 添加 Header</button>
+                </div>
+            </div>
+            <div class="verify-section">
+                <button class="verify-btn"><i class="fas fa-plug"></i> 验证连接</button>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-cancel">取消</button>
+            <button class="btn-save">保存</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ===== 空态 ===== -->
+<div class="section-label">空态</div>
+
+<div class="mc-grid" style="max-width:1060px;">
+    <div class="mv-empty" style="grid-column:1/-1;">
+        <i class="fas fa-server"></i>
+        暂无 MCP 服务器<br>点击「新增 MCP 服务器」添加
+    </div>
+</div>
+
+
+<!-- ===== 后端 API ===== -->
+<div class="section-label">后端 API 设计</div>
+<div class="flow-hint" style="font-family:'JetBrains Mono',Consolas,monospace;font-size:11px;line-height:2.2;">
+<strong style="font-family:-apple-system,sans-serif;font-size:12px;">POST /api/mcp/verify</strong><br>
+<br>
+<strong>Request Body</strong>（弹窗内直接传入表单值，不依赖已保存配置）：<br>
+{<br>
+&nbsp;&nbsp;"name": "notion-mcp",<br>
+&nbsp;&nbsp;"transport": "streamable-http",<br>
+&nbsp;&nbsp;"url": "http://localhost:3001/mcp",<br>
+&nbsp;&nbsp;"headers": { "Authorization": "Bearer xxx" }<br>
+}<br>
+<br>
+<strong>Response — 成功</strong>：<br>
+{<br>
+&nbsp;&nbsp;"success": true,<br>
+&nbsp;&nbsp;"serverName": "Notion MCP Server v2.1.0",<br>
+&nbsp;&nbsp;"latencyMs": 126,<br>
+&nbsp;&nbsp;"toolCount": 8,<br>
+&nbsp;&nbsp;"toolNames": ["query_database", "create_page", ...]<br>
+}<br>
+<br>
+<strong>Response — 失败</strong>：<br>
+{<br>
+&nbsp;&nbsp;"success": false,<br>
+&nbsp;&nbsp;"errorType": "连接超时",<br>
+&nbsp;&nbsp;"errorMessage": "Connect timed out (10s)"<br>
+}<br>
+<br>
+<span style="font-family:-apple-system,sans-serif;font-size:10.5px;color:var(--text-muted);">
+备注：用户可以在弹窗内先改字段再验证再保存，无需先保存再验证。<br>
+验证结果在弹窗关闭后清除，卡片状态徽章记录最近一次验证结论。
+</span>
+</div>
+
+</body>
+</html>

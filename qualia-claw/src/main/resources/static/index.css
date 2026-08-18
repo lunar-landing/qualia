@@ -2,7 +2,7 @@
 :root {
     --bg-app: #080a10;
     --bg-surface: rgba(19, 24, 32, 0.85);
-    --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-sidebar: rgba(255, 255, 255, 0.04);
     --bg-hover: rgba(255, 255, 255, 0.04);
     --bg-active: rgba(124, 108, 240, 0.12);
     --bg-input: rgba(255, 255, 255, 0.03);
@@ -21,7 +21,7 @@
     --text-code-hl2: #7ddfb0;
     --text-code-hl3: #f5b87e;
 
-    --border-color: rgba(255, 255, 255, 0.05);
+    --border-color: rgba(255, 255, 255, 0.08);
     --border-active: rgba(124, 108, 240, 0.3);
     --shadow: 0 32px 64px rgba(0, 0, 0, 0.7), 0 12px 24px rgba(0, 0, 0, 0.5);
     --shadow-input: 0 4px 16px rgba(124, 108, 240, 0.25);
@@ -643,14 +643,18 @@ body.light-theme::before {
     margin-left: auto;
     min-width: 22px;
     justify-content: flex-end;
+    position: relative;
 }
 
 .session-actions .badge {
     margin-left: 0;
+    position: absolute;
+    right: 0;
 }
 
 .session-actions .delete-session {
-    display: none;
+    display: flex;
+    visibility: hidden;
     background: none;
     border: none;
     color: var(--text-muted);
@@ -659,6 +663,8 @@ body.light-theme::before {
     border-radius: 4px;
     align-items: center;
     justify-content: center;
+    position: absolute;
+    right: 0;
 }
 
 .session-actions .delete-session:hover {
@@ -666,11 +672,11 @@ body.light-theme::before {
 }
 
 .conversation-list li:hover .session-actions .badge {
-    display: none;
+    visibility: hidden;
 }
 
 .conversation-list li:hover .session-actions .delete-session {
-    display: flex;
+    visibility: visible;
 }
 
 /* ===== 工作区文件树 ===== */
@@ -1027,16 +1033,43 @@ body.light-theme .chat-area {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 34px 16px;
+    gap: 16px;
+    padding: 48px 24px;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 13px;
     text-align: center;
     line-height: 1.8;
+    position: relative;
+}
+.ws-empty::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(124, 108, 240, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
 }
 .ws-empty i {
-    font-size: 22px;
-    opacity: 0.7;
+    font-size: 32px;
+    opacity: 0.6;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+.ws-empty .ws-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.ws-empty .ws-empty-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 240px;
+    line-height: 1.6;
 }
 /* 目录内联提示（加载中/空目录等） */
 .ws-empty-inline {
@@ -1116,11 +1149,26 @@ body.light-theme .chat-area {
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
-    font-size: 11.5px;
-    gap: 7px;
+    font-size: 13px;
+    gap: 12px;
+    position: relative;
+}
+.empty-steps::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(124, 108, 240, 0.06) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
 }
 .empty-steps i {
-    font-size: 22px;
+    font-size: 28px;
+    opacity: 0.6;
+    color: var(--accent);
 }
 
 /* ===== 聊天流内联活动 ===== */

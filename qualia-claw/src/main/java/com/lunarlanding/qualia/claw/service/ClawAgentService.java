@@ -73,6 +73,9 @@ public class ClawAgentService {
     /** 本智能体活跃流式对话计数（实例级：各工位互不阻塞） */
     private final AtomicInteger activeStreams = new AtomicInteger(0);
 
+    /** Memory 初始化独立锁，避免被 initialize() 阻塞会话创建等轻量操作 */
+    private final Object memoryLock = new Object();
+
     public ClawAgentService(ClawAgentDefinition definition) {
         this.definition = definition;
     }
@@ -396,10 +399,12 @@ public class ClawAgentService {
      *
      * 会话列表、历史、统计等只读能力在未配置模型时也可用
      */
-    private synchronized void ensureMemory() {
-        if (memory == null) {
-            memoryDir = memoryDir();
-            memory = new JsonMemory(memoryDir);
+    private void ensureMemory() {
+        synchronized (memoryLock) {
+            if (memory == null) {
+                memoryDir = memoryDir();
+                memory = new JsonMemory(memoryDir);
+            }
         }
     }
 

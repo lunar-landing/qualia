@@ -19,6 +19,19 @@
     <script src="js/model-panel.js"></script>
     <script src="js/token-map.js"></script>
     <link rel="stylesheet" href="index.css" />
+    <style>
+        /* 会话列表流式指示器 */
+        .conversation-list li.streaming .streaming-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success, #3fb950);
+            flex-shrink: 0;
+            animation: streamPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes streamPulse { 50% { opacity: 0.3; } }
+        .conversation-list li.streaming { opacity: 1; }
+    </style>
 </head>
 <body>
 
@@ -180,7 +193,8 @@
                 <div class="ws-pane" id="wsPreview">
                     <div class="empty-steps" id="previewEmpty">
                         <i class="fas fa-globe"></i>
-                        <span>暂无浏览内容</span>
+                        <div class="ws-empty-title">暂无浏览内容</div>
+                        <div class="ws-empty-desc">智能体浏览的网页会在这里显示</div>
                     </div>
                     <!-- allow-popups*：允许浏览器页内链接在新标签打开（如搜索结果页），且新标签不受沙箱限制 -->
                     <iframe class="ws-preview-frame" id="htmlPreviewFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" style="display:none"></iframe>
@@ -224,12 +238,29 @@
             // ===== 状态管理 =====
             let currentSessionId = null;
             let sessions = [];
-            let isProcessing = false;
-            let currentSteps = [];
-            let messageStepsMap = new Map(); // 消息ID到步骤的映射
+
+            // per-session 流式状态：支持多会话并行执行
+            const sessionStates = new Map();
+            function getSessionState(sid) {
+                if (!sessionStates.has(sid)) {
+                    sessionStates.set(sid, {
+                        eventSource: null,       // 该会话的 SSE 连接
+                        isProcessing: false,     // 该会话是否正在生成
+                        steps: [],               // 本轮步骤快照
+                        msgSteps: [],            // 本轮消息步骤
+                        msgId: null,             // 本轮消息 ID
+                        fullAnswer: '',          // 累积答案文本
+                        activityEl: null,        // 当前活动 DOM 元素（仅 current session 有效）
+                        plainBubble: false,      // 是否纯气泡模式
+                        userMessage: ''          // 用户发送的消息文本（用于切换恢复）
+                    });
+                }
+                return sessionStates.get(sid);
+            }
+            let messageStepsMap = new Map(); // 消息ID到步骤的映射（历史消息用）
 
             // 供 agent-panel.js 判断流式状态（切换入口置灰/拦截）
-            window.isChatStreaming = () => isProcessing;
+            window.isChatStreaming = () => currentSessionId ? getSessionState(currentSessionId).isProcessing : false;
             
             // ===== 步骤/预览面板 =====
             // 挂到 window 上供内联 onclick 调用
@@ -636,14 +667,16 @@
                 list.innerHTML = sessions.map(session => {
                     const msgCount = session.messages ? session.messages.length : 0;
                     const group = sessionGroupLabel(session.createdAt);
+                    const state = sessionStates.get(session.id);
+                    const streaming = state && state.isProcessing;
                     let groupHtml = '';
                     if (group !== lastGroup) {
                         lastGroup = group;
                         groupHtml = `<li class="conv-group">${group}</li>`;
                     }
                     return `${groupHtml}
-                    <li data-id="${session.id}" class="${session.id === currentSessionId ? 'active' : ''}">
-                        <i class="far fa-comment-dots"></i>
+                    <li data-id="${session.id}" class="${session.id === currentSessionId ? 'active' : ''}${streaming ? ' streaming' : ''}">
+                        ${streaming ? '<span class="streaming-dot" title="生成中"></span>' : '<i class="far fa-comment-dots"></i>'}
                         <span class="session-title">${escapeHtml(session.title)}</span>
                         <span class="session-actions">
                             ${msgCount > 0 ? `<span class="badge">${msgCount}</span>` : ''}
@@ -669,7 +702,75 @@
                 window.ModelPanel.hide();
                 currentSessionId = sessionId;
                 renderSessionList();
+
+                // 加载历史消息（后端已完成的部分）
                 await loadMessages(sessionId);
+
+                // 如果该会话有正在进行的流式输出，重建 in-flight 活动消息
+                const state = getSessionState(sessionId);
+                if (state.isProcessing) {
+                    // 检查用户消息是否已被 loadMessages 加载，避免重复显示
+                    if (state.userMessage) {
+                        const msgs = container.querySelectorAll('.msg.user');
+                        const alreadyLoaded = Array.from(msgs).some(m =>
+                            m.querySelector('.bubble')?.textContent === state.userMessage
+                        );
+                        if (alreadyLoaded) {
+                            state.userMessage = ''; // 已加载，无需恢复
+                        }
+                    }
+                    if (state.msgSteps.length > 0 || state.fullAnswer) {
+                        // 有步骤或答案，重建完整活动消息
+                        restoreLiveMessage(state);
+                    } else if (state.userMessage) {
+                        // 只有用户消息，没有步骤，恢复用户消息并显示 typing
+                        restoreLiveMessage(state);
+                        typing.style.display = 'flex';
+                    }
+                    setSendBtnStop(true);
+                } else {
+                    setSendBtnStop(false);
+                }
+            }
+
+            // 从 session state 重建正在进行的流式活动消息 DOM
+            function restoreLiveMessage(state) {
+                // 恢复用户消息（如果尚未在历史中）
+                if (state.userMessage) {
+                    const lastMsg = container.lastElementChild;
+                    const isUserAlreadyShown = lastMsg && lastMsg.classList.contains('user') &&
+                        lastMsg.querySelector('.bubble')?.textContent === state.userMessage;
+                    if (!isUserAlreadyShown) {
+                        appendMessage('user', state.userMessage);
+                    }
+                }
+
+                // 只有在有步骤或答案时才创建活动消息容器
+                if (state.msgSteps.length === 0 && !state.fullAnswer) {
+                    scrollToBottom();
+                    return;
+                }
+
+                // 创建活动消息容器
+                state.activityEl = createActivityMsg(state.msgId);
+
+                // 回放所有已收到的步骤
+                state.msgSteps.forEach((step, i) => {
+                    applyStepToActivity(state.activityEl, step, i, state.msgSteps, false);
+                });
+
+                // 如果已有答案，渲染答案
+                if (state.fullAnswer) {
+                    if (state.plainBubble) {
+                        state.activityEl.querySelector('.bubble').innerHTML = renderMarkdown(state.fullAnswer);
+                        enhanceCodeBlocks(state.activityEl);
+                    } else {
+                        finalizeActivity(state.activityEl);
+                        setActivityAnswer(state.activityEl, state.fullAnswer);
+                    }
+                }
+
+                scrollToBottom();
             }
 
             window.createSession = async function() {
@@ -685,9 +786,11 @@
                     const session = await response.json();
                     sessions.unshift(session);
                     currentSessionId = session.id;
-                    currentSteps = [];
                     renderSessionList();
                     clearChat();
+                    // 新会话不在处理中，重置按钮和typing状态
+                    setSendBtnStop(false);
+                    typing.style.display = 'none';
                 } catch (error) {
                     console.error('创建会话失败:', error);
                 }
@@ -697,13 +800,18 @@
                 if (!confirm('确定删除这个会话吗？')) return;
                 try {
                     await fetch(chatApi(`/sessions/${sessionId}`), { method: 'DELETE' });
+                    // 关闭该会话的流式连接并清理状态
+                    const delState = sessionStates.get(sessionId);
+                    if (delState && delState.eventSource) delState.eventSource.close();
+                    sessionStates.delete(sessionId);
                     sessions = sessions.filter(s => s.id !== sessionId);
                     if (currentSessionId === sessionId) {
                         currentSessionId = sessions.length > 0 ? sessions[0].id : null;
                         if (currentSessionId) {
-                            await loadMessages(currentSessionId);
+                            await selectSession(currentSessionId);
                         } else {
                             clearChat();
+                            setSendBtnStop(false);
                         }
                     }
                     renderSessionList();
@@ -720,11 +828,16 @@
                 window.ModelPanel.hide();
                 window.WorkspaceFiles.reload(); // 右侧文件树切换到新智能体的工作区
                 syncTypingAvatar(); // typing 头像同步为新智能体 emoji
+                // 关闭所有会话的流式连接并清空状态
+                sessionStates.forEach((state) => {
+                    if (state.eventSource) state.eventSource.close();
+                });
+                sessionStates.clear();
                 currentSessionId = null;
                 sessions = [];
-                currentSteps = [];
                 messageStepsMap.clear();
                 clearChat();
+                setSendBtnStop(false);
                 await loadSessions();
                 TokenHeatmap.refresh();
             };
@@ -734,7 +847,10 @@
                 try {
                     const response = await fetch(chatApi(`/sessions/${sessionId}/messages`));
                     const messages = await response.json();
-                    renderMessages(messages);
+                    // 检查当前会话是否仍是请求的会话，避免快速切换时覆盖
+                    if (currentSessionId === sessionId) {
+                        renderMessages(messages);
+                    }
                 } catch (error) {
                     console.error('加载消息失败:', error);
                 }
@@ -747,8 +863,7 @@
 
                 // 清空步骤映射
                 messageStepsMap.clear();
-                let allSteps = [];
-                
+
                 if (messages.length === 0) {
                     showWelcome();
                     return;
@@ -760,7 +875,6 @@
                     // 存储消息和步骤的关联
                     if (hasSteps) {
                         messageStepsMap.set(msgId, msg.steps);
-                        allSteps = allSteps.concat(msg.steps);
                     }
                     if (msg.role !== 'user' && hasSteps) {
                         // 带步骤的 AI 消息：渲染完成态活动容器（chips + 回答）
@@ -774,7 +888,6 @@
                     }
                 });
                 
-                currentSteps = allSteps;
                 scrollToBottom();
             }
 
@@ -954,7 +1067,6 @@
             });
 
             // ===== 发送消息(SSE) =====
-            let activeEventSource = null;
 
             // 发送按钮在生成期间切换为停止态
             function setSendBtnStop(stop) {
@@ -975,37 +1087,45 @@
                 }
             }
 
-            function resetProcessingState() {
-                activeEventSource = null;
-                isProcessing = false;
+            // 停止当前会话的生成：仅断开前端流，后端任务继续执行
+            window.stopGeneration = function() {
+                if (!currentSessionId) return;
+                const state = getSessionState(currentSessionId);
+                if (state.eventSource) state.eventSource.close();
+                if (state.activityEl) finalizeActivity(state.activityEl);
+                state.isProcessing = false;
+                state.eventSource = null;
                 typing.style.display = 'none';
                 setSendBtnStop(false);
-            }
-
-            // 停止生成：仅断开前端流，后端任务继续执行
-            window.stopGeneration = function() {
-                if (activeEventSource) activeEventSource.close();
-                const acts = container.querySelectorAll('.msg.codex');
-                const actEl = acts.length ? acts[acts.length - 1] : null;
-                if (actEl && actEl.querySelector('.act-col')) finalizeActivity(actEl);
-                resetProcessingState();
+                renderSessionList(); // 刷新会话列表指示器
             };
 
             async function sendMessage() {
                 const text = input.value.trim();
-                if (!text || isProcessing) return;
+                if (!text) return;
+                const curState = currentSessionId ? getSessionState(currentSessionId) : null;
+                if (curState && curState.isProcessing) return;
 
                 if (!currentSessionId) {
                     await createSession();
                 }
 
+                const sid = currentSessionId;
+                const state = getSessionState(sid);
+
                 input.value = '';
                 autoResize(input);
-                isProcessing = true;
+                state.isProcessing = true;
                 setSendBtnStop(true);
 
-                // 重置本轮步骤
-                currentSteps = [];
+                // 重置本轮状态
+                state.steps = [];
+                state.msgSteps = [];
+                state.fullAnswer = '';
+                state.activityEl = null;
+                state.plainBubble = false;
+                state.msgId = `msg-${Date.now()}`;
+                state.userMessage = text;
 
                 appendMessage('user', text);
                 scrollToBottom();
@@ -1016,16 +1136,12 @@
                 try {
                     // 获取选择的模型
                     const modelParam = currentSelectedModel ? `&model=${encodeURIComponent(currentSelectedModel)}` : '';
-                    
+
                     // 使用EventSource进行SSE连接
-                    const url = chatApi(`/stream?sessionId=${encodeURIComponent(currentSessionId)}&message=${encodeURIComponent(text)}${modelParam}`);
+                    const url = chatApi(`/stream?sessionId=${encodeURIComponent(sid)}&message=${encodeURIComponent(text)}${modelParam}`);
                     console.log('Connecting to SSE:', url);
                     const eventSource = new EventSource(url);
-                    activeEventSource = eventSource;
-                    let fullAnswer = '';
-                    let activityEl = null;
-                    let currentMsgSteps = [];
-                    const currentMsgId = `msg-${Date.now()}`;
+                    state.eventSource = eventSource;
 
                     eventSource.onopen = function() {
                         console.log('SSE connection opened');
@@ -1035,45 +1151,63 @@
                         if (event.data === '[DONE]') {
                             console.log('SSE stream done');
                             eventSource.close();
-                            if (activityEl) finalizeActivity(activityEl);
-                            resetProcessingState();
+                            if (state.activityEl) finalizeActivity(state.activityEl);
+                            state.isProcessing = false;
+                            state.eventSource = null;
+                            // 仅当前会话才更新 UI 状态
+                            if (sid === currentSessionId) {
+                                typing.style.display = 'none';
+                                setSendBtnStop(false);
+                            }
+                            renderSessionList(); // 刷新会话列表指示器
                             return;
                         }
 
                         try {
                             const data = JSON.parse(event.data);
-                            
+
                             if (data.responseType === 'answer' && data.answer) {
                                 // 最终答案：写入活动容器同列；无步骤时走普通气泡
-                                fullAnswer = data.answer;
-                                typing.style.display = 'none';
-                                if (!activityEl && currentMsgSteps.length === 0) {
-                                    activityEl = appendMessage('assistant', fullAnswer, currentMsgId);
-                                    activityEl._plainBubble = true;
+                                state.fullAnswer = data.answer;
+                                // 当前可见会话才操作 DOM
+                                if (sid === currentSessionId) {
+                                    typing.style.display = 'none';
                                 }
-                                if (activityEl && activityEl._plainBubble) {
-                                    activityEl.querySelector('.bubble').innerHTML = renderMarkdown(fullAnswer);
-                                    enhanceCodeBlocks(activityEl);
-                                } else if (activityEl) {
-                                    finalizeActivity(activityEl);
-                                    setActivityAnswer(activityEl, fullAnswer);
+                                if (!state.activityEl && state.msgSteps.length === 0) {
+                                    if (sid === currentSessionId) {
+                                        state.activityEl = appendMessage('assistant', state.fullAnswer, state.msgId);
+                                    }
+                                    state.plainBubble = true;
+                                }
+                                if (state.activityEl) {
+                                    if (state.plainBubble) {
+                                        state.activityEl.querySelector('.bubble').innerHTML = renderMarkdown(state.fullAnswer);
+                                        enhanceCodeBlocks(state.activityEl);
+                                    } else {
+                                        finalizeActivity(state.activityEl);
+                                        setActivityAnswer(state.activityEl, state.fullAnswer);
+                                    }
                                 }
                                 // 关联步骤到消息
-                                if (currentMsgSteps.length > 0) {
-                                    messageStepsMap.set(currentMsgId, currentMsgSteps);
+                                if (state.msgSteps.length > 0) {
+                                    messageStepsMap.set(state.msgId, state.msgSteps);
                                 }
-                                scrollToBottom();
+                                if (sid === currentSessionId) scrollToBottom();
                             } else if (data.responseType === 'step' && data.steps && data.steps.length > 0) {
                                 // 步骤到达：驱动聊天流内联活动容器
                                 const step = data.steps[0];
-                                if (!activityEl) {
-                                    typing.style.display = 'none';
-                                    activityEl = createActivityMsg(currentMsgId);
+                                if (!state.activityEl) {
+                                    if (sid === currentSessionId) {
+                                        typing.style.display = 'none';
+                                        state.activityEl = createActivityMsg(state.msgId);
+                                    }
                                 }
-                                currentMsgSteps.push(step);
-                                currentSteps.push(step);
-                                applyStepToActivity(activityEl, step, currentMsgSteps.length - 1, currentMsgSteps, true);
-                                scrollToBottom();
+                                state.msgSteps.push(step);
+                                state.steps.push(step);
+                                if (state.activityEl && sid === currentSessionId) {
+                                    applyStepToActivity(state.activityEl, step, state.msgSteps.length - 1, state.msgSteps, true);
+                                    scrollToBottom();
+                                }
                             }
                         } catch (e) {
                             console.error('Parse error:', e, event.data);
@@ -1083,15 +1217,24 @@
                     eventSource.onerror = function(error) {
                         console.error('SSE error:', error);
                         eventSource.close();
-                        if (activityEl && !activityEl._plainBubble) finalizeActivity(activityEl);
-                        if (!fullAnswer && !activityEl) {
+                        if (state.activityEl && !state.plainBubble) finalizeActivity(state.activityEl);
+                        if (!state.fullAnswer && !state.activityEl && sid === currentSessionId) {
                             appendMessage('assistant', '连接失败，请重试');
                         }
-                        resetProcessingState();
+                        state.isProcessing = false;
+                        state.eventSource = null;
+                        if (sid === currentSessionId) {
+                            typing.style.display = 'none';
+                            setSendBtnStop(false);
+                        }
+                        renderSessionList();
                     };
                 } catch (error) {
                     appendMessage('assistant', '发送失败: ' + error.message);
-                    resetProcessingState();
+                    state.isProcessing = false;
+                    typing.style.display = 'none';
+                    setSendBtnStop(false);
+                    renderSessionList();
                 }
             }
 
@@ -1106,7 +1249,8 @@
             }
 
             sendBtn.addEventListener('click', function() {
-                if (isProcessing) {
+                const curState = currentSessionId ? getSessionState(currentSessionId) : null;
+                if (curState && curState.isProcessing) {
                     stopGeneration();
                 } else {
                     sendMessage();
@@ -1116,7 +1260,8 @@
                 // 回车发送（Shift+Enter 换行）；输入法选词中的回车（isComposing / keyCode 229）不触发
                 if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
-                    if (!isProcessing) sendMessage();
+                    const curState = currentSessionId ? getSessionState(currentSessionId) : null;
+                    if (!curState || !curState.isProcessing) sendMessage();
                 }
             });
 

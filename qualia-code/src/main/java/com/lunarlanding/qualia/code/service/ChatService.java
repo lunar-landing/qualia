@@ -62,6 +62,9 @@ public class ChatService {
     /** 当前使用的模型名称 */
     private String currentModelName;
 
+    /** Memory 初始化独立锁，避免被 initialize() 阻塞会话创建等轻量操作 */
+    private final Object memoryLock = new Object();
+
     private ChatService(Path workspacePath) {
         this.workspacePath = workspacePath;
     }
@@ -308,10 +311,12 @@ public class ChatService {
      * 
      * 会话列表、历史、统计等只读能力在未配置模型时也可用
      */
-    private synchronized void ensureMemory() {
-        if (memory == null) {
-            memoryDir = workspacePath.resolve(".qualia").resolve("memory");
-            memory = new JsonMemory(memoryDir);
+    private void ensureMemory() {
+        synchronized (memoryLock) {
+            if (memory == null) {
+                memoryDir = workspacePath.resolve(".qualia").resolve("memory");
+                memory = new JsonMemory(memoryDir);
+            }
         }
     }
 

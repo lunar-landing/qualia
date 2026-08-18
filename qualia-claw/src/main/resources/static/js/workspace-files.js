@@ -69,7 +69,7 @@
     function showTreeMsg(icon, text, spin) {
         const t = treeEl();
         if (t) {
-            t.innerHTML = `<div class="ws-empty"><i class="fas ${icon}${spin ? ' fa-spin' : ''}"></i><span>${esc(text)}</span></div>`;
+            t.innerHTML = `<div class="ws-empty"><i class="fas ${icon}${spin ? ' fa-spin' : ''}"></i><div class="ws-empty-title">${esc(text)}</div></div>`;
         }
     }
 
@@ -235,7 +235,7 @@
             const tree = treeEl();
             if (!tree) return;
             if (!data.entries.length) {
-                tree.innerHTML = '<div class="ws-empty"><i class="fas fa-folder-open"></i><span>工作区暂无文件<br/>智能体产出的文件会出现在这里</span></div>';
+                tree.innerHTML = '<div class="ws-empty"><i class="fas fa-folder-open"></i><div class="ws-empty-title">工作区暂无文件</div><div class="ws-empty-desc">智能体产出的文件会出现在这里</div></div>';
             } else {
                 renderEntries(tree, data.entries);
             }

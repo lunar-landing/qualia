@@ -585,7 +585,6 @@ body.light-theme::before {
 
 .conversation-list li:hover {
     background: var(--bg-hover);
-    color: var(--text-primary);
 }
 
 /* 日期分组标题 */
@@ -630,6 +629,7 @@ body.light-theme::before {
     border-radius: 100px;
     color: var(--text-muted);
     font-weight: 500;
+    transition: opacity 0.15s ease;
 }
 
 .conversation-list li.active .badge {
@@ -654,7 +654,7 @@ body.light-theme::before {
 
 .session-actions .delete-session {
     display: flex;
-    visibility: hidden;
+    visibility: visible;
     background: none;
     border: none;
     color: var(--text-muted);
@@ -665,6 +665,8 @@ body.light-theme::before {
     justify-content: center;
     position: absolute;
     right: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
 }
 
 .session-actions .delete-session:hover {
@@ -672,11 +674,12 @@ body.light-theme::before {
 }
 
 .conversation-list li:hover .session-actions .badge {
-    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .conversation-list li:hover .session-actions .delete-session {
-    visibility: visible;
+    opacity: 1;
 }
 
 /* ===== 工作区文件树 ===== */

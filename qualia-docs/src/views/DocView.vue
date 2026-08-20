@@ -643,7 +643,7 @@ onMounted(() => {
    ============================================ */
 .doc-sidebar {
   width: 260px;
-  background: var(--oc-bg);
+  background: #fff;
   border-right: 1px solid var(--oc-border);
   position: sticky;
   top: 72px;
@@ -866,7 +866,7 @@ onMounted(() => {
   height: calc(100vh - 72px);
   overflow-y: auto;
   padding: var(--spacing-6) var(--spacing-4);
-  background: var(--oc-bg);
+  background: #fff;
   border-left: 1px solid var(--oc-border);
 }
 
@@ -1481,7 +1481,7 @@ onMounted(() => {
    ============================================ */
 /* Sidebar - Light */
 [data-theme="light"] .doc-sidebar {
-  background: #f8fafc;
+  background: #fff;
   border-right-color: rgba(0, 0, 0, 0.06);
 }
 
@@ -1555,7 +1555,7 @@ onMounted(() => {
 
 /* Right TOC - Light */
 [data-theme="light"] .doc-toc {
-  background: #f8fafc;
+  background: #fff;
   border-left-color: rgba(0, 0, 0, 0.06);
 }
 
@@ -1772,7 +1772,7 @@ onMounted(() => {
 /* Mobile Sidebar - Light */
 @media (max-width: 1024px) {
   [data-theme="light"] .doc-sidebar {
-    background: #f8fafc;
+    background: #fff;
   }
 
   [data-theme="light"] .sidebar-overlay {

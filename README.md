@@ -14,7 +14,7 @@
 
 [Quick Start](#-quick-start) · [Showcase](#showcase) · [Release](#-release)
 
-**English** | [简体中文](README.zh-CN.md)
+**English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 </div>
 

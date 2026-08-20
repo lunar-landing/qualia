@@ -47,14 +47,9 @@ public class AgentResponse {
     private boolean success;
 
     /**
-     * 响应类型：step - ReAct步骤阶段, answer - 最终答案阶段, suggestions - 建议问题
+     * 响应类型：step - ReAct步骤阶段, answer - 最终答案阶段
      */
     private String responseType;
-
-    /**
-     * 建议问题列表（仅 suggestions 类型有值）
-     */
-    private List<String> suggestions;
 
     /**
      * Token 用量统计
@@ -180,14 +175,6 @@ public class AgentResponse {
 
     public void setResponseType(String responseType) {
         this.responseType = responseType;
-    }
-
-    public List<String> getSuggestions() {
-        return suggestions;
-    }
-
-    public void setSuggestions(List<String> suggestions) {
-        this.suggestions = suggestions;
     }
 
     public ChatUsage getUsage() {

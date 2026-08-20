@@ -129,13 +129,12 @@ public class JdbcMemory implements Memory {
     }
 
     @Override
-    public void addAssistantMessage(String sessionId, String content, List<AgentStep> steps, String reasoningContent, List<String> suggestions, ChatUsage usage, Long durationMs) {
+    public void addAssistantMessage(String sessionId, String content, List<AgentStep> steps, String reasoningContent, ChatUsage usage, Long durationMs) {
         int seq = getNextSequence(sessionId);
         String stepsJson = steps != null ? JSON.toJSONString(steps) : null;
-        String suggestionsJson = suggestions != null ? JSON.toJSONString(suggestions) : null;
 
-        String sql = "INSERT INTO chat_message (id, session_id, role, content, steps_json, suggestions_json, reasoning_content, prompt_tokens, completion_tokens, total_tokens, duration_ms, created_at, sequence_num) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO chat_message (id, session_id, role, content, steps_json, reasoning_content, prompt_tokens, completion_tokens, total_tokens, duration_ms, created_at, sequence_num) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         Integer promptTokens = usage != null ? usage.getPromptTokens() : null;
         Integer completionTokens = usage != null ? usage.getCompletionTokens() : null;
@@ -148,7 +147,6 @@ public class JdbcMemory implements Memory {
                 MemoryMessage.Role.ASSISTANT.name(),
                 content,
                 stepsJson,
-                suggestionsJson,
                 reasoningContent,
                 promptTokens,
                 completionTokens,

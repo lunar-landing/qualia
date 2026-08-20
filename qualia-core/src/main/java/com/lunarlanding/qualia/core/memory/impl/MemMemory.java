@@ -42,15 +42,13 @@ public class MemMemory implements Memory {
 
     @Override
     public void addAssistantMessage(String sessionId, String content, List<AgentStep> steps,
-                                    String reasoningContent, List<String> suggestions,
-                                    ChatUsage usage, Long durationMs) {
+                                    String reasoningContent, ChatUsage usage, Long durationMs) {
         List<MemoryMessage> messages = messageStore.computeIfAbsent(sessionId, k -> new ArrayList<>());
         int sequence = getNextSequence(sessionId);
         MemoryMessage msg = new MemoryMessage(sessionId, MemoryMessage.Role.ASSISTANT, content);
         msg.setSequence(sequence);
         msg.setSteps(steps);
         msg.setReasoningContent(reasoningContent);
-        msg.setSuggestions(suggestions);
         if (usage != null) {
             msg.setPromptTokens(usage.getPromptTokens());
             msg.setCompletionTokens(usage.getCompletionTokens());

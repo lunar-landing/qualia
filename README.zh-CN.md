@@ -14,7 +14,7 @@
 
 [快速开始](#-快速开始) · [产品展示](#产品展示) · [发布](#-发布)
 
-[English](README.md) | **简体中文**
+[English](README.md) | **简体中文** | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 </div>
 

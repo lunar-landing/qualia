@@ -28,7 +28,6 @@ public class MemoryMessage {
     private String content;
     private List<AgentStep> steps;    // 仅ASSISTANT角色有效
     private String reasoningContent;  // 深度思考内容（推理模型专用）
-    private List<String> suggestions; // 建议问题列表
     private Integer promptTokens;     // 输入 token 数
     private Integer completionTokens; // 输出 token 数
     private Integer totalTokens;      // 总 token 数
@@ -132,34 +131,6 @@ public class MemoryMessage {
 
     public void setReasoningContent(String reasoningContent) {
         this.reasoningContent = reasoningContent;
-    }
-
-    public List<String> getSuggestions() {
-        return suggestions;
-    }
-
-    public void setSuggestions(List<String> suggestions) {
-        this.suggestions = suggestions;
-    }
-
-    /**
-     * 数据库映射用：自动反序列化 JSON 字符串到 suggestions
-     */
-    public void setSuggestionsJson(String suggestionsJson) {
-        if (suggestionsJson != null && !suggestionsJson.isEmpty()) {
-            try {
-                this.suggestions = JSON.parseArray(suggestionsJson, String.class);
-            } catch (Exception e) {
-                this.suggestions = null;
-            }
-        }
-    }
-
-    /**
-     * 数据库映射用：自动序列化 suggestions 为 JSON 字符串
-     */
-    public String getSuggestionsJson() {
-        return suggestions != null ? JSON.toJSONString(suggestions) : null;
     }
 
     public Integer getPromptTokens() {

@@ -286,7 +286,7 @@ onUnmounted(() => {
     </main>
 
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="footer" v-if="!isDocPage">
       <div class="footer-container">
         <div class="footer-grid">
           <!-- Brand Column -->
@@ -471,13 +471,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-2-5);
-  padding: var(--spacing-2-5) var(--spacing-5);
+  padding: 0 var(--spacing-5);
+  height: 38px;
+  box-sizing: border-box;
   color: var(--color-gray-500);
   text-decoration: underline;
   text-underline-offset: 4px;
   font-size: var(--text-base);
   font-weight: var(--font-medium);
-  border-radius: 4px;
+  border-radius: 12px;
   transition: all var(--transition-base);
   position: relative;
   letter-spacing: var(--tracking-wide);
@@ -488,7 +490,7 @@ onUnmounted(() => {
 
 .nav-link:hover {
   color: #fdfcfc;
-  background: rgba(253, 252, 252, 0.06);
+  font-weight: var(--font-bold);
 }
 
 
@@ -536,7 +538,7 @@ onUnmounted(() => {
   min-width: 220px;
   background: #302c2c;
   border: 1px solid rgba(100, 98, 98, 0.3);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 8px;
   opacity: 0;
   visibility: hidden;
@@ -557,7 +559,7 @@ onUnmounted(() => {
   gap: 4px;
   padding: 12px 16px;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: 12px;
   transition: all 200ms ease;
 }
 
@@ -620,7 +622,7 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   color: var(--color-gray-500);
-  border-radius: 4px;
+  border-radius: 12px;
   transition: all var(--transition-base);
   position: relative;
   overflow: hidden;
@@ -673,10 +675,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-2-5);
-  padding: var(--spacing-2-5) var(--spacing-5);
+  padding: 0 var(--spacing-4);
+  height: 38px;
+  box-sizing: border-box;
   background: rgba(253, 252, 252, 0.04);
-  border: 1px solid rgba(15, 0, 0, 0.12);
-  border-radius: 4px;
+  border: 1px solid rgba(15, 0, 0, 0.15);
+  border-radius: 8px;
   color: var(--color-gray-500);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
@@ -684,7 +688,8 @@ onUnmounted(() => {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  width: 280px;
+  width: 220px;
+  backdrop-filter: blur(10px);
 }
 
 .search-btn::before {
@@ -698,8 +703,9 @@ onUnmounted(() => {
 
 .search-btn:hover {
   color: #fdfcfc;
-  border-color: rgba(15, 0, 0, 0.12);
-  background: rgba(253, 252, 252, 0.06);
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(253, 252, 252, 0.08);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
 
 .search-btn:hover::before {
@@ -723,16 +729,17 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 var(--spacing-1-5);
-  background: rgba(253, 252, 252, 0.08);
-  border: 1px solid rgba(15, 0, 0, 0.12);
-  border-radius: 4px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--spacing-2);
+  background: rgba(253, 252, 252, 0.1);
+  border: 1px solid rgba(15, 0, 0, 0.15);
+  border-radius: 6px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--font-semibold);
-  color: var(--color-gray-500);
+  color: var(--color-gray-400);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 /* Mobile Menu Button */
@@ -1129,7 +1136,7 @@ onUnmounted(() => {
 
 [data-theme="light"] .nav-link:hover {
   color: #201d1d;
-  background: rgba(32, 29, 29, 0.06);
+  font-weight: var(--font-bold);
 }
 
 [data-theme="light"] .nav-link.active {
@@ -1177,6 +1184,7 @@ onUnmounted(() => {
   background: rgba(32, 29, 29, 0.03);
   border-color: rgba(15, 0, 0, 0.12);
   color: #6e6e73;
+  backdrop-filter: blur(10px);
 }
 
 [data-theme="light"] .search-btn::before {
@@ -1185,14 +1193,16 @@ onUnmounted(() => {
 
 [data-theme="light"] .search-btn:hover {
   color: #201d1d;
-  border-color: rgba(15, 0, 0, 0.12);
-  background: rgba(32, 29, 29, 0.04);
+  border-color: rgba(79, 70, 229, 0.3);
+  background: rgba(32, 29, 29, 0.06);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
 }
 
 [data-theme="light"] .search-shortcut kbd {
-  background: rgba(32, 29, 29, 0.05);
+  background: rgba(32, 29, 29, 0.06);
   border-color: rgba(15, 0, 0, 0.12);
   color: #6e6e73;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 /* Mobile Menu - Light */

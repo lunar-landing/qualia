@@ -20,17 +20,16 @@ public interface Memory {
     void addUserMessage(String sessionId, String content);
 
     /**
-     * 添加AI回复（包含思考步骤和建议问题）
+     * 添加AI回复（包含思考步骤）
      *
      * @param sessionId        会话ID
      * @param content          AI最终回复内容
      * @param steps            ReAct执行步骤（THOUGHT/ACTION/OBSERVATION）
      * @param reasoningContent 深度思考内容（推理模型专用）
-     * @param suggestions      建议的后续问题
      * @param usage            Token 用量统计
      * @param durationMs       响应总耗时（毫秒）
      */
-    void addAssistantMessage(String sessionId, String content, List<AgentStep> steps, String reasoningContent, List<String> suggestions, ChatUsage usage, Long durationMs);
+    void addAssistantMessage(String sessionId, String content, List<AgentStep> steps, String reasoningContent, ChatUsage usage, Long durationMs);
 
     /**
      * 获取会话的最近消息（用于LLM上下文构建）

@@ -64,10 +64,7 @@ public class ReActAgent implements Agent {
     protected List<Skill> skills = new ArrayList<>();
     protected int maxIterations = 20;
     protected String systemPrompt = "你是一个智能助手。";
-    protected boolean suggestionsEnabled = true;
-    protected String suggestionsPrompt;
     private String detectedLanguage;
-    private String preferredLanguage;
     protected ContextManager contextManager;
     protected ChatModel model;
 
@@ -90,13 +87,6 @@ public class ReActAgent implements Agent {
      */
     public void addSkill(Skill skill) {
         this.skills.add(skill);
-    }
-
-    /**
-     * Sets an optional BCP 47 language preference for reasoning, retrieval, and the final answer.
-     */
-    public void setPreferredLanguage(String preferredLanguage) {
-        this.preferredLanguage = normalizePreferredLanguage(preferredLanguage);
     }
 
     /**
@@ -329,10 +319,7 @@ public class ReActAgent implements Agent {
         logger.info("[ReActAgent] initializeMessages sessionId={}", sessionId);
         
         List<ChatMessage> chatMessages = new ArrayList<>();
-        String preferredLanguageInstruction = buildPreferredLanguageInstruction();
-        this.detectedLanguage = preferredLanguageInstruction != null
-                ? preferredLanguageInstruction
-                : detectLanguage(input);
+        this.detectedLanguage = detectLanguage(input);
 
         List<MemoryMessage> contextMessages = contextManager.getContextMessages(sessionId);
         logger.info("[ReActAgent] contextMessages size={}", contextMessages.size());
@@ -590,14 +577,10 @@ public class ReActAgent implements Agent {
             String finalAnswer = finalAnswerBuffer.toString();
             String reasoningContent = thinkingBuffer.toString();
 
-            // 生成建议问题（仅在启用时生成）
-            String userQuestion = findUserQuestion(messages);
-            List<String> suggestions = suggestionsEnabled ? generateSuggestions(userQuestion, finalAnswer) : null;
-
             long durationMs = System.currentTimeMillis() - startTime;
 
             if (contextManager.getMemory() != null) {
-                contextManager.getMemory().addAssistantMessage(sessionId, finalAnswer, new ArrayList<>(allSteps), reasoningContent, suggestions, totalUsage, durationMs);
+                contextManager.getMemory().addAssistantMessage(sessionId, finalAnswer, new ArrayList<>(allSteps), reasoningContent, totalUsage, durationMs);
             }
 
             // 推送最终响应
@@ -610,15 +593,6 @@ public class ReActAgent implements Agent {
             finalResponse.setSources(KnowledgeSourceUtil.fromSteps(allSteps));
             finalResponse.setSuccess(true);
             emitter.next(finalResponse);
-
-            // 推送建议问题
-            if (suggestions != null && !suggestions.isEmpty()) {
-                AgentResponse suggestionsResponse = new AgentResponse();
-                suggestionsResponse.setResponseType("suggestions");
-                suggestionsResponse.setSuggestions(suggestions);
-                suggestionsResponse.setSuccess(true);
-                emitter.next(suggestionsResponse);
-            }
 
             emitter.complete();
         }
@@ -676,18 +650,6 @@ public class ReActAgent implements Agent {
     }
 
     /**
-     * 从消息列表中提取最后一条用户问题的文本
-     */
-    private String findUserQuestion(List<ChatMessage> messages) {
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            if ("user".equals(messages.get(i).getRole())) {
-                return messages.get(i).getContent();
-            }
-        }
-        return null;
-    }
-
-    /**
      * 使用 ChatModel 检测文本的主要语言
      *
      * @param text 待检测文本
@@ -707,57 +669,6 @@ public class ReActAgent implements Agent {
             logger.warn("语言检测失败: {}", e.getMessage());
         }
         return null;
-    }
-
-    private String normalizePreferredLanguage(String language) {
-        if (language == null || language.isBlank()) {
-            return null;
-        }
-        String normalized = language.trim().replace('_', '-').toLowerCase(java.util.Locale.ROOT);
-        if (normalized.equals("en") || normalized.startsWith("en-")) {
-            return "en";
-        }
-        if (normalized.equals("zh-tw")
-                || normalized.equals("zh-hk")
-                || normalized.equals("zh-mo")
-                || normalized.equals("zh-hant")) {
-            return "zh-TW";
-        }
-        if (normalized.equals("zh")
-                || normalized.equals("zh-cn")
-                || normalized.equals("zh-sg")
-                || normalized.equals("zh-hans")) {
-            return "zh-CN";
-        }
-        return null;
-    }
-
-    private String buildPreferredLanguageInstruction() {
-        if (preferredLanguage == null) {
-            return null;
-        }
-        return switch (preferredLanguage) {
-            case "zh-CN" -> """
-                    用户选择的回答语言：简体中文（zh-CN）。
-                    请使用简体中文进行推理并给出最终回答。知识库可能包含简体中文、繁体中文或英文资料；
-                    检索时可以使用任何语言的相关资料，必要时将检索词翻译或扩展为其他语言后调用知识库工具。
-                    回答应翻译为简体中文，专有名词可保留原文。
-                    """.trim();
-            case "zh-TW" -> """
-                    使用者選擇的回答語言：繁體中文（zh-TW）。
-                    請使用繁體中文進行推理並給出最終回答。知識庫可能包含簡體中文、繁體中文或英文資料；
-                    檢索時可以使用任何語言的相關資料，必要時把檢索詞翻譯或擴展為其他語言後再調用知識庫工具。
-                    回答應轉為繁體中文，專有名詞可保留原文。
-                    """.trim();
-            case "en" -> """
-                    The user selected English (en) as the response language.
-                    Reason and provide the final answer in English. The knowledge base may contain Simplified Chinese,
-                    Traditional Chinese, or English sources. Retrieve relevant sources in any language and translate or
-                    expand the search query into other supported languages when needed before calling knowledge tools.
-                    Translate the answer into English and preserve original product names or technical terms when useful.
-                    """.trim();
-            default -> null;
-        };
     }
 
     private List<ChatMessage> buildFinalAnswerMessages(List<ChatMessage> messages, List<AgentStep> allSteps) {
@@ -864,11 +775,11 @@ public class ReActAgent implements Agent {
             }
         }
 
-        // 找到包含 answer 的 response（跳过 suggestions 类型）
+        // 找到包含 answer 的 response
         AgentResponse answerResponse = null;
         for (int i = responses.size() - 1; i >= 0; i--) {
             AgentResponse r = responses.get(i);
-            if (r.getAnswer() != null && !"suggestions".equals(r.getResponseType())) {
+            if (r.getAnswer() != null) {
                 answerResponse = r;
                 break;
             }
@@ -1041,46 +952,6 @@ public class ReActAgent implements Agent {
         return systemPrompt;
     }
 
-    public void setSuggestionsPrompt(String suggestionsPrompt) {
-        this.suggestionsPrompt = suggestionsPrompt;
-    }
-
-    public String getSuggestionsPrompt() {
-        return suggestionsPrompt;
-    }
-
-    public void setSuggestionsEnabled(boolean suggestionsEnabled) {
-        this.suggestionsEnabled = suggestionsEnabled;
-    }
-
-    public boolean isSuggestionsEnabled() {
-        return suggestionsEnabled;
-    }
-
-    /**
-     * 根据用户问题和最终回答，生成后续建议问题
-     */
-    private List<String> generateSuggestions(String question, String answer) {
-        try {
-            String truncatedAnswer = answer.length() > 2000 ? answer.substring(0, 2000) + "..." : answer;
-            // 叠加逻辑：默认提示词管格式，配置的提示词叠加业务约束
-            String businessConstraints = (suggestionsPrompt != null && !suggestionsPrompt.isEmpty()) ? suggestionsPrompt : "";
-            String prompt = Constant.SUGGESTIONS_PROMPT.formatted(businessConstraints, question, truncatedAnswer);
-            List<ChatMessage> messages = List.of(ChatMessage.user(prompt));
-            ChatResponse response = model.chat(messages, ResponseFormatType.JSON_OBJECT);
-            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
-                ChatMessage msg = response.getChoices().get(0).getMessage();
-                if (msg != null && msg.getContent() != null) {
-                    String content = msg.getContent().trim();
-                    return JSON.parseArray(content, String.class);
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("生成建议问题失败: {}", e.getMessage());
-        }
-        return null;
-    }
-    
     // ===== ContextManager 配置方法 =====
     
     public ContextManager getContextManager() {

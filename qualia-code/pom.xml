@@ -6,12 +6,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.lunarlanding</groupId>
+        <groupId>cn.lunarlanding</groupId>
         <artifactId>qualia</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-code</artifactId>
     <version>${revision}</version>
     <name>qualia-code</name>
@@ -38,7 +38,7 @@
     <dependencies>
         <!-- qualia-core -->
         <dependency>
-            <groupId>com.lunarlanding</groupId>
+            <groupId>cn.lunarlanding</groupId>
             <artifactId>qualia-core</artifactId>
             <version>${revision}</version>
         </dependency>
@@ -90,7 +90,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.lunarlanding.qualia.code.CodeAgentCli</mainClass>
+                                    <mainClass>cn.lunarlanding.qualia.code.CodeAgentCli</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>

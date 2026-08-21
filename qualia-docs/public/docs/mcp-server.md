@@ -23,8 +23,8 @@ MCP 服务端采用**注解驱动、声明式配置**的设计，开发者只需
 ### 定义工具
 
 ```java
-import com.lunarlanding.qualia.core.mcp.server.annotation.McpTool;
-import com.lunarlanding.qualia.core.mcp.server.annotation.McpToolParam;
+import annotation.server.mcp.cn.lunarlanding.qualia.core.McpTool;
+import annotation.server.mcp.cn.lunarlanding.qualia.core.McpToolParam;
 
 public class MyToolService {
 
@@ -41,8 +41,8 @@ public class MyToolService {
 ### 启动服务器
 
 ```java
-import com.lunarlanding.qualia.core.mcp.server.McpServer;
-import com.lunarlanding.qualia.core.mcp.server.McpServerParameters;
+import server.mcp.cn.lunarlanding.qualia.core.McpServer;
+import server.mcp.cn.lunarlanding.qualia.core.McpServerParameters;
 
 // 1. 配置服务器参数
 McpServerParameters params = McpServerParameters.create("my-mcp-server", "1.0.0")
@@ -179,10 +179,10 @@ server.start();
 ## 完整示例
 
 ```java
-import com.lunarlanding.qualia.core.mcp.server.McpServer;
-import com.lunarlanding.qualia.core.mcp.server.McpServerParameters;
-import com.lunarlanding.qualia.core.mcp.server.annotation.McpTool;
-import com.lunarlanding.qualia.core.mcp.server.annotation.McpToolParam;
+import server.mcp.cn.lunarlanding.qualia.core.McpServer;
+import server.mcp.cn.lunarlanding.qualia.core.McpServerParameters;
+import annotation.server.mcp.cn.lunarlanding.qualia.core.McpTool;
+import annotation.server.mcp.cn.lunarlanding.qualia.core.McpToolParam;
 
 // 1. 定义工具服务
 public class MathToolService {

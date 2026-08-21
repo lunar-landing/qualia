@@ -74,7 +74,7 @@ Write-Host "==> 运行 jpackage 生成 app-image..."
     --app-version $Version `
     --input $InputDir `
     --main-jar $Jar.Name `
-    --main-class com.lunarlanding.qualia.code.desktop.DesktopLauncher `
+    --main-class cn.lunarlanding.qualia.code.desktop.DesktopLauncher `
     --dest $DistDir `
     --java-options "-Dfile.encoding=UTF-8" `
     @IconArg

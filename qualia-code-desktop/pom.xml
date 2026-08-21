@@ -6,12 +6,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.lunarlanding</groupId>
+        <groupId>cn.lunarlanding</groupId>
         <artifactId>qualia</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-code-desktop</artifactId>
     <version>${revision}</version>
     <name>qualia-code-desktop</name>
@@ -26,7 +26,7 @@
     <dependencies>
         <!-- qualia-code：复�?WebApplication / ChatService / 配置与前端静态资�?-->
         <dependency>
-            <groupId>com.lunarlanding</groupId>
+            <groupId>cn.lunarlanding</groupId>
             <artifactId>qualia-code</artifactId>
             <version>${revision}</version>
         </dependency>
@@ -155,7 +155,7 @@
                             </filters>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.lunarlanding.qualia.code.desktop.DesktopLauncher</mainClass>
+                                    <mainClass>cn.lunarlanding.qualia.code.desktop.DesktopLauncher</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>

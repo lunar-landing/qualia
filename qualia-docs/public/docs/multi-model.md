@@ -91,7 +91,7 @@ Qualia 支持通过 `ResponseFormatType` 枚举控制模型输出格式：
 | `JSON_OBJECT` | 输出标准 JSON 字符串 | 结构化数据提取、工具调用 |
 
 ```java
-import com.lunarlanding.qualia.core.model.chat.conf.ResponseFormatType;
+import conf.chat.model.cn.lunarlanding.qualia.core.ResponseFormatType;
 
 // 方式1：在 chat() 方法中指定格式
 List<ChatMessage> messages = List.of(ChatMessage.user("请按照 JSON 格式输出用户信息"));

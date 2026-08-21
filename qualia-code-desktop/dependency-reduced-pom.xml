@@ -2,11 +2,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <parent>
     <artifactId>qualia</artifactId>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <version>${revision}</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.lunarlanding</groupId>
+  <groupId>cn.lunarlanding</groupId>
   <artifactId>qualia-code-desktop</artifactId>
   <name>qualia-code-desktop</name>
   <version>${revision}</version>
@@ -45,7 +45,7 @@
               </filters>
               <transformers>
                 <transformer>
-                  <mainClass>com.lunarlanding.qualia.code.desktop.DesktopLauncher</mainClass>
+                  <mainClass>cn.lunarlanding.qualia.code.desktop.DesktopLauncher</mainClass>
                 </transformer>
               </transformers>
             </configuration>

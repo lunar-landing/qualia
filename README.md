@@ -6,6 +6,7 @@
 
 *Build LLM-driven intelligent applications quickly with the ReAct pattern and MCP toolchain integration*
 
+[![Maven Central](https://img.shields.io/maven-central/v/cn.lunarlanding/qualia-core)](https://central.sonatype.com/artifact/cn.lunarlanding/qualia-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
@@ -52,41 +53,13 @@ qualia/
 
 ### Installation
 
-qualia-core is published via GitHub Packages. Consuming the dependency requires repository authentication and repository configuration:
-
-#### 1. Configure Authentication
-
-Add GitHub credentials to your Maven `settings.xml` (or a project-level `settings.xml`):
+qualia-core is available on Maven Central. Add the following dependency to your project `pom.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-    <servers>
-        <server>
-            <id>github</id>
-            <username>your-github-username</username>
-            <password>your-github-token (requires read:packages scope)</password>
-        </server>
-    </servers>
-</settings>
-```
-
-#### 2. Add Repository and Dependency
-
-Add the following to your project `pom.xml`:
-
-```xml
-<repositories>
-    <repository>
-        <id>github</id>
-        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
-    </repository>
-</repositories>
-
 <dependency>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>0.1.0</version>
+    <version>${latest}</version>
 </dependency>
 ```
 
@@ -142,16 +115,13 @@ public class MyTools {
 
 ## 📦 Release
 
-### GitHub Packages
+### Maven Central
 
-This project publishes Maven packages via GitHub Packages. See [Quick Start · Installation](#installation) for authentication and repository configuration.
+qualia-core is published to Maven Central.
 
 ```bash
-# Publish qualia-core
-mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
-
-# Publish all modules
-mvn clean deploy -DskipTests -s settings.xml
+# Publish qualia-core to Maven Central
+mvn clean deploy -pl qualia-core -am -DskipTests
 ```
 
 ### Build Desktop Apps

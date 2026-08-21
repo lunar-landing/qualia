@@ -6,6 +6,7 @@
 
 *ReAct 패턴과 MCP 도구 체인 통합으로 LLM 기반 지능형 애플리케이션을 신속하게 구축*
 
+[![Maven Central](https://img.shields.io/maven-central/v/cn.lunarlanding/qualia-core)](https://central.sonatype.com/artifact/cn.lunarlanding/qualia-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
@@ -52,41 +53,13 @@ qualia/
 
 ### 설치
 
-qualia-core는 GitHub Packages를 통해发布됩니다. 의존성 사용에는 리포지토리 인증과 리포지토리 설정이 필요합니다:
-
-#### 1. 인증 설정
-
-Maven의 `settings.xml`(또는 프로젝트 수준의 `settings.xml`)에 GitHub 인증 정보를 추가:
+qualia-core는 Maven Central에 게시되어 있습니다. 프로젝트 `pom.xml`에 다음 의존성을 추가하면 됩니다:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-    <servers>
-        <server>
-            <id>github</id>
-            <username>your-github-username</username>
-            <password>your-github-token (read:packages 스코프 필요)</password>
-        </server>
-    </servers>
-</settings>
-```
-
-#### 2. 리포지토리와 의존성 추가
-
-프로젝트 `pom.xml`에 다음을 추가:
-
-```xml
-<repositories>
-    <repository>
-        <id>github</id>
-        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
-    </repository>
-</repositories>
-
 <dependency>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>0.1.0</version>
+    <version>${latest}</version>
 </dependency>
 ```
 
@@ -142,16 +115,13 @@ public class MyTools {
 
 ## 📦 릴리스
 
-### GitHub Packages
+### Maven Central
 
-이 프로젝트는 GitHub Packages를 통해 Maven 패키지를发布합니다. 인증과 리포지토리 설정은 [빠른 시작 · 설치](#설치)를 참조하세요.
+qualia-core는 Maven Central에 게시되어 있습니다.
 
 ```bash
-# qualia-core发布
-mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
-
-# 모든 모듈发布
-mvn clean deploy -DskipTests -s settings.xml
+# qualia-core를 Maven Central에 게시
+mvn clean deploy -pl qualia-core -am -DskipTests
 ```
 
 ### 데스크톱 앱 빌드

@@ -6,6 +6,7 @@
 
 *基于 ReAct 模式，集成 MCP 工具链，快速构建 LLM 驱动的智能应用*
 
+[![Maven Central](https://img.shields.io/maven-central/v/cn.lunarlanding/qualia-core)](https://central.sonatype.com/artifact/cn.lunarlanding/qualia-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
@@ -52,41 +53,13 @@ qualia/
 
 ### 安装
 
-qualia-core 通过 GitHub Packages 发布，引用依赖需要配置仓库认证与仓库地址：
-
-#### 1. 配置认证
-
-在 Maven 的 `settings.xml`（或项目根目录的 `settings.xml`）中添加 GitHub 认证信息：
+qualia-core 已发布到 Maven Central，在项目 `pom.xml` 中添加依赖即可：
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-    <servers>
-        <server>
-            <id>github</id>
-            <username>你的GitHub用户名</username>
-            <password>你的GitHub Token（需 read:packages 权限）</password>
-        </server>
-    </servers>
-</settings>
-```
-
-#### 2. 添加仓库与依赖
-
-在项目 `pom.xml` 中添加：
-
-```xml
-<repositories>
-    <repository>
-        <id>github</id>
-        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
-    </repository>
-</repositories>
-
 <dependency>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>0.1.0</version>
+    <version>${latest}</version>
 </dependency>
 ```
 
@@ -142,16 +115,13 @@ public class MyTools {
 
 ## 📦 发布
 
-### GitHub Packages
+### Maven Central
 
-本项目使用 GitHub Packages 发布 Maven 包，认证与仓库配置见[快速开始 · 安装](#安装)。
+qualia-core 已发布到 Maven Central。
 
 ```bash
-# 发布 qualia-core
-mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
-
-# 发布所有模块
-mvn clean deploy -DskipTests -s settings.xml
+# 发布 qualia-core 到 Maven Central
+mvn clean deploy -pl qualia-core -am -DskipTests
 ```
 
 ### 构建桌面应用

@@ -6,6 +6,7 @@
 
 *ReAct パターンと MCP ツールチェーン統合により、LLM 駆動のインテリジェントアプリケーションを迅速に構築*
 
+[![Maven Central](https://img.shields.io/maven-central/v/cn.lunarlanding/qualia-core)](https://central.sonatype.com/artifact/cn.lunarlanding/qualia-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
@@ -52,41 +53,13 @@ qualia/
 
 ### インストール
 
-qualia-core は GitHub Packages で公開されています。依存関係の使用にはリポジトリ認証とリポジトリ設定が必要です：
-
-#### 1. 認証設定
-
-Maven の `settings.xml`（またはプロジェクトレベルの `settings.xml`）に GitHub 認証情報を追加：
+qualia-core は Maven Central で公開されています。プロジェクトの `pom.xml` に以下の依存関係を追加するだけです：
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-    <servers>
-        <server>
-            <id>github</id>
-            <username>your-github-username</username>
-            <password>your-github-token (read:packages スコープが必要)</password>
-        </server>
-    </servers>
-</settings>
-```
-
-#### 2. リポジトリと依存関係の追加
-
-プロジェクトの `pom.xml` に以下を追加：
-
-```xml
-<repositories>
-    <repository>
-        <id>github</id>
-        <url>https://maven.pkg.github.com/lunar-landing/qualia</url>
-    </repository>
-</repositories>
-
 <dependency>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>0.1.0</version>
+    <version>${latest}</version>
 </dependency>
 ```
 
@@ -142,16 +115,13 @@ public class MyTools {
 
 ## 📦 リリース
 
-### GitHub Packages
+### Maven Central
 
-このプロジェクトは GitHub Packages 経由で Maven パッケージを公開しています。認証とリポジトリ設定については[クイックスタート・インストール](#インストール)を参照してください。
+qualia-core は Maven Central で公開されています。
 
 ```bash
-# qualia-core を公開
-mvn clean deploy -pl qualia-core -DskipTests -s settings.xml
-
-# すべてのモジュールを公開
-mvn clean deploy -DskipTests -s settings.xml
+# qualia-core を Maven Central に公開
+mvn clean deploy -pl qualia-core -am -DskipTests
 ```
 
 ### デスクトップアプリのビルド

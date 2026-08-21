@@ -17,9 +17,9 @@ Qualia 是一个轻量级 Java 智能体框架，基于 ReAct（Reasoning + Acti
 
 ```xml
 <dependency>
-    <groupId>com.lunarlanding</groupId>
+    <groupId>cn.lunarlanding</groupId>
     <artifactId>qualia-core</artifactId>
-    <version>1.3.5</version>
+    <version>${latest}</version>
 </dependency>
 ```
 

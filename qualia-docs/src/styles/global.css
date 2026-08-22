@@ -10,9 +10,9 @@
 :root {
   /* OpenCode Core Colors */
   --oc-bg: #201d1d;
-  --oc-bg-surface: #302c2c;
-  --oc-border: #464343;
-  --oc-border-soft: #302c2c;
+  --oc-bg-surface: #2a2727;
+  --oc-border: #3d3a3a;
+  --oc-border-soft: #2e2b2b;
   --oc-fg: #fdfcfc;
   --oc-fg-2: #c8c6c4;
   --oc-muted: #9a9898;
@@ -429,69 +429,207 @@
   box-shadow: 0 0 20px -5px rgba(0, 0, 0, 0.1);
 }
 
-/* Light Theme Highlight.js - OpenCode Light */
+/* ============================================
+   Deep Theme Highlight.js - One Dark Pro Style
+   ============================================ */
+.hljs {
+  color: #abb2bf;
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+  color: #c678dd;
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-template-variable,
+.hljs-addition {
+  color: #98c379;
+}
+
+.hljs-comment,
+.hljs-doctag,
+.hljs-quote {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.hljs-type,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: #e5c07b;
+}
+
+.hljs-number,
+.hljs-literal {
+  color: #d19a66;
+}
+
+.hljs-function,
+.hljs-title.function_,
+.hljs-tag {
+  color: #61afef;
+}
+
+.hljs-params,
+.hljs-variable {
+  color: #abb2bf;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #56b6c2;
+}
+
+.hljs-attr,
+.hljs-attribute {
+  color: #d19a66;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: #98c379;
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: #5c6370;
+}
+
+.hljs-deletion {
+  color: #e06c75;
+}
+
+.hljs-regexp {
+  color: #56b6c2;
+}
+
+.hljs-section,
+.hljs-title {
+  color: #e06c75;
+  font-weight: bold;
+}
+
+.hljs-link {
+  color: #61afef;
+  text-decoration: underline;
+}
+
+.hljs-property {
+  color: #e06c75;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* ============================================
+   Light Theme Highlight.js - GitHub Style
+   ============================================ */
+[data-theme="light"] .hljs {
+  color: #24292f;
+}
+
 [data-theme="light"] .hljs-keyword,
 [data-theme="light"] .hljs-selector-tag {
-  color: #171717;
+  color: #cf222e;
   font-weight: 600;
 }
 
 [data-theme="light"] .hljs-string,
 [data-theme="light"] .hljs-template-variable {
-  color: #525252;
+  color: #0a3069;
+}
+
+[data-theme="light"] .hljs-addition {
+  color: #1a7f37;
+  background-color: #dafbe1;
 }
 
 [data-theme="light"] .hljs-comment,
-[data-theme="light"] .hljs-doctag {
-  color: #a3a3a3;
+[data-theme="light"] .hljs-doctag,
+[data-theme="light"] .hljs-quote {
+  color: #6e7781;
   font-style: italic;
 }
 
 [data-theme="light"] .hljs-type,
-[data-theme="light"] .hljs-class .hljs-title,
-[data-theme="light"] .hljs-title.class_ {
-  color: #262626;
+[data-theme="light"] .hljs-title.class_,
+[data-theme="light"] .hljs-class .hljs-title {
+  color: #8250df;
 }
 
 [data-theme="light"] .hljs-number,
 [data-theme="light"] .hljs-literal {
-  color: #737373;
+  color: #0550ae;
 }
 
 [data-theme="light"] .hljs-function,
-[data-theme="light"] .hljs-title.function_ {
-  color: #171717;
+[data-theme="light"] .hljs-title.function_,
+[data-theme="light"] .hljs-tag {
+  color: #8250df;
 }
 
-[data-theme="light"] .hljs-params {
-  color: #525252;
+[data-theme="light"] .hljs-params,
+[data-theme="light"] .hljs-variable {
+  color: #24292f;
 }
 
-[data-theme="light"] .hljs-built_in {
-  color: #262626;
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-builtin-name {
+  color: #953800;
 }
 
-[data-theme="light"] .hljs-meta,
-[data-theme="light"] .hljs-meta .hljs-keyword {
-  color: #737373;
-}
-
-[data-theme="light"] .hljs-variable,
-[data-theme="light"] .hljs-attr {
-  color: #171717;
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-attribute {
+  color: #0550ae;
 }
 
 [data-theme="light"] .hljs-symbol,
 [data-theme="light"] .hljs-bullet {
-  color: #525252;
+  color: #0550ae;
 }
 
-[data-theme="light"] .hljs-addition {
-  color: #16a34a;
+[data-theme="light"] .hljs-meta,
+[data-theme="light"] .hljs-meta .hljs-keyword {
+  color: #6e7781;
 }
 
 [data-theme="light"] .hljs-deletion {
-  color: #dc2626;
+  color: #82071e;
+  background-color: #ffebe9;
+}
+
+[data-theme="light"] .hljs-regexp {
+  color: #116329;
+}
+
+[data-theme="light"] .hljs-section,
+[data-theme="light"] .hljs-title {
+  color: #cf222e;
+  font-weight: bold;
+}
+
+[data-theme="light"] .hljs-link {
+  color: #0550ae;
+  text-decoration: underline;
+}
+
+[data-theme="light"] .hljs-property {
+  color: #cf222e;
+}
+
+[data-theme="light"] .hljs-emphasis {
+  font-style: italic;
+}
+
+[data-theme="light"] .hljs-strong {
+  font-weight: bold;
 }
 
 /* ============================================

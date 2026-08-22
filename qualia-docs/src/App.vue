@@ -55,15 +55,9 @@ onUnmounted(() => {
           <div class="brand-icon-wrapper">
             <div class="brand-icon">
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="8" fill="url(#brand-gradient)"/>
+                <rect width="32" height="32" rx="8" fill="#1a1a1a"/>
                 <path d="M10 16L14 12L18 16L22 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M10 20L14 16L18 20L22 16" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
-                <defs>
-                  <linearGradient id="brand-gradient" x1="0" y1="0" x2="32" y2="32">
-                    <stop stop-color="#6366f1"/>
-                    <stop offset="1" stop-color="#8b5cf6"/>
-                  </linearGradient>
-                </defs>
               </svg>
             </div>
             <div class="brand-glow"></div>
@@ -379,18 +373,18 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: #201d1d;
-  border-bottom: 1px solid rgba(15, 0, 0, 0.12);
+  background: var(--oc-bg);
+  border-bottom: 1px solid var(--oc-border);
   transition: all var(--transition-slow);
 }
 
 .top-navbar.scrolled {
-  background: #201d1d;
-  border-bottom-color: rgba(15, 0, 0, 0.12);
+  background: var(--oc-bg);
+  border-bottom-color: var(--oc-border);
 }
 
 .top-navbar.mobile-open {
-  background: #201d1d;
+  background: var(--oc-bg);
 }
 
 .navbar-container {

@@ -643,7 +643,7 @@ onMounted(() => {
    ============================================ */
 .doc-sidebar {
   width: 260px;
-  background: #fff;
+  background: var(--oc-bg);
   border-right: 1px solid var(--oc-border);
   position: sticky;
   top: 72px;
@@ -789,15 +789,14 @@ onMounted(() => {
 }
 
 .sidebar-link:hover {
-  color: var(--oc-accent);
+  color: var(--oc-fg);
   background: var(--oc-bg-surface);
 }
 
 .sidebar-link.active {
-  color: var(--oc-accent);
+  color: var(--oc-fg);
   background: var(--oc-bg-surface);
   font-weight: 500;
-  border-left: 2px solid rgba(0, 0, 0, 0.8);
 }
 
 .sidebar-link.active::before {
@@ -866,7 +865,7 @@ onMounted(() => {
   height: calc(100vh - 72px);
   overflow-y: auto;
   padding: var(--spacing-6) var(--spacing-4);
-  background: #fff;
+  background: var(--oc-bg);
   border-left: 1px solid var(--oc-border);
 }
 
@@ -1192,7 +1191,6 @@ onMounted(() => {
 
 .markdown-body :deep(pre) {
   background: var(--oc-bg-surface);
-  color: var(--oc-fg-2);
   padding: 16px;
   border-radius: var(--radius-lg);
   overflow-x: auto;
@@ -1206,7 +1204,7 @@ onMounted(() => {
   padding: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
-  color: inherit;
+  color: var(--oc-fg-2);
   border: none;
 }
 
@@ -1437,7 +1435,7 @@ onMounted(() => {
     bottom: 0;
     z-index: calc(var(--z-overlay) + 1);
     transform: translateX(-100%);
-    background: #050a15;
+    background: var(--oc-bg);
     width: 300px;
   }
   
@@ -1530,8 +1528,7 @@ onMounted(() => {
 
 [data-theme="light"] .sidebar-link.active {
   color: var(--color-primary);
-  background: var(--oc-bg-surface);
-  border-left: 2px solid rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 [data-theme="light"] .sidebar-link.active .link-icon {

@@ -31,8 +31,7 @@ public class WebApplication {
         // 打印启动信息
         System.out.println();
         System.out.println("Qualia Code Web 服务已启动");
-        System.out.println("访问地址: http://localhost:" + port
-                + (workspacePath == null ? "（未指定工作区，请在页面中选择）" : ""));
+        System.out.println("访问地址: http://localhost:" + port + (workspacePath == null ? "（未指定工作区，请在页面中选择）" : ""));
         System.out.println("按 Ctrl+C 停止服务");
         System.out.println();
 

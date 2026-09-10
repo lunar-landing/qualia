@@ -27,8 +27,8 @@ public class CodeAgentCli implements Callable<Integer> {
     @Option(names = {"-w", "--workspace"}, description = "工作区路径（CLI 模式默认当前目录，Web 模式默认复用最近打开的工作区）")
     private Path workspace;
 
-    @Option(names = {"-p", "--port"}, description = "Web服务端口（默认 8080）")
-    private int port = 8080;
+    @Option(names = {"-p", "--port"}, description = "Web服务端口（默认 9090）")
+    private int port = 9090;
 
     @Option(names = {"--cli"}, description = "使用CLI交互模式（默认Web模式）")
     private boolean cliMode = false;

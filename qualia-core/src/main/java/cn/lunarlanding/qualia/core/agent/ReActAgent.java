@@ -65,7 +65,6 @@ public class ReActAgent implements Agent {
     protected List<Skill> skills = new ArrayList<>();
     protected int maxIterations = 20;
     protected String systemPrompt = "你是一个智能助手。";
-    private String detectedLanguage;
     protected ContextManager contextManager;
     protected ChatModel model;
 
@@ -266,6 +265,17 @@ public class ReActAgent implements Agent {
     }
 
     /**
+     * 获取当前可用工具名称列表（用于工具不存在时反馈给模型，供其自行纠正）
+     */
+    private String availableToolNames() {
+        List<String> names = new ArrayList<>();
+        for (FunctionTool tool : getAvailableTools()) {
+            names.add(tool.getName());
+        }
+        return names.isEmpty() ? "无" : String.join(", ", names);
+    }
+
+    /**
      * 运行智能体
      *
      * @param sessionId 会话编号
@@ -295,9 +305,12 @@ public class ReActAgent implements Agent {
             if (contextManager.getMemory() != null) {
                 contextManager.getMemory().addUserMessage(sessionId, input);
             }
+            // 语言检测结果仅存活于本次请求，通过参数传递；
+            // 若作为实例字段，单实例多会话并发时会互相覆盖导致提示词语言污染
+            String detectedLanguage = detectLanguage(input);
             List<AgentStep> allSteps = Collections.synchronizedList(new ArrayList<>());
-            List<ChatMessage> messages = initializeMessages(sessionId, input, emitter, allSteps);
-            runIteration(emitter, messages, new AtomicInteger(0), startTime, allSteps, sessionId, usageAccumulator);
+            List<ChatMessage> messages = initializeMessages(sessionId, input, detectedLanguage, emitter, allSteps);
+            runIteration(emitter, messages, new AtomicInteger(0), startTime, allSteps, sessionId, usageAccumulator, detectedLanguage);
         });
     }
 
@@ -313,14 +326,14 @@ public class ReActAgent implements Agent {
      *
      * @param sessionId 会话编号
      * @param input 输入
+     * @param detectedLanguage 本次请求检测到的用户语言（通过参数传递，避免并发会话互相污染）
      * @param emitter SSE 发射器（用于推送压缩步骤）
      * @param allSteps 步骤收集器（用于存储压缩步骤）
      */
-    private List<ChatMessage> initializeMessages(String sessionId, String input, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
+    private List<ChatMessage> initializeMessages(String sessionId, String input, String detectedLanguage, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
         logger.info("[ReActAgent] initializeMessages sessionId={}", sessionId);
         
         List<ChatMessage> chatMessages = new ArrayList<>();
-        this.detectedLanguage = detectLanguage(input);
 
         List<MemoryMessage> contextMessages = contextManager.getContextMessages(sessionId);
         logger.info("[ReActAgent] contextMessages size={}", contextMessages.size());
@@ -331,7 +344,7 @@ public class ReActAgent implements Agent {
             logger.info("[ReActAgent]   {} : {}", role, preview);
         }
         appendRecentMessages(chatMessages, contextMessages);
-        chatMessages.add(ChatMessage.system(buildSystemPrompt()));
+        chatMessages.add(ChatMessage.system(buildSystemPrompt(detectedLanguage)));
         chatMessages.add(ChatMessage.user(input));
         return chatMessages;
     }
@@ -389,7 +402,8 @@ public class ReActAgent implements Agent {
                               AtomicInteger iterationCount, long startTime,
                               List<AgentStep> allSteps,
                               String sessionId,
-                              int[] usageAccumulator) {
+                              int[] usageAccumulator,
+                              String detectedLanguage) {
 
 
         int current = iterationCount.get();
@@ -443,17 +457,28 @@ public class ReActAgent implements Agent {
 
             // 收集所有工具执行结果
             StringBuilder combinedResult = new StringBuilder();
-            boolean hasError = false;
-            String errorMsg = null;
 
             for (ToolCall toolRequest : toolRequests) {
 
                 FunctionTool tool = findToolByName(toolRequest.toolName());
 
                 if (tool == null) {
-                    errorMsg = "错误：找不到 '" + toolRequest.toolName() + "' 工具";
-                    hasError = true;
-                    break;
+                    // 工具可能被动态移除或模型幻觉出工具名：作为观察结果反馈给模型自行纠正，不终止会话
+                    String missingToolMsg = "错误：工具 '" + toolRequest.toolName()
+                            + "' 不存在或已被移除。可用工具：" + availableToolNames();
+                    combinedResult.append("【").append(toolRequest.toolName()).append("】\n")
+                            .append(missingToolMsg).append("\n");
+
+                    AgentStep missingToolStep = new AgentStep();
+                    missingToolStep.setStepType(AgentStep.StepType.OBSERVATION);
+                    missingToolStep.setContent(missingToolMsg);
+                    allSteps.add(missingToolStep);
+
+                    AgentResponse missingToolResponse = new AgentResponse();
+                    missingToolResponse.setResponseType("step");
+                    missingToolResponse.addStep(missingToolStep);
+                    emitter.next(missingToolResponse);
+                    continue;
                 }
 
                 AgentStep actionStep = new AgentStep();
@@ -490,44 +515,18 @@ public class ReActAgent implements Agent {
                 combinedResult.append(flattenRagflowJson(toolResult));
             }
 
-            if (hasError) {
+            // 更新消息（合并所有结果，使用 system 角色避免 DeepSeek 等严格校验 tool_calls 协议）
+            ChatMessage toolResultMessage = ChatMessage.system("工具执行结果:\n" + combinedResult.toString());
+            messages.add(toolResultMessage);
 
-                // 推送错误步骤
-                AgentStep errorStep = new AgentStep();
-                errorStep.setStepType(AgentStep.StepType.ERROR);
-                errorStep.setContent(errorMsg);
-                allSteps.add(errorStep);
-
-                // 保存到记忆
-                if (contextManager.getMemory() != null) {
-                    contextManager.getMemory().addAssistantMessage(sessionId, errorMsg, new ArrayList<>(allSteps), null, null, null);
-                }
-
-                AgentResponse errorResponse = new AgentResponse();
-                errorResponse.setDurationMs(System.currentTimeMillis() - startTime);
-                errorResponse.setResponseType("step");
-                errorResponse.addStep(errorStep);
-                errorResponse.setErrorMessage(errorMsg);
-                errorResponse.setSuccess(false);
-
-                emitter.next(errorResponse);
-                emitter.complete();
-
-            } else {
-
-                // 更新消息（合并所有结果，使用 system 角色避免 DeepSeek 等严格校验 tool_calls 协议）
-                ChatMessage toolResultMessage = ChatMessage.system("工具执行结果:\n" + combinedResult.toString());
-                messages.add(toolResultMessage);
-
-                // 递归继续下一轮
-                iterationCount.incrementAndGet();
-                runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator);
-            }
+            // 递归继续下一轮
+            iterationCount.incrementAndGet();
+            runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator, detectedLanguage);
 
         } else {
 
-            // 在最终回答之前，用 ChatModel 检测用户问题的语言，注入到系统提示词
-            List<ChatMessage> finalAnswerMessages = buildFinalAnswerMessages(messages, allSteps);
+            // 构建最终回答消息（携带本次请求检测到的语言）
+            List<ChatMessage> finalAnswerMessages = buildFinalAnswerMessages(messages, allSteps, detectedLanguage);
             StringBuilder finalAnswerBuffer = new StringBuilder();
             StringBuilder thinkingBuffer = new StringBuilder();
             final ChatUsage[] streamUsage = {null};
@@ -672,10 +671,10 @@ public class ReActAgent implements Agent {
         return null;
     }
 
-    private List<ChatMessage> buildFinalAnswerMessages(List<ChatMessage> messages, List<AgentStep> allSteps) {
+    private List<ChatMessage> buildFinalAnswerMessages(List<ChatMessage> messages, List<AgentStep> allSteps, String detectedLanguage) {
 
         List<ChatMessage> finalAnswerMessages = new ArrayList<>();
-        String langHint = this.detectedLanguage != null ? this.detectedLanguage : "";
+        String langHint = detectedLanguage != null ? detectedLanguage : "";
         String timeHint = buildCurrentTimeHint();
         finalAnswerMessages.add(ChatMessage.system(this.systemPrompt
                 + (langHint.isEmpty() ? "" : "\n\n" + langHint)
@@ -810,13 +809,13 @@ public class ReActAgent implements Agent {
     /**
      * 构建系统提示词，包含当前可用工具信息和可用技能信息
      */
-    private String buildSystemPrompt() {
+    private String buildSystemPrompt(String detectedLanguage) {
         StringBuilder prompt = new StringBuilder();
         // 首先注入用户配置的系统提示词（限制、角色定义等），确保 ReAct 推理阶段和最终回答阶段一致生效
         prompt.append(this.systemPrompt).append("\n\n");
-        // 注入检测到的用户语言，确保 thought 过程语言与用户一致
-        if (this.detectedLanguage != null) {
-            prompt.append(this.detectedLanguage).append("\n\n");
+        // 注入本次请求检测到的用户语言，确保 thought 过程语言与用户一致
+        if (detectedLanguage != null) {
+            prompt.append(detectedLanguage).append("\n\n");
         }
         // 注入当前时间，避免智能体为获取时间而调用工具
         prompt.append(buildCurrentTimeHint()).append("\n\n");

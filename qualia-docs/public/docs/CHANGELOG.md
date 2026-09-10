@@ -4,7 +4,21 @@
 
 ---
 
-## [未发布] - 首发日志
+## [未发布]
+
+## [0.1.1] - 2026-09-09
+
+### 变更
+
+- **qualia-core / BashTool**：Windows 下执行器由 cmd 迁移为 PowerShell。cmd 对模型的 Unix 命令习惯兼容度低（无 ls/cat/pwd/rm 等命令、date/time 为交互式设置命令），模型需多轮试错；PowerShell 内置系统级别名兼容大部分 Unix 命令名，无需自维护命令转译层。同时：以 `-EncodedCommand`（UTF-16LE Base64）传递命令，规避多层引号转义问题；显式设置 UTF-8 编解码替代 `chcp 65001`；输出统一经 `Out-String` 以固定宽度（120，与控制台默认一致）渲染为纯文本——避免 PS 5.1 在重定向下把错误流序列化为 CLIXML XML，也避免伪控制台宽度为 0 导致 `pwd`/`Measure-Object` 等表格类输出渲染为空；退出码合成：native 命令失败在 PS 中默认仍以 0 退出，透传 `$LASTEXITCODE`，纯 cmdlet 失败（无 `$LASTEXITCODE`）用 `$?` 兜底，PS 子进程崩溃时由上层标记失败；Java 侧增加 CLIXML 兜底解析（覆盖脚本级包裹不了的语法错误等路径）；抑制进度流。macOS/Linux 分支不受影响，仍走原生 `sh -c`。已知限制：`&&` 链接符在 Windows PowerShell 5.1 不支持（模型可自愈改用 `;`）；`curl`/`wget` 别名指向 `Invoke-WebRequest`，需用 `curl.exe`；每次调用有 PowerShell 进程启动开销（数秒），格式化类命令（如 `date`/`ls` 的表格输出）在部分机器上有额外延迟；native 命令的 stderr 会带 PS 错误记录装饰（`git : ...` 前缀与位置信息），信息完整但略冗长；极少数 GBK 编码输出的原生工具在 UTF-8 设置下可能乱码。
+
+### 修复
+
+- **qualia-core / ReActAgent**：修复并发会话下语言提示互相污染的问题。`detectedLanguage` 原为 Agent 实例字段，在单实例服务多会话的场景下，并发请求的语言检测结果会互相覆盖，导致系统提示词与最终回答阶段注入错误的语言提示；现改为每次请求内局部检测并通过参数传递，会话之间完全隔离。
+- **qualia-core / ReActAgent**：工具调用找不到对应工具时不再终止会话，改为将“工具不存在或已被移除 + 当前可用工具列表”作为观察结果（OBSERVATION）反馈给模型继续推理，由模型自行纠正；同时批量调用中不再因单个工具缺失而跳过其余合法调用。
+- **qualia-core / BashTool**：修复 Windows 下执行交互式命令（如不带参数的 `date`）一直挂起直至超时的问题。原实现未关闭子进程 stdin，`cmd` 的 `date`、等待确认的 `del` 等命令会阻塞等待键盘输入直到被强制结束；现启动后立即关闭 stdin，交互式提示读到 EOF 后按默认行为正常结束。同时超时错误信息会附上超时前已捕获的输出，便于判断命令卡在何处。
+
+## [0.1.0] - 首发
 
 我们非常高兴地宣布 Qualia 框架的正式发布！这是一个企业级 Java AI 智能体框架，基于 ReAct（Reasoning + Acting）模式构建，旨在帮助开发者快速构建 LLM 驱动的智能应用。
 

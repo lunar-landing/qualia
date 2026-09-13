@@ -1340,7 +1340,8 @@ body.light-theme .msg .bubble pre code {
 }
 .code-wrap pre {
     margin: 0 !important;
-    /* 不限高：代码完整展示；横向超宽仍由 pre 滚动 */
+    /* 限高 800px：长代码在块内滚动；横向超宽也由 pre 接管 */
+    max-height: 800px;
     overflow: auto;
 }
 /* 横向滚动统一由 pre 接管，避免限高后 code 自身的横向滚动条被藏在底部 */

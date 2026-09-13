@@ -4,12 +4,15 @@ import cn.lunarlanding.qualia.core.tool.annotation.AsFunctionTool;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
 import cn.lunarlanding.qualia.core.agent.spec.AgentStep;
 import cn.lunarlanding.qualia.core.knowledge.KnowledgeSourceUtil;
+import cn.lunarlanding.qualia.core.memory.AttachmentRef;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
 import cn.lunarlanding.qualia.core.model.chat.ChatChoice;
 import cn.lunarlanding.qualia.core.model.chat.ChatModel;
 import cn.lunarlanding.qualia.core.model.chat.ChatResponse;
 import cn.lunarlanding.qualia.core.model.chat.ChatMessage;
+import cn.lunarlanding.qualia.core.model.chat.Attachment;
 import cn.lunarlanding.qualia.core.model.chat.ChatUsage;
+import cn.lunarlanding.qualia.core.model.chat.ContentPart;
 import cn.lunarlanding.qualia.core.model.chat.conf.ResponseFormatType;
 import cn.lunarlanding.qualia.core.mcp.client.McpClient;
 import cn.lunarlanding.qualia.core.mcp.client.McpClientParameters;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * ReActAgent 是一个基于反应式思维链的智能体实现
@@ -294,22 +298,50 @@ public class ReActAgent implements Agent {
      */
     @Override
     public Flux<AgentResponse> callStream(String sessionId, String input) {
+        return callStream(sessionId, input, null);
+    }
+
+    /**
+     * 流式运行智能体（携带附件：图片直传视觉模型，文档解析正文以文字注入）
+     *
+     * <p>图片 base64 与附件正文仅在当轮请求中发给模型，不入记忆；
+     * 记忆中只保留文本与 {@code [图片: name]}/{@code [附件: name]} 占位符，避免上下文膨胀。</p>
+     *
+     * @param sessionId   会话编号
+     * @param input       输入（可为空字符串，表示纯附件提问）
+     * @param attachments 随消息发送的附件列表，可为 null
+     */
+    @Override
+    public Flux<AgentResponse> callStream(String sessionId, String input, List<Attachment> attachments) {
 
         if (sessionId == null || sessionId.isEmpty()) {
             throw new IllegalArgumentException("sessionId 不能为空");
+        }
+
+        boolean hasAttachments = attachments != null && !attachments.isEmpty();
+        // 附件以引用元数据（名称+类型）随记忆存储，正文与 base64 不入记忆；
+        // 分支各赋值一次保持 effectively final，供下方 Flux.create lambda 引用
+        final String memoryText = input == null ? "" : input.trim();
+        final List<AttachmentRef> attachmentRefs;
+        if (hasAttachments) {
+            attachmentRefs = attachments.stream()
+                    .map(a -> new AttachmentRef(a.name(), a.type().name()))
+                    .collect(Collectors.toList());
+        } else {
+            attachmentRefs = null;
         }
 
         return Flux.create(emitter -> {
             int[] usageAccumulator = {0, 0, 0};
             long startTime = System.currentTimeMillis();
             if (contextManager.getMemory() != null) {
-                contextManager.getMemory().addUserMessage(sessionId, input);
+                contextManager.getMemory().addUserMessage(sessionId, memoryText, attachmentRefs);
             }
             // 语言检测结果仅存活于本次请求，通过参数传递；
             // 若作为实例字段，单实例多会话并发时会互相覆盖导致提示词语言污染
-            String detectedLanguage = detectLanguage(input);
+            String detectedLanguage = detectLanguage(memoryText);
             List<AgentStep> allSteps = Collections.synchronizedList(new ArrayList<>());
-            List<ChatMessage> messages = initializeMessages(sessionId, input, detectedLanguage, emitter, allSteps);
+            List<ChatMessage> messages = initializeMessages(sessionId, input, attachments, detectedLanguage, emitter, allSteps);
             runIteration(emitter, messages, new AtomicInteger(0), startTime, allSteps, sessionId, usageAccumulator, detectedLanguage);
         });
     }
@@ -324,13 +356,14 @@ public class ReActAgent implements Agent {
      * 3. 如果 <= MAX_CONTEXT_TOKENS：使用所有摘要 + 所有历史消息
      * 4. 如果 > MAX_CONTEXT_TOKENS：压缩最近4条之前的消息，使用所有摘要 + 最近4条
      *
-     * @param sessionId 会话编号
-     * @param input 输入
+     * @param sessionId   会话编号
+     * @param input       输入
+     * @param attachments 随消息发送的附件列表，可为 null
      * @param detectedLanguage 本次请求检测到的用户语言（通过参数传递，避免并发会话互相污染）
      * @param emitter SSE 发射器（用于推送压缩步骤）
      * @param allSteps 步骤收集器（用于存储压缩步骤）
      */
-    private List<ChatMessage> initializeMessages(String sessionId, String input, String detectedLanguage, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
+    private List<ChatMessage> initializeMessages(String sessionId, String input, List<Attachment> attachments, String detectedLanguage, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
         logger.info("[ReActAgent] initializeMessages sessionId={}", sessionId);
         
         List<ChatMessage> chatMessages = new ArrayList<>();
@@ -345,8 +378,56 @@ public class ReActAgent implements Agent {
         }
         appendRecentMessages(chatMessages, contextMessages);
         chatMessages.add(ChatMessage.system(buildSystemPrompt(detectedLanguage)));
-        chatMessages.add(ChatMessage.user(input));
+        if (attachments != null && !attachments.isEmpty()) {
+            // 文档附件的正文边界块（截断到上限）；有图片时作为文本块随多模态消息发送，无图片时拼入纯文本消息
+            String docBlock = buildDocumentBlock(attachments);
+            boolean hasImages = attachments.stream().anyMatch(a -> a.type() == Attachment.Type.IMAGE);
+            if (hasImages) {
+                // 多模态消息：文字块 + 图片块 + 文档文本块，图片以 data URL 直传视觉模型
+                List<ContentPart> parts = new ArrayList<>();
+                if (input != null && !input.isEmpty()) {
+                    parts.add(ContentPart.text(input));
+                }
+                for (Attachment attachment : attachments) {
+                    if (attachment.type() == Attachment.Type.IMAGE) {
+                        parts.add(ContentPart.imageUrl(attachment.dataUrl()));
+                    }
+                }
+                if (!docBlock.isEmpty()) {
+                    parts.add(ContentPart.text(docBlock));
+                }
+                chatMessages.add(ChatMessage.userWithParts(input == null ? "" : input, parts.toArray(new ContentPart[0])));
+            } else {
+                chatMessages.add(ChatMessage.user(input == null ? "" : input + docBlock));
+            }
+        } else {
+            chatMessages.add(ChatMessage.user(input));
+        }
         return chatMessages;
+    }
+
+    /** 附件正文注入当轮请求的上限，超出截断并标注 */
+    private static final int MAX_ATTACHMENT_CONTENT_LENGTH = 50_000;
+
+    /**
+     * 构建文档附件的正文边界块（图片附件忽略），正文前后以“--- 附件: 文件名 ---”与“--- 附件结束 ---”标记包裹
+     */
+    private String buildDocumentBlock(List<Attachment> attachments) {
+        StringBuilder block = new StringBuilder();
+        for (Attachment attachment : attachments) {
+            if (attachment.type() != Attachment.Type.DOCUMENT) {
+                continue;
+            }
+            String label = attachment.name() == null || attachment.name().isEmpty() ? "未命名" : attachment.name();
+            String content = attachment.parsedContent() == null ? "" : attachment.parsedContent();
+            if (content.length() > MAX_ATTACHMENT_CONTENT_LENGTH) {
+                content = content.substring(0, MAX_ATTACHMENT_CONTENT_LENGTH) + "\n[附件内容过长，已截断]";
+            }
+            block.append("\n\n--- 附件: ").append(label).append(" ---\n")
+                    .append(content)
+                    .append("\n--- 附件结束 ---");
+        }
+        return block.toString();
     }
 
     /**
@@ -656,6 +737,9 @@ public class ReActAgent implements Agent {
      * @return BCP 47 语言代码（zh/en/ja 等），失败时返回 null
      */
     private String detectLanguage(String text) {
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
         try {
             String prompt = Constant.LANGUAGE_DETECT_PROMPT.formatted(text);
             ChatResponse response = model.chat(prompt);

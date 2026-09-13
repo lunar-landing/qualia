@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代码块设计图 · 深浅主题 · Qualia</title>
+<style>
+    /* ===== 主题变量 ===== */
+    body[data-theme="dark"] {
+        --page-bg: #080a10;
+        --card-bg: rgba(19, 24, 32, 0.85);
+        --card-border: #222938;
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #5c657e;
+        /* V1 现状精修 */
+        --v1-wrap-bg: #0b0e14;
+        --v1-wrap-border: rgba(255, 255, 255, 0.07);
+        --v1-head-bg: rgba(255, 255, 255, 0.04);
+        --v1-head-border: rgba(255, 255, 255, 0.06);
+        --v1-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+        /* V2 GitHub */
+        --v2-wrap-bg: #0d1117;
+        --v2-wrap-border: #3d444d;
+        --v2-head-border: #3d444d;
+        /* V3 终端窗 */
+        --v3-head-bg: #161b22;
+        --v3-wrap-bg: #0b0e14;
+        --v3-dot: #2c3442;
+        /* 代码高亮（深色） */
+        --code-text: #c8d0e6;
+        --hl-key: #79c0ff;
+        --hl-str: #7ddfb0;
+        --hl-num: #f5b87e;
+        --hl-com: #5c657e;
+        --hl-fn: #b3c7ff;
+    }
+    body[data-theme="light"] {
+        --page-bg: #f6f8fa;
+        --card-bg: #ffffff;
+        --card-border: #d0d7de;
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        /* V1 现状精修 */
+        --v1-wrap-bg: #f6f8fa;
+        --v1-wrap-border: #d0d7de;
+        --v1-head-bg: rgba(0, 0, 0, 0.03);
+        --v1-head-border: rgba(0, 0, 0, 0.06);
+        --v1-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        /* V2 GitHub */
+        --v2-wrap-bg: #ffffff;
+        --v2-wrap-border: #d0d7de;
+        --v2-head-border: #d0d7de;
+        /* V3 终端窗 */
+        --v3-head-bg: #24292f;
+        --v3-wrap-bg: #ffffff;
+        --v3-dot: #57606a;
+        /* 代码高亮（日间加深一档，GitHub 日间语法色系） */
+        --code-text: #1f2328;
+        --hl-key: #0550ae;
+        --hl-str: #1a7f37;
+        --hl-num: #bc4c00;
+        --hl-com: #8c959f;
+        --hl-fn: #6639ba;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page-bg);
+        color: var(--text-1);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 60px;
+        transition: background 0.25s;
+    }
+    .page-head { max-width: 760px; margin: 0 auto 10px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: var(--text-2); margin-top: 7px; line-height: 1.7; }
+
+    .theme-bar { max-width: 760px; margin: 18px auto 8px; display: flex; gap: 8px; }
+    .theme-btn {
+        padding: 7px 16px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--card-border); background: transparent;
+        color: var(--text-2); font-size: 12.5px; transition: all 0.15s;
+    }
+    .theme-btn.on { background: var(--text-1); border-color: var(--text-1); color: var(--page-bg); font-weight: 600; }
+
+    .stack { max-width: 760px; margin: 22px auto 0; display: flex; flex-direction: column; gap: 26px; }
+    .block-head { font-size: 12px; color: var(--text-2); font-weight: 600; letter-spacing: 0.4px; margin-bottom: 10px; }
+    .block-head b { color: var(--text-1); }
+    .block-head span { font-weight: 400; letter-spacing: 0; }
+
+    /* ============================================================
+       V1 现状精修：骨架不变，工具条微分层 + 复制按钮胶囊化
+       ============================================================ */
+    .v1 .code-wrap {
+        margin: 0;
+        border: 1px solid var(--v1-wrap-border);
+        border-radius: 11px;
+        background: var(--v1-wrap-bg);
+        overflow: hidden;
+        box-shadow: var(--v1-shadow);
+        transition: border-color 0.2s;
+    }
+    .v1 .code-wrap:hover { border-color: var(--text-3); }
+    .v1 .code-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 13px;
+        font-size: 11px; font-weight: 500; color: var(--text-2);
+        background: var(--v1-head-bg);
+        border-bottom: 1px solid var(--v1-head-border);
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        letter-spacing: 0.3px;
+    }
+    .v1 .lang::before {
+        content: ''; display: inline-block; width: 6px; height: 6px;
+        border-radius: 50%; background: #40c463; margin-right: 7px;
+        vertical-align: 1px;
+    }
+    .v1 .code-actions { display: flex; gap: 6px; }
+    .v1 .pill-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px; border-radius: 999px;
+        border: 1px solid var(--v1-wrap-border);
+        background: transparent; color: var(--text-2);
+        font-size: 11px; cursor: pointer;
+        opacity: 0.55; transition: all 0.15s;
+        font-family: inherit;
+    }
+    .v1 .code-wrap:hover .pill-btn { opacity: 1; }
+    .v1 .pill-btn:hover { border-color: var(--text-3); color: var(--text-1); background: var(--v1-head-bg); }
+    .v1 .pill-btn.copied { color: #1a7f37; border-color: #1a7f37; opacity: 1; }
+
+    /* ============================================================
+       V2 GitHub 式：去阴影弱边框，头身同底仅分隔线，复制纯图标
+       ============================================================ */
+    .v2 .code-wrap {
+        margin: 0;
+        border: 1px solid var(--v2-wrap-border);
+        border-radius: 8px;
+        background: var(--v2-wrap-bg);
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .v2 .code-wrap:hover { border-color: var(--text-2); }
+    .v2 .code-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 16px;
+        background: transparent;
+        border-bottom: 1px solid var(--v2-head-border);
+    }
+    .v2 .lang {
+        font-size: 12px; color: var(--text-2);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .v2 .code-actions { display: flex; gap: 2px; }
+    .v2 .icon-btn {
+        width: 26px; height: 26px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 6px;
+        background: transparent; color: var(--text-2);
+        font-size: 12px; cursor: pointer;
+        opacity: 0; transition: all 0.15s;
+    }
+    .v2 .code-wrap:hover .icon-btn { opacity: 1; }
+    .v2 .icon-btn:hover { background: var(--v1-head-bg); color: var(--text-1); }
+    .v2 .icon-btn.copied { color: #1a7f37; opacity: 1; }
+
+    /* ============================================================
+       V3 终端窗：头部色块强分层（日间黑头反白），mac 圆点 + 居中标题
+       ============================================================ */
+    .v3 .code-wrap {
+        margin: 0;
+        border-radius: 12px;
+        background: var(--v3-wrap-bg);
+        overflow: hidden;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+    }
+    body[data-theme="light"] .v3 .code-wrap { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); }
+    .v3 .code-head {
+        display: flex; align-items: center;
+        padding: 9px 14px;
+        background: var(--v3-head-bg);
+        position: relative;
+    }
+    .v3 .dots { display: flex; gap: 6px; }
+    .v3 .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--v3-dot); }
+    .v3 .dots i:nth-child(1) { background: #ff5f57; }
+    .v3 .dots i:nth-child(2) { background: #febc2e; }
+    .v3 .dots i:nth-child(3) { background: #28c840; }
+    .v3 .lang {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        font-size: 11px; color: var(--text-2);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    body[data-theme="light"] .v3 .lang { color: rgba(255, 255, 255, 0.75); }
+    .v3 .head-slot { margin-left: auto; width: 42px; display: flex; justify-content: flex-end; }
+    .v3 .icon-btn {
+        width: 24px; height: 24px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 6px;
+        background: transparent; color: var(--text-2);
+        font-size: 12px; cursor: pointer;
+        opacity: 0; transition: all 0.15s;
+    }
+    .v3 .code-wrap:hover .icon-btn { opacity: 1; }
+    body[data-theme="light"] .v3 .icon-btn { color: rgba(255, 255, 255, 0.75); }
+    .v3 .icon-btn:hover { background: rgba(128, 128, 128, 0.18); color: var(--text-1); }
+    body[data-theme="light"] .v3 .icon-btn:hover { color: #ffffff; }
+    .v3 .icon-btn.copied { color: #3fb950; opacity: 1; }
+
+    /* ===== 共用代码正文 ===== */
+    .code-body {
+        margin: 0; padding: 12px 16px;
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 12.5px; line-height: 1.75;
+        color: var(--code-text);
+        overflow-x: auto;
+        tab-size: 4;
+    }
+    .k { color: var(--hl-key); }
+    .s { color: var(--hl-str); }
+    .n { color: var(--hl-num); }
+    .c { color: var(--hl-com); font-style: italic; }
+    .f { color: var(--hl-fn); }
+</style>
+</head>
+<body data-theme="dark">
+
+    <div class="page-head">
+        <h1>代码块（code-wrap）设计 · 深浅主题</h1>
+        <p class="page-sub">三个设计版本，右上角切换主题预览。代码高亮色随主题自动切换深浅两套（日间用 GitHub 日间语法色系）。</p>
+    </div>
+
+    <div class="theme-bar">
+        <button class="theme-btn on" data-t="dark" onclick="setTheme('dark', this)">夜间模式</button>
+        <button class="theme-btn" data-t="light" onclick="setTheme('light', this)">日间模式</button>
+    </div>
+
+    <div class="stack">
+
+        <!-- V1 -->
+        <div class="v1">
+            <div class="block-head"><b>V1 · 现状精修</b> <span>— 骨架不变：语言名前加语言色点，复制按钮胶囊化（描边药丸），hover 显形 + 描边反馈</span></div>
+            <div class="code-wrap">
+                <div class="code-head">
+                    <span class="lang">javascript</span>
+                    <span class="code-actions">
+                        <button class="pill-btn" onclick="copy(this)">⧉ 复制</button>
+                        <button class="pill-btn">↗ 预览</button>
+                    </span>
+                </div>
+                <pre class="code-body"><span class="c">// 上传附件并等待解析完成</span>
+<span class="k">async function</span> <span class="f">uploadAttachment</span>(file) {
+    <span class="k">const</span> form = <span class="k">new</span> <span class="f">FormData</span>();
+    form.<span class="f">append</span>(<span class="s">'file'</span>, file);
+    form.<span class="f">append</span>(<span class="s">'sessionId'</span>, sessionId);
+    <span class="k">const</span> res = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'/api/chat/attachments'</span>, { method: <span class="s">'POST'</span>, body: form });
+    <span class="k">return</span> res.<span class="f">json</span>();
+}</pre>
+            </div>
+        </div>
+
+        <!-- V2 -->
+        <div class="v2">
+            <div class="block-head"><b>V2 · GitHub 式</b> <span>— 去阴影、方一点（8px 圆角）、头身同底仅一条分隔线；复制退化为纯图标，hover 才出现，最安静</span></div>
+            <div class="code-wrap">
+                <div class="code-head">
+                    <span class="lang">javascript</span>
+                    <span class="code-actions">
+                        <button class="icon-btn" title="复制" onclick="copy(this)">⧉</button>
+                        <button class="icon-btn" title="预览">↗</button>
+                    </span>
+                </div>
+                <pre class="code-body"><span class="c">// 上传附件并等待解析完成</span>
+<span class="k">async function</span> <span class="f">uploadAttachment</span>(file) {
+    <span class="k">const</span> form = <span class="k">new</span> <span class="f">FormData</span>();
+    form.<span class="f">append</span>(<span class="s">'file'</span>, file);
+    form.<span class="f">append</span>(<span class="s">'sessionId'</span>, sessionId);
+    <span class="k">const</span> res = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'/api/chat/attachments'</span>, { method: <span class="s">'POST'</span>, body: form });
+    <span class="k">return</span> res.<span class="f">json</span>();
+}</pre>
+            </div>
+        </div>
+
+        <!-- V3 -->
+        <div class="v3">
+            <div class="block-head"><b>V3 · 终端窗</b> <span>— 头部色块强分层（日间为石墨黑头反白），mac 红黄绿圆点 + 居中标题，复制图标 hover 显形；装饰感最强</span></div>
+            <div class="code-wrap">
+                <div class="code-head">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="lang">javascript</span>
+                    <span class="head-slot">
+                        <button class="icon-btn" title="复制" onclick="copy(this)">⧉</button>
+                    </span>
+                </div>
+                <pre class="code-body"><span class="c">// 上传附件并等待解析完成</span>
+<span class="k">async function</span> <span class="f">uploadAttachment</span>(file) {
+    <span class="k">const</span> form = <span class="k">new</span> <span class="f">FormData</span>();
+    form.<span class="f">append</span>(<span class="s">'file'</span>, file);
+    form.<span class="f">append</span>(<span class="s">'sessionId'</span>, sessionId);
+    <span class="k">const</span> res = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'/api/chat/attachments'</span>, { method: <span class="s">'POST'</span>, body: form });
+    <span class="k">return</span> res.<span class="f">json</span>();
+}</pre>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+    function setTheme(t, btn) {
+        document.body.dataset.theme = t;
+        document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('on', b === btn));
+    }
+    function copy(btn) {
+        const old = btn.dataset.label || (btn.dataset.label = btn.textContent);
+        btn.classList.add('copied');
+        btn.textContent = btn.classList.contains('pill-btn') ? '✓ 已复制' : '✓';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.textContent = old;
+        }, 1400);
+    }
+</script>
+</body>
+</html>

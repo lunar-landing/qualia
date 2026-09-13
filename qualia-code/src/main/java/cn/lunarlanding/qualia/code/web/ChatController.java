@@ -3,7 +3,9 @@ package cn.lunarlanding.qualia.code.web;
 import com.alibaba.fastjson.JSON;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
+import cn.lunarlanding.qualia.core.model.chat.Attachment;
 import cn.lunarlanding.qualia.code.WebApplication;
+import cn.lunarlanding.qualia.code.service.AttachmentService;
 import cn.lunarlanding.qualia.code.service.ChatService;
 import cn.lunarlanding.qualia.code.service.ChatService.SessionInfo;
 import org.springframework.http.MediaType;
@@ -13,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -104,6 +107,19 @@ public class ChatController {
     }
 
     /**
+     * 重命名会话（body: {"title": "..."}，空标题恢复自动标题）
+     */
+    @PutMapping("/sessions/{sessionId}/title")
+    public ResponseEntity<Map<String, Object>> renameSession(@PathVariable String sessionId,
+                                                             @RequestBody(required = false) Map<String, String> body) {
+        if (noWorkspace()) {
+            return ResponseEntity.badRequest().build();
+        }
+        chatService().renameSession(sessionId, body != null ? body.get("title") : null);
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    /**
      * 发送消息（SSE 流式响应）- GET方式，支持EventSource
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -113,17 +129,79 @@ public class ChatController {
             @RequestParam(required = false) String model) {
 
         System.out.println("[SSE] New connection: sessionId=" + sessionId + ", message=" + message + ", model=" + model);
+        return startStream(sessionId, message, model, null);
+    }
 
+    /** 单次消息最多携带附件数 */
+    private static final int MAX_ATTACHMENTS_PER_MESSAGE = 4;
+
+    /**
+     * 发送消息（SSE 流式响应）- POST方式，支持携带附件（图片直传视觉模型，文档解析注入）
+     *
+     * <p>上传与发送解耦：前端先调 POST /api/attachments 拿回执 ID，发送时只携带 attachmentIds。
+     * body: {@code {sessionId, message, model?, attachmentIds?: [uuid]}}。</p>
+     */
+    @PostMapping(value = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamChatPost(@RequestBody Map<String, Object> body) {
+        String sessionId = body.get("sessionId") == null ? null : body.get("sessionId").toString();
+        String message = body.get("message") == null ? "" : body.get("message").toString().trim();
+        String model = body.get("model") == null ? null : body.get("model").toString();
+
+        System.out.println("[SSE] New POST connection: sessionId=" + sessionId + ", message=" + message + ", model=" + model);
+
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
+        if (sessionId == null || sessionId.isEmpty()) {
+            return failFast(emitter, "sessionId 不能为空");
+        }
+        Object rawIds = body.get("attachmentIds");
+        boolean hasIds = rawIds instanceof List<?> list && !list.isEmpty();
+        if (message.isEmpty() && !hasIds) {
+            return failFast(emitter, "消息内容与附件不能同时为空");
+        }
+        List<Attachment> attachments = loadAttachments(sessionId, rawIds);
+        if (hasIds && (attachments == null || attachments.isEmpty())) {
+            return failFast(emitter, "附件数量超出限制（最多4个）或加载失败，请重新上传");
+        }
+        return startStream(sessionId, message, model, attachments == null || attachments.isEmpty() ? null : attachments);
+    }
+
+    /**
+     * 按回执 ID 从附件仓库加载附件，还原为 core 层 Attachment。
+     * 无附件请求返回 null（走纯文本链路）；数量超限返回空列表（由调用方报错）。
+     */
+    private List<Attachment> loadAttachments(String sessionId, Object rawIds) {
+        if (!(rawIds instanceof List<?>) || ((List<?>) rawIds).isEmpty()) {
+            return null;
+        }
+        List<?> ids = (List<?>) rawIds;
+        if (ids.size() > MAX_ATTACHMENTS_PER_MESSAGE) {
+            return List.of();
+        }
+        List<String> idList = ids.stream().map(String::valueOf).collect(Collectors.toList());
+        return AttachmentService.getInstance().load(sessionId, idList);
+    }
+
+    /** 参数校验失败时推送错误并结束流 */
+    private SseEmitter failFast(SseEmitter emitter, String reason) {
+        try {
+            emitter.send(SseEmitter.event().data("发生错误: " + reason));
+        } catch (IOException ignored) {
+        }
+        emitter.complete();
+        return emitter;
+    }
+
+    /**
+     * 公共推流入口：绑定 SSE 回调、切换模型（可选）、订阅响应流并逐条推送
+     *
+     * @param attachments 随消息直传的附件列表，可为 null
+     */
+    private SseEmitter startStream(String sessionId, String message, String model, List<Attachment> attachments) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
         // 未选择工作区时直接回错（正常流程下前端强制弹窗拦截，此处为直接访问接口的兜底）
         if (noWorkspace()) {
-            try {
-                emitter.send(SseEmitter.event().data("发生错误: 尚未选择工作区"));
-            } catch (IOException ignored) {
-            }
-            emitter.complete();
-            return emitter;
+            return failFast(emitter, "尚未选择工作区");
         }
 
         // 活跃流记账：工作区切换前据此互斥，流终止（完成/出错）时销账
@@ -144,9 +222,11 @@ public class ChatController {
                 if (model != null && !model.isEmpty()) {
                     chatService().switchModel(model);
                 }
-                
-                // 使用流式方式获取AI响应
-                Flux<AgentResponse> responseFlux = chatService().sendMessageFlux(sessionId, message);
+
+                // 使用流式方式获取AI响应（带附件时走附件重载）
+                Flux<AgentResponse> responseFlux = attachments != null && !attachments.isEmpty()
+                        ? chatService().sendMessageFlux(sessionId, message, attachments)
+                        : chatService().sendMessageFlux(sessionId, message);
 
                 // 订阅流式响应并实时发送
                 responseFlux.subscribe(
@@ -192,13 +272,13 @@ public class ChatController {
                 emitter.completeWithError(e);
             }
         });
-
+    
         // 设置超时和完成回调
         emitter.onTimeout(() -> {
             System.out.println("[SSE] Timeout");
             emitter.complete();
         });
-        
+            
         return emitter;
     }
 
@@ -216,6 +296,9 @@ public class ChatController {
                     Map<String, Object> map = new java.util.HashMap<>();
                     map.put("role", msg.getRole().name().toLowerCase());
                     map.put("content", msg.getContent());
+                    if (msg.getAttachments() != null && !msg.getAttachments().isEmpty()) {
+                        map.put("attachments", msg.getAttachments());
+                    }
                     if (msg.getSteps() != null && !msg.getSteps().isEmpty()) {
                         map.put("steps", msg.getSteps());
                     }

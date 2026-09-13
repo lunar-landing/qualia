@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 输入框设计对比（5 方案）</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+        --bg-app: #080a10;
+        --bg-card: #10131c;
+        --bg-input: rgba(255, 255, 255, 0.03);
+        --bg-input-solid: #141824;
+        --bg-hover: rgba(255, 255, 255, 0.055);
+        --bubble: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --accent: #7c6cf0;
+        --accent-light: #b3a8ff;
+        --accent-gradient: linear-gradient(145deg, #7c6cf0, #5b4ad0);
+        --glow-accent: linear-gradient(120deg, #7c6cf0, #5b8def);
+        --ring: 0 0 0 3.5px rgba(124, 108, 240, 0.16);
+        --float-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+    }
+    body.light-theme {
+        --bg-app: #eef0f6;
+        --bg-card: #ffffff;
+        --bg-input: #ffffff;
+        --bg-input-solid: #ffffff;
+        --bg-hover: rgba(20, 24, 40, 0.05);
+        --bubble: #eceef5;
+        --text-primary: #232838;
+        --text-secondary: #5a6178;
+        --text-muted: #9aa1b5;
+        --border: rgba(20, 24, 40, 0.1);
+        --ring: 0 0 0 3.5px rgba(124, 108, 240, 0.14);
+        --float-shadow: 0 18px 50px rgba(30, 34, 60, 0.12);
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+
+    .topbar-fixed {
+        position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px;
+    }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--accent); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; }
+
+    /* ===== 方案区块 ===== */
+    .demo { max-width: 790px; margin: 0 auto 34px; }
+    .demo-head {
+        display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; padding-left: 4px;
+    }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: #fff;
+        background: var(--accent-gradient); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-head .style-src { font-size: 11.5px; color: var(--text-muted); }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+
+    /* 演示容器：模拟聊天区底部语境 */
+    .stage {
+        background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px;
+        padding: 18px 18px 20px;
+    }
+    .ghost-msg {
+        max-width: 690px; margin: 0 auto 12px;
+        background: var(--bubble); border-radius: 12px;
+        font-size: 12px; color: var(--text-muted); padding: 9px 14px; width: fit-content;
+    }
+    .ghost-msg.right { margin-left: auto; }
+
+    .row { display: flex; justify-content: center; }
+    .box { width: 100%; max-width: 690px; }
+
+    /* 输入框通用 */
+    textarea {
+        display: block; width: 100%; background: transparent; border: none; outline: none; resize: none;
+        color: var(--text-primary); font-size: 13.5px; line-height: 1.6; font-family: inherit;
+    }
+    textarea::placeholder { color: var(--text-muted); }
+    button { font-family: inherit; cursor: pointer; }
+    .icon { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
+
+    .spec {
+        margin-top: 11px; padding-left: 4px;
+        font-size: 10.5px; color: var(--text-muted); letter-spacing: 0.2px;
+    }
+
+    /* ============================================================
+       A · 胶囊单行（Claude 风格）
+       ============================================================ */
+    .vA {
+        display: flex; align-items: center; gap: 8px;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 999px; padding: 7px 7px 7px 20px;
+        transition: all 0.2s;
+    }
+    .vA:focus-within { border-color: rgba(124, 108, 240, 0.55); box-shadow: var(--ring); }
+    .vA textarea { flex: 1; min-height: 24px; max-height: 120px; padding: 5px 0; }
+    .vA .clip {
+        width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+        border: none; background: transparent; color: var(--text-muted);
+        display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .vA .clip:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vA .go {
+        width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; border: none;
+        background: var(--accent-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 3px 10px rgba(124, 108, 240, 0.4); transition: all 0.15s;
+    }
+    .vA .go:hover { transform: translateY(-1px); }
+
+    /* ============================================================
+       B · 经典双层卡（ChatGPT 风格，v1 优化版）
+       ============================================================ */
+    .vB {
+        background: var(--bg-input); border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+        transition: all 0.2s;
+    }
+    body.light-theme .vB { border-color: var(--border); box-shadow: 0 2px 10px rgba(30, 34, 60, 0.06); }
+    .vB:focus-within { border-color: rgba(124, 108, 240, 0.55); box-shadow: var(--ring), 0 2px 10px rgba(0, 0, 0, 0.14); }
+    .vB textarea { padding: 14px 17px 4px; min-height: 52px; max-height: 200px; }
+    .vB .bar { display: flex; align-items: center; padding: 4px 9px 9px 11px; gap: 2px; }
+    .vB .bar .tbtn {
+        width: 30px; height: 30px; border-radius: 9px; border: none; background: transparent;
+        color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .vB .bar .tbtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vB .model {
+        margin-left: auto; display: flex; align-items: center; gap: 6px;
+        font-size: 11.5px; color: var(--text-secondary); padding: 5px 10px; border-radius: 9px;
+        border: none; background: transparent; transition: all 0.15s;
+    }
+    .vB .model:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vB .model .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .vB .send {
+        width: 32px; height: 32px; border-radius: 10px; border: none; margin-left: 4px;
+        background: var(--accent-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+    }
+
+    /* ============================================================
+       C · 渐变描边（品牌科技感）
+       ============================================================ */
+    .vC { padding: 1.5px; border-radius: 21px; background: linear-gradient(120deg, rgba(124,108,240,0.55), rgba(91,141,239,0.35), rgba(124,108,240,0.2)); transition: all 0.25s; }
+    .vC:focus-within { background: var(--glow-accent); box-shadow: 0 0 0 4px rgba(124, 108, 240, 0.15), 0 8px 30px rgba(124, 108, 240, 0.18); }
+    .vC .inner { background: var(--bg-input-solid); border-radius: 19.5px; overflow: hidden; }
+    .vC textarea { padding: 14px 17px 4px; min-height: 52px; max-height: 200px; }
+    .vC .bar { display: flex; align-items: center; padding: 4px 9px 9px 11px; }
+    .vC .bar .hint-inline { font-size: 11px; color: var(--text-muted); }
+    .vC .bar .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .vC .send {
+        width: 32px; height: 32px; border-radius: 50%; border: none;
+        background: var(--accent-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .vC .clip {
+        width: 30px; height: 30px; border-radius: 9px; border: none; background: transparent;
+        color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+    }
+    .vC .clip:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vC .kbd {
+        font-size: 10px; color: var(--text-secondary); background: var(--bg-hover);
+        border-radius: 4px; padding: 1px 5px; margin-right: 8px;
+    }
+
+    /* ============================================================
+       D · 玻璃浮岛（悬浮轻盈）
+       ============================================================ */
+    .vD {
+        background: rgba(255, 255, 255, 0.045);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 24px;
+        box-shadow: var(--float-shadow);
+        transition: all 0.2s;
+    }
+    body.light-theme .vD { background: rgba(255, 255, 255, 0.75); border-color: rgba(20, 24, 40, 0.08); }
+    .vD:focus-within { border-color: rgba(124, 108, 240, 0.5); box-shadow: var(--ring), var(--float-shadow); }
+    .vD textarea { padding: 16px 19px 6px; min-height: 56px; max-height: 200px; }
+    .vD .foot {
+        display: flex; align-items: center; padding: 4px 12px 12px 14px;
+        font-size: 10.5px; color: var(--text-muted);
+    }
+    .vD .foot .tbtn {
+        width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent;
+        color: var(--text-muted); display: flex; align-items: center; justify-content: center; margin-right: 4px;
+    }
+    .vD .foot .tbtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vD .send {
+        width: 34px; height: 34px; border-radius: 50%; border: none; margin-left: auto;
+        background: var(--accent-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 12px rgba(124, 108, 240, 0.4); transition: all 0.15s;
+    }
+
+    /* ============================================================
+       E · 极客紧凑（开发者工具风格）
+       ============================================================ */
+    .vE {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 12px; padding: 8px 9px 8px 14px;
+        transition: all 0.2s;
+    }
+    .vE:focus-within { border-color: rgba(124, 108, 240, 0.5); box-shadow: var(--ring); }
+    .vE .prompt { color: var(--accent-light); font-family: Consolas, monospace; font-size: 13px; flex-shrink: 0; user-select: none; }
+    .vE textarea { flex: 1; min-height: 26px; max-height: 140px; padding: 3px 0; font-size: 13px; }
+    .vE .grp { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .vE .tbtn {
+        width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent;
+        color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+    }
+    .vE .tbtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .vE .sep { width: 1px; height: 15px; background: var(--border); margin: 0 3px; }
+    .vE .send {
+        width: 30px; height: 30px; border-radius: 8px; border: none;
+        background: var(--accent-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+    }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button onclick="document.body.classList.toggle('light-theme')">切换深 / 浅主题</button>
+</div>
+
+<h1>输入框设计 · 5 方案对比</h1>
+<p class="sub">全部保持 690px 与聊天记录齐平 · 点击输入框体验聚焦态</p>
+
+<!-- ============ A ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">A</span><span class="name">胶囊单行</span><span class="style-src">Claude 风格</span></div>
+    <div class="demo-desc">整条圆角胶囊，附件与发送内嵌行尾，视觉最轻。多行输入时自动展开为圆角大卡。</div>
+    <div class="stage">
+        <div class="ghost-msg right">帮我看看这个胶囊输入框的效果</div>
+        <div class="row"><div class="box">
+            <div class="vA">
+                <textarea rows="1" placeholder="向 Qualia Code 提问…"></textarea>
+                <button class="clip" title="发送附件"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                <button class="go" title="发送"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+        </div></div>
+        <div class="spec">radius 999px · 高度 52px 起步 · 模型选择器收敛到 hint 行或下拉菜单</div>
+    </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B</span><span class="name">经典双层卡</span><span class="style-src">ChatGPT 风格（v1 优化版）</span></div>
+    <div class="demo-desc">上输入 / 下工具行。相比 v1：圆角收敛到 16px，边框更清晰，模型选择器与发送键合并到工具行右端，取消独立 hint 行。</div>
+    <div class="stage">
+        <div class="ghost-msg right">输入框和工具行一体的感觉如何？</div>
+        <div class="row"><div class="box">
+            <div class="vB">
+                <textarea rows="1" placeholder="向 Qualia Code 提问，或描述你想写的代码…"></textarea>
+                <div class="bar">
+                    <button class="tbtn" title="发送附件"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                    <button class="model"><span class="dot"></span>DeepSeek-V3<svg class="icon" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                    <button class="send" title="发送"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                </div>
+            </div>
+        </div></div>
+        <div class="spec">radius 16px · 工具行 38px · 模型选择器内嵌 · 无独立 hint 行</div>
+    </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">C</span><span class="name">渐变描边</span><span class="style-src">品牌科技感</span></div>
+    <div class="demo-desc">1.5px 紫→蓝渐变 hairline 描边，聚焦时描边点亮 + 外光晕扩散，品牌感最强。快捷键提示内嵌工具行。</div>
+    <div class="stage">
+        <div class="ghost-msg right">描边点亮的效果很有科技感</div>
+        <div class="row"><div class="box">
+            <div class="vC">
+                <div class="inner">
+                    <textarea rows="1" placeholder="向 Qualia Code 提问，或描述你想写的代码…"></textarea>
+                    <div class="bar">
+                        <span class="hint-inline"><span class="kbd">Enter</span> 发送 · <span class="kbd">Shift+Enter</span> 换行</span>
+                        <div class="right">
+                            <button class="clip" title="发送附件"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                            <button class="send" title="发送"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div></div>
+        <div class="spec">渐变 hairline 1.5px · radius 21px · 聚焦描边点亮 + 30px 光晕 · 模型选择器建议移至 hint 区</div>
+    </div>
+</div>
+
+<!-- ============ D ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">D</span><span class="name">玻璃浮岛</span><span class="style-src">悬浮轻盈</span></div>
+    <div class="demo-desc">backdrop-blur 玻璃质感 + 大投影悬浮于内容之上，圆角 24px。状态提示与输入融为一体，整体最「轻」。</div>
+    <div class="stage">
+        <div class="ghost-msg right">悬浮的玻璃质感</div>
+        <div class="row"><div class="box">
+            <div class="vD">
+                <textarea rows="1" placeholder="向 Qualia Code 提问…"></textarea>
+                <div class="foot">
+                    <button class="tbtn" title="发送附件"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                    <span>支持 100+ 语言 · 上下文感知</span>
+                    <button class="send" title="发送"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                </div>
+            </div>
+        </div></div>
+        <div class="spec">radius 24px · blur(20px) 玻璃底 · 大投影浮岛 · hint 与工具行融合</div>
+    </div>
+</div>
+
+<!-- ============ E ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">E</span><span class="name">极客紧凑</span><span class="style-src">开发者工具风格</span></div>
+    <div class="demo-desc">命令行气质：左侧 `&gt;` 提示符，小圆角紧凑单行，图标组带分隔线。与代码产品的工具属性最贴合。</div>
+    <div class="stage">
+        <div class="ghost-msg right">像终端一样克制</div>
+        <div class="row"><div class="box">
+            <div class="vE">
+                <span class="prompt">&gt;</span>
+                <textarea rows="1" placeholder="描述你想写的代码…"></textarea>
+                <div class="grp">
+                    <button class="tbtn" title="发送附件"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                    <span class="sep"></span>
+                    <span style="font-size:11px;color:var(--text-secondary);padding:0 4px;">DeepSeek-V3</span>
+                    <span class="sep"></span>
+                    <button class="send" title="发送"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                </div>
+            </div>
+        </div></div>
+        <div class="spec">radius 12px · 单行 44px · `&gt;` 提示符 · 模型名以纯文本内嵌（下拉待展开）</div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('textarea').forEach(ta => {
+        ta.addEventListener('input', () => {
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+        });
+    });
+</script>
+</body>
+</html>

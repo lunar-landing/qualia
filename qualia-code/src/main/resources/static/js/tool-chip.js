@@ -449,7 +449,7 @@ window.ToolChip = (function () {
         color-scheme: light;
         --bg: #ffffff; --text: #1e232e; --sub: #5f6883; --muted: #8f97ae;
         --border: rgba(0, 0, 0, 0.07); --hover: rgba(0, 0, 0, 0.04);
-        --accent: #7c6cf0; --icon-bg: rgba(124, 108, 240, 0.10); --code-bg: rgba(0, 0, 0, 0.05); --scrollbar: #cbd0db;
+        --accent: #24292f; --icon-bg: rgba(31, 35, 40, 0.08); --code-bg: rgba(0, 0, 0, 0.05); --scrollbar: #c8d0d8;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { background: var(--bg); }

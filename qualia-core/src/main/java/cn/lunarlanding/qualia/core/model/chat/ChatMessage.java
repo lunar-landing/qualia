@@ -1,13 +1,21 @@
 package cn.lunarlanding.qualia.core.model.chat;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * 聊天消息类，封装角色和内容信息
+ *
+ * <p>纯文本消息使用 {@code content}；多模态消息（含图片等）使用 {@code contentParts}，
+ * 序列化时优先采用 parts 数组形态（OpenAI 规范），parts 为空时回退纯文本。</p>
  */
 public class ChatMessage {
     private String role;  // 角色：user, tool, assistant, system
     private String content;  // 消息内容
     private String reasoningContent;  // 深度思考内容
     private String toolCallId;  // 工具调用ID（tool角色必填）
+    private List<ContentPart> contentParts;  // 多模态内容块（非空时优先序列化）
 
     public ChatMessage() {}
 
@@ -64,6 +72,28 @@ public class ChatMessage {
 
     public void setToolCallId(String toolCallId) {
         this.toolCallId = toolCallId;
+    }
+
+    /**
+     * 创建携带多模态内容块的用户消息（文字 + 图片等），content 为各文字块拼接，便于记忆与日志使用
+     */
+    public static ChatMessage userWithParts(String content, ContentPart... parts) {
+        ChatMessage msg = new ChatMessage("user", content);
+        msg.contentParts = new ArrayList<>(Arrays.asList(parts));
+        return msg;
+    }
+
+    /** 是否包含多模态内容块 */
+    public boolean hasContentParts() {
+        return contentParts != null && !contentParts.isEmpty();
+    }
+
+    public List<ContentPart> getContentParts() {
+        return contentParts;
+    }
+
+    public void setContentParts(List<ContentPart> contentParts) {
+        this.contentParts = contentParts;
     }
 
     /**

@@ -60,6 +60,9 @@ public class WebApplication {
         props.put("spring.web.resources.static-locations", "classpath:/static/");
         // 静态资源声明 no-cache：浏览器每次协商校验（304），文件更新后立即生效，无需手动维护 ?v= 版本号
         props.put("spring.web.resources.cache.cachecontrol.no-cache", "true");
+        // 附件上传上限：默认仅 1MB，需覆盖业务上限（图片 5MB / 文档 20MB）；单请求单文件，请求总量留表单字段余量
+        props.put("spring.servlet.multipart.max-file-size", "20MB");
+        props.put("spring.servlet.multipart.max-request-size", "25MB");
 
         // 在新线程中启动 Spring Boot
         Thread springThread = new Thread(() -> {

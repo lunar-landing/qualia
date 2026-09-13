@@ -36,62 +36,55 @@
 
     <div class="app">
 
-        <!-- ===== TOPBAR ===== -->
-        <header class="topbar">
-            <div class="topbar-left">
-                <div class="logo">
-                    <i class="fas fa-code"></i>
-                    <span>Qualia Code</span>
-                </div>
+        <!-- ===== SIDEBAR（通顶：品牌 + 工作区 + 历史 + 设置） ===== -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <i class="fas fa-code"></i>
+                <span>Qualia Code</span>
             </div>
-            <div class="topbar-right">
-                <button class="topbar-btn mcp-badge" id="mcpBadge" title="MCP 服务器" onclick="openSettings()">
-                    <i class="fas fa-server"></i><span id="mcpBadgeCount">0</span>
-                </button>
-                <button class="topbar-btn" title="工作区" onclick="toggleStepsPanel()">
-                    <i class="fas fa-layer-group"></i>
-                </button>
-                <button class="topbar-btn" id="themeToggle" title="切换主题">
-                    <i class="fas fa-moon" id="themeIcon"></i>
+            <!-- 工作区切换入口：名称/路径由 project-panel.js 回填，流式期间置灰 -->
+            <button class="ws-switch-btn" id="wsSwitchBtn" title="切换工作区" onclick="openWorkspaceSwitcher()">
+                <span class="ws-switch-icon"><i class="fas fa-folder-tree"></i></span>
+                <span class="ws-switch-info">
+                    <span class="ws-switch-name" id="wsSwitchName">工作区</span>
+                    <span class="ws-switch-path" id="wsSwitchPath">加载中…</span>
+                </span>
+                <i class="fas fa-chevron-down ws-switch-arrow"></i>
+            </button>
+            <div class="sidebar-header">
+                <h4><i class="far fa-clock history-icon"></i>历史</h4>
+                <button title="新建会话" onclick="createSession()"><i class="fas fa-plus"></i></button>
+            </div>
+            <ul class="conversation-list">
+                <!-- 会话列表由JS动态渲染 -->
+            </ul>
+
+            <!-- 近 30 日 token 用量热力矩阵（骨架与样式由 js/token-map.js 自包含注入） -->
+            <div id="tokenHeatmap"></div>
+
+            <div class="sidebar-footer">
+                <button class="settings-btn" title="设置" onclick="openSettings()">
+                    <i class="fas fa-sliders-h"></i>
+                    <span>设置</span>
                 </button>
             </div>
-        </header>
+        </aside>
 
         <!-- ===== MAIN ===== -->
         <div class="main">
 
-            <!-- ===== SIDEBAR ===== -->
-            <aside class="sidebar">
-                <!-- 工作区切换入口：名称/路径由 project-panel.js 回填，流式期间置灰 -->
-                <button class="ws-switch-btn" id="wsSwitchBtn" title="切换工作区" onclick="openWorkspaceSwitcher()">
-                    <span class="ws-switch-icon"><i class="fas fa-folder-tree"></i></span>
-                    <span class="ws-switch-info">
-                        <span class="ws-switch-name" id="wsSwitchName">工作区</span>
-                        <span class="ws-switch-path" id="wsSwitchPath">加载中…</span>
-                    </span>
-                    <i class="fas fa-chevron-down ws-switch-arrow"></i>
-                </button>
-                <div class="sidebar-header">
-                    <h4><i class="far fa-clock history-icon"></i>历史</h4>
-                    <button title="新建会话" onclick="createSession()"><i class="fas fa-plus"></i></button>
-                </div>
-                <ul class="conversation-list">
-                    <!-- 会话列表由JS动态渲染 -->
-                </ul>
-
-                <!-- 近 30 日 token 用量热力矩阵（骨架与样式由 js/token-map.js 自包含注入） -->
-                <div id="tokenHeatmap"></div>
-
-                <div class="sidebar-footer">
-                    <button class="settings-btn" title="设置" onclick="openSettings()">
-                        <i class="fas fa-sliders-h"></i>
-                        <span>设置</span>
-                    </button>
-                </div>
-            </aside>
+            <!-- ===== 内容层：聊天区 + 工作区面板水平排列 ===== -->
+            <div class="main-content">
 
             <!-- ===== CHAT AREA ===== -->
             <section class="chat-area">
+
+                <!-- 聊天区右上角悬浮操作舱：工作区面板开关 + 主题切换 -->
+                <div class="chat-float-actions">
+                    <button class="chat-float-btn" id="wsFloatBtn" title="工作区面板" onclick="toggleStepsPanel()"><i class="fas fa-layer-group"></i></button>
+                    <span class="chat-float-sep"></span>
+                    <button class="chat-float-btn" id="themeToggle" title="切换主题"><i class="fas fa-moon" id="themeIcon"></i></button>
+                </div>
 
                 <!-- ===== MESSAGES ===== -->
                 <div class="messages" id="messageContainer">
@@ -109,25 +102,24 @@
 
                 <!-- ===== INPUT ===== -->
                 <div class="input-area">
-                    <div class="input-wrapper">
-                        <textarea id="chatInput" rows="3" placeholder="向 Qualia Code 提问，或描述你想写的代码…"></textarea>
-                        <div class="input-actions">
-                            <button title="附件"><i class="fas fa-paperclip"></i></button>
-                            <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
-                        </div>
-                    </div>
-                    <div class="input-hint">
-                        <span>Qualia Code 支持 100+ 语言 · 上下文感知</span>
-                        <span class="keys">
-                            <div class="model-selector" id="modelSelector">
-                                <span class="model-icon"></span>
-                                <span class="model-name" id="modelName">加载中...</span>
-                                <i class="fas fa-chevron-down model-arrow"></i>
-                                <div class="model-dropdown" id="modelDropdown">
-                                    <!-- 动态生成 -->
+                    <div class="input-hold">
+                        <div class="image-preview" id="imagePreview"></div>
+                        <div class="input-wrapper">
+                            <textarea id="chatInput" rows="1" placeholder="向 Qualia Code 提问，或描述你想写的代码…"></textarea>
+                            <div class="input-tools">
+                                <button class="tool-btn" title="发送附件：图片 / PDF / Word / 文本（支持粘贴截图）" id="attachBtn"><i class="fas fa-paperclip"></i></button>
+                                <div class="model-selector" id="modelSelector">
+                                    <span class="model-icon"></span>
+                                    <span class="model-name" id="modelName">加载中...</span>
+                                    <i class="fas fa-chevron-down model-arrow"></i>
+                                    <div class="model-dropdown" id="modelDropdown">
+                                        <!-- 动态生成 -->
+                                    </div>
                                 </div>
+                                <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
                             </div>
-                        </span>
+                            <input type="file" id="attachmentInput" accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.docx,.txt,.md,.markdown,.csv,.json,.xml,.yml,.yaml,.log,.properties,.sql,.html,.js,.ts,.java,.py,.go,.c,.cpp,.h,.sh,.bat" multiple hidden>
+                        </div>
                     </div>
                 </div>
 
@@ -171,10 +163,20 @@
                     <iframe class="ws-preview-frame" id="htmlPreviewFrame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" style="display:none"></iframe>
                 </div>
             </aside>
+            </div>
         </div>
     </div>
 
     <!-- 设置弹窗由 js/settings.js 自创建并挂载到 body -->
+
+    <!-- 图片灯箱：点击消息内图片全屏预览（置于主脚本前，确保脚本执行时已存在） -->
+    <div class="lightbox" id="lightbox"><img alt=""></div>
+
+    <!-- 会话右键菜单：重命名 / 删除（置于主脚本前，确保脚本执行时已存在） -->
+    <div class="session-menu" id="sessionMenu">
+        <button data-act="rename"><i class="fas fa-pen"></i>重命名</button>
+        <button data-act="delete" class="danger"><i class="fas fa-trash-can"></i>删除</button>
+    </div>
 
     <script>
         (function() {
@@ -220,6 +222,11 @@
             
             // ===== 工作区面板（文件 + 终端）=====
             // 挂到 window 上供内联 onclick 调用
+            // 同步右上角工作区开关的点亮态（面板可见即激活）
+            function syncWsFloatActive() {
+                const panel = document.getElementById('stepsPanel');
+                document.getElementById('wsFloatBtn')?.classList.toggle('active', !panel.classList.contains('collapsed'));
+            }
             window.toggleStepsPanel = function() {
                 const panel = document.getElementById('stepsPanel');
                 // 关闭时立即清理放大态（不播还原动画，避免与折叠动画打架）
@@ -231,6 +238,7 @@
                     btn.querySelector('i').className = 'fas fa-up-right-and-down-left-from-center';
                 }
                 panel.classList.toggle('collapsed');
+                syncWsFloatActive();
             };
 
             // 放大：面板转为覆盖层从右向左平滑铺开盖住聊天区（侧边栏保留），再次点击反向滑回。
@@ -280,6 +288,7 @@
                 onOpen: () => {
                     const panel = document.getElementById('stepsPanel');
                     panel.classList.remove('collapsed');
+                    syncWsFloatActive();
                     if (window.wsApplyWidth && panel.getBoundingClientRect().width < 576) {
                         window.wsApplyWidth(612);
                     }
@@ -296,7 +305,7 @@
                 }
             }
 
-            // 工作区宽度：默认 540px（CSS 控制）；左边缘拖拽调整，252px ~ 视口余宽，仅当前会话生效，刷新后恢复默认
+            // 工作区宽度：默认 630px（CSS 控制）；左边缘拖拽调整，252px ~ 视口余宽，仅当前会话生效，刷新后恢复默认
             (function initWsResize() {
                 const panel = document.getElementById('stepsPanel');
                 const resizer = document.getElementById('wsResizer');
@@ -526,9 +535,7 @@
                 ChangesPanel.openFile(item ? item.dataset.path : '');
             });
 
-            // ===== 主题切换 =====
-            const themeToggle = document.getElementById('themeToggle');
-            const themeIcon = document.getElementById('themeIcon');
+            // ===== 主题切换（按钮位于设置弹窗标题栏，由 settings.js 动态挂载，事件用委托绑定避免时序依赖） =====
             const HLJS_THEMES = {
                 dark: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css',
                 light: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css'
@@ -548,12 +555,14 @@
                 + '</svg>';
 
             function setThemeIcon(isLight) {
+                const icon = document.getElementById('themeIcon');
+                if (!icon) return;
                 if (isLight) {
-                    themeIcon.className = '';
-                    themeIcon.innerHTML = SUN_SVG;
+                    icon.className = '';
+                    icon.innerHTML = SUN_SVG;
                 } else {
-                    themeIcon.innerHTML = '';
-                    themeIcon.className = 'fas fa-moon';
+                    icon.innerHTML = '';
+                    icon.className = 'fas fa-moon';
                 }
             }
 
@@ -570,38 +579,25 @@
                 }
             }
 
+            // 事件委托绑定主题按钮
+            document.addEventListener('click', (e) => {
+                if (e.target.closest && e.target.closest('#themeToggle')) toggleTheme();
+            });
+
             const savedTheme = localStorage.getItem('codex-theme');
             if (savedTheme === 'light') {
                 document.body.classList.add('light-theme');
-                setThemeIcon(true);
                 applyHljsTheme(true);
+                setThemeIcon(true);
             }
-            themeToggle.addEventListener('click', toggleTheme);
 
             // ===== 初始化 =====
             document.addEventListener('DOMContentLoaded', () => {
                 loadSessions();
                 TokenHeatmap.init(document.getElementById('tokenHeatmap'));
                 checkModelConfigured();
-                loadMcpBadge();
                 initModelSelector();
             });
-
-            // 顶栏 MCP 徽章：展示已配置的 MCP 服务器数量，点击打开设置（保存后由 settings.js 回调刷新）
-            window.loadMcpBadge = async function() {
-                const badge = document.getElementById('mcpBadge');
-                try {
-                    const res = await fetch('/api/config/mcp');
-                    if (!res.ok) return;
-                    const servers = await res.json();
-                    const count = Array.isArray(servers) ? servers.length : 0;
-                    document.getElementById('mcpBadgeCount').textContent = count;
-                    badge.title = count > 0 ? `已配置 ${count} 个 MCP 服务器` : '未配置 MCP 服务器';
-                    badge.classList.add('show');
-                } catch (e) {
-                    badge.classList.remove('show');
-                }
-            }
 
             // 未配置模型时自动打开设置面板引导用户先完成配置；
             // 但若尚未选择工作区，工作区强制弹窗优先，设置引导顺延到选完工作区重载后
@@ -727,7 +723,6 @@
                 const list = document.querySelector('.conversation-list');
                 let lastGroup = null;
                 list.innerHTML = sessions.map(session => {
-                    const msgCount = session.messages ? session.messages.length : 0;
                     const group = sessionGroupLabel(session.createdAt);
                     const state = sessionStates.get(session.id);
                     const streaming = state && state.isProcessing;
@@ -738,14 +733,8 @@
                     }
                     return `${groupHtml}
                     <li data-id="${session.id}" class="${session.id === currentSessionId ? 'active' : ''}${streaming ? ' streaming' : ''}">
-                        ${streaming ? '<span class="streaming-dot" title="生成中"></span>' : '<i class="far fa-comment-dots"></i>'}
+                        ${streaming ? '<span class="streaming-dot" title="生成中"></span>' : '<i class="far fa-comment"></i>'}
                         <span class="session-title">${escapeHtml(session.title)}</span>
-                        <span class="session-actions">
-                            ${msgCount > 0 ? `<span class="badge">${msgCount}</span>` : ''}
-                            <button class="delete-session" onclick="event.stopPropagation(); deleteSession('${session.id}')">
-                                <i class="fas fa-times delete-icon"></i>
-                            </button>
-                        </span>
                     </li>`;
                 }).join('');
 
@@ -755,6 +744,86 @@
                         const id = this.dataset.id;
                         selectSession(id);
                     });
+                    item.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        openSessionMenu(e, this.dataset.id);
+                    });
+                });
+            }
+
+            // ===== 会话右键菜单：重命名 / 删除 =====
+            const sessionMenu = document.getElementById('sessionMenu');
+            let menuSessionId = null;
+
+            function openSessionMenu(e, sessionId) {
+                menuSessionId = sessionId;
+                const mw = 140, mh = 84;
+                let x = e.clientX, y = e.clientY;
+                if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
+                if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
+                sessionMenu.style.left = x + 'px';
+                sessionMenu.style.top = y + 'px';
+                sessionMenu.classList.add('open');
+            }
+
+            function closeSessionMenu() {
+                sessionMenu.classList.remove('open');
+                menuSessionId = null;
+            }
+
+            sessionMenu.addEventListener('click', function(e) {
+                const btn = e.target.closest('button');
+                if (!btn || !menuSessionId) return;
+                const act = btn.dataset.act;
+                const id = menuSessionId;
+                closeSessionMenu();
+                if (act === 'rename') startRenameSession(id);
+                if (act === 'delete') window.deleteSession(id);
+            });
+
+            // 点击其他区域 / 滚动 / Esc 关闭菜单
+            document.addEventListener('click', closeSessionMenu);
+            document.addEventListener('scroll', closeSessionMenu, true);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeSessionMenu();
+            });
+
+            // ===== 会话行内重命名 =====
+            function startRenameSession(sessionId) {
+                const titleEl = document.querySelector(`.conversation-list li[data-id="${sessionId}"] .session-title`);
+                if (!titleEl) return;
+                const session = sessions.find(s => s.id === sessionId);
+                const current = session ? session.title : '';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'session-rename';
+                input.value = current;
+                input.maxLength = 50;
+                titleEl.replaceWith(input);
+                input.focus();
+                input.select();
+                let done = false;
+                input.addEventListener('keydown', function(ev) {
+                    ev.stopPropagation();
+                    if (ev.key === 'Enter') input.blur();
+                    if (ev.key === 'Escape') { input.value = current; input.blur(); }
+                });
+                input.addEventListener('click', function(ev) { ev.stopPropagation(); });
+                input.addEventListener('blur', async function() {
+                    if (done) return;
+                    done = true;
+                    const title = input.value.trim();
+                    if (title && title !== current) {
+                        try {
+                            await fetch(`/api/chat/sessions/${sessionId}/title`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ title: title })
+                            });
+                            if (session) session.title = title;
+                        } catch (err) { /* 保存失败静默，重渲染回退原标题 */ }
+                    }
+                    renderSessionList();
                 });
             }
 
@@ -954,8 +1023,8 @@
                         finalizeActivity(actEl);
                         setActivityAnswer(actEl, msg.content);
                     } else {
-                        // 显示最终内容，传递消息ID
-                        appendMessage(msg.role, msg.content, msgId);
+                        // 显示最终内容，传递消息ID与附件引用元数据
+                        appendMessage(msg.role, msg.content, msgId, msg.attachments);
                     }
                 });
                 
@@ -966,7 +1035,48 @@
                 scrollToBottom();
             }
 
-            function appendMessage(role, content, msgId) {
+            /**
+             * 文档方形卡片（气泡附件组与上传预览条同构）：类型图标居中 + 信息牌。
+             * sizeBytes 为 null 时（历史引用不含大小）不显示大小。
+             */
+            function docCardHtml(name, sizeBytes) {
+                const meta = docIconMeta(name);
+                const sizeLabel = sizeBytes != null ? ' · ' + formatBytes(sizeBytes) : '';
+                return `<div class="attach-card doc"><div class="doc-body"><i class="fas ${meta.icon} ${meta.cls}"></i></div><div class="doc-foot"><div class="n" title="${escapeHtml(name)}">${escapeHtml(name)}</div><div class="s">${meta.ext}${sizeLabel}</div></div></div>`;
+            }
+
+            /**
+             * 附件卡片组（气泡外下方，与上传预览条同构）。
+             * refs: [{name, type, url?, size?}]，type 兼容大小写（IMAGE/image）；
+             * url 缺省（历史消息）按附件名走会话回显接口。
+             */
+            function buildAttachRow(refs) {
+                if (!refs || !refs.length) return null;
+                const row = document.createElement('div');
+                row.className = 'msg-attach';
+                refs.forEach(function(ref) {
+                    const name = ref.name;
+                    const type = (ref.type || '').toUpperCase();
+                    if (type === 'IMAGE') {
+                        const url = ref.url || `/api/attachments/${currentSessionId}/file/` + encodeURIComponent(name);
+                        const im = document.createElement('img');
+                        im.className = 'history-image';
+                        im.src = url;
+                        im.alt = '🖼 ' + name;
+                        im.loading = 'lazy';
+                        // 源文件缺失时呈占位框而非破图
+                        im.onerror = function() { im.classList.add('broken'); };
+                        row.appendChild(im);
+                    } else {
+                        const tmp = document.createElement('div');
+                        tmp.innerHTML = docCardHtml(name, ref.size != null ? ref.size : null);
+                        row.appendChild(tmp.firstElementChild);
+                    }
+                });
+                return row;
+            }
+
+            function appendMessage(role, content, msgId, attachments) {
                 removeWelcomeHero();
                 const now = new Date();
                 const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
@@ -976,15 +1086,27 @@
                 msgEl.className = `msg ${role === 'user' ? 'user' : 'codex'}`;
                 if (msgId) msgEl.dataset.msgId = msgId;
                 
-                // AI消息使用markdown渲染，用户消息使用纯文本
-                const renderedContent = role === 'user' ? escapeHtml(content) : renderMarkdown(content);
-                
-                msgEl.innerHTML = `
-                    <div>
-                        <div class="bubble">${renderedContent}</div>
-                        <div class="time">${timeStr}</div>
-                    </div>
-                `;
+                if (role === 'user') {
+                    // 用户消息：纯文本气泡 + 附件卡片组在气泡外下方（由 attachments 引用元数据驱动）
+                    msgEl.innerHTML = `
+                        <div>
+                            <div class="bubble">${escapeHtml(content)}</div>
+                            <div class="time">${timeStr}</div>
+                        </div>
+                    `;
+                    const attachRow = buildAttachRow(attachments);
+                    if (attachRow) {
+                        const timeEl = msgEl.querySelector('.time');
+                        timeEl.parentElement.insertBefore(attachRow, timeEl);
+                    }
+                } else {
+                    msgEl.innerHTML = `
+                        <div>
+                            <div class="bubble">${renderMarkdown(content)}</div>
+                            <div class="time">${timeStr}</div>
+                        </div>
+                    `;
+                }
 
                 if (role !== 'user') enhanceCodeBlocks(msgEl);
                 
@@ -1062,11 +1184,12 @@
                     wrap.className = 'code-wrap';
                     wrap.innerHTML = `
                         <div class="code-head">
-                            <span>${escapeHtml(lang)}</span>
-                            <div class="code-actions">
+                            <span class="dots"><i></i><i></i><i></i></span>
+                            <span class="code-lang">${escapeHtml(lang)}</span>
+                            <span class="head-slot">
                                 ${canPreview ? '<button class="code-preview" title="预览"><i class="far fa-eye"></i></button>' : ''}
                                 <button class="code-copy" title="复制代码"><i class="far fa-copy"></i></button>
-                            </div>
+                            </span>
                         </div>
                     `;
                     pre.parentNode.insertBefore(wrap, pre);
@@ -1146,11 +1269,11 @@
 
             // ===== 自动调整输入框高度 =====
             function autoResize(textarea) {
-                // 空值直接回基准高（3 行 = 80px）：空 textarea 的 scrollHeight 会算入 placeholder 折行高度
-                if (!textarea.value) { textarea.style.height = '80px'; return; }
+                // 空值直接回基准高（单行 52px）：空 textarea 的 scrollHeight 会算入 placeholder 折行高度
+                if (!textarea.value) { textarea.style.height = '52px'; return; }
                 // 先压回基准高再测量，避免 flex 容器中 height:auto 测量不稳
-                textarea.style.height = '80px';
-                textarea.style.height = Math.max(80, Math.min(textarea.scrollHeight, 200)) + 'px';
+                textarea.style.height = '52px';
+                textarea.style.height = Math.max(52, Math.min(textarea.scrollHeight, 200)) + 'px';
             }
 
             input.addEventListener('input', function() {
@@ -1167,14 +1290,13 @@
                 // 流式期间工作区切换入口同步置灰（后端切换接口另有 BUSY 兜底）
                 const wsBtn = document.getElementById('wsSwitchBtn');
                 if (wsBtn) wsBtn.classList.toggle('disabled', stop);
-                const hint = document.querySelector('.input-hint > span:first-child');
-                if (hint) {
-                    if (stop) {
-                        if (!hint.dataset.orig) hint.dataset.orig = hint.textContent;
-                        hint.textContent = '生成中，点击红色按钮停止（仅断开前端，后端任务继续）';
-                    } else if (hint.dataset.orig) {
-                        hint.textContent = hint.dataset.orig;
-                    }
+                // hint 行已并入工具行，停止提示改由输入框 placeholder 承载
+                const PH = '向 Qualia Code 提问，或描述你想写的代码…';
+                if (stop) {
+                    if (!input.dataset.origPh) input.dataset.origPh = PH;
+                    input.placeholder = '生成中，点击红色按钮停止（仅断开前端，后端任务继续）';
+                } else {
+                    input.placeholder = input.dataset.origPh || PH;
                 }
             }
 
@@ -1183,6 +1305,7 @@
                 if (!currentSessionId) return;
                 const state = getSessionState(currentSessionId);
                 if (state.eventSource) state.eventSource.close();
+                if (state.abortController) state.abortController.abort();
                 if (state.activityEl) finalizeActivity(state.activityEl);
                 state.isProcessing = false;
                 state.eventSource = null;
@@ -1192,79 +1315,147 @@
                 renderSessionList();
             };
 
-            async function sendMessage() {
-                const text = input.value.trim();
-                if (!text) return;
-                const curState = currentSessionId ? getSessionState(currentSessionId) : null;
-                if (curState && curState.isProcessing) return;
+            // ===== 统一附件（图片直传视觉模型 / 文档解析注入），上传换回执，发送只带 ID =====
+            const MAX_ATTACHMENTS = 4;
+            const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+            const MAX_DOC_BYTES = 20 * 1024 * 1024;
+            const attachBtn = document.getElementById('attachBtn');
+            const attachmentInput = document.getElementById('attachmentInput');
+            const imagePreview = document.getElementById('imagePreview');
+            let pendingAttachments = []; // 上传回执 {id, name, type, size, objectUrl?}
 
-                if (!currentSessionId) {
-                    await createSession();
+            function formatBytes(bytes) {
+                if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+                if (bytes >= 1024) return Math.round(bytes / 1024) + 'KB';
+                return bytes + 'B';
+            }
+
+            /** 按扩展名返回文档类型图标与配色（预览条、气泡 chip、历史标签共用） */
+            function docIconMeta(name) {
+                const ext = (name && name.indexOf('.') >= 0 ? name.split('.').pop() : '').toLowerCase();
+                if (ext === 'pdf') return { icon: 'fa-file-pdf', cls: 'icon-pdf', ext: 'PDF' };
+                if (ext === 'docx') return { icon: 'fa-file-word', cls: 'icon-word', ext: 'WORD' };
+                if (ext === 'csv' || ext === 'xlsx') return { icon: 'fa-file-excel', cls: 'icon-excel', ext: ext.toUpperCase() };
+                return { icon: 'fa-file-lines', cls: 'icon-text', ext: ext ? ext.toUpperCase() : 'TXT' };
+            }
+
+            function renderAttachmentPreview() {
+                imagePreview.innerHTML = '';
+                imagePreview.style.display = pendingAttachments.length ? 'flex' : 'none';
+                pendingAttachments.forEach(function(att, idx) {
+                    const item = document.createElement('div');
+                    item.className = 'preview-item' + (att.type === 'document' ? ' doc' : '');
+                    if (att.type === 'image') {
+                        item.innerHTML = `<img src="${att.objectUrl}" alt=""><button class="preview-remove" title="移除"><i class="fas fa-times"></i></button>`;
+                    } else {
+                        // 文档卡片与图片同规格：类型大图标居中 + 底部信息牌（文件名 / 类型 · 大小）
+                        const meta = docIconMeta(att.name);
+                        item.innerHTML = `<div class="doc-body"><i class="fas ${meta.icon} ${meta.cls}"></i></div><div class="doc-foot"><div class="n" title="${escapeHtml(att.name)}">${escapeHtml(att.name)}</div><div class="s">${meta.ext} · ${formatBytes(att.size)}</div></div><button class="preview-remove" title="移除"><i class="fas fa-times"></i></button>`;
+                    }
+                    item.querySelector('.preview-remove').addEventListener('click', function() {
+                        if (att.objectUrl) URL.revokeObjectURL(att.objectUrl);
+                        pendingAttachments.splice(idx, 1);
+                        renderAttachmentPreview();
+                    });
+                    imagePreview.appendChild(item);
+                });
+            }
+
+            async function addAttachmentFiles(files) {
+                for (const file of files) {
+                    if (pendingAttachments.length >= MAX_ATTACHMENTS) {
+                        alert('一次最多携带 4 个附件');
+                        break;
+                    }
+                    const isImage = file.type && file.type.indexOf('image/') === 0;
+                    if (isImage && file.size > MAX_IMAGE_BYTES) {
+                        alert(`图片 ${file.name} 超过 5MB 限制，未添加`);
+                        continue;
+                    }
+                    if (!isImage && file.size > MAX_DOC_BYTES) {
+                        alert(`文件 ${file.name} 超过 20MB 限制，未添加`);
+                        continue;
+                    }
+                    if (!currentSessionId) {
+                        await createSession();
+                    }
+                    const fd = new FormData();
+                    fd.append('sessionId', currentSessionId);
+                    fd.append('file', file, file.name || '粘贴图片.png');
+                    try {
+                        const resp = await fetch('/api/attachments', { method: 'POST', body: fd });
+                        if (!resp.ok) {
+                            alert(`附件 ${file.name} 上传失败（${resp.status}），未添加`);
+                            continue;
+                        }
+                        const receipt = await resp.json();
+                        if (receipt.status !== 'ready') {
+                            alert(`附件 ${file.name} 解析失败：${receipt.error || '未知原因'}`);
+                            continue;
+                        }
+                        const att = { id: receipt.id, name: receipt.name, type: receipt.type, size: file.size };
+                        if (receipt.type === 'image') att.objectUrl = URL.createObjectURL(file);
+                        pendingAttachments.push(att);
+                        renderAttachmentPreview();
+                    } catch (err) {
+                        alert(`附件 ${file.name} 上传失败：${err.message}`);
+                    }
+                }
+            }
+
+            attachBtn.addEventListener('click', function() { attachmentInput.click(); });
+            attachmentInput.addEventListener('change', function() {
+                addAttachmentFiles(attachmentInput.files);
+                attachmentInput.value = '';
+            });
+
+            // 支持直接粘贴截图
+            input.addEventListener('paste', function(e) {
+                const items = e.clipboardData && e.clipboardData.items;
+                if (!items) return;
+                const files = [];
+                for (const item of items) {
+                    if (item.type && item.type.indexOf('image/') === 0) {
+                        const file = item.getAsFile();
+                        if (file) files.push(file);
+                    }
+                }
+                if (files.length) {
+                    e.preventDefault();
+                    addAttachmentFiles(files);
+                }
+            });
+
+            // ===== 流式事件处理（EventSource 与 POST fetch 共用） =====
+            // 返回 true 表示流结束（收到 [DONE]）
+            function handleStreamEvent(raw, sid, state) {
+                if (raw === '[DONE]') {
+                    console.log('SSE stream done');
+                    if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+                    if (state.activityEl) finalizeActivity(state.activityEl);
+                    state.isProcessing = false;
+                    state.abortController = null;
+                    // 仅当前会话才更新 UI 状态
+                    if (sid === currentSessionId) {
+                        typing.style.display = 'none';
+                        setSendBtnStop(false);
+                    }
+                    clearTransientBadges();
+                    renderSessionList();
+                    return true;
                 }
 
-                const sid = currentSessionId;
-                const state = getSessionState(sid);
-
-                input.value = '';
-                autoResize(input);
-                state.isProcessing = true;
-                setSendBtnStop(true);
-
-                // 重置本轮状态
-                state.steps = [];
-                state.msgSteps = [];
-                state.fullAnswer = '';
-                state.activityEl = null;
-                state.plainBubble = false;
-                state.msgId = `msg-${Date.now()}`;
-                state.userMessage = text;
-
-                // 清空终端面板和上一轮的进行中徽标，变更面板开启新对话轮分组
-                renderTerminal([]);
-                clearTransientBadges();
-                ChangesPanel.beginGroup(text);
-                
-                appendMessage('user', text);
-                scrollToBottom();
-
-                // 显示typing indicator（首个 step 到达后由思考状态条接管）
-                typing.style.display = 'flex';
-
                 try {
-                    // 获取选择的模型
-                    const modelParam = currentSelectedModel ? `&model=${encodeURIComponent(currentSelectedModel)}` : '';
-                    
-                    // 使用EventSource进行SSE连接
-                    const url = `/api/chat/stream?sessionId=${encodeURIComponent(sid)}&message=${encodeURIComponent(text)}${modelParam}`;
-                    console.log('Connecting to SSE:', url);
-                    const eventSource = new EventSource(url);
-                    state.eventSource = eventSource;
+                    const data = JSON.parse(raw);
 
-                    eventSource.onopen = function() {
-                        console.log('SSE connection opened');
-                    };
+                    if (data.error) {
+                        // 后端推流中的错误：直接作为回复展示
+                        console.error('Stream error:', data.error);
+                        handleStreamError(sid, state, data.error);
+                        return false;
+                    }
 
-                    eventSource.onmessage = function(event) {
-                        if (event.data === '[DONE]') {
-                            console.log('SSE stream done');
-                            eventSource.close();
-                            if (state.activityEl) finalizeActivity(state.activityEl);
-                            state.isProcessing = false;
-                            state.eventSource = null;
-                            // 仅当前会话才更新 UI 状态
-                            if (sid === currentSessionId) {
-                                typing.style.display = 'none';
-                                setSendBtnStop(false);
-                            }
-                            clearTransientBadges();
-                            renderSessionList();
-                            return;
-                        }
-
-                        try {
-                            const data = JSON.parse(event.data);
-                            
-                            if (data.responseType === 'answer' && data.answer) {
+                    if (data.responseType === 'answer' && data.answer) {
                                 // 最终答案：写入活动容器同列；无步骤时走普通气泡
                                 state.fullAnswer = data.answer;
                                 // 当前可见会话才操作 DOM
@@ -1292,51 +1483,185 @@
                                     messageStepsMap.set(state.msgId, state.msgSteps);
                                 }
                                 if (sid === currentSessionId) scrollToBottom();
-                            } else if (data.responseType === 'step' && data.steps && data.steps.length > 0) {
-                                // 步骤到达：驱动聊天流内联活动容器
-                                const step = data.steps[0];
-                                if (!state.activityEl) {
-                                    if (sid === currentSessionId) {
-                                        typing.style.display = 'none';
-                                        state.activityEl = createActivityMsg(state.msgId);
-                                    }
-                                }
-                                state.msgSteps.push(step);
-                                state.steps.push(step);
-                                if (state.activityEl && sid === currentSessionId) {
-                                    applyStepToActivity(state.activityEl, step, state.msgSteps.length - 1, state.msgSteps, true);
-                                    updateTreeActivity(step);
-                                    if (ChangesPanel.record(step)) notifyChangesTab();
-                                    renderTerminal(state.steps);
-                                    scrollToBottom();
-                                }
+                                return false;
+                    } else if (data.responseType === 'step' && data.steps && data.steps.length > 0) {
+                        // 步骤到达：驱动聊天流内联活动容器
+                        const step = data.steps[0];
+                        if (!state.activityEl) {
+                            if (sid === currentSessionId) {
+                                typing.style.display = 'none';
+                                state.activityEl = createActivityMsg(state.msgId);
                             }
-                        } catch (e) {
-                            console.error('Parse error:', e, event.data);
                         }
-                    };
+                        state.msgSteps.push(step);
+                        state.steps.push(step);
+                        if (state.activityEl && sid === currentSessionId) {
+                            applyStepToActivity(state.activityEl, step, state.msgSteps.length - 1, state.msgSteps, true);
+                            updateTreeActivity(step);
+                            if (ChangesPanel.record(step)) notifyChangesTab();
+                            renderTerminal(state.steps);
+                            scrollToBottom();
+                        }
+                        return false;
+                    }
+                } catch (e) {
+                    // 非JSON负载：后端参数校验失败的纯文本错误直接展示
+                    if (raw && raw.indexOf('发生错误') === 0) {
+                        handleStreamError(sid, state, raw);
+                    } else {
+                        console.error('Parse error:', e, raw);
+                    }
+                }
+                return false;
+            }
 
-                    eventSource.onerror = function(error) {
-                        console.error('SSE error:', error);
-                        eventSource.close();
-                        if (state.activityEl && !state.plainBubble) finalizeActivity(state.activityEl);
-                        if (!state.fullAnswer && !state.activityEl && sid === currentSessionId) {
-                            appendMessage('assistant', '连接失败，请重试');
-                        }
-                        state.isProcessing = false;
-                        state.eventSource = null;
-                        if (sid === currentSessionId) {
-                            typing.style.display = 'none';
-                            setSendBtnStop(false);
-                        }
-                        clearTransientBadges();
-                        renderSessionList();
-                    };
-                } catch (error) {
-                    appendMessage('assistant', '发送失败: ' + error.message);
-                    state.isProcessing = false;
+            function handleStreamError(sid, state, fallbackMsg) {
+                if (state.eventSource) { state.eventSource.close(); state.eventSource = null; }
+                if (state.abortController) { try { state.abortController.abort(); } catch (e) { /* ignore */ } state.abortController = null; }
+                if (state.activityEl && !state.plainBubble) finalizeActivity(state.activityEl);
+                if (!state.fullAnswer && !state.activityEl && sid === currentSessionId) {
+                    appendMessage('assistant', fallbackMsg || '连接失败，请重试');
+                }
+                state.isProcessing = false;
+                if (sid === currentSessionId) {
                     typing.style.display = 'none';
                     setSendBtnStop(false);
+                }
+                clearTransientBadges();
+                renderSessionList();
+            }
+
+            // POST JSON + fetch 流式读取（带图消息走此通道，base64 过大不适合 GET 查询参数）
+            async function streamChatPost(body, signal, sid, state) {
+                const resp = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal
+                });
+                if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buf = '';
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, {stream: true});
+                    let idx;
+                    while ((idx = buf.indexOf('\n\n')) !== -1) {
+                        const rawEvent = buf.slice(0, idx);
+                        buf = buf.slice(idx + 2);
+                        let finished = false;
+                        for (const line of rawEvent.split('\n')) {
+                            if (line.startsWith('data:') && handleStreamEvent(line.slice(5).trim(), sid, state)) {
+                                finished = true;
+                            }
+                        }
+                        if (finished) {
+                            try { await reader.cancel(); } catch (e) { /* ignore */ }
+                            return;
+                        }
+                    }
+                }
+            }
+
+            async function sendMessage() {
+                const text = input.value.trim();
+                const attachments = pendingAttachments.slice();
+                if (!text && attachments.length === 0) return;
+                const curState = currentSessionId ? getSessionState(currentSessionId) : null;
+                if (curState && curState.isProcessing) return;
+
+                if (!currentSessionId) {
+                    await createSession();
+                }
+
+                const sid = currentSessionId;
+                const state = getSessionState(sid);
+
+                input.value = '';
+                autoResize(input);
+                pendingAttachments = [];
+                renderAttachmentPreview();
+                state.isProcessing = true;
+                setSendBtnStop(true);
+
+                // 重置本轮状态
+                state.steps = [];
+                state.msgSteps = [];
+                state.fullAnswer = '';
+                state.activityEl = null;
+                state.plainBubble = false;
+                state.msgId = `msg-${Date.now()}`;
+                state.userMessage = text;
+
+                // 清空终端面板和上一轮的进行中徽标，变更面板开启新对话轮分组
+                renderTerminal([]);
+                clearTransientBadges();
+                ChangesPanel.beginGroup(text || (attachments.length ? attachments[0].name : ''));
+
+                const userMsgEl = appendMessage('user', text);
+                if (attachments.length) {
+                    // 实时附件组：与历史渲染同构（气泡外下方 80×80 方形卡片网格）
+                    const refs = attachments.map(function(att) {
+                        return { name: att.name, type: att.type, url: att.objectUrl, size: att.size };
+                    });
+                    const attachRow = buildAttachRow(refs);
+                    const timeEl = userMsgEl.querySelector('.time');
+                    timeEl.parentElement.insertBefore(attachRow, timeEl);
+                }
+                scrollToBottom();
+
+                // 显示typing indicator（首个 step 到达后由思考状态条接管）
+                typing.style.display = 'flex';
+
+                try {
+                    // 获取选择的模型
+                    const modelParam = currentSelectedModel ? `&model=${encodeURIComponent(currentSelectedModel)}` : '';
+
+                    if (attachments.length) {
+                        // 带附件：POST JSON + fetch 流式读取（回执 ID 轻量，也可走 GET，但统一 POST 处理）
+                        const controller = new AbortController();
+                        state.abortController = controller;
+                        const body = {
+                            sessionId: sid,
+                            message: text,
+                            attachmentIds: attachments.map(function(att) { return att.id; })
+                        };
+                        if (currentSelectedModel) body.model = currentSelectedModel;
+                        await streamChatPost(body, controller.signal, sid, state);
+                    } else {
+                        // 纯文本：EventSource SSE
+                        const url = `/api/chat/stream?sessionId=${encodeURIComponent(sid)}&message=${encodeURIComponent(text)}${modelParam}`;
+                        console.log('Connecting to SSE:', url);
+                        const eventSource = new EventSource(url);
+                        state.eventSource = eventSource;
+
+                        eventSource.onopen = function() {
+                            console.log('SSE connection opened');
+                        };
+
+                        eventSource.onmessage = function(event) {
+                            handleStreamEvent(event.data, sid, state);
+                        };
+
+                        eventSource.onerror = function(error) {
+                            console.error('SSE error:', error);
+                            handleStreamError(sid, state, null);
+                        };
+                    }
+                } catch (error) {
+                    if (error && error.name === 'AbortError') {
+                        // 用户主动停止，无需提示
+                    } else {
+                        appendMessage('assistant', '发送失败: ' + error.message);
+                    }
+                    if (state.activityEl && !state.plainBubble) finalizeActivity(state.activityEl);
+                    state.isProcessing = false;
+                    state.abortController = null;
+                    typing.style.display = 'none';
+                    setSendBtnStop(false);
+                    clearTransientBadges();
                     renderSessionList();
                 }
             }
@@ -1370,14 +1695,27 @@
 
             setTimeout(scrollToBottom, 50);
 
-            // ===== 新建对话 =====
-            document.querySelector('.topbar-btn[title="新建对话"]')?.addEventListener('click', function() {
-                createSession();
-            });
-
             // ===== 刷新文件树 =====
             document.querySelector('.workspace-header button')?.addEventListener('click', function() {
                 loadFileTree();
+            });
+
+            // ===== 图片灯箱：点击消息内图片（实时/历史）全屏预览，点击任意处或 Esc 关闭 =====
+            const lightbox = document.getElementById('lightbox');
+            function closeLightbox() {
+                lightbox.classList.remove('open');
+                lightbox.querySelector('img').src = '';
+            }
+            container.addEventListener('click', function(e) {
+                const img = e.target.closest('.msg-attach img, .history-image');
+                if (img && !img.classList.contains('broken')) {
+                    lightbox.querySelector('img').src = img.src;
+                    lightbox.classList.add('open');
+                }
+            });
+            lightbox.addEventListener('click', closeLightbox);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
             });
 
             console.log('🧠 Qualia Code UI 已启动');

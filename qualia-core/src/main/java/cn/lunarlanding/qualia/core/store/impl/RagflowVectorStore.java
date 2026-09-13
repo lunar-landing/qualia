@@ -3,7 +3,7 @@ package cn.lunarlanding.qualia.core.store.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import cn.lunarlanding.qualia.core.retrieval.parser.Document;
+import cn.lunarlanding.qualia.core.parser.Document;
 import cn.lunarlanding.qualia.core.retrieval.RetrievalResult;
 import cn.lunarlanding.qualia.core.store.VectorStore;
 import org.slf4j.Logger;

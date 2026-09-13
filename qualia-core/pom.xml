@@ -105,11 +105,26 @@
             <version>1.8.1</version>
         </dependency>
 
-        <!-- Apache Commons IO -->
+        <!-- Apache Commons IO（需不低于 2.16.0：POI 5.3.0 代码使用了 BoundedInputStream.builder()，
+             但其自身声明 2.15.1，低于 2.16.0 时运行时抛 NoSuchMethodError） -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.15.1</version>
+            <version>2.16.1</version>
+        </dependency>
+
+        <!-- Apache PDFBox for PDF text extraction -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
+        <!-- Apache POI for Word (.docx) text extraction -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
         </dependency>
 
         <!-- MCP SDK -->

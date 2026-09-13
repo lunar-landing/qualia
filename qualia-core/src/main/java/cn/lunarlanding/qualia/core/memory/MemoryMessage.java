@@ -33,6 +33,7 @@ public class MemoryMessage {
     private Integer totalTokens;      // 总 token 数
     private Long durationMs;          // 响应耗时（毫秒）
     private String feedback;          // 用户反馈：up-赞，down-踩，NULL-未反馈
+    private List<AttachmentRef> attachments; // 随消息发送的附件引用元数据（仅USER角色，内容不入记忆）
     private long createdAt;
     private int sequence;             // 会话内顺序号
 
@@ -171,5 +172,13 @@ public class MemoryMessage {
 
     public void setFeedback(String feedback) {
         this.feedback = feedback;
+    }
+
+    public List<AttachmentRef> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<AttachmentRef> attachments) {
+        this.attachments = attachments;
     }
 }

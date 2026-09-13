@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 冷雾蓝日间主题细化（4 变体）</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #10131c; color: #e4e9f2;
+        padding: 36px 20px 80px;
+    }
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: #8f97ae; margin-bottom: 34px; }
+
+    .demo { max-width: 900px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; padding: 0 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: #fff;
+        background: linear-gradient(145deg, #7c6cf0, #5b4ad0); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-head .style-src { font-size: 11.5px; color: #6b7288; }
+    .demo-desc { font-size: 11.5px; color: #8f97ae; margin-bottom: 12px; padding: 0 4px; line-height: 1.7; }
+    .demo-desc em { color: #b3a8ff; font-style: normal; font-weight: 600; }
+
+    /* ===== mini app 骨架 ===== */
+    .app {
+        display: flex; height: 500px;
+        border-radius: 16px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 18px 50px rgba(0,0,0,0.4);
+        font-size: 13px;
+    }
+    .side {
+        width: 208px; flex-shrink: 0;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-color);
+        padding: 14px 10px; display: flex; flex-direction: column; gap: 6px;
+        color: var(--text-primary);
+    }
+    .side.shadowed { box-shadow: 4px 0 18px var(--side-shadow); z-index: 2; border-right: none; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; padding: 2px 6px 8px; }
+    .brand i {
+        width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
+        background: var(--brand-gradient);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-style: normal; font-size: 11px; color: #fff;
+    }
+    .side-item { padding: 7px 10px; border-radius: 8px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .side-item.on { background: var(--bg-active); color: var(--text-primary); }
+    .side-foot { margin-top: auto; padding: 7px 10px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); display: flex; gap: 7px; align-items: center; }
+
+    .chat {
+        flex: 1; min-width: 0; display: flex; flex-direction: column;
+        background: var(--bg-app); position: relative; color: var(--text-primary);
+    }
+    .float {
+        position: absolute; top: 10px; right: 12px; z-index: 5;
+        display: flex; flex-direction: column; gap: 2px; padding: 3px;
+        background: var(--float-bg); border: 1px solid var(--border-color);
+        border-radius: 12px; box-shadow: 0 5px 16px var(--float-shadow);
+    }
+    .float b {
+        width: 26px; height: 26px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 400; color: var(--text-secondary); font-style: normal;
+    }
+
+    .msgs { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 30px 20px 8px; overflow: hidden; }
+    .msg { width: 100%; max-width: 560px; display: flex; gap: 10px; }
+    .msg.u { flex-direction: row-reverse; }
+    .av {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-style: normal; color: #fff;
+        background: var(--brand-gradient);
+    }
+    .av.hu { background: var(--bg-avatar); color: var(--text-secondary); }
+    .bub {
+        padding: 10px 14px; border-radius: 13px; font-size: 12.5px; line-height: 1.6;
+        border: 1px solid var(--bub-border); max-width: 100%;
+        background: var(--bg-bubble-ai);
+        box-shadow: var(--bub-shadow);
+    }
+    .msg.u .bub { background: var(--bg-bubble-user); border-top-right-radius: 4px; }
+    .msg.a .bub { border-top-left-radius: 4px; }
+    .bub code { background: var(--bg-inline-code); border-radius: 4px; padding: 1px 5px; font-size: 11px; color: var(--accent); }
+
+    .inzone { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 4px 20px 13px; }
+    .inbox {
+        width: 100%; max-width: 560px;
+        background: var(--bg-input); border: 1px solid var(--border-color);
+        border-radius: 15px; box-shadow: var(--input-shadow);
+        display: flex; flex-direction: column;
+    }
+    .inbox .ta { padding: 12px 15px 3px; font-size: 12.5px; color: var(--text-muted); }
+    .inbox .bar { display: flex; align-items: center; padding: 4px 8px 8px 10px; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+    .inbox .bar .ic { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-style: normal; }
+    .inbox .bar .model { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .inbox .bar .model .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .inbox .bar .send {
+        width: 28px; height: 28px; border-radius: 9px; border: none;
+        background: var(--brand-gradient); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+
+    .vars {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding: 0 4px;
+        font-size: 10.5px; color: #8f97ae;
+    }
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 7px; padding: 3px 8px;
+    }
+    .chip i { width: 11px; height: 11px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15); }
+
+    /* ============================================================
+       B1 · 雾蓝标准：B 方向的均衡收敛版
+       ============================================================ */
+    .thB1 {
+        --bg-app: #edf1f7;
+        --bg-sidebar: #e2e9f3;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: rgba(79, 116, 240, 0.10);
+        --bg-inline-code: rgba(79, 116, 240, 0.08);
+        --bg-active: rgba(79, 116, 240, 0.1);
+        --bg-avatar: #ccd6e6;
+        --border-color: rgba(45, 65, 105, 0.11);
+        --bub-border: rgba(45, 65, 105, 0.11);
+        --bub-shadow: none;
+        --text-primary: #1b2434;
+        --text-secondary: #57627a;
+        --text-muted: #8b98b0;
+        --accent: #4f74f0;
+        --brand-gradient: linear-gradient(145deg, #5b7cfa, #3d5bd8);
+        --input-shadow: 0 3px 14px rgba(45, 65, 105, 0.08);
+        --float-bg: rgba(255, 255, 255, 0.78);
+        --float-shadow: rgba(45, 65, 105, 0.14);
+        --side-shadow: transparent;
+    }
+
+    /* ============================================================
+       B2 · 靛蓝浸染：tint 更重，气泡带蓝底不纯白
+       ============================================================ */
+    .thB2 {
+        --bg-app: #e3eaf5;
+        --bg-sidebar: #d5dfef;
+        --bg-bubble-ai: #f7f9fd;
+        --bg-input: #fbfcfe;
+        --bg-bubble-user: rgba(67, 105, 235, 0.13);
+        --bg-inline-code: rgba(67, 105, 235, 0.1);
+        --bg-active: rgba(67, 105, 235, 0.13);
+        --bg-avatar: #c0cde2;
+        --border-color: rgba(50, 75, 130, 0.14);
+        --bub-border: rgba(50, 75, 130, 0.12);
+        --bub-shadow: none;
+        --text-primary: #182136;
+        --text-secondary: #4e5b76;
+        --text-muted: #8290ab;
+        --accent: #3d63e8;
+        --brand-gradient: linear-gradient(145deg, #4a6ef5, #2f4fcf);
+        --input-shadow: 0 3px 14px rgba(50, 75, 130, 0.1);
+        --float-bg: rgba(251, 252, 254, 0.8);
+        --float-shadow: rgba(50, 75, 130, 0.18);
+        --side-shadow: transparent;
+    }
+
+    /* ============================================================
+       B3 · 白卡浮岛：层次靠投影不靠 tint，侧边栏带右投影
+       ============================================================ */
+    .thB3 {
+        --bg-app: #e9eef6;
+        --bg-sidebar: #f2f5fa;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: rgba(91, 116, 245, 0.09);
+        --bg-inline-code: rgba(91, 116, 245, 0.08);
+        --bg-active: rgba(91, 116, 245, 0.1);
+        --bg-avatar: #cdd6e5;
+        --border-color: rgba(45, 65, 105, 0.09);
+        --bub-border: rgba(45, 65, 105, 0.07);
+        --bub-shadow: 0 2px 8px rgba(45, 65, 105, 0.07);
+        --text-primary: #1c2434;
+        --text-secondary: #57627a;
+        --text-muted: #8b98b0;
+        --accent: #4f74f0;
+        --brand-gradient: linear-gradient(145deg, #5b7cfa, #3d5bd8);
+        --input-shadow: 0 6px 22px rgba(45, 65, 105, 0.12);
+        --float-bg: rgba(255, 255, 255, 0.85);
+        --float-shadow: rgba(45, 65, 105, 0.16);
+        --side-shadow: rgba(45, 65, 105, 0.1);
+    }
+
+    /* ============================================================
+       B4 · 近白靛简：基底近白只留一丝蓝，层次靠深靛 accent 与重文字
+       ============================================================ */
+    .thB4 {
+        --bg-app: #f4f6fb;
+        --bg-sidebar: #eaedf5;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: rgba(61, 86, 192, 0.09);
+        --bg-inline-code: rgba(61, 86, 192, 0.07);
+        --bg-active: rgba(61, 86, 192, 0.1);
+        --bg-avatar: #d3d9e8;
+        --border-color: rgba(40, 55, 100, 0.1);
+        --bub-border: rgba(40, 55, 100, 0.1);
+        --bub-shadow: none;
+        --text-primary: #171e30;
+        --text-secondary: #4d5872;
+        --text-muted: #8792ab;
+        --accent: #3d56c0;
+        --brand-gradient: linear-gradient(145deg, #4660d8, #2e42a8);
+        --input-shadow: 0 3px 14px rgba(40, 55, 100, 0.07);
+        --float-bg: rgba(255, 255, 255, 0.8);
+        --float-shadow: rgba(40, 55, 100, 0.13);
+        --side-shadow: transparent;
+    }
+</style>
+</head>
+<body>
+
+<h1>冷雾蓝日间主题 · 4 变体细化</h1>
+<p class="sub">在选定的冷雾蓝方向上，从 tint 浓度 / 层次策略 / accent 色相三个维度细化</p>
+
+<!-- ============ B1 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B1</span><span class="name">雾蓝标准</span><span class="style-src">原 B 方向的均衡收敛版</span></div>
+    <div class="demo-desc">基底蓝味收敛到 <em>#edf1f7</em>（比原 #eef2f8 更干净），侧边栏深一档保留方向层次，气泡纯白。最稳妥的默认选择。</div>
+    <div class="app thB1">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">冷雾蓝细化验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">收敛之后的蓝味是不是更干净了？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">是。基底蓝味压到 4% 左右，白气泡和输入卡浮在上面，层次靠侧边栏深一档，<code>代码高亮</code>用蓝紫。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#edf1f7"></i>app #edf1f7</span>
+        <span class="chip"><i style="background:#e2e9f3"></i>sidebar #e2e9f3</span>
+        <span class="chip"><i style="background:#4f74f0"></i>accent #4f74f0</span>
+        <span class="chip">气泡纯白 · 层次=侧栏深一档</span>
+    </div>
+</div>
+
+<!-- ============ B2 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B2</span><span class="name">靛蓝浸染</span><span class="style-src">tint 加重</span></div>
+    <div class="demo-desc">蓝味拉满：<em>基底 #e3eaf5</em>、侧边栏 #d5dfef、AI 气泡也带蓝底不纯白。整个界面泡在蓝里，氛围感最强。</div>
+    <div class="app thB2">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">冷雾蓝细化验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">整片蓝感是不是有点重？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">重但统一——连 AI 气泡都是 <code>#f7f9fd</code> 蓝白，整个界面像浸在靛蓝里，不会有任何「白块」突兀感。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#e3eaf5"></i>app #e3eaf5</span>
+        <span class="chip"><i style="background:#d5dfef"></i>sidebar #d5dfef</span>
+        <span class="chip"><i style="background:#3d63e8"></i>accent #3d63e8</span>
+        <span class="chip">气泡带蓝底 · tint 全局加重</span>
+    </div>
+</div>
+
+<!-- ============ B3 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B3</span><span class="name">白卡浮岛</span><span class="style-src">层次靠投影</span></div>
+    <div class="demo-desc">侧边栏反过来比内容区<em>浅一档</em>并带右投影；气泡、输入框都是白卡 + 明显投影悬浮。Light Notion 风，空间感最强。</div>
+    <div class="app thB3">
+        <aside class="side shadowed">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">冷雾蓝细化验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">投影代替边框的层次？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">对——白卡 + 柔投影悬浮在蓝灰底上，边框退到几乎不可见。侧边栏投影把它「推」到内容层之上。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#e9eef6"></i>app #e9eef6</span>
+        <span class="chip"><i style="background:#f2f5fa"></i>sidebar 浅一档+投影</span>
+        <span class="chip"><i style="background:#4f74f0"></i>accent #4f74f0</span>
+        <span class="chip">白卡+投影 · 边框弱化</span>
+    </div>
+</div>
+
+<!-- ============ B4 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B4</span><span class="name">近白靛简</span><span class="style-src">极简克制</span></div>
+    <div class="demo-desc">基底近乎白（<em>#f4f6fb</em> 只留一丝蓝），层次全靠深靛 accent（#3d56c0）与加重的一级文字对比。适合觉得 B 还是太「蓝」的场景。</div>
+    <div class="app thB4">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">冷雾蓝细化验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">这版还有「蓝」的感觉吗？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">只剩底色里一丝冷调。蓝的感知主要来自 <code>accent #3d56c0</code> 和状态点、发送钮这些小面积元素，克制但依然冷雾蓝。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#f4f6fb"></i>app #f4f6fb</span>
+        <span class="chip"><i style="background:#eaedf5"></i>sidebar #eaedf5</span>
+        <span class="chip"><i style="background:#3d56c0"></i>accent 深靛 #3d56c0</span>
+        <span class="chip">近白基底 · 重文字对比</span>
+    </div>
+</div>
+
+</body>
+</html>

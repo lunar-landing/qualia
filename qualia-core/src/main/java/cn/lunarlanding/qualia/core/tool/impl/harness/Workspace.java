@@ -51,10 +51,11 @@ public interface Workspace {
     }
     
     /**
-     * 获取 Memory 目录（.qualia/memory）
+     * 获取会话数据目录（.qualia/sessions，每个会话一个以会话 id 命名的子目录：
+     * session.json 聊天记录 / summaries.json 压缩摘要 / files/ 上传附件）
      */
     default Path getMemoryDir() {
-        return getConfigDir().resolve("memory");
+        return getConfigDir().resolve("sessions");
     }
     
     /**

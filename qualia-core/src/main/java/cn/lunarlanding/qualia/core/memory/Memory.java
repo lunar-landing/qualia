@@ -14,10 +14,11 @@ public interface Memory {
     /**
      * 添加用户消息
      *
-     * @param sessionId 会话ID
-     * @param content   用户输入内容
+     * @param sessionId   会话ID
+     * @param content     纯文本内容（附件占位符不混入，附件以引用元数据单独存储）
+     * @param attachments 随消息发送的附件引用元数据（名称+类型），可为 null
      */
-    void addUserMessage(String sessionId, String content);
+    void addUserMessage(String sessionId, String content, List<AttachmentRef> attachments);
 
     /**
      * 添加AI回复（包含思考步骤）

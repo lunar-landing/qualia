@@ -1,6 +1,6 @@
 package cn.lunarlanding.qualia.core.store.impl;
 
-import cn.lunarlanding.qualia.core.retrieval.parser.Document;
+import cn.lunarlanding.qualia.core.parser.Document;
 import cn.lunarlanding.qualia.core.retrieval.RetrievalResult;
 import cn.lunarlanding.qualia.core.store.VectorStore;
 

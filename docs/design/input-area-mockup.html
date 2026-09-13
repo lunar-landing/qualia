@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 输入框重设计 Mockup</title>
+<style>
+    /* ============================================================
+       Qualia Code 聊天输入框重设计
+       核心改动：输入框不再通栏，max-width 690px 与聊天记录（.msg）齐平居中；
+       结构改为「上输入 / 下工具行」，模型选择器从 hint 行归位到工具行。
+       ============================================================ */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+        /* 深色（产品默认） */
+        --bg-app: #080a10;
+        --bg-chat: rgba(0, 0, 0, 0.1);
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-input: rgba(255, 255, 255, 0.03);
+        --bg-hover: rgba(255, 255, 255, 0.055);
+        --bubble-user: rgba(124, 108, 240, 0.18);
+        --bubble-ai: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.06);
+        --accent: #7c6cf0;
+        --accent-light: #b3a8ff;
+        --accent-gradient: linear-gradient(145deg, #7c6cf0, #5b4ad0);
+        --input-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        --focus-ring: 0 0 0 3.5px rgba(124, 108, 240, 0.16), 0 8px 28px rgba(124, 108, 240, 0.13);
+        --card: #10131c;
+    }
+    body.light-theme {
+        --bg-app: #eef0f6;
+        --bg-chat: #f7f8fc;
+        --bg-sidebar: rgba(255, 255, 255, 0.65);
+        --bg-input: #ffffff;
+        --bg-hover: rgba(20, 24, 40, 0.05);
+        --bubble-user: rgba(124, 108, 240, 0.12);
+        --bubble-ai: #ffffff;
+        --text-primary: #232838;
+        --text-secondary: #5a6178;
+        --text-muted: #9aa1b5;
+        --border: rgba(20, 24, 40, 0.09);
+        --input-shadow: 0 6px 24px rgba(30, 34, 60, 0.08);
+        --focus-ring: 0 0 0 3.5px rgba(124, 108, 240, 0.14), 0 8px 28px rgba(124, 108, 240, 0.12);
+        --card: #ffffff;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app);
+        color: var(--text-primary);
+        min-height: 100vh;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    /* ===== mockup 工具条 ===== */
+    .mock-bar {
+        position: fixed; top: 14px; right: 16px; z-index: 99;
+        display: flex; gap: 8px;
+    }
+    .mock-bar button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer;
+        border-radius: 9px; border: 1px solid var(--border);
+        background: var(--card); color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+    .mock-bar button:hover { color: var(--text-primary); border-color: var(--accent); }
+
+    /* ===== 应用框架（示意） ===== */
+    .app { display: flex; height: 100vh; }
+
+    .sidebar {
+        width: 232px; flex-shrink: 0;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border);
+        padding: 16px 12px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; padding: 4px 6px 10px; }
+    .brand i {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-gradient);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-style: normal; font-size: 12px; color: #fff;
+    }
+    .side-item {
+        padding: 8px 11px; border-radius: 9px; font-size: 12.5px;
+        color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .side-item.active { background: var(--bg-hover); color: var(--text-primary); }
+
+    .chat {
+        flex: 1; min-width: 0; display: flex; flex-direction: column;
+        background: var(--bg-chat);
+    }
+
+    /* ===== 聊天记录：690px 居中窄栏（与生产一致） ===== */
+    .thread {
+        flex: 1; overflow-y: auto;
+        display: flex; flex-direction: column; align-items: center;
+        gap: 22px; padding: 28px 24px 10px;
+    }
+    .msg { width: 100%; max-width: 690px; display: flex; gap: 12px; }
+    .msg.user { flex-direction: row-reverse; }
+    .avatar {
+        width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-style: normal; color: #fff;
+    }
+    .avatar.ai { background: linear-gradient(145deg, #6c5ce7, #4a3db8); }
+    .avatar.hu { background: #3a4155; }
+    .bubble {
+        padding: 12px 16px; border-radius: 14px; font-size: 13.5px; line-height: 1.65;
+        max-width: 100%; border: 1px solid var(--border);
+    }
+    .msg.ai .bubble { background: var(--bubble-ai); border-top-left-radius: 5px; }
+    .msg.user .bubble { background: var(--bubble-user); border-top-right-radius: 5px; }
+
+    /* ============================================================
+       ★ 新输入框设计（本次重点）
+       - max-width 690px，与 .msg 齐平居中
+       - 大圆角 22px 卡片，上输入 / 下工具行
+       - 聚焦：紫色描边 + 柔和 ring 光晕（:focus-within）
+       ============================================================ */
+    .composer-zone {
+        flex-shrink: 0;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 6px 24px 14px;
+        position: relative;
+    }
+    /* 顶部渐隐过渡（替代原 border-top 硬分割） */
+    .composer-zone::before {
+        content: ''; position: absolute; top: -34px; left: 0; right: 0; height: 34px;
+        background: linear-gradient(to bottom, transparent, var(--bg-chat));
+        pointer-events: none;
+    }
+
+    .composer {
+        width: 100%; max-width: 690px;               /* ★ 与聊天记录齐平 */
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        box-shadow: var(--input-shadow);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .composer:focus-within {
+        border-color: rgba(124, 108, 240, 0.55);
+        box-shadow: var(--focus-ring);
+    }
+
+    .composer textarea {
+        display: block; width: 100%;
+        background: transparent; border: none; outline: none; resize: none;
+        color: var(--text-primary); font-size: 13.5px; line-height: 1.6;
+        font-family: inherit;
+        padding: 15px 18px 6px;
+        min-height: 54px; max-height: 200px;
+    }
+    .composer textarea::placeholder { color: var(--text-muted); }
+
+    /* 工具行：左功能按钮 / 右 模型 + 发送 */
+    .composer-tools {
+        display: flex; align-items: center; gap: 4px;
+        padding: 6px 10px 10px 12px;
+    }
+    .tool-btn {
+        width: 31px; height: 31px; border-radius: 10px;
+        background: transparent; border: none; cursor: pointer;
+        color: var(--text-muted); font-size: 13px;
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+    }
+    .tool-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tool-divider { width: 1px; height: 16px; background: var(--border); margin: 0 5px; }
+
+    .model-pill {
+        margin-left: auto;
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 6px 11px; border-radius: 10px; cursor: pointer;
+        font-size: 12px; color: var(--text-secondary);
+        border: 1px solid transparent;
+        transition: all 0.15s;
+    }
+    .model-pill:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .model-pill .dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--accent); box-shadow: 0 0 6px rgba(124, 108, 240, 0.8);
+    }
+
+    .send-btn {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: none; cursor: pointer; margin-left: 6px;
+        background: var(--accent-gradient); color: #fff; font-size: 13px;
+        display: inline-flex; align-items: center; justify-content: center;
+        box-shadow: 0 3px 10px rgba(124, 108, 240, 0.4);
+        transition: all 0.15s;
+    }
+    .send-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(124, 108, 240, 0.5); }
+    .send-btn:disabled { background: var(--bg-hover); color: var(--text-muted); box-shadow: none; transform: none; cursor: default; }
+
+    /* 附件预览条：浮于输入框上方，同宽对齐 */
+    .attach-strip {
+        width: 100%; max-width: 690px;
+        display: flex; gap: 8px; margin-bottom: 9px; padding: 0 2px;
+    }
+    .attach-card {
+        width: 112px; height: 112px; border-radius: 14px; overflow: hidden;
+        background: var(--bg-input); border: 1px solid var(--border);
+        display: flex; flex-direction: column;
+    }
+    .attach-card .thumb {
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 26px; font-style: normal;
+    }
+    .attach-card .meta {
+        padding: 5px 8px 7px; font-size: 10px; color: var(--text-secondary);
+        border-top: 1px solid var(--border);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .attach-card .meta small { display: block; color: var(--text-muted); font-size: 9px; margin-top: 1px; }
+    .attach-card img.thumb { width: 100%; height: 100%; object-fit: cover; }
+
+    /* hint 行：弱化、同宽 */
+    .composer-hint {
+        width: 100%; max-width: 690px;
+        display: flex; justify-content: space-between;
+        font-size: 11px; color: var(--text-muted);
+        padding: 7px 6px 0;
+    }
+    kbd {
+        font-family: inherit; font-size: 10px; color: var(--text-secondary);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 4px; padding: 1px 5px;
+    }
+
+    /* ===== 设计说明卡 ===== */
+    .notes {
+        position: fixed; left: 16px; bottom: 16px; z-index: 99;
+        width: 268px; padding: 14px 16px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+        font-size: 11.5px; line-height: 1.75; color: var(--text-secondary);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .notes b { color: var(--text-primary); font-size: 12px; display: block; margin-bottom: 5px; }
+    .notes em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+    <button onclick="document.body.classList.toggle('light-theme')">切换深 / 浅主题</button>
+</div>
+
+<div class="app">
+    <!-- 侧边栏（示意） -->
+    <aside class="sidebar">
+        <div class="brand"><i>Q</i> Qualia Code</div>
+        <div class="side-item active">输入框重设计验证</div>
+        <div class="side-item">附件功能联调会话</div>
+        <div class="side-item">占位符架构讨论</div>
+    </aside>
+
+    <!-- 聊天区 -->
+    <main class="chat">
+        <div class="thread">
+            <div class="msg user">
+                <i class="avatar hu">我</i>
+                <div class="bubble">帮我看看这个输入框和聊天记录的对齐效果，宽度是不是齐平的？</div>
+            </div>
+            <div class="msg ai">
+                <i class="avatar ai">Q</i>
+                <div class="bubble">是的——输入框 max-width 690px，与消息卡片同一约束、同一居中轴，两侧完全齐平。</div>
+            </div>
+            <div class="msg user">
+                <i class="avatar hu">我</i>
+                <div class="bubble">聚焦的时候要有光晕反馈。</div>
+            </div>
+            <div class="msg ai">
+                <i class="avatar ai">Q</i>
+                <div class="bubble">点击下方输入框试试：紫色描边 + 柔和 ring 会同时出现，失焦平滑回落。</div>
+            </div>
+        </div>
+
+        <!-- ===== 输入区 ===== -->
+        <div class="composer-zone">
+
+            <!-- 附件预览条（有附件时出现，与输入框同宽） -->
+            <div class="attach-strip">
+                <div class="attach-card">
+                    <i class="thumb">🖼</i>
+                    <div class="meta">screenshot.png<small>PNG · 248 KB</small></div>
+                </div>
+                <div class="attach-card">
+                    <i class="thumb">📄</i>
+                    <div class="meta">季度报告.docx<small>DOCX · 1.2 MB</small></div>
+                </div>
+            </div>
+
+            <!-- ★ 新输入框 -->
+            <div class="composer">
+                <textarea rows="1" placeholder="向 Qualia Code 提问，或描述你想写的代码…">试试聚焦我 → 紫色描边和光晕</textarea>
+                <div class="composer-tools">
+                    <button class="tool-btn" title="发送附件：图片 / PDF / Word / 文本">📎</button>
+                    <span class="tool-divider"></span>
+                    <div class="model-pill">
+                        <span class="dot"></span>
+                        <span>DeepSeek-V3</span>
+                        <span>▾</span>
+                    </div>
+                    <button class="send-btn">↑</button>
+                </div>
+            </div>
+
+            <div class="composer-hint">
+                <span>支持 100+ 语言 · 上下文感知</span>
+                <span><kbd>Enter</kbd> 发送 · <kbd>Shift+Enter</kbd> 换行</span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 设计说明 -->
+<div class="notes">
+    <b>输入框重设计 · 关键参数</b>
+    <em>690px</em>　与 .msg 同宽同轴，不再通栏<br>
+    <em>22px</em>　外圆角大卡片，弱化边框存在感<br>
+    <em>上输入 / 下工具行</em>　模型选择器归位到框内右侧<br>
+    <em>focus-within</em>　紫描边 + 3.5px ring 光晕<br>
+    <em>渐隐过渡</em>　去掉 border-top 硬分割线<br>
+    <em>附件条</em>　112px 方卡，与输入框同宽对齐
+</div>
+
+<script>
+    // textarea 自适应高度（示意生产行为）
+    const ta = document.querySelector('.composer textarea');
+    ta.addEventListener('input', () => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+    });
+</script>
+</body>
+</html>

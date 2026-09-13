@@ -5,7 +5,6 @@
  *   1. 居中弹窗承载全局配置（~/.qualia/qualia-code.json），与工作区无关
  *   2. 「模型配置」「MCP 服务器」「技能」「工具」四个 Tab；技能 Tab 只读展示 ~/.qualia/skills 下的全局技能
  *   3. 模型 Tab 为预览卡片网格，点击卡片进入编辑弹窗；弹窗内保存写回草稿，持久化由「保存配置」完成
- *   4. 保存成功后回调 window.loadMcpBadge 同步顶栏 MCP 数量
  *
  * 对外 API：
  *   window.openSettings()   打开弹窗（首次打开时拉取配置）
@@ -341,7 +340,7 @@
             transition: opacity 0.18s ease;
         }
         body.light-theme .mc-actions {
-            background: rgba(238, 241, 245, 0.62);
+            background: rgba(246, 248, 250, 0.62);
         }
         .model-card:hover .mc-actions {
             opacity: 1;
@@ -718,6 +717,9 @@
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(124, 108, 240, 0.15);
         }
+        body.light-theme .med-field input:focus {
+            box-shadow: 0 0 0 3px rgba(31, 35, 40, 0.1);
+        }
         .med-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -888,7 +890,7 @@
             bottom: 0;
             background-color: var(--text-muted);
             transition: background-color 0.2s;
-            border-radius: 4px;
+            border-radius: 8px;
         }
         .toggle-slider:before {
             position: absolute;
@@ -899,10 +901,11 @@
             bottom: 2px;
             background-color: var(--white);
             transition: transform 0.2s;
-            border-radius: 3px;
+            border-radius: 6px;
         }
+        /* 亮绿选中态：深浅主题统一，不做深绿 */
         .toggle-switch input:checked + .toggle-slider {
-            background-color: var(--accent);
+            background-color: #3fb950;
         }
         .toggle-switch input:checked + .toggle-slider:before {
             transform: translateX(18px);
@@ -1512,7 +1515,6 @@
             btn.disabled = false;
             btn.textContent = '保存配置';
             if (result.success) {
-                if (window.loadMcpBadge) window.loadMcpBadge(); // 同步顶栏 MCP 数量
                 if (window.refreshModelSelector) window.refreshModelSelector(); // 同步输入区模型下拉
                 closeSettings();
                 load(); // 重新拉取，下次打开时 apiKey 回显为掩码

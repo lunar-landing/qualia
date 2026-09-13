@@ -6,6 +6,7 @@ Qualia Core 是一个轻量级、模块化的 Java 框架，用于构建基于�
 
 - **ReAct 智能体** - 基于反应式思维链的智能体实现
 - **多模型支持** - 统一接口适配 DashScope、OpenAI 等模型服务
+- **多模态输入** - 符合 OpenAI 规范的 image_url 内容块，支持图片直传视觉模型
 - **工具系统** - 注解驱动的工具注册与 MCP 协议集成
 - **记忆管理** - 会话级消息存储与上下文管理
 - **RAG 检索** - 向量存储、文档解析与重排序能力
@@ -23,8 +24,8 @@ Qualia Core 是一个轻量级、模块化的 Java 框架，用于构建基于�
 
 | 类 | 说明 |
 |---|------|
-| `Agent` | 智能体接口，定义 `call()` 和 `callStream()` 方法 |
-| `ReActAgent` | ReAct 智能体实现，支持工具调用、记忆管理和流式输出 |
+| `Agent` | 智能体接口，定义 `call()` 和 `callStream()` 方法（含图片入参重载） |
+| `ReActAgent` | ReAct 智能体实现，支持工具调用、记忆管理、流式输出和多模态图片输入 |
 | `AgentResponse` | 智能体响应封装，包含步骤、答案、Token 用量等 |
 | `AgentStep` | 单个执行步骤（思考/行动/观察/回答） |
 
@@ -35,7 +36,9 @@ Qualia Core 是一个轻量级、模块化的 Java 框架，用于构建基于�
 | 接口/类 | 说明 |
 |---------|------|
 | `ChatModel` | 聊天模型接口，支持同步和流式调用 |
-| `ChatMessage` | 消息对象（system/user/assistant/tool） |
+| `ChatMessage` | 消息对象（system/user/assistant/tool），支持多模态内容块 |
+| `ContentPart` | 多模态内容块（text / image_url），符合 OpenAI Chat Completions 规范 |
+| `ChatImage` | 图片入参载体（文件名 + data URL），作为智能体层图片入参 |
 | `ChatResponse` | 模型响应，包含 choices 和 usage |
 | `DashscopeChatModel` | 阿里云 DashScope 模型适配 |
 | `EmbeddingModel` | 向量嵌入模型接口 |
@@ -176,7 +179,15 @@ agent.callStream("session-1", "解释一下量子计算")
             System.out.println("回答: " + response.getFinalAnswer());
         }
     });
+
+// 多模态流式调用：发送图片（需模型具备视觉能力）
+List<ChatImage> images = List.of(
+    new ChatImage("screenshot.png", "data:image/png;base64,..."));
+agent.callStream("session-1", "这张截图里有什么内容？", images)
+    .subscribe(response -> { /* 同上处理 */ });
 ```
+
+> **多模态说明**：图片以 `image_url` 内容块（data URL）仅当轮直传模型；会话记忆中只保留 `[图片: 文件名]` 文本占位符，避免 base64 导致上下文膨胀。
 
 ### 4. 注册自定义工具
 

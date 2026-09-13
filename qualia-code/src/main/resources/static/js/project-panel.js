@@ -347,23 +347,6 @@
             gap: 12px;
             padding: 20px 24px 0;
         }
-        .ws-sw-br-head .back-btn {
-            width: 30px;
-            height: 30px;
-            flex-shrink: 0;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: transparent;
-            color: var(--text-secondary);
-            font-size: 11.5px;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .ws-sw-br-head .back-btn:hover {
-            color: var(--accent-light);
-            border-color: var(--border-active);
-            background: var(--bg-active);
-        }
         .ws-sw-br-head h3 {
             font-size: 14px;
             font-weight: 620;
@@ -997,7 +980,6 @@
                     </section>
                     <section class="ws-sw-view" id="wsSwViewBrowse">
                         <div class="ws-sw-br-head">
-                            <button class="back-btn" title="返回" onclick="QWorkspace.backToMain()"><i class="fas fa-arrow-left"></i></button>
                             <div>
                                 <h3>选择文件夹</h3>
                                 <div class="sub">进入目标目录后点击「打开」，也可粘贴路径跳转</div>

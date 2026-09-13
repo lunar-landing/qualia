@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>夜间主题色设计图 · Qualia</title>
+<style>
+    /* ===== 方案变量：默认「墨白」，body[data-scheme] 切换 ===== */
+    body {
+        /* 方案一「墨白」：Vercel/Linear 式，accent 近白，主按钮白底黑字，与日间黑按钮完美镜像 */
+        --accent: #e6edf3;
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;                      /* accent 上承载的深色文字（白按钮的字） */
+        --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
+        --link: #58a6ff;
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --bubble-user: rgba(177, 186, 196, 0.12);
+        --focus-glow: rgba(230, 237, 243, 0.20);
+    }
+    body[data-scheme="blue"] {
+        /* 方案二「晨蓝」：GitHub 深色链接/焦点蓝 */
+        --accent: #58a6ff;
+        --accent-light: #79c0ff;
+        --accent-ink: #0d1117;
+        --accent-gradient: linear-gradient(145deg, #79c0ff, #1f6feb);
+        --link: #58a6ff;
+        --bg-active: rgba(88, 166, 255, 0.12);
+        --border-active: rgba(88, 166, 255, 0.42);
+        --bubble-user: rgba(88, 166, 255, 0.13);
+        --focus-glow: rgba(88, 166, 255, 0.22);
+    }
+    body[data-scheme="teal"] {
+        /* 方案三「黛青」：青色系，有活力，不紫不绿 */
+        --accent: #45c0ae;
+        --accent-light: #6fd6c7;
+        --accent-ink: #06211d;
+        --accent-gradient: linear-gradient(145deg, #6fd6c7, #2a8f80);
+        --link: #58a6ff;
+        --bg-active: rgba(69, 192, 174, 0.12);
+        --border-active: rgba(69, 192, 174, 0.42);
+        --bubble-user: rgba(69, 192, 174, 0.12);
+        --focus-glow: rgba(69, 192, 174, 0.20);
+    }
+
+    body[data-scheme="ink"]    .scheme-desc-ink,
+    body[data-scheme="blue"]   .scheme-desc-blue,
+    body[data-scheme="teal"]   .scheme-desc-teal { display: block; }
+    .scheme-desc { display: none; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: #080a10;
+        color: #e4e9f2;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 60px;
+        transition: background 0.25s;
+    }
+    .page-head { max-width: 1080px; margin: 0 auto 10px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; color: #e4e9f2; }
+    .page-sub { font-size: 12.5px; color: #8f97ae; margin-top: 7px; line-height: 1.7; }
+
+    /* 方案切换 */
+    .scheme-bar {
+        max-width: 1080px; margin: 18px auto 8px;
+        display: flex; gap: 8px; align-items: center;
+    }
+    .scheme-btn {
+        padding: 7px 16px; border-radius: 999px; cursor: pointer;
+        border: 1px solid #2c3442; background: rgba(255,255,255,0.03);
+        color: #8f97ae; font-size: 12.5px; transition: all 0.15s;
+    }
+    .scheme-btn:hover { color: #e4e9f2; border-color: #3d4759; }
+    .scheme-btn.on {
+        background: var(--accent); border-color: var(--accent);
+        color: var(--accent-ink); font-weight: 600;
+    }
+    .scheme-desc {
+        max-width: 1080px; margin: 8px auto 0;
+        font-size: 12px; color: #8f97ae; line-height: 1.7;
+        padding: 10px 14px; border: 1px dashed #2c3442; border-radius: 10px;
+    }
+    .scheme-desc b { color: var(--accent-light); }
+
+    /* 组件网格 */
+    .grid {
+        max-width: 1080px; margin: 22px auto 0;
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px;
+    }
+    .card {
+        background: rgba(19, 24, 32, 0.85);
+        border: 1px solid #222938; border-radius: 12px; padding: 16px 18px;
+    }
+    .card h3 {
+        font-size: 12px; color: #8f97ae; font-weight: 600;
+        letter-spacing: 0.4px; margin-bottom: 13px; text-transform: uppercase;
+    }
+    .card h3 code {
+        font-size: 10.5px; color: #5c657e; background: rgba(255,255,255,0.04);
+        padding: 2px 6px; border-radius: 4px; margin-left: 6px; letter-spacing: 0;
+        text-transform: none;
+    }
+    .demo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .demo-col { display: flex; flex-direction: column; gap: 10px; }
+
+    /* 按钮 */
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 8px 18px; border-radius: 8px; border: none;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); }
+    .btn-secondary {
+        background: rgba(255,255,255,0.04); color: #e4e9f2;
+        border: 1px solid #2c3442;
+    }
+    .btn-danger { background: rgba(248,113,113,0.12); color: #f87171; }
+    .btn-grad { background: var(--accent-gradient); color: var(--accent-ink); }
+
+    /* 链接 */
+    .demo-link { color: var(--link); font-size: 13px; text-decoration: none; }
+    .demo-link:hover { text-decoration: underline; }
+    .plain-text { color: #8f97ae; font-size: 13px; }
+
+    /* 输入框 */
+    .field {
+        width: 100%; padding: 9px 12px; border-radius: 8px;
+        background: rgba(255,255,255,0.03); color: #e4e9f2;
+        border: 1px solid #2c3442; font-size: 13px; outline: none;
+    }
+    .field:focus {
+        border-color: var(--border-active);
+        box-shadow: 0 4px 16px var(--focus-glow);
+    }
+
+    /* 会话列表 */
+    .sess { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .sess li {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px; border-radius: 8px; font-size: 12.5px; color: #b8c0d0;
+        cursor: pointer;
+    }
+    .sess li:hover { background: rgba(255,255,255,0.03); }
+    .sess li.active { background: var(--bg-active); color: #e4e9f2; font-weight: 600; }
+    .sess .dot { width: 6px; height: 6px; border-radius: 50%; background: #4f566b; flex: none; }
+    .sess li.active .dot { background: var(--accent); }
+    .sess li.live .dot {
+        background: var(--accent);
+        box-shadow: 0 0 0 0 var(--focus-glow);
+        animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 var(--focus-glow); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .sess .badge {
+        margin-left: auto; font-size: 10px; color: #8f97ae;
+        background: rgba(255,255,255,0.05); border-radius: 999px; padding: 1px 7px;
+    }
+
+    /* 气泡 */
+    .bubble {
+        max-width: 86%; padding: 9px 13px; border-radius: 12px;
+        font-size: 13px; line-height: 1.65;
+    }
+    .bubble.user { background: var(--bubble-user); margin-left: auto; }
+    .bubble.ai { background: rgba(255,255,255,0.04); border: 1px solid #222938; }
+    .bubble code {
+        background: rgba(255,255,255,0.07); border-radius: 4px;
+        padding: 1px 5px; font-size: 12px; color: var(--accent-light);
+    }
+
+    /* 开关 */
+    .toggle { width: 36px; height: 20px; border-radius: 999px; background: #2c3442; position: relative; cursor: pointer; }
+    .toggle::after {
+        content: ''; position: absolute; top: 2px; left: 2px;
+        width: 16px; height: 16px; border-radius: 50%; background: #8f97ae; transition: all 0.18s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { left: 18px; background: var(--accent-ink); }
+    .toggle-label { font-size: 12.5px; color: #b8c0d0; }
+
+    /* badge / 标签 */
+    .tag {
+        font-size: 11px; padding: 3px 10px; border-radius: 999px;
+        background: var(--bg-active); color: var(--accent-light);
+        border: 1px solid var(--border-active);
+    }
+    .tag-plain { background: rgba(255,255,255,0.05); color: #8f97ae; border: none; }
+
+    /* 进度条 */
+    .progress { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .progress i { display: block; height: 100%; width: 62%; border-radius: 999px; background: var(--accent-gradient); }
+
+    /* 品牌区 */
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+        width: 34px; height: 34px; border-radius: 10px;
+        background: var(--accent-gradient);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent-ink); font-weight: 800; font-size: 15px;
+    }
+    .brand-text {
+        font-size: 19px; font-weight: 800; letter-spacing: -0.5px;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+    }
+
+    /* 色板条 */
+    .palette { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sw { flex: 1; min-width: 96px; }
+    .sw i {
+        display: block; height: 44px; border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08); margin-bottom: 6px;
+    }
+    .sw b { font-size: 10.5px; color: #8f97ae; font-weight: 500; display: block; }
+    .sw span { font-size: 10px; color: #5c657e; }
+</style>
+</head>
+<body data-scheme="ink">
+
+    <div class="page-head">
+        <h1>夜间主题色 · 重新设计</h1>
+        <p class="page-sub">紫色全部清除。三个候选方案，点击切换即时预览全组件效果；日间基准见 theme-light-mockup.html。</p>
+    </div>
+
+    <div class="scheme-bar">
+        <button class="scheme-btn on" data-scheme="ink" onclick="setScheme('ink', this)">方案一 · 墨白</button>
+        <button class="scheme-btn" data-scheme="blue" onclick="setScheme('blue', this)">方案二 · 晨蓝</button>
+        <button class="scheme-btn" data-scheme="teal" onclick="setScheme('teal', this)">方案三 · 黛青</button>
+    </div>
+
+    <div class="scheme-desc scheme-desc scheme-desc-ink">
+        <b>墨白</b>：accent 近白（#e6edf3），主按钮白底黑字 —— Vercel / Linear 深色主题的主流做法，与日间「黑底白字」主按钮形成完美镜像反转；气泡、选中态全部中性灰，品牌渐变为「银」。最克制、最石墨。
+    </div>
+    <div class="scheme-desc scheme-desc-blue">
+        <b>晨蓝</b>：accent 为 GitHub 深色官方链接/焦点蓝（#58a6ff），品牌渐变蓝。中性信息感、耐看不腻；注意蓝与刚清除的紫色色相相邻。
+    </div>
+    <div class="scheme-desc scheme-desc-teal">
+        <b>黛青</b>：青色（#45c0ae），介于蓝绿之间，比蓝更有活力、比绿更冷静；品牌渐变青。三者中辨识度最高。
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>按钮<code>--accent / --accent-gradient</code></h3>
+            <div class="demo-row">
+                <button class="btn btn-primary">发送</button>
+                <button class="btn btn-grad">生成</button>
+                <button class="btn btn-secondary">取消</button>
+                <button class="btn btn-danger">删除</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>链接与文本<code>--link</code></h3>
+            <div class="demo-row">
+                <span class="plain-text">参考</span>
+                <a class="demo-link" href="javascript:void(0)">MCP 接入文档</a>
+                <span class="plain-text">或查看</span>
+                <a class="demo-link" href="javascript:void(0)">快捷键说明</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>输入框<code>--border-active / --focus-glow</code></h3>
+            <div class="demo-col">
+                <input class="field" placeholder="默认态">
+                <input class="field" placeholder="聚焦态（点我）">
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>会话列表<code>--bg-active / streaming 光晕</code></h3>
+            <ul class="sess">
+                <li class="active"><span class="dot"></span>会话存储重构方案<span class="badge">24</span></li>
+                <li><span class="dot"></span>热力图配色调整<span class="badge">8</span></li>
+                <li class="live"><span class="dot"></span>正在生成的会话…</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>聊天气泡<code>--bubble-user</code></h3>
+            <div class="demo-col">
+                <div class="bubble user">帮我看看 <code>JsonMemory</code> 的迁移逻辑</div>
+                <div class="bubble ai">已检查，<code>migrateLegacyLayout</code> 是幂等的，重复调用安全。</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>开关 / 标签 / 进度<code>--accent / --bg-active</code></h3>
+            <div class="demo-row" style="margin-bottom:12px">
+                <div class="toggle on"></div>
+                <span class="toggle-label">流式输出</span>
+                <div class="toggle"></div>
+                <span class="toggle-label">自动压缩</span>
+            </div>
+            <div class="demo-row" style="margin-bottom:12px">
+                <span class="tag">MCP</span>
+                <span class="tag">Skill</span>
+                <span class="tag tag-plain">实验性</span>
+            </div>
+            <div class="progress"><i></i></div>
+        </div>
+
+        <div class="card">
+            <h3>品牌区<code>--accent-gradient</code></h3>
+            <div class="brand">
+                <div class="brand-mark">Q</div>
+                <span class="brand-text">Qualia Code</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>当前方案色板</h3>
+            <div class="palette">
+                <div class="sw"><i style="background: var(--accent)"></i><b>--accent</b><span id="v-accent">#e6edf3</span></div>
+                <div class="sw"><i style="background: var(--accent-light)"></i><b>--accent-light</b><span id="v-light">#f0f6fc</span></div>
+                <div class="sw"><i style="background: var(--link)"></i><b>--link</b><span>#58a6ff</span></div>
+                <div class="sw"><i style="background: var(--bubble-user)"></i><b>--bubble-user</b><span>tint</span></div>
+                <div class="sw"><i style="background: var(--accent-gradient)"></i><b>--accent-gradient</b><span>brand</span></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const VALUES = {
+        ink:  { accent: '#e6edf3', light: '#f0f6fc' },
+        blue: { accent: '#58a6ff', light: '#79c0ff' },
+        teal: { accent: '#45c0ae', light: '#6fd6c7' }
+    };
+    function setScheme(name, btn) {
+        document.body.dataset.scheme = name;
+        document.querySelectorAll('.scheme-btn').forEach(b => b.classList.toggle('on', b === btn));
+        document.getElementById('v-accent').textContent = VALUES[name].accent;
+        document.getElementById('v-light').textContent = VALUES[name].light;
+    }
+</script>
+</body>
+</html>

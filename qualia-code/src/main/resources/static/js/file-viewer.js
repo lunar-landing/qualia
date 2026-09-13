@@ -166,9 +166,12 @@ window.FileViewer = (function () {
     }
 
     // ===== 文件预览 =====
+    // show(false) 时右栏与分隔条整体隐藏，树占满面板（默认态）；打开文件后恢复分栏
     function showView(show) {
         viewEl.classList.toggle('show', show);
         emptyEl.style.display = show ? 'none' : '';
+        root.classList.toggle('fv-tree-only', !show);
+        if (!show && leftEl) leftEl.style.width = ''; // 清除拖拽残留内联宽，让树重新占满
     }
 
     function noticeHtml(icon, text) {
@@ -278,7 +281,7 @@ window.FileViewer = (function () {
         opts = options || {};
         injectStyle();
         root = el;
-        root.classList.add('fv-root');
+        root.classList.add('fv-root', 'fv-tree-only');
         root.innerHTML = `
             <div class="fv-left">
                 <div class="tree" id="fileTree"></div>
@@ -322,7 +325,11 @@ window.FileViewer = (function () {
         style.id = 'fv-style';
         style.textContent = `
         .fv-root { flex: 1; min-height: 0; min-width: 0; display: flex; }
+        /* 默认树独占：右栏与分隔条隐藏，点开文件后恢复分栏 */
+        .fv-root.fv-tree-only .fv-right,
+        .fv-root.fv-tree-only .fv-divider { display: none; }
         .fv-left { width: 198px; min-width: 126px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+        .fv-root.fv-tree-only .fv-left { width: auto; flex: 1; }
         .fv-divider { width: 5px; flex-shrink: 0; cursor: col-resize; border-left: 1px solid var(--border-color); transition: background 0.15s; }
         .fv-divider:hover, .fv-divider.dragging { background: var(--accent-light); }
         .fv-right { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }

@@ -23,9 +23,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
+import cn.lunarlanding.qualia.core.model.chat.Attachment;
 import cn.lunarlanding.qualia.core.model.chat.ChatModel;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -81,7 +83,7 @@ public class ChatService {
 
     /**
      * 切换到新工作区：释放旧实例的 MCP 连接后整体重建（workspacePath 为 final，只能换实例），
-     * Agent/Memory 均惰性重建，会话列表自然切到新工作区的 .qualia/memory
+     * Agent/Memory 均惰性重建，会话列表自然切到新工作区的 .qualia/sessions
      */
     public static synchronized void switchWorkspace(Path workspacePath) {
         if (instance != null) {
@@ -129,7 +131,7 @@ public class ChatService {
         loadGlobalSkills();
         connectMcpServers();
         memory = agent.getMemory();
-        memoryDir = workspacePath.resolve(".qualia").resolve("memory");
+        memoryDir = workspacePath.resolve(".qualia").resolve("sessions");
         currentModelName = defaultModelName;
     }
     
@@ -314,7 +316,7 @@ public class ChatService {
     private void ensureMemory() {
         synchronized (memoryLock) {
             if (memory == null) {
-                memoryDir = workspacePath.resolve(".qualia").resolve("memory");
+                memoryDir = workspacePath.resolve(".qualia").resolve("sessions");
                 memory = new JsonMemory(memoryDir);
             }
         }
@@ -361,15 +363,22 @@ public class ChatService {
         List<SessionInfo> sessionList = new ArrayList<>();
         if (memoryDir != null && Files.exists(memoryDir)) {
             try (var paths = Files.list(memoryDir)) {
-                paths.filter(p -> p.toString().endsWith(".json") && !p.toString().endsWith("_summaries.json"))
-                     .forEach(file -> {
-                         String fileName = file.getFileName().toString();
-                         String sessionId = fileName.replace(".json", "");
+                // 新布局：memoryDir/{sessionId}/session.json
+                paths.filter(Files::isDirectory)
+                     .forEach(dir -> {
+                         Path file = dir.resolve("session.json");
+                         if (!Files.isRegularFile(file)) {
+                             return;
+                         }
+                         String sessionId = dir.getFileName().toString();
                          List<MemoryMessage> messages = memory.getSessionHistory(sessionId);
                          if (!messages.isEmpty()) {
-                             String title = messages.get(0).getContent();
-                             if (title.length() > 20) {
-                                 title = title.substring(0, 20) + "...";
+                             String title = readCustomTitle(dir);
+                             if (title == null) {
+                                 title = messages.get(0).getContent();
+                                 if (title.length() > 20) {
+                                     title = title.substring(0, 20) + "...";
+                                 }
                              }
                              long lastModified = 0;
                              try {
@@ -409,9 +418,14 @@ public class ChatService {
 
         if (memoryDir != null && Files.exists(memoryDir)) {
             try (var paths = Files.list(memoryDir)) {
-                paths.filter(p -> p.toString().endsWith(".json") && !p.toString().endsWith("_summaries.json"))
-                     .forEach(file -> {
-                         String sessionId = file.getFileName().toString().replace(".json", "");
+                // 新布局：memoryDir/{sessionId}/session.json
+                paths.filter(Files::isDirectory)
+                     .forEach(dir -> {
+                         Path file = dir.resolve("session.json");
+                         if (!Files.isRegularFile(file)) {
+                             return;
+                         }
+                         String sessionId = dir.getFileName().toString();
                          for (MemoryMessage msg : memory.getSessionHistory(sessionId)) {
                              if (msg.getTotalTokens() == null) {
                                  continue;
@@ -442,7 +456,65 @@ public class ChatService {
     public boolean deleteSession(String sessionId) {
         ensureMemory();
         memory.clearSession(sessionId);
+        // 联动清理会话附件仓库
+        AttachmentService.getInstance().clearSession(sessionId);
+        // 清理自定义标题残留并移除空会话目录
+        try {
+            Path dir = sessionDir(sessionId);
+            Files.deleteIfExists(dir.resolve("title.txt"));
+            if (Files.isDirectory(dir)) {
+                try (var entries = Files.list(dir)) {
+                    if (entries.findAny().isEmpty()) {
+                        Files.deleteIfExists(dir);
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+        }
         return true;
+    }
+
+    /**
+     * 重命名会话：自定义标题存会话目录 title.txt（列表展示优先于首条消息自动标题）；
+     * 空标题视为恢复自动标题
+     */
+    public void renameSession(String sessionId, String title) {
+        ensureMemory();
+        String cleaned = title == null ? "" : title.trim();
+        if (cleaned.length() > 50) {
+            cleaned = cleaned.substring(0, 50);
+        }
+        Path file = sessionDir(sessionId).resolve("title.txt");
+        try {
+            if (cleaned.isEmpty()) {
+                Files.deleteIfExists(file);
+            } else {
+                Files.createDirectories(file.getParent());
+                Files.writeString(file, cleaned, StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            logger.error("重命名会话失败: {}", sessionId, e);
+            throw new RuntimeException("重命名失败: " + e.getMessage());
+        }
+    }
+
+    /** 会话目录：.qualia/sessions/{sessionId} */
+    private Path sessionDir(String sessionId) {
+        return workspacePath.resolve(".qualia").resolve("sessions").resolve(sessionId);
+    }
+
+    /** 读会话自定义标题（title.txt 不存在或为空返回 null，回退自动标题） */
+    private String readCustomTitle(Path sessionDir) {
+        Path file = sessionDir.resolve("title.txt");
+        if (!Files.isRegularFile(file)) {
+            return null;
+        }
+        try {
+            String title = Files.readString(file, StandardCharsets.UTF_8).trim();
+            return title.isEmpty() ? null : title;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     /**
@@ -459,6 +531,14 @@ public class ChatService {
     public Flux<AgentResponse> sendMessageFlux(String sessionId, String message) {
         initialize();
         return agent.callStream(sessionId, message);
+    }
+
+    /**
+     * 发送带附件的消息并获取Flux流式响应（图片直传视觉模型，文档解析注入）
+     */
+    public Flux<AgentResponse> sendMessageFlux(String sessionId, String message, List<Attachment> attachments) {
+        initialize();
+        return agent.callStream(sessionId, message, attachments);
     }
 
     /**

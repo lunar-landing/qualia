@@ -1,6 +1,7 @@
 package cn.lunarlanding.qualia.core.memory.impl;
 
 import cn.lunarlanding.qualia.core.agent.spec.AgentStep;
+import cn.lunarlanding.qualia.core.memory.AttachmentRef;
 import cn.lunarlanding.qualia.core.memory.Memory;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
 import cn.lunarlanding.qualia.core.model.chat.ChatUsage;
@@ -29,10 +30,11 @@ public class MemMemory implements Memory {
     private final ConcurrentHashMap<String, AtomicInteger> sequenceCounters = new ConcurrentHashMap<>();
 
     @Override
-    public void addUserMessage(String sessionId, String content) {
+    public void addUserMessage(String sessionId, String content, List<AttachmentRef> attachments) {
         List<MemoryMessage> messages = messageStore.computeIfAbsent(sessionId, k -> new ArrayList<>());
         int sequence = getNextSequence(sessionId);
         MemoryMessage msg = new MemoryMessage(sessionId, MemoryMessage.Role.USER, content);
+        msg.setAttachments(attachments);
         msg.setSequence(sequence);
         synchronized (messages) {
             messages.add(msg);

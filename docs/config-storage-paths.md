@@ -2,6 +2,8 @@
 
 Qualia Code 与 Qualia Claw 两个产品的所有用户级配置与状态统一收敛在 `~/.qualia/` 主目录下，按产品子目录完全隔离——code 用 `code/`、claw 用 `claw/`，模型配置、技能、会话记忆各存一份互不共享；桌面壳产生的锁文件、窗口状态、崩溃日志同样按产品分开，因此两个产品（含各自的桌面版）可以同时运行互不干扰。
 
+> 会话存储布局（v2）：每个会话一个以会话 id 命名的目录，聊天记录（`session.json`）、压缩摘要（`summaries.json`）、上传附件（`files/`）同域聚合，删除会话即删目录。旧版扁平文件（`{sessionId}.json` / `{sessionId}_summaries.json`）与旧附件目录名（`attachments/`）在启动/首次访问时自动迁移，旧版图片直传目录（`.qualia/images/`）仅保留只读回显兼容。
+
 ## 目录全景
 
 ```text
@@ -17,9 +19,8 @@ Qualia Code 与 Qualia Claw 两个产品的所有用户级配置与状态统一�
 │   ├── config.json                 # 主配置：同 code 字段 + agents 智能体定义数组
 │   ├── skills/{技能名}/            # 全局技能（所有智能体共享，按白名单引用）
 │   ├── workspaces/{智能体名}/      # 系统托管的智能体工作区（只承载产出物，无工作区级配置）
-│   ├── agents/{agentId}/memory/    # 会话记忆（按智能体 id 隔离，与工作区分离）
-│   │   ├── {sessionId}.json        # 单会话消息历史
-│   │   └── {sessionId}_summaries.json  # 会话压缩摘要
+│   ├── agents/{agentId}/memory/    # 会话记忆（按智能体 id 隔离，与工作区分离；内部布局与 code 的 sessions 一致）
+│   │   └── {sessionId}/            # 单会话目录（session.json 消息历史 / summaries.json 压缩摘要）
 │   ├── desktop.lock                # 桌面版单实例锁（与 code 的锁隔离，可同开）
 │   ├── desktop.json                # 桌面版窗口状态（尺寸/位置/最大化）
 │   └── desktop-error.log           # 桌面版启动崩溃日志
@@ -32,7 +33,7 @@ Qualia Code 与 Qualia Claw 两个产品的所有用户级配置与状态统一�
 | `~/.qualia/code/config.json` | `defaultModel`、`models[]`（name/provider/type/apiKey/model/baseUrl）、`mcpServers[]`、`disabledSkills[]`、`disabledTools[]` | `CodeAgentConfig.load()`，Web 设置面板经 `/api/config` 读写 |
 | `~/.qualia/code/workspaces.json` | 最近打开的工作区列表（路径去重、上限截断） | `WorkspaceHistory`：启动绑定与运行期切换成功时各记录一次 |
 | `~/.qualia/code/skills/{技能名}/` | 全局技能包（SKILL.md + 脚本/文档） | `DirectorySkillLoader`，技能管理界面经 `/api/config/skills` 增删 |
-| `{工作区}/.qualia/memory/` | 会话记忆（`{sessionId}.json` 与 `_summaries.json`） | `JsonMemory`，跟随用户选择的项目工作区，记忆与项目绑定 |
+| `{工作区}/.qualia/sessions/{sessionId}/` | 会话域聚合目录：`session.json` 聊天记录、`summaries.json` 压缩摘要、`files/{附件id}/` 上传附件（meta.json + payload） | `JsonMemory`（聊天记录/摘要）与 `AttachmentService`（附件），跟随用户选择的项目工作区，会话数据与项目绑定 |
 | `{工作区}/.qualia/AGENT.md` | 工作区级 system prompt | `HarnessAgent` 初始化时读取 |
 | `{工作区}/.qualia/skills/` | 工作区级技能 | `HarnessAgent`，与全局技能同名时项目级优先 |
 | `~/.qualia/code/desktop.lock` / `desktop.json` / `desktop-error.log` | 桌面版单实例锁 / 窗口状态 / 崩溃日志 | `qualia-code-desktop` 的 `DesktopLauncher` / `MainWindow` |
@@ -44,7 +45,7 @@ Qualia Code 与 Qualia Claw 两个产品的所有用户级配置与状态统一�
 | `~/.qualia/claw/config.json` | code 全部字段 + `agents[]`（id/name/emoji/role/workspacePath/model/skills 白名单/mcpServers 白名单/createdAt）；白名单字段缺失表示引用全部（存量语义） | `ClawConfig.load()` / `saveAgents()`，智能体编辑经 `/api/agents` |
 | `~/.qualia/claw/skills/{技能名}/` | 全局技能（所有智能体共享，按智能体白名单引用） | 同 code |
 | `~/.qualia/claw/workspaces/{名称}/` | 系统托管的智能体工作区：名称做非法字符清洗作目录名，创建时绝对路径写死进 definition，改名不搬目录；只承载产出物，工作区级 AGENT.md 与 skills 已禁用（人设由 role 字段接管，技能由全局目录 + 白名单管理） | `AgentRegistry.create()` |
-| `~/.qualia/claw/agents/{agentId}/memory/` | 会话记忆，**按智能体 id 隔离、与工作区分离**：清空工作区不丢历史会话 | `ClawWorkspace.getMemoryDir()` → `JsonMemory` |
+| `~/.qualia/claw/agents/{agentId}/memory/` | 会话记忆，**按智能体 id 隔离、与工作区分离**：清空工作区不丢历史会话；内部为每会话目录（`{sessionId}/session.json` + `summaries.json`） | `ClawWorkspace.getMemoryDir()` → `JsonMemory` |
 | `~/.qualia/claw/desktop.lock` / `desktop.json` / `desktop-error.log` | 桌面版单实例锁 / 窗口状态 / 崩溃日志 | `qualia-claw-desktop` 的 `ClawDesktopLauncher` / `MainWindow` |
 
 ## config.json 字段结构

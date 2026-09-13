@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 近白灰阶日间主题 · 4 变体</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #10131c; color: #e4e9f2;
+        padding: 36px 20px 80px;
+    }
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: #8f97ae; margin-bottom: 34px; }
+
+    .demo { max-width: 900px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; padding: 0 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: #fff;
+        background: linear-gradient(145deg, #7c6cf0, #5b4ad0); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-head .style-src { font-size: 11.5px; color: #6b7288; }
+    .demo-desc { font-size: 11.5px; color: #8f97ae; margin-bottom: 12px; padding: 0 4px; line-height: 1.7; }
+    .demo-desc em { color: #b3a8ff; font-style: normal; font-weight: 600; }
+
+    /* ===== mini app 骨架 ===== */
+    .app {
+        display: flex; height: 500px;
+        border-radius: 16px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 18px 50px rgba(0,0,0,0.4);
+        font-size: 13px;
+    }
+    .side {
+        width: 208px; flex-shrink: 0;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-color);
+        padding: 14px 10px; display: flex; flex-direction: column; gap: 6px;
+        color: var(--text-primary);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; padding: 2px 6px 8px; }
+    .brand i {
+        width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
+        background: var(--brand-fill);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-style: normal; font-size: 11px; color: #fff;
+    }
+    .side-item { padding: 7px 10px; border-radius: 8px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .side-item.on { background: var(--bg-active); color: var(--text-primary); }
+    .side-foot { margin-top: auto; padding: 7px 10px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); display: flex; gap: 7px; align-items: center; }
+
+    .chat {
+        flex: 1; min-width: 0; display: flex; flex-direction: column;
+        background: var(--bg-app); position: relative; color: var(--text-primary);
+    }
+    .float {
+        position: absolute; top: 10px; right: 12px; z-index: 5;
+        display: flex; flex-direction: column; gap: 2px; padding: 3px;
+        background: var(--float-bg); border: 1px solid var(--border-color);
+        border-radius: 12px; box-shadow: 0 5px 16px var(--float-shadow);
+    }
+    .float b {
+        width: 26px; height: 26px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 400; color: var(--text-secondary); font-style: normal;
+    }
+    .float b:hover { background: var(--bg-hover); }
+
+    .msgs { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 30px 20px 8px; overflow: hidden; }
+    .msg { width: 100%; max-width: 560px; display: flex; gap: 10px; }
+    .msg.u { flex-direction: row-reverse; }
+    .av {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-style: normal; color: #fff;
+        background: var(--brand-fill);
+    }
+    .av.hu { background: var(--bg-avatar); color: var(--text-secondary); }
+    .bub {
+        padding: 10px 14px; border-radius: 13px; font-size: 12.5px; line-height: 1.6;
+        border: 1px solid var(--border-color); max-width: 100%;
+        background: var(--bg-bubble-ai);
+    }
+    .msg.u .bub { background: var(--bg-bubble-user); border-top-right-radius: 4px; }
+    .msg.a .bub { border-top-left-radius: 4px; }
+    .bub code { background: var(--bg-inline-code); border-radius: 4px; padding: 1px 5px; font-size: 11px; color: var(--accent); }
+
+    .inzone { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 4px 20px 13px; }
+    .inbox {
+        width: 100%; max-width: 560px;
+        background: var(--bg-input); border: 1px solid var(--border-color);
+        border-radius: 15px; box-shadow: var(--input-shadow);
+        display: flex; flex-direction: column;
+    }
+    .inbox .ta { padding: 12px 15px 3px; font-size: 12.5px; color: var(--text-muted); }
+    .inbox .bar { display: flex; align-items: center; padding: 4px 8px 8px 10px; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+    .inbox .bar .ic { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-style: normal; }
+    .inbox .bar .model { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .inbox .bar .model .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .inbox .bar .send {
+        width: 28px; height: 28px; border-radius: 9px; border: none;
+        background: var(--brand-fill); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+
+    .vars {
+        display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding: 0 4px;
+        font-size: 10.5px; color: #8f97ae;
+    }
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 7px; padding: 3px 8px;
+    }
+    .chip i { width: 11px; height: 11px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15); }
+
+    /* ============================================================
+       G1 · 纯墨极简（Vercel 风）：黑白无彩，对比最锐利
+       ============================================================ */
+    .thG1 {
+        --bg-app: #fafafa;
+        --bg-sidebar: #f4f4f4;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: #f0f0f0;
+        --bg-inline-code: #f0f0f0;
+        --bg-active: #e8e8e8;
+        --bg-hover: #ededed;
+        --bg-avatar: #e0e0e0;
+        --border-color: #e4e4e4;
+        --text-primary: #171717;
+        --text-secondary: #525252;
+        --text-muted: #a3a3a3;
+        --accent: #171717;
+        --brand-fill: #171717;
+        --input-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        --float-bg: rgba(255, 255, 255, 0.85);
+        --float-shadow: rgba(0, 0, 0, 0.1);
+    }
+
+    /* ============================================================
+       G2 · 石墨工程（GitHub 风）：冷灰底，边框清晰，工程感
+       ============================================================ */
+    .thG2 {
+        --bg-app: #f6f8fa;
+        --bg-sidebar: #eef1f4;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: #eef1f4;
+        --bg-inline-code: #eff1f3;
+        --bg-active: #e7ebef;
+        --bg-hover: #e9edf1;
+        --bg-avatar: #dfe3e8;
+        --border-color: #d9dee4;
+        --text-primary: #1f2328;
+        --text-secondary: #59636e;
+        --text-muted: #8c959f;
+        --accent: #24292f;
+        --brand-fill: #24292f;
+        --input-shadow: 0 2px 10px rgba(31, 35, 40, 0.06);
+        --float-bg: rgba(255, 255, 255, 0.85);
+        --float-shadow: rgba(31, 35, 40, 0.12);
+    }
+
+    /* ============================================================
+       G3 · 蓝灰雾（Slate）：不是彩色的蓝，是有冷倾向的灰
+       ============================================================ */
+    .thG3 {
+        --bg-app: #f1f5f9;
+        --bg-sidebar: #e5eaf1;
+        --bg-bubble-ai: #ffffff;
+        --bg-input: #ffffff;
+        --bg-bubble-user: #e8edf3;
+        --bg-inline-code: #e9eef4;
+        --bg-active: #dfe6ee;
+        --bg-hover: #e4eaf1;
+        --bg-avatar: #d6dee8;
+        --border-color: #d8dfe8;
+        --text-primary: #1b2430;
+        --text-secondary: #526275;
+        --text-muted: #8595a8;
+        --accent: #334155;
+        --brand-fill: #334155;
+        --input-shadow: 0 2px 10px rgba(27, 36, 48, 0.06);
+        --float-bg: rgba(255, 255, 255, 0.85);
+        --float-shadow: rgba(27, 36, 48, 0.12);
+    }
+
+    /* ============================================================
+       G4 · 灰阶浮层（shadcn Zinc 风）：三层灰阶 + 投影拉层次
+       ============================================================ */
+    .thG4 {
+        --bg-app: #ececec;
+        --bg-sidebar: #e2e2e2;
+        --bg-bubble-ai: #fafafa;
+        --bg-input: #fafafa;
+        --bg-bubble-user: #e6e6e6;
+        --bg-inline-code: #ececec;
+        --bg-active: #e0e0e0;
+        --bg-hover: #e4e4e4;
+        --bg-avatar: #d4d4d4;
+        --border-color: rgba(0, 0, 0, 0.08);
+        --text-primary: #18181b;
+        --text-secondary: #52525b;
+        --text-muted: #a1a1aa;
+        --accent: #3f3f46;
+        --brand-fill: #3f3f46;
+        --input-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        --float-bg: rgba(250, 250, 250, 0.85);
+        --float-shadow: rgba(0, 0, 0, 0.16);
+    }
+    .thG4 .bub { box-shadow: 0 1px 5px rgba(0,0,0,0.05); }
+    .thG4 .side { box-shadow: 1px 0 0 rgba(0,0,0,0.03); }
+</style>
+</head>
+<body>
+
+<h1>近白灰阶日间主题 · 4 变体</h1>
+<p class="sub">B4 骨架 + 去彩色化：accent 与状态色全部换成黑/灰，层次靠灰阶、文字对比与投影</p>
+
+<!-- ============ G1 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">G1</span><span class="name">纯墨极简</span><span class="style-src">Vercel / 黑白无彩</span></div>
+    <div class="demo-desc">完全无彩：近白底 + <em>纯黑 accent</em>，发送钮、Logo、选中态都是黑色。对比最锐利，高级感最强。</div>
+    <div class="app thG1">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">灰阶主题验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">一点颜色都没有会单调吗？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">单调即高级——黑白灰全靠字重和灰阶拉层次，<code>代码高亮</code>也用深灰。Vercel 就是这么做的。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#fafafa"></i>app #fafafa</span>
+        <span class="chip"><i style="background:#171717"></i>accent 纯黑 #171717</span>
+        <span class="chip"><i style="background:#e4e4e4"></i>border #e4e4e4</span>
+        <span class="chip">无彩 · 选中=灰底</span>
+    </div>
+</div>
+
+<!-- ============ G2 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">G2</span><span class="name">石墨工程</span><span class="style-src">GitHub 风</span></div>
+    <div class="demo-desc">GitHub 同款冷灰：<em>底 #f6f8fa</em>、石墨 accent #24292f，边框比 G1 明显一档。最经典的工程工具配色。</div>
+    <div class="app thG2">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">灰阶主题验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">这版看着眼熟。</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">GitHub 日间模式就是这套灰：底色带冷调，边框 #d9dee4 清晰不虚，<code>代码高亮</code>石墨色，久看不累。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#f6f8fa"></i>app #f6f8fa</span>
+        <span class="chip"><i style="background:#24292f"></i>accent 石墨 #24292f</span>
+        <span class="chip"><i style="background:#d9dee4"></i>border #d9dee4</span>
+        <span class="chip">冷灰 · 边框清晰</span>
+    </div>
+</div>
+
+<!-- ============ G3 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">G3</span><span class="name">蓝灰雾</span><span class="style-src">Tailwind Slate</span></div>
+    <div class="demo-desc">带冷倾向的灰（<em>不是彩色</em>）：slate 色阶，底 #f1f5f9、accent #334155。衔接你喜欢的冷雾蓝方向，但把蓝味压成灰味。</div>
+    <div class="app thG3">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">灰阶主题验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">灰里带点冷调，但不是蓝？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">slate 灰本身自带冷倾向，感知是「干净的灰」而非颜色。之前冷雾蓝的凉意保留，彩色感归零。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#f1f5f9"></i>app #f1f5f9</span>
+        <span class="chip"><i style="background:#334155"></i>accent slate #334155</span>
+        <span class="chip"><i style="background:#d8dfe8"></i>border #d8dfe8</span>
+        <span class="chip">冷倾向灰 · 非彩色</span>
+    </div>
+</div>
+
+<!-- ============ G4 ============ -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">G4</span><span class="name">灰阶浮层</span><span class="style-src">shadcn Zinc 风</span></div>
+    <div class="demo-desc">层次全部来自<em>三层灰阶 + 投影</em>：底最深（#ececec）、气泡卡片浅（#fafafa）、侧边栏居中，每层有浮起感。现代组件库质感。</div>
+    <div class="app thG4">
+        <aside class="side">
+            <div class="brand"><i>Q</i> Qualia Code</div>
+            <div class="side-item on">灰阶主题验证</div>
+            <div class="side-item">附件功能联调会话</div>
+            <div class="side-item">占位符架构讨论</div>
+            <div class="side-foot">☰ 设置</div>
+        </aside>
+        <main class="chat">
+            <div class="float"><b>▣</b><b>☾</b></div>
+            <div class="msgs">
+                <div class="msg u"><i class="av hu">我</i><div class="bub">没有彩色，层次从哪来？</div></div>
+                <div class="msg a"><i class="av ai">Q</i><div class="bub">三层灰阶：底最深、侧栏居中、卡片最浅还带投影。界面的立体感全靠灰度和阴影，跟 <code>shadcn</code> 一脉相承。</div></div>
+            </div>
+            <div class="inzone">
+                <div class="inbox">
+                    <div class="ta">向 Qualia Code 提问，或描述你想写的代码…</div>
+                    <div class="bar"><i class="ic">📎</i><span class="model"><span class="dot"></span>DeepSeek-V3</span><button class="send">↑</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="vars">
+        <span class="chip"><i style="background:#ececec"></i>app #ececec</span>
+        <span class="chip"><i style="background:#3f3f46"></i>accent zinc #3f3f46</span>
+        <span class="chip"><i style="background:#fafafa"></i>卡片 #fafafa+投影</span>
+        <span class="chip">层次=灰阶+投影</span>
+    </div>
+</div>
+
+</body>
+</html>

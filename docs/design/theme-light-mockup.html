@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日间主题色设计图 · Qualia</title>
+<style>
+    /* ===== 日间基准：石墨黑 accent + 链接蓝（现状黑系保留，紫色清零，新增统一 --link） ===== */
+    :root {
+        --accent: #24292f;
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --accent-gradient: linear-gradient(145deg, #32383f, #24292f);
+        --link: #0969da;
+        --bg-active: #e4e9ee;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --bubble-user: #e9edf2;
+        --focus-glow: rgba(31, 35, 40, 0.10);
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: #f6f8fa;
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 60px;
+    }
+    .page-head { max-width: 1080px; margin: 0 auto 10px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; color: var(--text-primary); }
+    .page-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 7px; line-height: 1.7; }
+
+    .note {
+        max-width: 1080px; margin: 18px auto 0;
+        font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+        padding: 10px 14px; border: 1px dashed #d0d7de; border-radius: 10px;
+        background: #ffffff;
+    }
+    .note b { color: var(--text-primary); }
+
+    .grid {
+        max-width: 1080px; margin: 22px auto 0;
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px;
+    }
+    .card {
+        background: #ffffff;
+        border: 1px solid #d0d7de; border-radius: 12px; padding: 16px 18px;
+    }
+    .card h3 {
+        font-size: 12px; color: var(--text-secondary); font-weight: 600;
+        letter-spacing: 0.4px; margin-bottom: 13px; text-transform: uppercase;
+    }
+    .card h3 code {
+        font-size: 10.5px; color: var(--text-muted); background: #f6f8fa;
+        padding: 2px 6px; border-radius: 4px; margin-left: 6px; letter-spacing: 0;
+        text-transform: none; border: 1px solid #eaeef2;
+    }
+    .demo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .demo-col { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 8px 18px; border-radius: 8px; border: none;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); }
+    .btn-secondary {
+        background: #ffffff; color: var(--text-primary);
+        border: 1px solid #d0d7de;
+    }
+    .btn-danger { background: rgba(207,34,46,0.08); color: #cf222e; }
+    .btn-grad { background: var(--accent-gradient); color: #ffffff; }
+
+    .demo-link { color: var(--link); font-size: 13px; text-decoration: none; }
+    .demo-link:hover { text-decoration: underline; }
+    .plain-text { color: var(--text-secondary); font-size: 13px; }
+
+    .field {
+        width: 100%; padding: 9px 12px; border-radius: 8px;
+        background: #ffffff; color: var(--text-primary);
+        border: 1px solid #d0d7de; font-size: 13px; outline: none;
+    }
+    .field:focus {
+        border-color: var(--border-active);
+        box-shadow: 0 4px 16px var(--focus-glow);
+    }
+
+    .sess { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .sess li {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px; border-radius: 8px; font-size: 12.5px; color: #424a53;
+        cursor: pointer;
+    }
+    .sess li:hover { background: #f0f2f5; }
+    .sess li.active { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+    .sess .dot { width: 6px; height: 6px; border-radius: 50%; background: #8c959f; flex: none; }
+    .sess li.active .dot { background: var(--accent); }
+    .sess li.live .dot {
+        background: var(--accent);
+        animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(31,35,40,0.25); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .sess .badge {
+        margin-left: auto; font-size: 10px; color: var(--text-secondary);
+        background: #eff2f5; border-radius: 999px; padding: 1px 7px;
+    }
+
+    .bubble {
+        max-width: 86%; padding: 9px 13px; border-radius: 12px;
+        font-size: 13px; line-height: 1.65;
+    }
+    .bubble.user { background: var(--bubble-user); margin-left: auto; }
+    .bubble.ai { background: #ffffff; border: 1px solid #d0d7de; }
+    .bubble code {
+        background: #eff1f3; border-radius: 4px;
+        padding: 1px 5px; font-size: 12px; color: #cf222e;
+    }
+
+    .toggle { width: 36px; height: 20px; border-radius: 999px; background: #d0d7de; position: relative; cursor: pointer; }
+    .toggle::after {
+        content: ''; position: absolute; top: 2px; left: 2px;
+        width: 16px; height: 16px; border-radius: 50%; background: #ffffff; transition: all 0.18s;
+        box-shadow: 0 1px 3px rgba(31,35,40,0.2);
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { left: 18px; }
+    .toggle-label { font-size: 12.5px; color: #424a53; }
+
+    .tag {
+        font-size: 11px; padding: 3px 10px; border-radius: 999px;
+        background: var(--bg-active); color: var(--accent-light);
+        border: 1px solid rgba(31,35,40,0.12);
+    }
+    .tag-plain { background: #eff2f5; color: var(--text-secondary); border: none; }
+
+    .progress { height: 6px; border-radius: 999px; background: #eaeef2; overflow: hidden; }
+    .progress i { display: block; height: 100%; width: 62%; border-radius: 999px; background: var(--accent-gradient); }
+
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+        width: 34px; height: 34px; border-radius: 10px;
+        background: var(--accent-gradient);
+        display: flex; align-items: center; justify-content: center;
+        color: #ffffff; font-weight: 800; font-size: 15px;
+    }
+    .brand-text {
+        font-size: 19px; font-weight: 800; letter-spacing: -0.5px;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+    }
+
+    .palette { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sw { flex: 1; min-width: 96px; }
+    .sw i {
+        display: block; height: 44px; border-radius: 8px;
+        border: 1px solid #eaeef2; margin-bottom: 6px;
+    }
+    .sw b { font-size: 10.5px; color: var(--text-secondary); font-weight: 500; display: block; }
+    .sw span { font-size: 10px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+    <div class="page-head">
+        <h1>日间主题色 · 基准设计</h1>
+        <p class="page-sub">石墨黑 accent（#24292f）保持现状不动；紫色清零，新增统一链接色 --link（#0969da，GitHub 日间官方蓝）。夜间方案见 theme-dark-mockup.html。</p>
+    </div>
+
+    <div class="note">
+        <b>本页为日间定稿基准</b>：现有黑系变量全部保留；唯一新增决策是「链接文本统一走 --link 蓝」，
+        与深色方案的 #58a6ff 形成日/夜官方配对。品牌渐变随 accent（石墨银灰），不再有紫色。
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>按钮<code>--accent / --accent-gradient</code></h3>
+            <div class="demo-row">
+                <button class="btn btn-primary">发送</button>
+                <button class="btn btn-grad">生成</button>
+                <button class="btn btn-secondary">取消</button>
+                <button class="btn btn-danger">删除</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>链接与文本<code>--link</code></h3>
+            <div class="demo-row">
+                <span class="plain-text">参考</span>
+                <a class="demo-link" href="javascript:void(0)">MCP 接入文档</a>
+                <span class="plain-text">或查看</span>
+                <a class="demo-link" href="javascript:void(0)">快捷键说明</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>输入框<code>--border-active / --focus-glow</code></h3>
+            <div class="demo-col">
+                <input class="field" placeholder="默认态">
+                <input class="field" placeholder="聚焦态（点我）">
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>会话列表<code>--bg-active / streaming 光晕</code></h3>
+            <ul class="sess">
+                <li class="active"><span class="dot"></span>会话存储重构方案<span class="badge">24</span></li>
+                <li><span class="dot"></span>热力图配色调整<span class="badge">8</span></li>
+                <li class="live"><span class="dot"></span>正在生成的会话…</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>聊天气泡<code>--bubble-user</code></h3>
+            <div class="demo-col">
+                <div class="bubble user">帮我看看 <code>JsonMemory</code> 的迁移逻辑</div>
+                <div class="bubble ai">已检查，<code>migrateLegacyLayout</code> 是幂等的，重复调用安全。</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>开关 / 标签 / 进度<code>--accent / --bg-active</code></h3>
+            <div class="demo-row" style="margin-bottom:12px">
+                <div class="toggle on"></div>
+                <span class="toggle-label">流式输出</span>
+                <div class="toggle"></div>
+                <span class="toggle-label">自动压缩</span>
+            </div>
+            <div class="demo-row" style="margin-bottom:12px">
+                <span class="tag">MCP</span>
+                <span class="tag">Skill</span>
+                <span class="tag tag-plain">实验性</span>
+            </div>
+            <div class="progress"><i></i></div>
+        </div>
+
+        <div class="card">
+            <h3>品牌区<code>--accent-gradient</code></h3>
+            <div class="brand">
+                <div class="brand-mark">Q</div>
+                <span class="brand-text">Qualia Code</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>色板</h3>
+            <div class="palette">
+                <div class="sw"><i style="background: var(--accent)"></i><b>--accent</b><span>#24292f</span></div>
+                <div class="sw"><i style="background: var(--accent-light)"></i><b>--accent-light</b><span>#32383f</span></div>
+                <div class="sw"><i style="background: var(--link)"></i><b>--link</b><span>#0969da</span></div>
+                <div class="sw"><i style="background: var(--bubble-user)"></i><b>--bubble-user</b><span>#e9edf2</span></div>
+                <div class="sw"><i style="background: var(--accent-gradient)"></i><b>--accent-gradient</b><span>brand</span></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -274,11 +274,11 @@ window.TokenHeatmap = (function () {
             outline: 1px solid var(--accent-light);
             z-index: 2;
         }
-        .th-cell.lv4 { box-shadow: 0 0 6px rgba(124, 108, 240, 0.45); }
-        .th-cell.lv1 { background: rgba(124, 108, 240, 0.28); }
-        .th-cell.lv2 { background: rgba(124, 108, 240, 0.5); }
-        .th-cell.lv3 { background: rgba(124, 108, 240, 0.75); }
-        .th-cell.lv4 { background: var(--accent); }
+        .th-cell.lv4 { box-shadow: 0 0 6px var(--th-glow, rgba(124, 108, 240, 0.45)); }
+        .th-cell.lv1 { background: var(--th-lv1, rgba(124, 108, 240, 0.28)); }
+        .th-cell.lv2 { background: var(--th-lv2, rgba(124, 108, 240, 0.5)); }
+        .th-cell.lv3 { background: var(--th-lv3, rgba(124, 108, 240, 0.75)); }
+        .th-cell.lv4 { background: var(--th-lv4, var(--accent)); }
         /* hover 气泡：日期 + token 数 */
         .th-grid .th-cell::after {
             content: attr(data-tip);

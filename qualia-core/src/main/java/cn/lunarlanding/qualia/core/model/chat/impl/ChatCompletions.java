@@ -100,13 +100,31 @@ public class ChatCompletions implements ChatModel {
 
     /**
      * 构建请求体
+     *
+     * <p>消息序列化：带 {@code contentParts} 的消息按 OpenAI 多模态规范输出 content 数组
+     * （如图片直传视觉模型），纯文本消息保持字符串形态，两者在同一请求中可混合。</p>
      */
     protected JSONObject buildRequestBody(List<ChatMessage> messages, boolean stream, ResponseFormatType formatType) {
-        List<Map<String, String>> messageMaps = new ArrayList<>();
+        List<Map<String, Object>> messageMaps = new ArrayList<>();
         for (ChatMessage message : messages) {
-            Map<String, String> msgMap = new java.util.HashMap<>();
+            Map<String, Object> msgMap = new java.util.HashMap<>();
             msgMap.put("role", message.getRole());
-            msgMap.put("content", message.getContent());
+            if (message.hasContentParts()) {
+                List<Map<String, Object>> parts = new ArrayList<>();
+                for (ContentPart part : message.getContentParts()) {
+                    Map<String, Object> partMap = new java.util.HashMap<>();
+                    partMap.put("type", part.getType());
+                    if (ContentPart.TYPE_IMAGE_URL.equals(part.getType())) {
+                        partMap.put("image_url", part.getImageUrl());
+                    } else {
+                        partMap.put("text", part.getText());
+                    }
+                    parts.add(partMap);
+                }
+                msgMap.put("content", parts);
+            } else {
+                msgMap.put("content", message.getContent());
+            }
             // tool 角色必须包含 tool_call_id
             if ("tool".equals(message.getRole()) && message.getToolCallId() != null) {
                 msgMap.put("tool_call_id", message.getToolCallId());

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blockquote 设计选型 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（与生产 index.css 同步的两套色板） ===== */
+    :root {
+        --bg-app: #0d1117;
+        --bg-bubble-ai: #161d2b;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --bg-inline-code: rgba(255, 255, 255, 0.07);
+        --success: #34d399;
+    }
+    body.light-theme {
+        --bg-app: #f6f8fa;
+        --bg-bubble-ai: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --bg-inline-code: #eff1f3;
+        --success: #1a7f37;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-app);
+        color: var(--text-primary);
+        padding: 32px 24px 64px;
+        transition: background 0.25s, color 0.25s;
+    }
+
+    /* ===== 页头 ===== */
+    .page-head {
+        max-width: 860px;
+        margin: 0 auto 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 13px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+    .theme-toggle:hover { opacity: 0.75; }
+
+    /* ===== 版本区块 ===== */
+    .variant {
+        max-width: 860px;
+        margin: 0 auto 36px;
+    }
+    .variant-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 4px;
+    }
+    .variant-head .tag {
+        font-size: 12px;
+        font-weight: 700;
+        padding: 2px 9px;
+        border-radius: 20px;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        flex-shrink: 0;
+    }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.6; }
+
+    /* ===== 聊天气泡语境（模拟助手消息） ===== */
+    .bubble {
+        background: var(--bg-bubble-ai);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 13.5px;
+        line-height: 1.75;
+        max-width: 620px;
+    }
+    .bubble p { margin: 6px 0; }
+    .bubble code {
+        background: var(--bg-inline-code);
+        padding: 2px 5px;
+        border-radius: 5px;
+        font-size: 12.5px;
+        font-family: 'JetBrains Mono', Consolas, monospace;
+    }
+    .bubble strong { font-weight: 600; }
+
+    /* ===== 当前线上版（对照组） ===== */
+    .bq-current {
+        border-left: 3px solid #7c6cf0;
+        padding: 7px 14px;
+        margin: 9px 0;
+        background: rgba(124, 108, 240, 0.05);
+        border-radius: 0 11px 11px 0;
+        color: var(--text-secondary);
+    }
+    body.light-theme .bq-current { border-left-color: #24292f; }
+
+    /* ===== V1 经典灰条 ===== */
+    .bq-v1 {
+        border-left: 3px solid var(--border-color);
+        padding: 7px 14px;
+        margin: 9px 0;
+        background: rgba(128, 144, 168, 0.06);
+        border-radius: 0 11px 11px 0;
+        color: var(--text-secondary);
+    }
+    body.light-theme .bq-v1 {
+        background: rgba(31, 35, 40, 0.035);
+    }
+
+    /* ===== V2 淡底衬卡 ===== */
+    .bq-v2 {
+        border-left: none;
+        padding: 9px 14px;
+        margin: 9px 0;
+        background: rgba(128, 144, 168, 0.10);
+        border-radius: 10px;
+        color: var(--text-secondary);
+    }
+    body.light-theme .bq-v2 {
+        background: rgba(31, 35, 40, 0.05);
+    }
+
+    /* ===== V3 语义绿条 ===== */
+    .bq-v3 {
+        border-left: 3px solid var(--success);
+        padding: 7px 14px;
+        margin: 9px 0;
+        background: rgba(52, 211, 153, 0.05);
+        border-radius: 0 11px 11px 0;
+        color: var(--text-secondary);
+    }
+    body.light-theme .bq-v3 {
+        background: rgba(26, 127, 55, 0.05);
+    }
+
+    /* ===== V4 悬垂引号 ===== */
+    .bq-v4 {
+        position: relative;
+        border-left: none;
+        padding: 8px 14px 8px 38px;
+        margin: 9px 0;
+        background: transparent;
+        color: var(--text-secondary);
+    }
+    .bq-v4::before {
+        content: '\201C';
+        position: absolute;
+        left: 6px;
+        top: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 34px;
+        line-height: 1.2;
+        color: var(--text-muted);
+        opacity: 0.75;
+    }
+    body.light-theme .bq-v4::before { color: #c3cbd4; }
+
+    /* ===== 底注 ===== */
+    .foot-note {
+        max-width: 860px;
+        margin: 40px auto 0;
+        font-size: 12px;
+        color: var(--text-muted);
+        border-top: 1px solid var(--border-color);
+        padding-top: 14px;
+        line-height: 1.7;
+    }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <div>
+        <h1>Blockquote 设计选型</h1>
+        <p>聊天气泡内的引用块 · 四个版本，右上角切换深 / 浅主题预览</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== 对照：当前线上版 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">现状</span><h2>当前线上版（对照组）</h2></div>
+    <div class="variant-desc">问题：accent 边条在日间是石墨黑（过重），底色是硬编码紫色残留（浅色下泛紫）。</div>
+    <div class="bubble">
+        <p>这个问题的原因在配置加载顺序上：</p>
+        <blockquote class="bq-current">配置分两层加载：全局 <code>~/.qualia/code/config.json</code> 提供默认值，工作区 <code>.qualia/config.json</code> 覆盖同名键。<strong>工作区配置优先级更高</strong>，且合并是浅合并。</blockquote>
+        <p>所以你只需要在工作区放一个覆盖文件即可。</p>
+    </div>
+</div>
+
+<!-- ===== V1 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">V1</span><h2>经典灰条</h2></div>
+    <div class="variant-desc">GitHub 风格的克制方案：中性灰左条 + 极淡中性底。引用是「弱化的内容」，不抢正文视觉。最稳、最不易过时。</div>
+    <div class="bubble">
+        <p>这个问题的原因在配置加载顺序上：</p>
+        <blockquote class="bq-v1">配置分两层加载：全局 <code>~/.qualia/code/config.json</code> 提供默认值，工作区 <code>.qualia/config.json</code> 覆盖同名键。<strong>工作区配置优先级更高</strong>，且合并是浅合并。</blockquote>
+        <p>所以你只需要在工作区放一个覆盖文件即可。</p>
+    </div>
+</div>
+
+<!-- ===== V2 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">V2</span><h2>淡底衬卡</h2></div>
+    <div class="variant-desc">Notion callout 风：去掉左条，整块淡灰底 + 四角圆角。块状感更强、边界更柔和，多段长引用时最整齐。与代码块的「深底」形成明暗区分。</div>
+    <div class="bubble">
+        <p>这个问题的原因在配置加载顺序上：</p>
+        <blockquote class="bq-v2">配置分两层加载：全局 <code>~/.qualia/code/config.json</code> 提供默认值，工作区 <code>.qualia/config.json</code> 覆盖同名键。<strong>工作区配置优先级更高</strong>，且合并是浅合并。</blockquote>
+        <p>所以你只需要在工作区放一个覆盖文件即可。</p>
+    </div>
+</div>
+
+<!-- ===== V3 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">V3</span><h2>语义绿条</h2></div>
+    <div class="variant-desc">左条与底色都用主题绿（低饱和、低透明度），暗示「这是引用的外部声音」。与热力图、开关的亮绿体系同源，品牌感最强——但页面绿色元素会变多。</div>
+    <div class="bubble">
+        <p>这个问题的原因在配置加载顺序上：</p>
+        <blockquote class="bq-v3">配置分两层加载：全局 <code>~/.qualia/code/config.json</code> 提供默认值，工作区 <code>.qualia/config.json</code> 覆盖同名键。<strong>工作区配置优先级更高</strong>，且合并是浅合并。</blockquote>
+        <p>所以你只需要在工作区放一个覆盖文件即可。</p>
+    </div>
+</div>
+
+<!-- ===== V4 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">V4</span><h2>悬垂引号</h2></div>
+    <div class="variant-desc">编辑部风格：Georgia 衬线大引号悬垂在左上，无边框无底色，靠排版而不是色块区分。最轻最雅，但识别度依赖字号层级，窄气泡下略挤。</div>
+    <div class="bubble">
+        <p>这个问题的原因在配置加载顺序上：</p>
+        <blockquote class="bq-v4">配置分两层加载：全局 <code>~/.qualia/code/config.json</code> 提供默认值，工作区 <code>.qualia/config.json</code> 覆盖同名键。<strong>工作区配置优先级更高</strong>，且合并是浅合并。</blockquote>
+        <p>所以你只需要在工作区放一个覆盖文件即可。</p>
+    </div>
+</div>
+
+<div class="foot-note">
+    说明：四个版本的文字色统一为 <code>text-secondary</code>（弱于正文），内部行内代码 / 加粗保持气泡内原样式；落地时将新增 <code>--bg-blockquote</code> / <code>--border-blockquote</code> 主题变量替换掉硬编码紫色，深浅两套同步生效。
+</div>
+
+</body>
+</html>

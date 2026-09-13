@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>附件展示样式提案 · Qualia Code</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<style>
+    :root {
+        --bg-page: #12151c;
+        --bg-panel: #1a1e28;
+        --bg-input: #232836;
+        --bg-bubble-user: #2b4c7e;
+        --border: rgba(255, 255, 255, 0.1);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --accent: #6ea8fe;
+        --shadow: rgba(0, 0, 0, 0.35);
+    }
+    body.light {
+        --bg-page: #f4f6fa;
+        --bg-panel: #ffffff;
+        --bg-input: #eef1f6;
+        --bg-bubble-user: #d7e6fb;
+        --border: rgba(0, 0, 0, 0.1);
+        --text-1: #1e232e;
+        --text-2: #5f6883;
+        --accent: #3572d6;
+        --shadow: rgba(0, 0, 0, 0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Inter', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        background: var(--bg-page);
+        color: var(--text-1);
+        padding: 32px 24px 80px;
+        transition: background 0.2s, color 0.2s;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; }
+
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    h1 { font-size: 22px; font-weight: 600; }
+    .theme-btn {
+        border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-1);
+        padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    }
+    .lead { color: var(--text-2); font-size: 13px; margin-bottom: 36px; line-height: 1.7; }
+    .lead b { color: var(--text-1); }
+
+    section { margin-bottom: 44px; }
+    .scene-title { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .scene-num {
+        width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff;
+        font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+    }
+    .scene-title h2 { font-size: 15px; font-weight: 600; }
+
+    .panel {
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+        padding: 18px 20px; margin-bottom: 14px;
+    }
+    .panel-label { font-size: 11px; color: var(--text-2); letter-spacing: 1px; margin-bottom: 12px; }
+    .design-note { font-size: 12px; color: var(--text-2); line-height: 1.8; padding: 2px 4px 0; }
+    .design-note b { color: var(--accent); font-weight: 600; }
+
+    /* ===== 核心：统一 84px 方形卡片网格（图片与文档同规格） ===== */
+    .attach-strip { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 2px 12px; }
+    .attach-card {
+        position: relative; width: 84px; height: 84px; border-radius: 10px;
+        border: 1px solid var(--border); background: var(--bg-input); overflow: hidden;
+    }
+    .attach-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* 文档卡片：图标居中 + 底部信息区，与图片缩略图同构 */
+    .attach-card.doc { display: flex; flex-direction: column; }
+    .attach-card.doc .doc-body {
+        flex: 1; display: flex; align-items: center; justify-content: center;
+    }
+    .attach-card.doc .doc-body i { font-size: 30px; }
+    .attach-card.doc .doc-foot {
+        padding: 5px 7px 7px; background: rgba(127, 137, 157, 0.12);
+        text-align: center; min-width: 0;
+    }
+    .attach-card.doc .doc-foot .n {
+        font-size: 10.5px; color: var(--text-1);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3;
+    }
+    .attach-card.doc .doc-foot .s {
+        font-size: 9.5px; color: var(--text-2); letter-spacing: 0.4px; margin-top: 1px;
+    }
+
+    .icon-pdf { color: #e5615c; }
+    .icon-word { color: #5b9bd5; }
+    .icon-excel { color: #4caf7d; }
+    .icon-text { color: var(--text-2); }
+
+    .card-remove {
+        position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
+        border: none; border-radius: 50%; background: rgba(0, 0, 0, 0.62); color: #fff;
+        font-size: 10px; display: flex; align-items: center; justify-content: center;
+        cursor: pointer; opacity: 0.55; transition: all 0.15s;
+    }
+    .card-remove:hover { opacity: 1; background: rgba(220, 68, 68, 0.9); transform: scale(1.08); }
+    .attach-card:hover { border-color: var(--accent); }
+
+    /* ===== 消息气泡内的附件展示 ===== */
+    .msg { display: flex; margin-bottom: 16px; }
+    .msg.user { justify-content: flex-end; }
+    .bubble {
+        max-width: 72%; padding: 10px 14px; border-radius: 14px;
+        font-size: 13px; line-height: 1.6; background: var(--bg-input);
+    }
+    .msg.user .bubble { background: var(--bg-bubble-user); border-bottom-right-radius: 4px; }
+
+    .bubble .imgs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .bubble .imgs img {
+        width: 168px; height: 112px; object-fit: cover;
+        border-radius: 9px; border: 1px solid rgba(255,255,255,0.14);
+        cursor: zoom-in; transition: filter 0.15s;
+    }
+    body.light .bubble .imgs img { border-color: rgba(0,0,0,0.08); }
+    .bubble .imgs img:hover { filter: brightness(1.08); }
+
+    .bubble .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .chip {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 8px 14px 8px 11px; border-radius: 10px;
+        border: 1px solid var(--border); background: rgba(127, 137, 157, 0.14);
+        font-size: 12px; max-width: 240px; cursor: default; transition: background 0.15s;
+    }
+    .chip:hover { background: rgba(127, 137, 157, 0.22); }
+    .chip i { font-size: 16px; }
+    .chip .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    footer { color: var(--text-2); font-size: 12px; line-height: 1.9; border-top: 1px solid var(--border); padding-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <h1>附件展示样式提案</h1>
+        <button class="theme-btn" onclick="document.body.classList.toggle('light')">切换浅色主题</button>
+    </header>
+    <p class="lead">
+        核心改动：<b>输入区所有附件统一为 84×84 方形卡片</b>——图片是缩略图，文档是「类型大图标 + 底部文件名牌」，
+        两者同构同尺寸，彻底解决现在图片 72px 方块与文档横条混排的高低不齐。<br>
+        以下每个场景展示两帧：<b>发送前</b>（输入框上方的预览条）与<b>发送后</b>（用户气泡内的呈现）。
+    </p>
+
+    <!-- 场景一 -->
+    <section>
+        <div class="scene-title"><span class="scene-num">1</span><h2>只上传图片（截图 / 照片）</h2></div>
+        <div class="panel">
+            <div class="panel-label">发送前 · 输入框上方预览条</div>
+            <div class="attach-strip">
+                <div class="attach-card"><img src="https://picsum.photos/seed/qa1/168/168" alt=""><button class="card-remove"><i class="fas fa-times"></i></button></div>
+                <div class="attach-card"><img src="https://picsum.photos/seed/qa2/168/168" alt=""><button class="card-remove"><i class="fas fa-times"></i></button></div>
+                <div class="attach-card"><img src="https://picsum.photos/seed/qa3/168/168" alt=""><button class="card-remove"><i class="fas fa-times"></i></button></div>
+            </div>
+            <div class="design-note">纯图片场景：三张缩略图等宽等高成一行网格，<b>删除按钮常显半透明</b>（触屏可见），hover 描边提亮。</div>
+        </div>
+        <div class="panel">
+            <div class="panel-label">发送后 · 用户气泡</div>
+            <div class="msg user">
+                <div class="bubble">
+                    帮我看下这几张报错截图是什么问题
+                    <div class="imgs">
+                        <img src="https://picsum.photos/seed/qa1/336/224" alt="">
+                        <img src="https://picsum.photos/seed/qa2/336/224" alt="">
+                        <img src="https://picsum.photos/seed/qa3/336/224" alt="">
+                    </div>
+                </div>
+            </div>
+            <div class="design-note">气泡内缩略图统一 <b>168×112</b>（3:2），cover 裁切对齐，间距 8px；点击进入全屏灯箱。</div>
+        </div>
+    </section>
+
+    <!-- 场景二 -->
+    <section>
+        <div class="scene-title"><span class="scene-num">2</span><h2>只上传文档（PDF / Word / 文本）</h2></div>
+        <div class="panel">
+            <div class="panel-label">发送前 · 输入框上方预览条</div>
+            <div class="attach-strip">
+                <div class="attach-card doc">
+                    <div class="doc-body"><i class="fas fa-file-pdf icon-pdf"></i></div>
+                    <div class="doc-foot"><div class="n">季度报告.pdf</div><div class="s">PDF · 2.4MB</div></div>
+                    <button class="card-remove"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="attach-card doc">
+                    <div class="doc-body"><i class="fas fa-file-word icon-word"></i></div>
+                    <div class="doc-foot"><div class="n">需求说明书-v3.docx</div><div class="s">WORD · 856KB</div></div>
+                    <button class="card-remove"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="attach-card doc">
+                    <div class="doc-body"><i class="fas fa-file-lines icon-text"></i></div>
+                    <div class="doc-foot"><div class="n">config.yaml</div><div class="s">YAML · 4KB</div></div>
+                    <button class="card-remove"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="design-note">
+                文档卡片与图片<b>同规格 84×84</b>：类型大图标居中（PDF 红 / Word 蓝 / 文本灰），底部信息牌显示文件名与「类型 · 大小」。
+                文件名超长省略号，悬停 title 可见全名。
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-label">发送后 · 用户气泡</div>
+            <div class="msg user">
+                <div class="bubble">
+                    总结一下这份报告的结论，重点看第三章
+                    <div class="chips">
+                        <span class="chip"><i class="fas fa-file-pdf icon-pdf"></i><span class="t">季度报告.pdf</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="design-note">气泡内文档为<b>胶囊标签</b>：类型图标着色 + 文件名，多个标签自动换行流式排列。</div>
+        </div>
+    </section>
+
+    <!-- 场景三 -->
+    <section>
+        <div class="scene-title"><span class="scene-num">3</span><h2>图片 + 文档混合上传</h2></div>
+        <div class="panel">
+            <div class="panel-label">发送前 · 输入框上方预览条（混排，整齐对齐）</div>
+            <div class="attach-strip">
+                <div class="attach-card"><img src="https://picsum.photos/seed/qa4/168/168" alt=""><button class="card-remove"><i class="fas fa-times"></i></button></div>
+                <div class="attach-card doc">
+                    <div class="doc-body"><i class="fas fa-file-pdf icon-pdf"></i></div>
+                    <div class="doc-foot"><div class="n">设计规范.pdf</div><div class="s">PDF · 5.1MB</div></div>
+                    <button class="card-remove"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="attach-card"><img src="https://picsum.photos/seed/qa5/168/168" alt=""><button class="card-remove"><i class="fas fa-times"></i></button></div>
+                <div class="attach-card doc">
+                    <div class="doc-body"><i class="fas fa-file-excel icon-excel"></i></div>
+                    <div class="doc-foot"><div class="n">数据表.csv</div><div class="s">CSV · 128KB</div></div>
+                    <button class="card-remove"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="design-note">混合场景是本次方案的<b>关键收益</b>：图片与文档同一网格规格，混排不出现高低错落。</div>
+        </div>
+        <div class="panel">
+            <div class="panel-label">发送后 · 用户气泡</div>
+            <div class="msg user">
+                <div class="bubble">
+                    按规范里的配色要求，检查截图里的页面还原度
+                    <div class="imgs">
+                        <img src="https://picsum.photos/seed/qa4/336/224" alt="">
+                        <img src="https://picsum.photos/seed/qa5/336/224" alt="">
+                    </div>
+                    <div class="chips">
+                        <span class="chip"><i class="fas fa-file-pdf icon-pdf"></i><span class="t">设计规范.pdf</span></span>
+                        <span class="chip"><i class="fas fa-file-excel icon-excel"></i><span class="t">数据表.csv</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="design-note">气泡内<b>图片行在上、文档标签行在下</b>分组呈现，视觉上先图后文，与提问意图的自然阅读顺序一致。</div>
+        </div>
+    </section>
+
+    <footer>
+        补充说明：上限仍为单次 4 个附件；卡片 hover 提亮描边；点击气泡内图片打开全屏灯箱（Esc / 点击关闭）。
+        若确认此方案，将按此规格更新 index.html 与 index.css。
+    </footer>
+</div>
+</body>
+</html>

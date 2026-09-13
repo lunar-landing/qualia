@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table 设计选型 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（与生产 index.css 同步） ===== */
+    :root {
+        --bg-app: #0d1117;
+        --bg-bubble-ai: #161d2b;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.08);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+    }
+    body.light-theme {
+        --bg-app: #f6f8fa;
+        --bg-bubble-ai: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --bg-hover: #e9edf1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-app);
+        color: var(--text-primary);
+        padding: 32px 24px 64px;
+        transition: background 0.25s, color 0.25s;
+    }
+
+    .page-head {
+        max-width: 860px; margin: 0 auto 28px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0; border: 1px solid var(--border-color);
+        background: transparent; color: var(--text-primary);
+        font-size: 13px; padding: 8px 16px; border-radius: 8px;
+        cursor: pointer; transition: opacity 0.15s;
+    }
+    .theme-toggle:hover { opacity: 0.75; }
+
+    .variant { max-width: 860px; margin: 0 auto 40px; }
+    .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .variant-head .tag {
+        font-size: 12px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; border: 1px solid var(--border-color);
+        color: var(--text-secondary); flex-shrink: 0;
+    }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.6; }
+    .variant-desc b { color: var(--text-secondary); font-weight: 600; }
+
+    .bubble {
+        background: var(--bg-bubble-ai);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 13.5px; line-height: 1.75;
+        max-width: 720px;
+    }
+    .bubble p { margin: 6px 0; font-size: 13px; color: var(--text-secondary); }
+    .cap { font-size: 11px; color: var(--text-muted); margin: 14px 0 2px; letter-spacing: 0.4px; }
+    .cap:first-child { margin-top: 0; }
+
+    /* =========================================================
+       T1 自适应紧凑：表格按内容收缩（width: fit-content），
+       窄表不拉满更自然；超宽时横向滚动。表头无底、加重下边线。
+       ========================================================= */
+    .t1 {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: fit-content; max-width: 100%;
+        margin: 8px 0;
+        font-size: 12.5px;
+    }
+    .t1 th, .t1 td {
+        padding: 6px 14px; text-align: left;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .t1 th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px solid var(--border-color);
+    }
+    .t1 tr:last-child td { border-bottom: none; }
+
+    /* =========================================================
+       T2 撑满极简线：无外框无底色，只留横线语言
+       （表头重线 + 行间细线），Notion / Typora 风。
+       ========================================================= */
+    .t2 {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+        font-size: 12.5px;
+    }
+    .t2 th, .t2 td {
+        padding: 7px 12px; text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .t2 th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px solid var(--text-muted);
+    }
+    .t2 tr:last-child td { border-bottom: none; }
+
+    /* =========================================================
+       T3 圆角卡片表（现状改良）：保留圆角壳 + 撑满 + 滚动，
+       表头放弃反差黑块，改同色系浅底，整体更轻。
+       ========================================================= */
+    .t3 {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: 100%;
+        margin: 8px 0;
+        font-size: 12.5px;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+    }
+    .t3 th, .t3 td {
+        padding: 7px 12px; text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .t3 th {
+        background: var(--bg-hover);
+        font-weight: 600; font-size: 11.5px;
+        letter-spacing: 0.3px; color: var(--text-secondary);
+    }
+    .t3 tr:last-child td { border-bottom: none; }
+    body.light-theme .t3 th { background: #f6f8fa; }
+
+    /* =========================================================
+       T4 斑马纹满宽：撑满 + 斑马底主导（隔行浅底），
+       无外框无 hover 依赖，多行数据扫读最省力。
+       ========================================================= */
+    .t4 {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+        font-size: 12.5px;
+    }
+    .t4 th, .t4 td { padding: 6px 12px; text-align: left; }
+    .t4 th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px solid var(--border-color);
+    }
+    .t4 tbody tr:nth-child(even) td { background: rgba(128, 144, 168, 0.08); }
+    body.light-theme .t4 tbody tr:nth-child(even) td { background: rgba(31, 35, 40, 0.035); }
+
+    /* 滚动提示（通用）：所有版本超宽时右侧渐隐 */
+    .foot-note {
+        max-width: 860px; margin: 40px auto 0;
+        font-size: 12px; color: var(--text-muted);
+        border-top: 1px solid var(--border-color);
+        padding-top: 14px; line-height: 1.7;
+    }
+</style>
+</head>
+<body class="light-theme">
+
+<div class="page-head">
+    <div>
+        <h1>Table 设计选型</h1>
+        <p>聊天气泡内的 Markdown 表格 · 四个版本，宽窄双表实测，右上角可切换深 / 浅主题</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== T1 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">T1</span><h2>自适应紧凑</h2></div>
+    <div class="variant-desc"><b>按内容收缩（fit-content），窄表不拉满</b>，视觉跟随内容更自然；列多时横向滚动兜底。表头无底色、加重下边线。适合大量「小表」的对话场景。</div>
+    <div class="bubble">
+        <div class="cap">窄表（按内容收缩）</div>
+        <table class="t1">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出气泡宽度 → 横向滚动）</div>
+        <table class="t1">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== T2 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">T2</span><h2>撑满极简线</h2></div>
+    <div class="variant-desc"><b>撑满宽度</b>，去外框去底色，只留横线语言（表头重线 + 行间细线）。与代码块、引用块的「块状」区分最干净，正文一体感最强。</div>
+    <div class="bubble">
+        <div class="cap">窄表（撑满气泡宽）</div>
+        <table class="t2">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出气泡宽度 → 横向滚动）</div>
+        <table class="t2">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== T3 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">T3</span><h2>圆角卡片表（现状改良）</h2></div>
+    <div class="variant-desc">保留现在的<b>圆角壳 + 撑满 + 滚动</b>骨架，表头从「日间石墨黑反差块」降为同色系浅底（深色不变），块状轮廓保留、视觉更轻。改动最小的保守选项。</div>
+    <div class="bubble">
+        <div class="cap">窄表（撑满气泡宽）</div>
+        <table class="t3">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出气泡宽度 → 横向滚动）</div>
+        <table class="t3">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== T4 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">T4</span><h2>斑马纹满宽</h2></div>
+    <div class="variant-desc"><b>撑满 + 斑马底主导</b>：无外框，隔行浅底直接圈出行轨迹，无 hover 依赖。多行数据扫读最省力，适合「AI 输出数据报表」场景；行数少时略重。</div>
+    <div class="bubble">
+        <div class="cap">窄表（撑满气泡宽）</div>
+        <table class="t4">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出气泡宽度 → 横向滚动）</div>
+        <table class="t4">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="foot-note">
+    通用行为：四个版本都保留 <code>overflow-x: auto</code> 横向滚动兜底（超宽表格在气泡内滚动，不撑破布局）。落地时日间模式下不再使用石墨黑表头反差块（T3 除外，其为降级改良）。选中版本后如需混合（如 T1 的自适应宽 + T3 的圆角壳）也可以说明。
+</div>
+
+</body>
+</html>

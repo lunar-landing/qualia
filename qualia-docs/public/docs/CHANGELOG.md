@@ -6,11 +6,19 @@
 
 ## [未发布]
 
+### 新增
+
+- **qualia-core / 多模态消息**：消息模型支持图片等多模态内容块直传视觉模型。新增 `ContentPart`（`text` / `image_url` 两类内容块，符合 OpenAI Chat Completions 规范）与 `ChatImage`（文件名 + data URL 的图片入参载体）；`ChatMessage` 新增 `contentParts` 字段，非空时序列化为 content 数组、为空时保持纯文本字符串，旧消息格式完全兼容；`Agent`/`ReActAgent` 新增 `callStream(sessionId, input, List<ChatImage>)` 重载，图片以 `image_url` 内容块（data URL）仅当轮直传模型，会话记忆中只保留 `[图片: 文件名]` 文本占位符，避免 base64 进入上下文导致膨胀；`detectLanguage` 对空文本短路返回。需选用具备视觉能力的模型。
+
+### 变更
+
+- **qualia-core / 文件解析器**：文档解析能力从 `retrieval.parser` 迁移为顶级包 `core.parser`，并破坏性重设计。解析器定位为纯文件转换组件：输入支持字节（`parse(byte[])`）与磁盘路径（`parse(Path)`）两种形态，类型判断只依据文件名后缀（`supports(fileName)`），产出统一的 `List<Document>`（分段型解析器附带页码等元数据），不再耦合 RAG 检索或附件上传概念。包含三类实现：文本解析器覆盖纯文本与常见代码/配置后缀，UTF-8 严格解码失败自动回退 GBK 并去除 BOM；Markdown 解析器改为保留原文（含代码块、链接、表格）不做标记清洗，仅提取首个一级/二级标题写入元数据；新增 PDF 解析器（基于 Apache PDFBox）按页提取文字层并附页码元数据，加密 PDF 与全页无文字层的扫描版 PDF 抛出明确的解析异常。解析失败统一抛出新增的 `DocumentParseException`。同步更新 `VectorStore` 体系的 `Document` 引用路径。
+
 ## [0.1.1] - 2026-09-09
 
 ### 变更
 
-- **qualia-core / BashTool**：Windows 下执行器由 cmd 迁移为 PowerShell。cmd 对模型的 Unix 命令习惯兼容度低（无 ls/cat/pwd/rm 等命令、date/time 为交互式设置命令），模型需多轮试错；PowerShell 内置系统级别名兼容大部分 Unix 命令名，无需自维护命令转译层。同时：以 `-EncodedCommand`（UTF-16LE Base64）传递命令，规避多层引号转义问题；显式设置 UTF-8 编解码替代 `chcp 65001`；输出统一经 `Out-String` 以固定宽度（120，与控制台默认一致）渲染为纯文本——避免 PS 5.1 在重定向下把错误流序列化为 CLIXML XML，也避免伪控制台宽度为 0 导致 `pwd`/`Measure-Object` 等表格类输出渲染为空；退出码合成：native 命令失败在 PS 中默认仍以 0 退出，透传 `$LASTEXITCODE`，纯 cmdlet 失败（无 `$LASTEXITCODE`）用 `$?` 兜底，PS 子进程崩溃时由上层标记失败；Java 侧增加 CLIXML 兜底解析（覆盖脚本级包裹不了的语法错误等路径）；抑制进度流。macOS/Linux 分支不受影响，仍走原生 `sh -c`。已知限制：`&&` 链接符在 Windows PowerShell 5.1 不支持（模型可自愈改用 `;`）；`curl`/`wget` 别名指向 `Invoke-WebRequest`，需用 `curl.exe`；每次调用有 PowerShell 进程启动开销（数秒），格式化类命令（如 `date`/`ls` 的表格输出）在部分机器上有额外延迟；native 命令的 stderr 会带 PS 错误记录装饰（`git : ...` 前缀与位置信息），信息完整但略冗长；极少数 GBK 编码输出的原生工具在 UTF-8 设置下可能乱码。
+- **qualia-core / BashTool**：Windows 下执行器由 cmd 迁移为 PowerShell。cmd 对模型的 Unix 命令习惯兼容度低（无 `ls`/`cat`/`pwd` 等命令），模型需多轮试错；PowerShell 内置系统级别名兼容大部分 Unix 命令名。实现上以 UTF-16LE Base64 编码传递命令规避引号转义，显式 UTF-8 编解码，输出渲染为固定宽度纯文本，并正确透传原生命令的退出码。macOS/Linux 分支不受影响，仍走原生 `sh -c`。已知限制：`&&` 链接符在 Windows PowerShell 5.1 不支持（模型可自愈改用 `;`）；`curl`/`wget` 别名指向 `Invoke-WebRequest`，需用 `curl.exe`；每次调用有 PowerShell 进程启动开销（数秒）；极少数 GBK 编码输出的原生工具在 UTF-8 设置下可能乱码。
 
 ### 修复
 

@@ -1,4 +1,4 @@
-package cn.lunarlanding.qualia.core.retrieval.parser;
+package cn.lunarlanding.qualia.core.parser;
 
 import java.util.HashMap;
 import java.util.Map;

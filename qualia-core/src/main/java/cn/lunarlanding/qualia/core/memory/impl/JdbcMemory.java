@@ -2,6 +2,7 @@ package cn.lunarlanding.qualia.core.memory.impl;
 
 import com.alibaba.fastjson.JSON;
 import cn.lunarlanding.qualia.core.agent.spec.AgentStep;
+import cn.lunarlanding.qualia.core.memory.AttachmentRef;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
 import cn.lunarlanding.qualia.core.model.chat.ChatUsage;
 import cn.lunarlanding.qualia.core.memory.Memory;
@@ -84,6 +85,7 @@ public class JdbcMemory implements Memory {
             safeAddColumn(conn, "completion_tokens", "INT");
             safeAddColumn(conn, "total_tokens", "INT");
             safeAddColumn(conn, "duration_ms", "BIGINT");
+            safeAddColumn(conn, "attachments_json", "TEXT");
 
             // 初始化摘要表
             conn.createStatement().execute(createSummaryTableSql);
@@ -109,10 +111,10 @@ public class JdbcMemory implements Memory {
     }
 
     @Override
-    public void addUserMessage(String sessionId, String content) {
+    public void addUserMessage(String sessionId, String content, List<AttachmentRef> attachments) {
         int seq = getNextSequence(sessionId);
-        String sql = "INSERT INTO chat_message (id, session_id, role, content, steps_json, created_at, sequence_num) " +
-                     "VALUES (?, ?, ?, ?, NULL, ?, ?)";
+        String sql = "INSERT INTO chat_message (id, session_id, role, content, steps_json, attachments_json, created_at, sequence_num) " +
+                     "VALUES (?, ?, ?, ?, NULL, ?, ?, ?)";
 
         try {
             queryRunner.update(sql,
@@ -120,6 +122,7 @@ public class JdbcMemory implements Memory {
                 sessionId,
                 MemoryMessage.Role.USER.name(),
                 content,
+                attachments != null ? JSON.toJSONString(attachments) : null,
                 System.currentTimeMillis(),
                 seq
             );

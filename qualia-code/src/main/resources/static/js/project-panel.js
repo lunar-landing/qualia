@@ -88,7 +88,7 @@
             justify-content: center;
             border-radius: 12px;
             background: var(--accent-gradient);
-            color: var(--white);
+            color: var(--accent-ink);
             box-shadow: var(--shadow-input), inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
         .ws-sw-logo svg { width: 19px; height: 19px; }
@@ -139,7 +139,7 @@
             border: none;
             border-radius: 9px;
             background: var(--accent-gradient);
-            color: var(--white);
+            color: var(--accent-ink);
             font-size: 12.5px;
             font-weight: 600;
             font-family: inherit;
@@ -490,7 +490,7 @@
             cursor: pointer;
             transition: all 0.15s;
         }
-        .ws-sw-br-empty .create-btn:hover { background: var(--accent-light); color: var(--white); }
+        .ws-sw-br-empty .create-btn:hover { background: var(--accent-light); color: var(--accent-ink); }
         .ws-sw-br-empty.error { color: var(--error); }
 
         /* 提示行：错误信息（两个视图各一条） */
@@ -561,7 +561,7 @@
             border: none;
             border-radius: 8px;
             background: var(--accent-gradient);
-            color: var(--white);
+            color: var(--accent-ink);
             font-size: 12px;
             font-weight: 600;
             font-family: inherit;

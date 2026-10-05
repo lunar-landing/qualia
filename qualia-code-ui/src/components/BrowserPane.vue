@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { usePreviewStore } from '@/stores/preview'
 import { rawFileUrl, readFileContent, revealWorkspaceFile } from '@/api/config'
+import { useTheme } from '@/composables/theme'
+import { buildMarkdownPage, isMarkdownFile } from '@/utils/markdownPage'
 
 /**
  * 工作区面板「浏览器」Tab 内容：工具栏（地址栏 + 动作钮）+ 渲染区 + 沙箱脚注 + 空态。
@@ -14,6 +16,7 @@ import { rawFileUrl, readFileContent, revealWorkspaceFile } from '@/api/config'
 const { t } = useI18n()
 const ws = useWorkspaceStore()
 const preview = usePreviewStore()
+const { isLight } = useTheme()
 
 /** 刷新重挂计数（srcdoc/同 URL 内容不变时也强制重建 iframe 的 key） */
 const tick = ref(0)
@@ -47,13 +50,20 @@ const crumbs = computed(() => {
   return out
 })
 
-/** 刷新：文件模式重拉内容重建 srcdoc；内联/网页直接重挂 iframe */
+/** 刷新：文件模式重拉内容重建 srcdoc（md 重新转阅读页）；内联/网页直接重挂 iframe */
 async function reload() {
   if (isFile.value) {
     reloading.value = true
     try {
       const res = await readFileContent(preview.path)
-      if (res.type === 'text') preview.openHtml(String(res.content ?? ''), preview.title, preview.path)
+      if (res.type === 'text') {
+        const content = String(res.content ?? '')
+        preview.openHtml(
+          isMarkdownFile(preview.path) ? buildMarkdownPage(content, isLight.value) : content,
+          preview.title,
+          preview.path,
+        )
+      }
     } catch {
       // 拉取失败保留当前内容，仅重挂
     }

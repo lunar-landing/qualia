@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { usePreviewStore } from '@/stores/preview'
 import { readFileContent } from '@/api/config'
+import { useTheme } from '@/composables/theme'
+import { buildMarkdownPage, isMarkdownFile } from '@/utils/markdownPage'
 import { baseName, changeKeyOf } from '@/utils/steps'
 import type { AgentStep } from '@/types'
 
@@ -12,12 +14,13 @@ import type { AgentStep } from '@/types'
  * 从本条消息 steps 派生 edit/write/delete 变更，按文件聚合去重，
  * 整行铺超低透明度 op 色底（与审查面板徽标同色系），hover 以 1px 内描边提示可交互。
  * 「预览」按类型路由：html 走工作区面板浏览器 Tab 渲染效果（srcdoc），
- * 其余文件走 ws.openFilePreview 预览层；删除文件无预览按钮。
+ * md 转阅读页同走浏览器 Tab；其余文件走 ws.openFilePreview 预览层；删除文件无预览按钮。
  */
 const props = defineProps<{ steps: AgentStep[] }>()
 const { t } = useI18n()
 const ws = useWorkspaceStore()
 const previewStore = usePreviewStore()
+const { isLight } = useTheme()
 
 const OP_LABEL = computed<Record<string, string>>(() => ({
   write: t('changes.write'),
@@ -49,17 +52,24 @@ const files = computed<ChangedFile[]>(() => {
   return [...byPath].map(([path, steps]) => ({ path, op: opOf(steps) }))
 })
 
-/** 预览路由：html → 读内容走浏览器 Tab 渲染；读取失败回落预览层；其余文件直接预览层 */
+/** 预览路由：html/md → 读内容走浏览器 Tab（md 转阅读页）；读取失败回落预览层；其余文件直接预览层 */
 async function open(f: ChangedFile) {
-  if (!/\.html?$/i.test(f.path)) {
+  const htmlLike = /\.html?$/i.test(f.path)
+  const mdLike = isMarkdownFile(f.path)
+  if (!htmlLike && !mdLike) {
     ws.openFilePreview(f.path)
     return
   }
   try {
     const res = await readFileContent(f.path)
     if (res.type === 'text') {
+      const content = String(res.content ?? '')
       // 第三参传文件语义路径：浏览器 Tab 地址栏显示面包屑并解锁 reveal 等文件动作
-      previewStore.openHtml(String(res.content ?? ''), baseName(f.path), f.path)
+      previewStore.openHtml(
+        mdLike ? buildMarkdownPage(content, isLight.value) : content,
+        baseName(f.path),
+        f.path,
+      )
       return
     }
   } catch {

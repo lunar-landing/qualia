@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 项目会话共存设计</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        padding: 36px 20px 90px;
+        font-size: 13px;
+    }
+
+    /* ===== 双主题变量：默认日间（石墨工程 GitHub 风），.dark 切换 ===== */
+    body {
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-code: #f6f8fa; --bg-code-head: #eff2f5;
+        --bg-table-head: #f6f8fa; --bg-table-row-alt: #fbfcfd;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --code-k: #cf222e; --code-s: #0a3069; --code-c: #6e7781;
+        --code-f: #8250df; --code-a: #953800; --code-n: #0550ae;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        --stream-glow: 0 0 0 1px rgba(26,127,55,0.35), 0 0 10px rgba(26,127,55,0.18);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-code: #1d2230; --bg-code-head: #232a3a;
+        --bg-table-head: #1d2230; --bg-table-row-alt: #1a1f2b;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --danger: #f85149; --danger-bg: rgba(248,81,73,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --code-k: #ff7b72; --code-s: #a5d6ff; --code-c: #8b949e;
+        --code-f: #d2a8ff; --code-a: #ffa657; --code-n: #79c0ff;
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        --stream-glow: 0 0 0 1px rgba(63,185,80,0.4), 0 0 12px rgba(63,185,80,0.22);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 960px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 30px; line-height: 1.7; }
+    .sub code, p code, td code, li code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ===== 卡片 ===== */
+    .card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 20px; box-shadow: var(--card-shadow);
+    }
+    .card > h2 {
+        font-size: 13.5px; font-weight: 700; margin-bottom: 4px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card > h2 .no {
+        width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+        background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 700;
+    }
+    .card > .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.7; }
+
+    /* ===== 表格 ===== */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+        text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700;
+        color: var(--text-secondary); background: var(--bg-table-head);
+        border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-table-row-alt); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 徽章 / 标签 ===== */
+    .tag { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 7px; letter-spacing: 0.3px; vertical-align: 1px; }
+    .tag.p1 { background: var(--info-bg); color: var(--info); }
+    .tag.p2 { background: var(--success-bg); color: var(--success); }
+    .tag.opt { background: var(--bg-chip); color: var(--text-muted); }
+    .tag.new { background: var(--success-bg); color: var(--success); }
+    .tag.keep { background: var(--bg-chip); color: var(--text-secondary); }
+    .tag.mod { background: var(--warning-bg); color: var(--warning); }
+
+    /* ===== 结论条 ===== */
+    .verdict {
+        display: flex; gap: 10px; align-items: flex-start;
+        background: var(--bg-inset); border: 1px solid var(--border);
+        border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.75; color: var(--text-secondary);
+    }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict b { color: var(--text-primary); }
+
+    /* ===== 阶段卡 ===== */
+    .stages { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .stage { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .stage h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+    .stage p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.75; }
+    .stage .flow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10.5px; }
+    .stage .flow .step { background: var(--bg-chip); border-radius: 6px; padding: 3px 8px; font-weight: 600; color: var(--text-primary); }
+    .stage .flow .arr { color: var(--text-muted); }
+
+    /* ===== 代码块：头部标签 + 限高滚动 ===== */
+    .codeblock { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-code); }
+    .cb-head {
+        display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+        background: var(--bg-code-head); border-bottom: 1px solid var(--border);
+        font-size: 10.5px; font-weight: 600; color: var(--text-secondary);
+    }
+    .cb-head .dots { display: flex; gap: 4px; }
+    .cb-head .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .cb-head .file { font-family: Consolas, monospace; }
+    .cb-body { padding: 10px 14px; overflow: auto; max-height: 300px; }
+    .cb-body pre { font-family: Consolas, "JetBrains Mono", monospace; font-size: 11px; line-height: 1.75; color: var(--text-primary); }
+    .k { color: var(--code-k); } .s { color: var(--code-s); } .c { color: var(--code-c); }
+    .f { color: var(--code-f); } .a { color: var(--code-a); } .n { color: var(--code-n); }
+
+    /* ===== 侧栏最终形态示意 ===== */
+    .demo-app {
+        display: grid; grid-template-columns: 250px 1fr; gap: 0;
+        border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+        background: var(--bg-inset); min-height: 420px;
+    }
+    .demo-side { background: var(--bg-card); border-right: 1px solid var(--border); padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; padding: 2px 6px 10px; }
+    .brand i {
+        width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 10px;
+    }
+    .ws-head {
+        display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 4px;
+        border: 1px solid var(--border); border-radius: 9px; background: var(--bg-inset); font-size: 11px;
+    }
+    .ws-head .nm { font-weight: 700; color: var(--text-primary); }
+    .ws-head .pth { color: var(--text-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .grp-head {
+        display: flex; align-items: center; gap: 6px; padding: 7px 8px 3px;
+        font-size: 10.5px; font-weight: 700; color: var(--text-primary);
+    }
+    .grp-head .pth { font-weight: 400; color: var(--text-muted); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .grp-head .spin {
+        margin-left: auto; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        border: 1.5px solid var(--border); border-top-color: var(--success);
+        animation: rot 0.9s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .time-h { padding: 4px 9px 2px; font-size: 9.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.4px; }
+    .sess {
+        display: flex; align-items: center; gap: 7px; padding: 6px 9px; margin: 1px 0;
+        border-radius: 7px; font-size: 11.5px; color: var(--text-secondary); cursor: pointer;
+        white-space: nowrap; overflow: hidden;
+    }
+    .sess:hover { background: var(--bg-hover); }
+    .sess .t { overflow: hidden; text-overflow: ellipsis; }
+    .sess .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+    .sess.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+    .sess.live { box-shadow: var(--stream-glow); }
+    .sess.live .dot { background: var(--success); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+    .sess .badge { margin-left: auto; font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
+
+    .demo-chat { padding: 22px 24px; display: flex; flex-direction: column; }
+    .anno { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 10px; }
+    .anno .n {
+        width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+        background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700;
+    }
+    .anno b { color: var(--text-primary); }
+    .callout {
+        margin-top: auto; background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 10px; padding: 12px 14px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.8;
+    }
+    .callout .pin { color: var(--info); font-weight: 700; }
+    .callout code { font-family: Consolas, monospace; font-size: 10.5px; background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary); }
+
+    /* ===== 列表（边界/落地） ===== */
+    ul.plain { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    ul.plain li { display: flex; gap: 9px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+    ul.plain li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    ul.plain b { color: var(--text-primary); font-weight: 600; }
+
+    .roadmap { display: flex; flex-direction: column; gap: 0; }
+    .rm-item { display: flex; gap: 12px; }
+    .rm-rail { display: flex; flex-direction: column; align-items: center; }
+    .rm-node {
+        width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+        border: 2px solid var(--accent); background: var(--bg-card);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9.5px; font-weight: 700; color: var(--text-primary);
+    }
+    .rm-line { width: 2px; flex: 1; background: var(--border); min-height: 22px; }
+    .rm-item:last-child .rm-line { display: none; }
+    .rm-body { padding: 1px 0 16px; }
+    .rm-body h4 { font-size: 12px; font-weight: 700; margin-bottom: 3px; display: flex; gap: 7px; align-items: center; }
+    .rm-body p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1>项目会话共存设计（qualia-code）</h1>
+<p class="sub">多项目的会话在侧边栏聚合可见、点击可继续；切换项目不打断其他项目正在运行的对话流<br>对标 Cursor / Claude Code 的「项目 × 会话」共存形态 · 存量数据零迁移</p>
+
+<div class="wrap">
+
+    <!-- 01 现状与差距 -->
+    <div class="card">
+        <h2><span class="no">01</span>现状与差距</h2>
+        <p class="desc">会话存储已按项目物理隔离，改造集中在服务层与交互层。</p>
+        <table>
+            <tr><th style="width:110px">维度</th><th>现状</th><th style="width:270px">与共存的差距</th></tr>
+            <tr><td><b>会话存储</b></td><td><code>{workspace}/.qualia/sessions/{id}/session.json</code>，天然按项目隔离</td><td><span class="tag keep">无差距</span> 零迁移</td></tr>
+            <tr><td><b>ChatService</b></td><td>全局单例绑定焦点工作区，<code>switchWorkspace</code> 整体重建实例</td><td>切项目即丢实例，旧项目会话列表消失</td></tr>
+            <tr><td><b>流式互斥</b></td><td><code>ACTIVE_STREAMS</code> 全局计数，有流时切换工作区返回 409 BUSY</td><td>一次只能跑一个项目，切项目必须等流结束</td></tr>
+            <tr><td><b>项目列表</b></td><td><code>WorkspaceHistory</code>（recent）已有</td><td>仅用于切换弹窗，未参与会话聚合</td></tr>
+            <tr><td><b>前端状态</b></td><td>chat store 的 <code>messagesBySession</code> 按 sessionId 隔离</td><td><span class="tag keep">无差距</span> 天然支持多会话并行</td></tr>
+        </table>
+        <div class="verdict" style="margin-top:14px">
+            <span class="dot"></span>
+            <span>结论：存储层已就绪，缺的只有两件事——<b>聚合视图</b>（跨项目会话可见）与<b>运行并行</b>（切换不互斥、后台流不中断）。</span>
+        </div>
+    </div>
+
+    <!-- 02 总体方案 -->
+    <div class="card">
+        <h2><span class="no">02</span>总体方案 · 两阶段递进</h2>
+        <p class="desc">P1 只动展示层即可用；P2 解除互斥，是「共存」的本质能力。</p>
+        <div class="stages">
+            <div class="stage">
+                <h3>P1 聚合视图 <span class="tag p1">改动最小</span></h3>
+                <p>侧边栏会话列表按项目分组展示全部项目的会话；点击其他项目的会话自动切换焦点项目后加载。不解除流互斥。</p>
+                <div class="flow">
+                    <span class="step">WorkspaceHistory 遍历项目</span><span class="arr">→</span>
+                    <span class="step">只扫 session.json</span><span class="arr">→</span>
+                    <span class="step">双层分组渲染</span>
+                </div>
+            </div>
+            <div class="stage">
+                <h3>P2 运行共存 <span class="tag p2">核心能力</span></h3>
+                <p>ChatService 单例改为按项目多实例，流计数实例化，解除切换互斥；切走后后台项目的流继续跑，事件照常入 store。</p>
+                <div class="flow">
+                    <span class="step">ChatServiceRegistry 多实例</span><span class="arr">→</span>
+                    <span class="step">/switch 移除 409</span><span class="arr">→</span>
+                    <span class="step">stream 带 workspace</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 03 最终形态示意 -->
+    <div class="card">
+        <h2><span class="no">03</span>最终形态示意 · 侧边栏按项目分组</h2>
+        <p class="desc">项目组（组头 = 项目名 + 路径，可折叠）→ 现有时间分组 → 会话行。流光晕与组头 spinner 复用现有 <code>isProcessing</code>。</p>
+        <div class="demo-app">
+            <div class="demo-side">
+                <div class="brand"><i>Q</i> Qualia Code</div>
+                <div class="ws-head">
+                    <span style="font-style:normal">📂</span>
+                    <div style="min-width:0">
+                        <div class="nm">qualia</div>
+                        <div class="pth">D:\Projects\qualia</div>
+                    </div>
+                </div>
+                <div class="grp-head">▾ qualia <span class="pth">D:\Projects\qualia</span></div>
+                <div class="time-h">今天</div>
+                <div class="sess live on"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="badge">24</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span></div>
+                <div class="time-h">昨天</div>
+                <div class="sess"><span class="dot"></span><span class="t">附件回读与存储分层</span></div>
+                <div class="grp-head">▾ qualia-claw <span class="pth">D:\Projects\qualia\qualia-claw</span><span class="spin"></span></div>
+                <div class="time-h">今天</div>
+                <div class="sess live"><span class="dot"></span><span class="t">模型面板单卡粒度编辑</span></div>
+                <div class="time-h">3 天前</div>
+                <div class="sess"><span class="dot"></span><span class="t">工具配置下沉到智能体级</span></div>
+                <div class="grp-head">▸ blog <span class="pth">D:\Projects\blog</span></div>
+            </div>
+            <div class="demo-chat">
+                <div class="anno"><span class="n">1</span><span>点击<b>其他项目</b>的会话：自动 <b>switchWorkspace</b>（P2 后不再 409）→ 加载该会话历史，焦点项目随之切换。</span></div>
+                <div class="anno"><span class="n">2</span><span>切走焦点项目时其 <b>SSE 连接不断开</b>，事件继续写入 <b>messagesBySession</b>；组头 spinner + 会话行流光晕标识后台运行中。</span></div>
+                <div class="anno"><span class="n">3</span><span><b>新建会话 / 发送消息</b>始终作用于当前焦点项目（现有行为不变）。</span></div>
+                <div class="callout">
+                    <span class="pin">▍零迁移</span>　聚合靠目录扫描：旧会话按其所在的 <code>.qualia/sessions</code> 自动归入对应项目组，无需任何数据搬移。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 04 后端改造 -->
+    <div class="card">
+        <h2><span class="no">04</span>后端改造</h2>
+        <p class="desc">P1 新增一个聚合接口；P2 三处结构性改动。其余 Controller（文件树 / 技能 / 配置）维持「读焦点项目」语义，不动。</p>
+        <table>
+            <tr><th style="width:150px">位置</th><th>P1 <span class="tag p1">聚合视图</span></th><th>P2 <span class="tag p2">运行共存</span></th></tr>
+            <tr>
+                <td><b>ChatService</b></td>
+                <td>新增静态 <code>listSessions(Path)</code>：只扫 <code>session.json</code>，不建 Agent</td>
+                <td>单例 → 多实例；<code>ACTIVE_STREAMS</code> 改为实例字段</td>
+            </tr>
+            <tr>
+                <td><b>ChatController</b></td>
+                <td>新增 <code>GET /api/chat/sessions/all</code></td>
+                <td>stream 接口加可选 <code>workspace</code> 参数</td>
+            </tr>
+            <tr>
+                <td><b>WorkspaceController</b></td>
+                <td><code>/switch</code> 不变（仍互斥）</td>
+                <td>移除 409 BUSY；切换退化为「换焦点」，不再重建实例</td>
+            </tr>
+        </table>
+        <div style="height:14px"></div>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">ChatController · 聚合会话接口（P1）</span></div>
+            <div class="cb-body"><pre><span class="c">// 项目来源 = WorkspaceHistory.list()，只读扫描，不触发 Agent / MCP 初始化</span>
+<span class="a">@GetMapping</span>(<span class="s">"/sessions/all"</span>)
+<span class="k">public</span> ResponseEntity&lt;List&lt;Map&lt;String, Object&gt;&gt;&gt; <span class="f">allSessions</span>() {
+    List&lt;Map&lt;String, Object&gt;&gt; groups = <span class="k">new</span> ArrayList&lt;&gt;();
+    <span class="k">for</span> (WorkspaceRef ref : WorkspaceHistory.<span class="f">list</span>()) {
+        Path ws = Path.<span class="f">of</span>(ref.path());
+        <span class="k">if</span> (!Files.<span class="f">isDirectory</span>(ws.resolve(<span class="s">".qualia"</span>).resolve(<span class="s">"sessions"</span>))) <span class="k">continue</span>;
+        groups.<span class="f">add</span>(Map.<span class="f">of</span>(
+            <span class="s">"workspacePath"</span>, ref.path(),
+            <span class="s">"workspaceName"</span>, ref.name(),
+            <span class="s">"sessions"</span>, ChatService.<span class="f">listSessions</span>(ws)  <span class="c">// 静态只读：id / title / createdAt</span>
+        ));
+    }
+    <span class="k">return</span> ResponseEntity.<span class="f">ok</span>(groups);
+}</pre></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">ChatServiceRegistry · 按项目多实例（P2）</span></div>
+            <div class="cb-body"><pre><span class="k">public final class</span> <span class="n">ChatServiceRegistry</span> {
+    <span class="k">private static final</span> Map&lt;Path, ChatService&gt; SERVICES = <span class="k">new</span> ConcurrentHashMap&lt;&gt;();
+    <span class="k">private static final int</span> MAX_INSTANCES = <span class="n">8</span>;
+
+    <span class="k">public static</span> ChatService <span class="f">get</span>(Path workspace) {
+        <span class="f">evictIfNeeded</span>();
+        <span class="k">return</span> SERVICES.<span class="f">computeIfAbsent</span>(workspace.<span class="f">toAbsolutePath</span>().<span class="f">normalize</span>(), ChatService::<span class="k">new</span>);
+    }
+
+    <span class="c">/** 超限时回收「无活跃流且最久未用」的实例（关 MCP 连接），有流的实例永不回收 */</span>
+    <span class="k">private static void</span> <span class="f">evictIfNeeded</span>() { <span class="c">/* ... */</span> }
+}
+
+<span class="c">// ChatService：删除 static instance 与 switchWorkspace()；流记账改实例字段</span>
+<span class="k">private final</span> AtomicInteger activeStreams = <span class="k">new</span> AtomicInteger();</pre></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">ChatController · stream 端点透传项目（P2）</span></div>
+            <div class="cb-body"><pre><span class="a">@GetMapping</span>(<span class="s">"/stream"</span>)
+<span class="k">public</span> SseEmitter <span class="f">streamChat</span>(<span class="a">@RequestParam</span> String sessionId, <span class="a">@RequestParam</span> String message,
+                             <span class="a">@RequestParam</span>(required = <span class="k">false</span>) String model,
+                             <span class="a">@RequestParam</span>(required = <span class="k">false</span>) String workspace) {
+    <span class="k">return</span> <span class="f">startStream</span>(<span class="f">resolve</span>(workspace), sessionId, message, model, <span class="k">null</span>);
+}
+
+<span class="k">private</span> ChatService <span class="f">resolve</span>(String workspace) {
+    Path ws = workspace != <span class="k">null</span> ? Path.<span class="f">of</span>(workspace) : WebApplication.<span class="f">getCurrentWorkspace</span>();
+    <span class="k">return</span> ChatServiceRegistry.<span class="f">get</span>(ws);  <span class="c">// 缺省 = 焦点项目，向后兼容</span>
+}</pre></div>
+        </div>
+    </div>
+
+    <!-- 05 前端改造 -->
+    <div class="card">
+        <h2><span class="no">05</span>前端改造（qualia-code-ui）</h2>
+        <p class="desc">chat store 的 <code>messagesBySession</code> 结构不动，跨项目流照常写入；改动集中在会话列表与请求参数。</p>
+        <table>
+            <tr><th style="width:220px">文件</th><th>改动</th><th style="width:70px">阶段</th></tr>
+            <tr><td><code>api/chat.ts</code></td><td>新增 <code>listAllSessions()</code>；<code>streamChat</code> 请求带会话所属 <code>workspace</code></td><td><span class="tag p1">P1</span> <span class="tag p2">P2</span></td></tr>
+            <tr><td><code>types/chat.ts</code></td><td>新增 <code>WorkspaceSessionGroup { workspacePath; workspaceName; sessions[] }</code>，<code>ChatSession</code> 不动</td><td><span class="tag p1">P1</span></td></tr>
+            <tr><td><code>stores/session.ts</code></td><td>新增 <code>groups</code> 状态与 <code>loadAllSessions()</code>；保留 <code>sessions</code> 计算属性 = 焦点项目组，兼容现有引用</td><td><span class="tag p1">P1</span></td></tr>
+            <tr><td><code>components/ConversationList.vue</code></td><td>双层分组：项目组（组头可折叠）→ 现有时间分组 → 会话行；组头 spinner 复用 <code>chat.isProcessing</code></td><td><span class="tag p1">P1</span></td></tr>
+            <tr><td><code>stores/chat.ts</code></td><td><code>send</code> 时携带当前焦点项目路径；<code>messagesBySession</code> 不动</td><td><span class="tag p2">P2</span></td></tr>
+            <tr><td><code>stores/workspace.ts</code></td><td><code>switch()</code> 删除 BUSY 分支处理；<code>afterSwitch</code> 保持（文件树等会话域数据重置）</td><td><span class="tag p2">P2</span></td></tr>
+        </table>
+    </div>
+
+    <!-- 06 API 变更 -->
+    <div class="card">
+        <h2><span class="no">06</span>API 变更</h2>
+        <table>
+            <tr><th>接口</th><th>变更</th><th style="width:110px">兼容性</th></tr>
+            <tr><td><code>GET /api/chat/sessions</code></td><td>保留，语义 = 焦点项目</td><td><span class="tag keep">不变</span></td></tr>
+            <tr><td><code>GET /api/chat/sessions/all</code></td><td>新增，按项目分组的全量会话</td><td><span class="tag new">纯新增</span></td></tr>
+            <tr><td><code>GET / POST /api/chat/stream</code></td><td>新增可选参数 <code>workspace</code>，缺省 = 焦点项目</td><td><span class="tag new">向后兼容</span></td></tr>
+            <tr><td><code>POST /api/workspace/switch</code></td><td>P2 移除 409 BUSY；<code>streaming</code> 字段改为「有流的项目数」</td><td><span class="tag mod">前端同步</span></td></tr>
+        </table>
+    </div>
+
+    <!-- 07 边界与兼容 -->
+    <div class="card">
+        <h2><span class="no">07</span>边界与兼容</h2>
+        <ul class="plain">
+            <li><span><b>存量数据零迁移</b>：聚合靠目录扫描，旧会话自动归入对应项目组。</span></li>
+            <li><span><b>资源上限</b>：每项目一份 Agent + MCP 连接 + 模型缓存；注册表上限 8 实例，LRU 回收无流实例；全局配置与技能目录只读共享，无冲突。</span></li>
+            <li><span><b>并发语义</b>：同项目内多会话并行行为与现状一致，无回归；跨项目由「切项目必须等流」变为「互不打扰」。</span></li>
+            <li><span><b>附件</b>：回执仓库按 sessionId 全局存取，与项目无关。</span></li>
+            <li><span><b>token 统计</b>：<code>/stats/tokens</code> 仍只算焦点项目，跨项目聚合统计列为后续可选项（P2.5）。</span></li>
+            <li><span><b>桌面壳 / CLI</b>：消费的接口语义未破坏，不感知此变更。</span></li>
+        </ul>
+    </div>
+
+    <!-- 08 落地顺序 -->
+    <div class="card">
+        <h2><span class="no">08</span>落地顺序</h2>
+        <div class="roadmap" style="margin-top:6px">
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">1</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>P1 聚合视图 <span class="tag p1">一个接口 + 列表渲染</span></h4>
+                    <p><code>listSessions(Path)</code> + <code>/sessions/all</code> + 前端双层分组，即可在侧边栏看到并跳转全部项目的会话。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">2</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>P2 运行共存 <span class="tag p2">结构性改动</span></h4>
+                    <p><code>ChatServiceRegistry</code> 多实例 + 实例级流计数 + <code>/switch</code> 解除互斥 + stream 带 <code>workspace</code>。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">3</div></div>
+                <div class="rm-body">
+                    <h4>P2.5 可选增强 <span class="tag opt">OPT</span></h4>
+                    <p>跨项目 token 聚合统计、项目组折叠状态持久化、无流实例 LRU 回收调优。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -65,4 +65,10 @@ public class SkillLoader extends FunctionTool {
 
         return result.toString();
     }
+
+    /** 只读工具：仅返回技能说明与文档列表，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

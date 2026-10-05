@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 多项目会话共存 Vol.3 · 主画布与能力向</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        padding: 36px 20px 90px;
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        --stream-glow: 0 0 0 1px rgba(26,127,55,0.35), 0 0 10px rgba(26,127,55,0.18);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --danger: #f85149; --danger-bg: rgba(248,81,73,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        --stream-glow: 0 0 0 1px rgba(63,185,80,0.4), 0 0 12px rgba(63,185,80,0.22);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 1000px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 22px; line-height: 1.7; }
+    code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .nav { max-width: 1000px; margin: 0 auto 26px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .nav a {
+        text-decoration: none; font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+        border: 1px solid var(--border); background: var(--bg-card); border-radius: 20px; padding: 6px 14px;
+        display: inline-flex; align-items: center; gap: 7px;
+    }
+    .nav a:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav .v { font-size: 9.5px; border-radius: 4px; padding: 1px 5px; color: #fff; font-weight: 700; }
+
+    .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+    .concept { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); scroll-margin-top: 20px; }
+    .c-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+    .c-badge { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-radius: 6px; padding: 3px 8px; color: #fff; }
+    .c-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+    .c-head .en { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.6px; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; border-radius: 5px; padding: 2px 7px; }
+    .chip.fit { background: var(--info-bg); color: var(--info); }
+    .chip.risk { background: var(--warning-bg); color: var(--warning); }
+    .chip.newc { background: var(--success-bg); color: var(--success); }
+    .c-locate { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.7; }
+    .c-body { display: grid; grid-template-columns: 1.35fr 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 880px) { .c-body { grid-template-columns: 1fr; } }
+
+    .c-notes { display: flex; flex-direction: column; gap: 12px; }
+    .note h4 { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.6px; margin-bottom: 5px; }
+    .note p, .note li { font-size: 12px; color: var(--text-secondary); line-height: 1.75; }
+    .note ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .note li { display: flex; gap: 8px; }
+    .note li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    .note b { color: var(--text-primary); font-weight: 600; }
+
+    .stage { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg-inset); box-shadow: var(--card-shadow); }
+    .s-titlebar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-card); border-bottom: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); }
+    .s-titlebar .dots { display: flex; gap: 4px; }
+    .s-titlebar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+
+    .dot-live { width: 5px; height: 5px; border-radius: 50%; background: var(--success); animation: pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
+    @keyframes pulse { 50% { opacity: 0.25; } }
+    .spin { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 1.5px solid var(--border); border-top-color: var(--success); animation: rot 0.9s linear infinite; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .chip-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
+
+    /* ===== D1 磁贴画布 ===== */
+    .tiles { display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: 1fr 1fr; gap: 0; min-height: 320px; }
+    .tile { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-right: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
+    .tile.big { grid-row: span 2; }
+    .tile:last-child { border-right: none; }
+    .tile-h { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: var(--text-primary); }
+    .tile-h .pth { font-weight: 400; color: var(--text-muted); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tile-h .layout { margin-left: auto; color: var(--text-muted); font-weight: 400; font-size: 9px; flex-shrink: 0; cursor: pointer; }
+    .m-line { font-size: 10px; line-height: 1.6; padding: 5px 8px; border-radius: 7px; background: var(--bg-card); border: 1px solid var(--border-soft); color: var(--text-secondary); }
+    .m-line.u { margin-left: 16px; background: var(--bg-active); color: var(--text-primary); }
+    .m-line.typing::after { content: "▌"; animation: caret 0.9s steps(1) infinite; color: var(--success); }
+    @keyframes caret { 50% { opacity: 0; } }
+    .tile-in { margin-top: auto; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card); padding: 5px 8px; font-size: 9.5px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+    .tile-in .send { width: 16px; height: 16px; border-radius: 5px; background: var(--accent); color: var(--bg-page); display: inline-flex; align-items: center; justify-content: center; font-size: 8px; }
+    .drag-hint { position: absolute; }
+
+    /* ===== D2 项目工作台 ===== */
+    .wb { padding: 14px 16px; }
+    .wb-crumb { font-size: 10px; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .wb-crumb b { color: var(--text-primary); font-size: 11px; }
+    .wb-grid { display: grid; grid-template-columns: 1fr 150px; gap: 14px; }
+    .wb-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .wb-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+    .wb-card:hover { border-color: var(--text-muted); }
+    .wb-card .t { font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wb-card .m { font-size: 9.5px; color: var(--text-muted); }
+    .wb-card.live { box-shadow: var(--stream-glow); }
+    .wb-side { display: flex; flex-direction: column; gap: 8px; }
+    .wb-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+    .wb-stat .k { font-size: 9px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.4px; }
+    .wb-stat .v { font-size: 14px; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
+    .wb-stat .v small { font-size: 9px; font-weight: 600; color: var(--success); }
+    .wb-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .wb-btn { font-size: 10px; font-weight: 700; border-radius: 7px; padding: 5px 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; }
+    .wb-btn.primary { background: var(--accent); color: var(--bg-page); border-color: var(--accent); }
+
+    /* ===== D3 时间机器 ===== */
+    .tm-days { display: flex; gap: 5px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--bg-card); align-items: center; }
+    .tm-day {
+        flex: 1; text-align: center; font-size: 9px; font-weight: 700; color: var(--text-secondary);
+        border: 1px solid var(--border); border-radius: 8px; padding: 5px 0 4px; cursor: pointer; background: var(--bg-card);
+    }
+    .tm-day small { display: block; font-size: 8px; color: var(--text-muted); font-weight: 400; margin-top: 1px; }
+    .tm-day.on { background: var(--bg-active); color: var(--text-primary); border-color: var(--text-muted); }
+    .tm-day .bars { display: flex; gap: 1px; justify-content: center; margin-top: 3px; height: 4px; }
+    .tm-day .bars i { width: 4px; border-radius: 1px; background: var(--bg-chip); }
+    .tm-feed { padding: 12px 16px; display: flex; flex-direction: column; }
+    .tm-row { display: flex; gap: 10px; }
+    .tm-time { width: 34px; font-size: 9px; color: var(--text-muted); font-weight: 700; padding-top: 8px; flex-shrink: 0; text-align: right; }
+    .tm-axis { width: 10px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
+    .tm-axis .pt { width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; flex-shrink: 0; }
+    .tm-axis .ln { width: 2px; flex: 1; background: var(--border-soft); }
+    .tm-card { flex: 1; min-width: 0; background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 9px; padding: 8px 11px; margin: 4px 0 10px; font-size: 10.5px; color: var(--text-secondary); }
+    .tm-card .hd { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .tm-card .hd b { color: var(--text-primary); font-size: 10px; }
+    .tm-card .hd .time { margin-left: auto; color: var(--text-muted); font-size: 8.5px; }
+
+    /* ===== D4 看板 ===== */
+    .kanban { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; padding: 12px; }
+    .kb-col { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-height: 230px; display: flex; flex-direction: column; gap: 6px; }
+    .kb-col-h { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; color: var(--text-primary); padding: 2px 4px 4px; }
+    .kb-col-h .cnt { margin-left: auto; font-size: 8.5px; color: var(--text-muted); font-weight: 600; }
+    .kb-card {
+        background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 8px;
+        padding: 7px 9px; font-size: 10px; color: var(--text-secondary); cursor: grab;
+    }
+    .kb-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(31,35,40,0.14); border-color: var(--text-muted); }
+    .kb-card .t { font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kb-card .m { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 8.5px; color: var(--text-muted); }
+    .kb-card.ghost { border: 1.5px dashed var(--info); background: var(--info-bg); cursor: grabbing; }
+    .kb-add { border: 1.5px dashed var(--border); border-radius: 8px; padding: 6px; text-align: center; font-size: 9.5px; color: var(--text-muted); cursor: pointer; margin-top: auto; }
+
+    /* ===== D5 收件箱 ===== */
+    .inbox-wrap { padding: 12px 14px; }
+    .in-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .in-tab { font-size: 10px; font-weight: 700; border: 1px solid var(--border); border-radius: 14px; padding: 3px 10px; cursor: pointer; color: var(--text-secondary); background: var(--bg-card); display: inline-flex; gap: 5px; align-items: center; }
+    .in-tab .n { background: var(--bg-chip); border-radius: 8px; padding: 0 5px; font-size: 8.5px; color: var(--text-muted); }
+    .in-tab.on { background: var(--bg-active); color: var(--text-primary); border-color: var(--text-muted); }
+    .in-item {
+        display: flex; gap: 10px; align-items: flex-start; background: var(--bg-card);
+        border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 11px; margin-bottom: 7px;
+        font-size: 10.5px; color: var(--text-secondary);
+    }
+    .in-item .ic { width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+    .in-item .bd { flex: 1; min-width: 0; }
+    .in-item .r1 { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .in-item .r1 b { color: var(--text-primary); font-size: 10.5px; }
+    .in-item .r1 .time { margin-left: auto; color: var(--text-muted); font-size: 8.5px; }
+    .in-item .act { display: flex; gap: 5px; margin-top: 6px; }
+    .in-btn { font-size: 9px; font-weight: 700; border-radius: 6px; padding: 3px 9px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; }
+    .in-btn.p { background: var(--accent); color: var(--bg-page); border-color: var(--accent); }
+    .in-item.hidden { display: none; }
+
+    /* ===== 对比表 ===== */
+    .cmp { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); }
+    .cmp h2 { font-size: 15px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    th { text-align: left; padding: 8px 10px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); background: var(--bg-inset); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-inset); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); }
+
+    .verdict { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict b { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1>多项目会话共存 Vol.3 · 主画布与能力向</h1>
+<p class="sub">前两辑解决「去哪找会话」（全局范式 / 侧边栏样式），本辑回答两个新问题：<br>「多个会话如何同屏共处」与「共存还能长出什么新能力」——分屏磁贴 · 项目工作台 · 时间机器 · 会话迁移 · 跨项目收件箱</p>
+
+<div class="nav">
+    <a href="#d1"><span class="v" style="background:#0969da">D1</span>磁贴画布</a>
+    <a href="#d2"><span class="v" style="background:#8250df">D2</span>项目工作台</a>
+    <a href="#d3"><span class="v" style="background:#1a7f37">D3</span>时间机器</a>
+    <a href="#d4"><span class="v" style="background:#9a6700">D4</span>会话迁移看板</a>
+    <a href="#d5"><span class="v" style="background:#cf222e">D5</span>跨项目收件箱</a>
+</div>
+
+<div class="wrap">
+
+    <!-- ===== D1 磁贴画布 ===== -->
+    <div class="concept" id="d1">
+        <div class="c-head">
+            <span class="c-badge" style="background:#0969da">D1</span>
+            <h2>磁贴画布</h2><span class="en">TILE CANVAS</span>
+            <span class="chip fit">主画布分屏</span>
+        </div>
+        <p class="c-locate">聊天区本身变成磁贴布局：每个磁贴 = 一个项目的会话，独立输入框、独立流；布局随意组合（1+1、1+2、四宫格），分隔条可拖。多项目共存从「切换」升级为「同屏」。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 画布（2 布局：1 + 2）<span style="margin-left:auto">◱ 布局 ▾</span></div>
+                <div class="tiles">
+                    <div class="tile big">
+                        <div class="tile-h"><span class="dot-live"></span>qualia · 项目会话共存设计<span class="pth">主磁贴</span><span class="layout">⤢</span></div>
+                        <div class="m-line u">磁贴里也能同时看两个项目吗</div>
+                        <div class="m-line">可以——每个磁贴是独立的聊天区实例，各自绑定 (项目, 会话)，互不干扰。</div>
+                        <div class="m-line u">P2 的多实例直接撑住这个形态</div>
+                        <div class="m-line typing">对。磁贴只是渲染层，SSE 各连各的，右下两个小磁贴正在跑 claw 的任务。</div>
+                        <div class="tile-in">问问别的项目进度…<span class="send">↑</span></div>
+                    </div>
+                    <div class="tile">
+                        <div class="tile-h"><span class="dot-live"></span>claw · 模型面板<span class="layout">✕</span></div>
+                        <div class="m-line typing">生成方案 B 网格卡片…</div>
+                        <div class="tile-in">继续<span class="send">↑</span></div>
+                    </div>
+                    <div class="tile">
+                        <div class="tile-h">blog · astro 迁移<span class="layout">✕</span></div>
+                        <div class="m-line">build 产物已生成，待 review</div>
+                        <div class="tile-in">打开预览<span class="send">↑</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>磁贴 = <code>(workspacePath, sessionId)</code> 二元组的渲染实例；聊天区组件参数化复用</li>
+                        <li>布局方案（1+1 / 1+2 / 2+2）持久化到 localStorage；「⤢」一键把磁贴放大为唯一主磁贴</li>
+                        <li>与任何侧栏样式（Vol.2）正交叠加：点「分屏」按钮把某会话钉到画布</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：并行任务「看得见」的终极形态；审一个项目的产出时另一个还能继续跑</li>
+                        <li><b>劣</b>：小屏拥挤；多磁贴同时流式渲染有性能成本（需虚拟滚动兜底）</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== D2 项目工作台 ===== -->
+    <div class="concept" id="d2">
+        <div class="c-head">
+            <span class="c-badge" style="background:#8250df">D2</span>
+            <h2>项目工作台</h2><span class="en">PROJECT WORKBENCH</span>
+            <span class="chip newc">新一级页面</span>
+        </div>
+        <p class="c-locate">给每个项目一个「GitHub repo 页」式的工作台：面包屑进入，会话以卡片网格陈列，右侧是项目仪表（会话数 / 7 日 token / 文件变更）。项目从「侧栏一行」升格为「可停留的页面」。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 工作台</div>
+                <div class="wb">
+                    <div class="wb-crumb">所有项目 <span>›</span> <b>⌂ qualia</b> <span style="color:var(--text-muted)">D:\Projects\qualia</span></div>
+                    <div class="wb-grid">
+                        <div>
+                            <div class="wb-cards">
+                                <div class="wb-card live">
+                                    <div class="t">● 项目会话共存设计</div>
+                                    <div class="m">今天 · 24 条 · 生成中</div>
+                                </div>
+                                <div class="wb-card">
+                                    <div class="t">侧边栏宽度拖拽调整</div>
+                                    <div class="m">今天 · 12 条 · 已合入</div>
+                                </div>
+                                <div class="wb-card">
+                                    <div class="t">附件回读与存储分层</div>
+                                    <div class="m">昨天 · 31 条</div>
+                                </div>
+                                <div class="wb-card">
+                                    <div class="t">墨白主题去紫化</div>
+                                    <div class="m">前天 · 18 条</div>
+                                </div>
+                            </div>
+                            <div class="wb-actions">
+                                <button class="wb-btn primary">＋ 新会话</button>
+                                <button class="wb-btn">在侧栏打开</button>
+                                <button class="wb-btn">从侧栏移除</button>
+                            </div>
+                        </div>
+                        <div class="wb-side">
+                            <div class="wb-stat"><div class="k">会话总数</div><div class="v">12</div></div>
+                            <div class="wb-stat"><div class="k">7 日 TOKEN</div><div class="v">482k <small>↑18%</small></div></div>
+                            <div class="wb-stat"><div class="k">文件变更</div><div class="v">7 <small>未提交</small></div></div>
+                            <div class="wb-stat"><div class="k">技能 / MCP</div><div class="v">6 / 3</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>数据全部现成：<code>WorkspaceHistory</code> + <code>listSessions</code> + token 统计，只需一个聚合视图接口</li>
+                        <li>「从侧栏移除」= 从注册表摘除项目（不删数据）；孤星项目由此可治理</li>
+                        <li>工作台可作为「非焦点项目」的落地页——点侧栏项目名即进入，而非直接切换上下文</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：项目维度信息最完整；「移除项目 / 看仪表」等管理动作有了自然归宿</li>
+                        <li><b>劣</b>：多一层页面跳转；与「随手切会话」的高频路径有摩擦，适合做中转站而非主路径</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== D3 时间机器 ===== -->
+    <div class="concept" id="d3">
+        <div class="c-head">
+            <span class="c-badge" style="background:#1a7f37">D3</span>
+            <h2>跨项目时间机器</h2><span class="en">DAY REPLAY</span>
+            <span class="chip fit">回顾态</span>
+        </div>
+        <p class="c-locate">以「天」为单位回放跨项目活动：顶部 7 日条带（活跃柱内嵌），下方是当日按时间轴排列的活动卡——上午在 claw 调面板，下午切回 qualia 写设计，一眼重现全天节奏。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 回放</div>
+                <div class="tm-days" id="tmdays">
+                    <div class="tm-day" onclick="tmPick(this)">周四<small>10.1</small><div class="bars"><i style="height:3px"></i><i style="height:2px"></i></div></div>
+                    <div class="tm-day" onclick="tmPick(this)">周五<small>10.2</small><div class="bars"><i style="height:4px"></i><i style="height:3px"></i><i style="height:4px"></i></div></div>
+                    <div class="tm-day on" onclick="tmPick(this)">今天<small>10.3</small><div class="bars"><i style="height:4px;background:var(--info)"></i><i style="height:3px"></i><i style="height:4px;background:var(--info)"></i></div></div>
+                </div>
+                <div class="tm-feed">
+                    <div class="tm-row">
+                        <div class="tm-time">09:42</div>
+                        <div class="tm-axis"><div class="pt" style="background:#8250df"></div><div class="ln"></div></div>
+                        <div class="tm-card">
+                            <div class="hd"><b>qualia-claw</b> · 模型面板单卡编辑<span class="chip-tag" style="background:var(--success-bg);color:var(--success)">已完成</span><span class="time">09:42 – 10:35</span></div>
+                            方案 B 网格布局定稿，ModelCard.vue 落盘
+                        </div>
+                    </div>
+                    <div class="tm-row">
+                        <div class="tm-time">11:08</div>
+                        <div class="tm-axis"><div class="pt" style="background:#0969da"></div><div class="ln"></div></div>
+                        <div class="tm-card">
+                            <div class="hd"><b>qualia</b> · 项目会话共存设计<span class="chip-tag" style="background:var(--warning-bg);color:var(--warning)">等待确认</span><span class="time">11:08 –</span></div>
+                            P1 聚合接口完成，等你确认再动 Registry
+                        </div>
+                    </div>
+                    <div class="tm-row">
+                        <div class="tm-time">14:20</div>
+                        <div class="tm-axis"><div class="pt" style="background:#0969da"></div></div>
+                        <div class="tm-card">
+                            <div class="hd"><b>qualia</b> · 侧边栏宽度拖拽<span class="chip-tag" style="background:var(--bg-chip);color:var(--text-muted)">已合入</span><span class="time">14:20 – 15:02</span></div>
+                            几何计算与边界钳制收尾
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>数据 = <code>listSessions(all)</code> 按日聚合 + 消息时间戳；色点沿用项目色板</li>
+                        <li>点日期切换回放日；「等待确认」的会话卡可原地接管（进入会话并弹出确认）</li>
+                        <li>天然是「昨天做到哪了」的晨会入口，也可从欢迎页「最近 7 天」进入</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：零新后端能力，纯聚合展示；叙事感强，回看成本最低</li>
+                        <li><b>劣</b>：偏回顾不偏操作；不适合作为常驻主视图</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== D4 会话迁移看板 ===== -->
+    <div class="concept" id="d4">
+        <div class="c-head">
+            <span class="c-badge" style="background:#9a6700">D4</span>
+            <h2>会话迁移看板</h2><span class="en">SESSION KANBAN</span>
+            <span class="chip newc">新能力：会话跨项目搬家</span><span class="chip risk">需后端配合</span>
+        </div>
+        <p class="c-locate">列 = 项目，卡 = 会话。既然会话物理上就是 <code>.qualia/sessions/</code> 里的一个目录，「把会话拖到另一个项目」就只是移动目录——看板把这个能力显性化：实验记录挪回主项目、临时项目的成果归档。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 看板（拖拽卡片跨列 = 迁移会话）</div>
+                <div class="kanban">
+                    <div class="kb-col">
+                        <div class="kb-col-h">qualia<span class="cnt">3</span></div>
+                        <div class="kb-card"><div class="t">项目会话共存设计</div><div class="m"><span class="dot-live"></span>24 条 · 今天</div></div>
+                        <div class="kb-card"><div class="t">侧边栏宽度拖拽调整</div><div class="m">12 条 · 已合入</div></div>
+                        <div class="kb-card ghost" style="cursor:grabbing"><div class="t">附件回读与存储分层</div><div class="m">松手迁移到 qualia-claw →</div></div>
+                        <div class="kb-add">＋ 新会话</div>
+                    </div>
+                    <div class="kb-col">
+                        <div class="kb-col-h">qualia-claw<span class="cnt">1 + 1</span></div>
+                        <div class="kb-card"><div class="t">模型面板单卡编辑</div><div class="m"><span class="dot-live"></span>运行中</div></div>
+                        <div class="kb-add">＋ 新会话</div>
+                    </div>
+                    <div class="kb-col">
+                        <div class="kb-col-h">blog<span class="cnt">2</span></div>
+                        <div class="kb-card"><div class="t">hexo 迁移 astro</div><div class="m">8 条 · 前天</div></div>
+                        <div class="kb-card"><div class="t">部署脚本迁移</div><div class="m">5 条 · 上周</div></div>
+                        <div class="kb-add">＋ 新会话</div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>后端一个接口：<code>POST /api/chat/sessions/move</code>——搬运会话目录（session.json、custom title、summaries、files 附件）到目标项目</li>
+                        <li>sessionId 为 UUID 全局唯一，迁移不改 ID；历史与附件整体跟随</li>
+                        <li>运行中的会话禁止迁移（沿用流互斥）；看板入口放「全部会话」聚合面板</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：唯一带「写操作」的方案——整理历史、归档成果的真实生产力</li>
+                        <li><b>劣</b>：拖拽在移动端不可用（补右键菜单）；误迁移需可撤销（移动前记录原路径）</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== D5 跨项目收件箱 ===== -->
+    <div class="concept" id="d5">
+        <div class="c-head">
+            <span class="c-badge" style="background:#cf222e">D5</span>
+            <h2>跨项目收件箱</h2><span class="en">INBOX</span>
+            <span class="chip newc">新能力：需要我的事</span>
+        </div>
+        <p class="c-locate">所有项目里「需要我处理的事」汇入一个收件箱：确认闸门（P2 已有的 approval-gate）、完成回执、失败告警。项目在后台各自跑，人只在被需要时出现——共存的最大收益是「放心地同时跑」。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 收件箱（侧栏底部 🔔 3）</div>
+                <div class="inbox-wrap">
+                    <div class="in-tabs" id="intabs">
+                        <span class="in-tab on" data-f="all" onclick="inFilter(this)">全部 <span class="n">3</span></span>
+                        <span class="in-tab" data-f="gate" onclick="inFilter(this)">待确认 <span class="n">1</span></span>
+                        <span class="in-tab" data-f="done" onclick="inFilter(this)">回执 <span class="n">1</span></span>
+                        <span class="in-tab" data-f="err" onclick="inFilter(this)">告警 <span class="n">1</span></span>
+                    </div>
+                    <div class="in-item" data-f="gate">
+                        <div class="ic" style="background:var(--warning-bg);color:var(--warning)">✋</div>
+                        <div class="bd">
+                            <div class="r1"><b>文件删除确认</b><span class="chip-tag" style="background:var(--info-bg);color:var(--info)">qualia</span><span class="time">2 分钟前</span></div>
+                            共存设计会话请求删除 legacy/session.json，等待你的批准
+                            <div class="act"><button class="in-btn p">批准</button><button class="in-btn">拒绝</button><button class="in-btn">进入会话</button></div>
+                        </div>
+                    </div>
+                    <div class="in-item" data-f="done">
+                        <div class="ic" style="background:var(--success-bg);color:var(--success)">✓</div>
+                        <div class="bd">
+                            <div class="r1"><b>任务完成</b><span class="chip-tag" style="background:rgba(130,80,223,0.14);color:#8250df">claw</span><span class="time">12 分钟前</span></div>
+                            模型面板方案 B 截图已生成（2 张），点击查看
+                            <div class="act"><button class="in-btn p">查看</button><button class="in-btn">进入会话</button></div>
+                        </div>
+                    </div>
+                    <div class="in-item" data-f="err">
+                        <div class="ic" style="background:var(--danger-bg);color:var(--danger)">!</div>
+                        <div class="bd">
+                            <div class="r1"><b>流式中断</b><span class="chip-tag" style="background:var(--warning-bg);color:var(--warning)">blog</span><span class="time">1 小时前</span></div>
+                            astro build 会话因网络超时中断，已保留上下文可续聊
+                            <div class="act"><button class="in-btn p">续聊重试</button></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>数据源 = 各实例事件中的三类信号：pendingConfirmation / 完成 / 错误，汇入全局总线（与 V3 脉搏流同底座）</li>
+                        <li>入口常驻侧栏底部，未读数即徽章；收起时绝不打扰，展开时按项目过滤</li>
+                        <li>每条动作直达：批准 / 查看产物 / 带上下文续聊——收件箱是「接管点」不是「通知中心」</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：把「多项目并行」的信任问题（怕出事没人管）变成产品能力；复用确认闸门机制</li>
+                        <li><b>劣</b>：依赖事件总线与闸门状态上报的完备性；「已完成」类回执需要降噪策略</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 对比 ===== -->
+    <div class="cmp">
+        <h2>横向对比</h2>
+        <table>
+            <tr><th>方案</th><th>类型</th><th>新后端能力</th><th>主场景</th><th>实现量</th><th>依赖</th></tr>
+            <tr><td><b>D1 磁贴画布</b></td><td>主画布形态</td><td>无（P2 多实例即可）</td><td>并行任务同屏监督</td><td>中（聊天区组件参数化）</td><td>P2</td></tr>
+            <tr><td><b>D2 项目工作台</b></td><td>新一级页面</td><td>聚合视图接口</td><td>项目管理 / 仪表</td><td>中</td><td>P1 数据</td></tr>
+            <tr><td><b>D3 时间机器</b></td><td>回顾视图</td><td>无（纯聚合）</td><td>晨会 / 回看</td><td>小</td><td>P1 数据</td></tr>
+            <tr><td><b>D4 会话迁移看板</b></td><td>管理视图 + 写操作</td><td><b>会话目录迁移接口</b></td><td>历史整理 / 归档</td><td>中（前端看板 + 后端 move）</td><td>P1 数据</td></tr>
+            <tr><td><b>D5 跨项目收件箱</b></td><td>常驻入口</td><td>全局事件总线（与脉搏流共用）</td><td>放心的多项目并行</td><td>中</td><td>P2 + 闸门上报</td></tr>
+        </table>
+        <div class="verdict">
+            <span class="dot"></span>
+            <span><b>三辑合流</b>：Vol.1 定全局范式（标签窗格为主），Vol.2 定侧栏样式（手风琴 + 运行中置顶），本辑补三块拼图——<b>D5 收件箱</b>解决「敢不敢同时跑」，<b>D1 磁贴</b>解决「跑起来看不看得见」，<b>D4 迁移</b>解决「跑完怎么归档」。D2 / D3 是低成本增值项，随欢迎页改造顺路带上。至此，多项目共存 = <b>多实例并行（底座）+ 侧栏聚合（导航）+ 画布同屏（监督）+ 收件箱（接管）+ 迁移看板（整理）</b>，五个部件可按此顺序分期落地，互不阻塞。</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function tmPick(el) {
+    document.querySelectorAll('.tm-day').forEach(function (d) { d.classList.remove('on'); });
+    el.classList.add('on');
+}
+function inFilter(el) {
+    document.querySelectorAll('.in-tab').forEach(function (t) { t.classList.remove('on'); });
+    el.classList.add('on');
+    var f = el.dataset.f;
+    document.querySelectorAll('.in-item').forEach(function (i) {
+        i.classList.toggle('hidden', f !== 'all' && i.dataset.f !== f);
+    });
+}
+</script>
+</body>
+</html>

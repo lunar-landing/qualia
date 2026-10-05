@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>主题更换 · 三层主题系统设计 · Qualia</title>
+<style>
+    /* ======================================================================
+       三层主题系统 mockup：
+       第一层 模式(mode)：暗 / 亮            —— 已有（body.light-theme）
+       第二层 强调色(accent)：墨白/晨蓝/黛青  —— theme-dark-mockup 已探索过
+       第三层 界面风格(skin)：默认 / 终端     —— 本稿新增，body.terminal-theme
+       关键点：三层正交叠加，DOM 完全同构，切换只动 body 的 class/attr。
+       ====================================================================== */
+
+    /* ===== 第一层：模式（对齐 index.css 现有变量） ===== */
+    body {
+        --bg-app: #080a10;
+        --bg-surface: rgba(19, 24, 32, 0.85);
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-bubble-user: rgba(177, 186, 196, 0.12);
+        --bg-codeblock: #161b22;
+        --bg-input: rgba(255, 255, 255, 0.03);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --border-strong: #222938;
+        --success: #34d399;
+        --error: #f87171;
+        --th-lv3: #4ade80;
+        --page-chrome: #e4e9f2;   /* 注释层文字 */
+        --page-chrome-dim: #8f97ae;
+    }
+    body.light-theme {
+        --bg-app: #ffffff;
+        --bg-surface: #ffffff;
+        --bg-sidebar: #eff2f5;
+        --bg-hover: #e9edf1;
+        --bg-bubble-user: #e9edf2;
+        --bg-codeblock: #eef1f4;
+        --bg-input: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --border-strong: #d0d7de;
+        --success: #1a7f37;
+        --error: #cf222e;
+        --page-chrome: #1f2328;
+        --page-chrome-dim: #57606a;
+    }
+
+    /* ===== 第二层：强调色（命名沿用 theme-dark-mockup 定稿） ===== */
+    body { /* 墨白（默认） */
+        --accent: #e6edf3;
+        --accent-ink: #0d1117;
+        --accent-soft: rgba(230, 237, 243, 0.12);
+    }
+    body[data-accent="blue"] {
+        --accent: #58a6ff;
+        --accent-ink: #0d1117;
+        --accent-soft: rgba(88, 166, 255, 0.13);
+    }
+    body[data-accent="teal"] {
+        --accent: #45c0ae;
+        --accent-ink: #06211d;
+        --accent-soft: rgba(69, 192, 174, 0.13);
+    }
+    body.light-theme { --accent: #24292f; --accent-ink: #ffffff; --accent-soft: rgba(31, 35, 40, 0.10); }
+    body.light-theme[data-accent="blue"] { --accent: #0969da; --accent-ink: #ffffff; --accent-soft: rgba(9, 105, 218, 0.10); }
+    body.light-theme[data-accent="teal"] { --accent: #1f7a6d; --accent-ink: #ffffff; --accent-soft: rgba(31, 122, 109, 0.10); }
+
+    /* ===== 第三层：界面风格 skin 的变量面（默认 = 现有值） ===== */
+    body {
+        --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Sarasa Mono SC", "Microsoft YaHei", monospace;
+        --radius-lg: 25px;
+        --radius-md: 16px;
+        --radius-sm: 11px;
+        --radius-xs: 4px;
+        --radius-full: 100px;
+        --bubble-pad: 10px 16px;
+        --gap-msg: 26px;
+    }
+    /* 终端皮肤：只动「质感」不动「结构」——字体/圆角/密度/气泡 */
+    body.terminal-theme {
+        --font-ui: "JetBrains Mono", "Cascadia Code", Consolas, "Sarasa Mono SC", "Microsoft YaHei", monospace;
+        --radius-lg: 6px;
+        --radius-md: 3px;
+        --radius-sm: 2px;
+        --radius-xs: 0px;
+        --bubble-pad: 4px 0;
+        --gap-msg: 18px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--bg-app);
+        color: var(--page-chrome);
+        font-family: var(--font-ui);
+        min-height: 100vh;
+        padding: 34px 40px 70px;
+        transition: background 0.25s, color 0.25s;
+    }
+
+    /* ===== 注释层（页面 chrome） ===== */
+    .page-head { max-width: 1280px; margin: 0 auto 6px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: var(--page-chrome-dim); margin-top: 7px; line-height: 1.75; }
+    .ctrl-bar {
+        max-width: 1280px; margin: 18px auto 8px;
+        display: flex; gap: 22px; align-items: center; flex-wrap: wrap;
+        font-size: 12px; color: var(--page-chrome-dim);
+    }
+    .ctrl-group { display: flex; gap: 8px; align-items: center; }
+    .ctrl-btn {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--border-strong); background: rgba(127,127,127,0.06);
+        color: var(--page-chrome-dim); font-size: 12px; transition: all 0.15s;
+        font-family: inherit;
+    }
+    .ctrl-btn:hover { color: var(--page-chrome); }
+    .ctrl-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .scheme-desc {
+        max-width: 1280px; margin: 8px auto 0;
+        font-size: 12px; color: var(--page-chrome-dim); line-height: 1.7;
+        padding: 10px 14px; border: 1px dashed var(--border-strong); border-radius: 10px;
+    }
+    .scheme-desc b { color: var(--page-chrome); }
+
+    /* ======================================================================
+       App 窗口：与真实 App 同构（sidebar + main-content[chat + steps-panel]）
+       全部语义 class 对齐 index.css，皮肤规则可直接映射回真实工程
+       ====================================================================== */
+    .app {
+        max-width: 1280px; margin: 24px auto 0;
+        height: 700px; display: flex; overflow: hidden;
+        background: var(--bg-app);
+        border: 1px solid var(--border-strong); border-radius: 12px;
+        box-shadow: 0 32px 64px rgba(0, 0, 0, 0.35);
+        font-family: var(--font-ui); font-size: 13.5px; line-height: 1.7;
+        color: var(--text-primary);
+        transition: background 0.25s;
+    }
+
+    /* ---- 侧栏 ---- */
+    .sidebar {
+        width: 216px; flex-shrink: 0; padding: 14px 12px;
+        background: var(--bg-sidebar); border-right: 1px solid var(--border-color);
+        display: flex; flex-direction: column; gap: 16px;
+    }
+    .brand { font-weight: 700; font-size: 14.5px; letter-spacing: -0.3px; padding: 2px 6px 0; }
+    .brand .dm { color: var(--accent); }
+    .side-h { font-size: 11px; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 6px; padding: 0 6px; }
+    .ws-item { font-size: 12.5px; color: var(--text-secondary); padding: 5px 8px; border-radius: var(--radius-sm); }
+    .ws-item .path { color: var(--text-primary); }
+    .side-foot { margin-top: auto; display: flex; gap: 8px; }
+    .ghost-btn {
+        flex: 1; text-align: center; padding: 5px 0; font-size: 12px; cursor: pointer;
+        color: var(--text-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm); background: transparent;
+    }
+    .ghost-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* ---- 主区 ---- */
+    .main-content { flex: 1; min-width: 0; display: flex; }
+    .chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .messages { flex: 1; overflow-y: auto; padding: 22px 26px; display: flex; flex-direction: column; gap: var(--gap-msg); transition: gap 0.2s; }
+
+    /* 用户消息（真实结构：.msg.user > .bubble + .time） */
+    .msg.user { display: flex; flex-direction: column; align-items: flex-end; }
+    .msg.user .bubble {
+        max-width: 78%;
+        background: var(--bg-bubble-user);
+        padding: var(--bubble-pad);
+        border-radius: var(--radius-lg);
+        border-bottom-right-radius: var(--radius-xs);
+        transition: all 0.2s;
+    }
+    .time { font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+
+    /* 助手消息（真实结构：.act-col = 思考 + chips + 回答） */
+    .msg.codex { max-width: 86%; }
+    .think-toggle { font-size: 12px; color: var(--text-muted); cursor: pointer; margin-bottom: 8px; }
+    .think-toggle .tri { color: var(--accent); margin-right: 4px; }
+    .act-thought { font-size: 12.5px; color: var(--text-secondary); background: var(--bg-hover); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; transition: all 0.2s; }
+    .chips { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .tool-chip {
+        display: flex; gap: 8px; align-items: center; width: fit-content; max-width: 100%;
+        font-family: var(--font-mono); font-size: 12px;
+        border: 1px solid var(--border-color); border-radius: var(--radius-xs);
+        padding: 3px 10px; color: var(--text-secondary); transition: all 0.2s;
+    }
+    .tool-chip .ic { color: var(--accent); }
+    .tool-chip .st { color: var(--success); }
+    .answer { padding: var(--bubble-pad); transition: all 0.2s; }
+    .answer h4 { font-size: 13.5px; margin: 6px 0 4px; }
+    .answer ul { list-style: none; margin: 4px 0; }
+    .answer li { padding-left: 16px; position: relative; }
+    .answer li::before { content: '·'; position: absolute; left: 4px; color: var(--accent); }
+    code.ic { font-family: var(--font-mono); font-size: 12px; background: rgba(127,127,127,0.14); border-radius: var(--radius-xs); padding: 0 5px; }
+    .codeblock { font-family: var(--font-mono); font-size: 12px; background: var(--bg-codeblock); border-radius: var(--radius-sm); padding: 10px 14px; margin: 8px 0; overflow-x: auto; transition: all 0.2s; }
+    .codeblock .k { color: var(--accent); }
+
+    /* 输入区（真实结构：.input-area > .input-wrapper > textarea + .input-tools） */
+    .input-area { padding: 0 26px 18px; flex-shrink: 0; }
+    .input-wrapper {
+        border: 1px solid var(--border-color); border-radius: var(--radius-md);
+        background: var(--bg-input); padding: 10px 14px; transition: all 0.2s;
+    }
+    .input-wrapper .txt { color: var(--text-primary); }
+    .input-wrapper .caret { color: var(--accent); }
+    .input-tools { display: flex; gap: 12px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+    .input-tools .model { color: var(--accent); }
+    .input-tools .send {
+        margin-left: auto; width: 26px; height: 26px; border-radius: var(--radius-full);
+        background: var(--accent); color: var(--accent-ink);
+        display: flex; align-items: center; justify-content: center; font-size: 11px;
+        transition: all 0.2s;
+    }
+
+    /* ---- 右栏：工作区面板 ---- */
+    .steps-panel {
+        width: 264px; flex-shrink: 0; border-left: 1px solid var(--border-color);
+        padding: 14px; font-size: 12.5px; display: flex; flex-direction: column; gap: 14px;
+        background: var(--bg-sidebar); transition: all 0.2s;
+    }
+    .panel-head { font-weight: 600; font-size: 13px; }
+    .ws-tabs { display: flex; gap: 6px; }
+    .ws-tab { padding: 3px 12px; font-size: 12px; color: var(--text-muted); border-radius: var(--radius-sm); background: var(--bg-hover); transition: all 0.2s; }
+    .ws-tab.on { background: var(--accent-soft); color: var(--text-primary); }
+    .tree { color: var(--text-secondary); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.9; }
+    .tree .dir { color: var(--text-primary); }
+    .tree .badge { color: var(--success); font-size: 10px; margin-left: 6px; }
+    .chg { display: flex; gap: 8px; align-items: baseline; padding: 2px 4px; }
+    .chg .n { color: var(--text-primary); font-family: var(--font-mono); font-size: 11.5px; }
+    .chg .d { margin-left: auto; font-size: 11px; }
+    .chg .d b { color: var(--success); font-weight: 400; }
+    .chg .d i { color: var(--error); font-style: normal; }
+    .panel-note { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ======================================================================
+       终端皮肤叠加规则（body.terminal-theme）
+       只覆盖质感与排版，不改 DOM —— 每条规则都能直接映射回 index.css
+       ====================================================================== */
+    /* 气泡 → 日志行：去背景、去圆角，❯ 前缀用伪元素补上（无需改 DOM） */
+    body.terminal-theme .msg.user { align-items: flex-start; }
+    body.terminal-theme .msg.user .bubble {
+        max-width: 100%;
+        background: transparent;
+        border-radius: 0;
+        font-weight: 600;
+    }
+    body.terminal-theme .msg.user .bubble::before { content: '❯ '; color: var(--accent); }
+    body.terminal-theme .msg.user .time { text-align: left; }
+    /* 回答去气泡感：背景消失，左侧留白对齐 */
+    body.terminal-theme .answer { padding-left: 0; }
+    body.terminal-theme .act-thought { background: transparent; padding: 0 0 0 18px; font-style: italic; border-radius: 0; }
+    body.terminal-theme .act-thought::before { content: ':: '; font-style: normal; color: var(--text-muted); }
+    /* 工具 chip → 命令行 */
+    body.terminal-theme .tool-chip { background: transparent; padding: 1px 0; border: none; border-radius: 0; }
+    body.terminal-theme .tool-chip .cmd::before { content: '$ '; color: var(--accent); }
+    /* markdown 标题加终端破折线 */
+    body.terminal-theme .answer h4::before { content: '── '; color: var(--accent); }
+    body.terminal-theme .answer h4::after { content: ' ──'; color: var(--accent); }
+    /* 代码块：直角 + 实线边框 */
+    body.terminal-theme .codeblock { border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+    /* 输入区：直角，边框加重 */
+    body.terminal-theme .input-wrapper { border-radius: var(--radius-md); }
+    /* 发送按钮由圆形 → 方形 */
+    body.terminal-theme .input-tools .send { border-radius: var(--radius-md); }
+    /* 面板标题终端化 */
+    body.terminal-theme .panel-head::before { content: '▌ '; color: var(--accent); }
+    /* 全局字号微调：终端皮肤正文略小更密 */
+    body.terminal-theme .app { font-size: 13px; }
+    body.terminal-theme .messages { padding: 18px 22px; }
+
+    /* ======================================================================
+       注释卡
+       ====================================================================== */
+    .notes {
+        max-width: 1280px; margin: 34px auto 0;
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px;
+        font-size: 12.5px; line-height: 1.8; color: var(--page-chrome);
+    }
+    .note-card { border: 1px solid var(--border-strong); border-radius: 12px; padding: 16px 18px; background: rgba(127,127,127,0.05); }
+    .note-card h3 { font-size: 12px; color: var(--page-chrome-dim); letter-spacing: 0.6px; margin-bottom: 8px; text-transform: uppercase; }
+    .note-card b { color: var(--page-chrome); }
+    .note-card .m { color: var(--page-chrome-dim); }
+    .note-card code { font-family: var(--font-mono); font-size: 11px; background: rgba(127,127,127,0.12); padding: 1px 6px; border-radius: 4px; }
+    .note-card ul { margin: 4px 0 0 16px; }
+    .note-card li { margin: 2px 0; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <h1>主题更换 · 三层主题系统设计</h1>
+    <p class="page-sub">
+        结论：终端形态不作为第二套界面，而是降级为可切换的「皮肤」。同一套 DOM，三层主题正交叠加：
+        <b>模式（暗/亮）× 强调色（墨白/晨蓝/黛青）× 界面风格（默认/终端）</b>。
+        下面窗口与真实 App 同构（sidebar + chat + 工作区面板），切换只改 body 的 class/attr —— 请先切「终端」感受差异幅度。
+    </p>
+</div>
+
+<div class="ctrl-bar">
+    <div class="ctrl-group">
+        <span>① 模式</span>
+        <button class="ctrl-btn mode-btn on" data-mode="dark">暗色</button>
+        <button class="ctrl-btn mode-btn" data-mode="light">亮色</button>
+    </div>
+    <div class="ctrl-group">
+        <span>② 强调色</span>
+        <button class="ctrl-btn accent-btn on" data-accent="ink">墨白</button>
+        <button class="ctrl-btn accent-btn" data-accent="blue">晨蓝</button>
+        <button class="ctrl-btn accent-btn" data-accent="teal">黛青</button>
+    </div>
+    <div class="ctrl-group">
+        <span>③ 界面风格</span>
+        <button class="ctrl-btn skin-btn on" data-skin="default">默认</button>
+        <button class="ctrl-btn skin-btn" data-skin="terminal">终端</button>
+    </div>
+</div>
+
+<div class="scheme-desc">
+    与上一稿（terminal-layout）的差异：那一稿替换了信息架构（tmux 顶栏、日志行布局、状态栏），属于功能迭代；
+    本稿全部在现有 DOM 上换肤——<b>字体、圆角、密度、气泡质感、前缀符号</b>，一个下午可落地，且随时可退回默认。
+</div>
+
+<!-- ===================== App 窗口（与真实 App 同构） ===================== -->
+<div class="app" id="app">
+
+    <!-- 侧栏：品牌 + 工作区 + 会话 + 设置（对齐 SidebarArea） -->
+    <div class="sidebar">
+        <div class="brand"><span class="dm">◆</span> qualia-code</div>
+        <div>
+            <div class="side-h">工作区</div>
+            <div class="ws-item"><span class="path">~/Projects/qualia</span><br>main · 12 changed</div>
+        </div>
+        <div>
+            <div class="side-h">会话</div>
+            <div class="ws-item" style="background:var(--accent-soft);color:var(--text-primary)">refactor-auth *</div>
+            <div class="ws-item">fix-parser</div>
+            <div class="ws-item">docs-site</div>
+        </div>
+        <div class="side-foot">
+            <span class="ghost-btn">设置</span>
+            <span class="ghost-btn">主题</span>
+        </div>
+    </div>
+
+    <!-- 主区：聊天 + 工作区面板（对齐 main-content） -->
+    <div class="main-content">
+        <div class="chat">
+            <div class="messages">
+
+                <!-- 用户消息 -->
+                <div class="msg user">
+                    <div class="bubble">把认证模块重构成 JWT，保持对外接口兼容</div>
+                    <div class="time">21:02</div>
+                </div>
+
+                <!-- 助手消息（有步骤） -->
+                <div class="msg codex">
+                    <div class="think-toggle"><span class="tri">▾</span>思考过程</div>
+                    <div class="act-thought">先梳理现有认证入口与调用方，再决定改动范围，避免破坏 api.md 约定的接口。</div>
+                    <div class="chips">
+                        <div class="tool-chip"><span class="ic">▸</span><span class="cmd">read src/auth/session.ts</span><span class="st">[ok]</span><span>38ms</span></div>
+                        <div class="tool-chip"><span class="ic">▸</span><span class="cmd">edit src/auth/jwt.ts</span><span class="st">[ok]</span><span>+86 −34</span></div>
+                    </div>
+                    <div class="answer">
+                        <h4>重构完成</h4>
+                        <ul>
+                            <li><code class="ic">POST /api/login</code> 现在返回 <code class="ic">access_token</code>，有效期 15 分钟；</li>
+                            <li>旧 <code class="ic">session.ts</code> 保留为兼容垫片，调用方零修改。</li>
+                        </ul>
+                        <div class="codeblock"><span class="k">export function</span> sign(p: Payload): string {
+  return jwt.encode(p, SECRET, { expiresIn: '15m' })
+}</div>
+                    </div>
+                    <div class="time">↑ 1.2k · ↓ 3.4k tok · 8.4s</div>
+                </div>
+
+                <!-- 用户第二条 -->
+                <div class="msg user">
+                    <div class="bubble">接着把 refresh token 的轮换也加上</div>
+                    <div class="time">21:05</div>
+                </div>
+            </div>
+
+            <!-- 输入区 -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <div class="txt">接着把 refresh token 的轮换也加上<span class="caret">▊</span></div>
+                    <div class="input-tools">
+                        <span>📎</span>
+                        <span class="model">sonnet-4.5</span>
+                        <span class="send">➤</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工作区面板（对齐 WorkspacePanel） -->
+        <div class="steps-panel">
+            <div class="panel-head">工作区面板</div>
+            <div class="ws-tabs">
+                <span class="ws-tab on">变更</span>
+                <span class="ws-tab">终端</span>
+                <span class="ws-tab">预览</span>
+            </div>
+            <div class="tree">
+                <div><span class="dir">src/auth/</span></div>
+                <div>├─ jwt.ts<span class="badge">M</span></div>
+                <div>├─ session.ts<span class="badge">M</span></div>
+                <div>└─ api.md</div>
+            </div>
+            <div>
+                <div class="chg"><span class="n">jwt.ts</span><span class="d"><b>+86</b> <i>−34</i></span></div>
+                <div class="chg"><span class="n">session.ts</span><span class="d"><b>+12</b> <i>−9</i></span></div>
+            </div>
+            <div class="panel-note">※ 变更由对话派生，未保存的编辑实时同步。</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 设计注释 ===================== -->
+<div class="notes">
+    <div class="note-card">
+        <h3>为什么降级为皮肤</h3>
+        <span class="m">上一稿替换了信息架构（tmux 顶栏 / 日志行 / 状态栏），要动 ChatArea、MessageItem、SidebarArea
+        的模板与状态管理，成本高、回归风险大、且无法与现有 UI 共存。换肤只动 CSS，
+        与现有界面随时互切，用户零学习成本。</span>
+    </div>
+    <div class="note-card">
+        <h3>三层正交架构</h3>
+        <span class="m">① 模式已有（<code>body.light-theme</code> + localStorage）；② 强调色在 theme-dark-mockup
+        中已定稿三方案；③ 皮肤新增 <code>body.terminal-theme</code>。三者叠加互不干扰，
+        持久化为一个偏好对象即可。</span>
+    </div>
+    <div class="note-card">
+        <h3>皮肤变量面（只动质感）</h3>
+        <ul>
+            <li><code>--font-ui</code> → 等宽字体栈</li>
+            <li><code>--radius-*</code> → 0~6px 归方</li>
+            <li><code>--bg-bubble-user</code> → transparent 去气泡</li>
+            <li><code>--gap-msg</code> → 18px 提密度</li>
+            <li>前缀符号（❯ / :: / $ / ──）全用 <code>::before</code>，不改 DOM</li>
+        </ul>
+    </div>
+    <div class="note-card">
+        <h3>边界：不属于主题的部分</h3>
+        <span class="m">tmux 状态栏、顶栏会话 tabs、❯ 独立提示符列这类<b>结构性元素</b>不是皮肤能表达的，
+        若想要应作为独立功能迭代评估；一期主题功能明确不含它们。</span>
+    </div>
+    <div class="note-card">
+        <h3>落地改动清单</h3>
+        <ul>
+            <li><code>index.css</code>：字体/间距收敛为变量 + <code>body.terminal-theme</code> 覆盖块</li>
+            <li><code>theme.ts</code>：偏好扩展为 { mode, accent, skin }，apply 同步 class/attr 与 hljs link</li>
+            <li><code>SettingsDialog</code>：新增「外观」Tab，三组分段选择器</li>
+            <li><code>i18n</code>：zh-CN / en / ja 三语词条</li>
+        </ul>
+    </div>
+    <div class="note-card">
+        <h3>分期建议</h3>
+        <ul>
+            <li><b>P0</b>：主题基建 —— accent 三方案 + 设置 UI + 持久化（纯增量，低风险）</li>
+            <li><b>P1</b>：终端皮肤 —— 变量覆盖 + 伪元素前缀 + 密度调整</li>
+            <li><b>P2</b>：可选 CRT 配色（磷光绿/琥珀）、跟随系统模式</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    // ① 模式切换：等价现有 useTheme().toggleTheme（body.light-theme）
+    document.querySelectorAll('.mode-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.mode-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.classList.toggle('light-theme', btn.dataset.mode === 'light');
+        });
+    });
+    // ② 强调色切换：body[data-accent]
+    document.querySelectorAll('.accent-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.accent-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            if (btn.dataset.accent === 'ink') delete document.body.dataset.accent;
+            else document.body.dataset.accent = btn.dataset.accent;
+        });
+    });
+    // ③ 皮肤切换：body.terminal-theme
+    document.querySelectorAll('.skin-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.skin-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.classList.toggle('terminal-theme', btn.dataset.skin === 'terminal');
+        });
+    });
+</script>
+</body>
+</html>

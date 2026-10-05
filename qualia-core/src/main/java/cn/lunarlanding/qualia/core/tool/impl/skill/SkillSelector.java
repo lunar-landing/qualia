@@ -42,4 +42,10 @@ public class SkillSelector extends FunctionTool {
 
         return JSON.toJSONString(skillList);
     }
+
+    /** 只读工具：仅查询技能列表，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

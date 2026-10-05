@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代码块重设计 v2 · 两版 · Qualia</title>
+<style>
+    /* ===== 主题变量（对齐 qualia-code 前端石墨工程体系） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.05);          /* 前端 --border-color */
+        --line-strong: rgba(255, 255, 255, 0.08);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --icon-hover: rgba(255, 255, 255, 0.09);
+        --b-head: rgba(255, 255, 255, 0.025);       /* B 版头部极淡底 */
+        --copy-ok: #3fb950;
+        --kw: #ff7b72; --str: #a5d6ff; --fn: #d2a8ff; --cm: #8b949e; --num: #79c0ff;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #d0d7de;
+        --code-bg: #eef1f4;
+        --line: #d0d7de;
+        --line-strong: rgba(31, 35, 40, 0.10);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --icon-hover: rgba(31, 35, 40, 0.08);
+        --b-head: rgba(31, 35, 40, 0.035);
+        --copy-ok: #1a7f37;
+        --kw: #cf222e; --str: #0a3069; --fn: #8250df; --cm: #6e7781; --num: #0550ae;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 46px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: rgba(128, 144, 168, 0.15); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    body[data-theme="light"] .vblock > header .no { background: rgba(31, 35, 40, 0.07); }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 代码块公共 ===== */
+    .cw {
+        position: relative;
+        background: var(--code-bg);
+        border-radius: 10px;                        /* 回归表格/详情卡同体系圆角 */
+        overflow: hidden;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    }
+    .cw pre {
+        margin: 0; padding: 13px 16px;
+        overflow-x: auto;
+        font-size: 12px; line-height: 1.75;
+        color: var(--text-1);
+    }
+    .kw { color: var(--kw); } .str { color: var(--str); } .fn { color: var(--fn); }
+    .cm { color: var(--cm); font-style: italic; } .num { color: var(--num); }
+
+    /* 语言名 / 复制按钮公共 */
+    .lang {
+        font-family: inherit; font-size: 11px; letter-spacing: 0.4px;
+        color: var(--text-2);
+    }
+    .cp {
+        width: 24px; height: 24px; flex: 0 0 24px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 6px; cursor: pointer;
+        background: transparent; color: var(--text-2);
+        transition: background 0.15s, color 0.15s, opacity 0.15s;
+        opacity: 0;
+    }
+    .cw:hover .cp { opacity: 1; }
+    .cp:hover { background: var(--icon-hover); color: var(--text-1); }
+    .cp svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .cp .tick { display: none; font-size: 12px; font-weight: 700; }
+    .cp.ok { color: var(--copy-ok); }
+    .cp.ok svg { display: none; }
+    .cp.ok .tick { display: block; }
+
+    /* ===== 现役降噪窗（对照） ===== */
+    .cur { border-radius: 14px; }
+    .cur .head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 10px 8px 16px;
+        background: var(--b-head);
+        border-bottom: 1px solid var(--line-strong);
+    }
+    .cur .dots { display: flex; gap: 5px; }
+    .cur .dots i { width: 8px; height: 8px; border-radius: 50%; }
+    .cur .dots i:nth-child(1) { background: rgba(255, 95, 87, 0.75); }
+    .cur .dots i:nth-child(2) { background: rgba(254, 188, 46, 0.75); }
+    .cur .dots i:nth-child(3) { background: rgba(40, 200, 64, 0.75); }
+    body[data-theme="light"] .cur .dots i:nth-child(1) { background: rgba(229, 83, 75, 0.85); }
+    body[data-theme="light"] .cur .dots i:nth-child(2) { background: rgba(210, 153, 34, 0.85); }
+    body[data-theme="light"] .cur .dots i:nth-child(3) { background: rgba(63, 185, 80, 0.85); }
+    .cur .head .cp { margin-left: auto; }
+
+    /* ===== A 线框式 ===== */
+    .va { border: 1px solid var(--line); }
+    .va .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 10px 7px 14px;
+        border-bottom: 1px solid var(--line);
+    }
+
+    /* ===== B 哑窗式 ===== */
+    .vb { border-radius: 11px; }
+    .vb .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 10px 8px 14px;
+        background: var(--b-head);
+        border-bottom: 1px solid var(--line);
+    }
+    .vb .lang { color: var(--text-2); }
+    .vb .lang::before {
+        content: '$';
+        margin-right: 7px;
+        color: var(--text-3);
+    }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+</style>
+</head>
+<body data-theme="dark">
+    <div class="bar">
+        <h1>代码块重设计 v2<small>两版灰阶方案 · 对照现役降噪窗 · 深浅主题</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- 现役对照 -->
+        <section class="vblock">
+            <header><span class="no">CUR</span><h2>现役降噪窗（对照）</h2></header>
+            <p class="desc">14px 大圆角 + 红黄绿彩点 + 极淡底头。<b>彩点是全应用唯一彩色装饰</b>，圆角也超出 9~11px 体系，故显突兀。仅作对照，不参与选型。</p>
+            <div class="cw cur">
+                <div class="head">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- A 线框式 -->
+        <section class="vblock">
+            <header><span class="no">A</span><h2>线框式</h2></header>
+            <p class="desc">全面回归灰阶工程语言：<b>细边框 + 无底色头部</b>，仅一条分隔线；语言名纯文字左置，无圆点。与 diff 卡片、圆角表格完全同构，最像 GitHub README，装饰归零。</p>
+            <div class="cw va">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- B 哑窗式 -->
+        <section class="vblock">
+            <header><span class="no">B</span><h2>哑窗式</h2></header>
+            <p class="desc">保留一点窗体暗示但彻底灰阶化：<b>无边框</b>，头部 2.5% 极淡底 + 细分隔线，语言名前加一枚 <b>$ 提示符</b>代替圆点做终端隐喻。比 A 多一档层次，与侧栏/hover 面板同语言，安静但不寡淡。</p>
+            <div class="cw vb">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        说明：两版共用底色体系（深 #161b22 / 日 #eef1f4）与 10~11px 圆角（对齐表格/详情卡），去彩色、去阴影；差异只在「边框 vs 头部底」的分层方式。语言名左置、复制钮 hover 显现、点击变绿的行为与现役一致。DOM（.code-wrap / .code-head / .code-lang / .head-slot）不动，落地仅改样式。
+    </footer>
+
+    <script>
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+        document.querySelectorAll('.cp').forEach(b => b.addEventListener('click', () => {
+            b.classList.add('ok');
+            setTimeout(() => b.classList.remove('ok'), 1200);
+        }));
+    </script>
+</body>
+</html>

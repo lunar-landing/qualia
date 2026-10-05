@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更文件清单设计</title>
+<!--
+  ============================================================
+  设计稿：变更文件清单（Changed Files）
+  问题：Agent 写入本地文件后，回复文本不提示变动了哪些文件，
+        用户难以找到并预览产物。
+  方案核心：不依赖模型在文本里自报路径，由 harness 从工具调用
+        （Write / SearchReplace / DeleteFile）确定性聚合 changedFiles，
+        在消息末尾渲染「结果清单」，点击路由到预览。
+
+  本稿包含三个方案：
+    方案 A（推荐）：消息尾部变更卡片 —— 结果清单置底，过程块折叠
+    方案 B        ：轻量内联 Chips —— 单文件小改动场景
+    方案 C        ：卡片 + 右侧预览面板联动 —— 点击路由完整形态
+
+  可交互：右上角切换日/夜间 · 方案 A 行悬停看浮层预览 · 方案 C 点击行联动面板
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 与 qualia-code-ui 线上主题一致的设计变量（默认日间模式） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-stage: #eff2f5;
+        --bg-elev: #ffffff;            /* 卡片 / 浮层 / 面板底 */
+        --bg-code: #f6f8fa;            /* 代码 / Diff 底 */
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #1a7f37;               /* 新增 / 新建 */
+        --add-tint: rgba(26, 127, 55, 0.10);
+        --mod: #0969da;               /* 修改 */
+        --mod-tint: rgba(9, 105, 218, 0.10);
+        --del: #cf222e;               /* 删除 */
+        --del-tint: rgba(207, 34, 46, 0.08);
+        --diff-add-bg: rgba(26, 127, 55, 0.12);
+        --diff-del-bg: rgba(207, 34, 46, 0.10);
+        --lang-html: #cf5f24;
+        --lang-ts: #2f6ec4;
+        --lang-css: #7d5bbd;
+        --lang-md: #4d8f4d;
+        --scrollbar-thumb: #c8d0d8;
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-stage: rgba(255, 255, 255, 0.02);
+        --bg-elev: #141922;
+        --bg-code: #0d1117;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #3fb950;
+        --add-tint: rgba(63, 185, 80, 0.12);
+        --mod: #4493f8;
+        --mod-tint: rgba(68, 147, 248, 0.12);
+        --del: #f85149;
+        --del-tint: rgba(248, 81, 73, 0.10);
+        --diff-add-bg: rgba(63, 185, 80, 0.12);
+        --diff-del-bg: rgba(248, 81, 73, 0.10);
+        --lang-html: #e8854a;
+        --lang-ts: #6ba3f5;
+        --lang-css: #a48ae0;
+        --lang-md: #6cbf6c;
+        --scrollbar-thumb: #2e3546;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .sub .mono { font-size: 11.5px; }
+
+    .demo { max-width: 1040px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-stage); border: 1px solid var(--border); border-radius: 18px;
+        padding: 22px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ================= 消息气泡（Qualia 助手回合） ================= */
+    .chat { width: 100%; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; color: var(--text-primary); margin-bottom: 10px; }
+    .msg-text code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px;
+    }
+
+    /* 折叠的工具过程块：过程记录，保持默认折叠 */
+    .tool-strip {
+        display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+        font-size: 11px; color: var(--text-muted);
+        border: 1px dashed var(--border); border-radius: 8px; padding: 5px 11px; margin-bottom: 12px;
+    }
+    .tool-strip:hover { color: var(--text-secondary); border-color: var(--border-active); }
+
+    /* ================= 变更文件卡片 ================= */
+    .cfile-card {
+        max-width: 560px; background: var(--bg-elev);
+        border: 1px solid var(--border); border-radius: 13px; overflow: visible;
+    }
+    .cfile-head {
+        display: flex; align-items: center; gap: 8px; cursor: pointer;
+        padding: 9px 13px; border-bottom: 1px solid var(--border-soft);
+        font-size: 12px; font-weight: 600; user-select: none;
+    }
+    .cfile-head .cnt {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; font-weight: 600;
+        color: var(--text-secondary); background: var(--bg-hover); border-radius: 6px; padding: 1px 7px;
+    }
+    .cfile-head .sum { margin-left: auto; font-size: 10.5px; font-weight: 500; color: var(--text-muted); font-family: "JetBrains Mono", Consolas, monospace; }
+    .cfile-head .chev { transition: transform .2s; color: var(--text-muted); }
+    .cfile-head:hover .chev { color: var(--text-secondary); }
+    .cfile-card.collapsed .chev { transform: rotate(-90deg); }
+    .cfile-card.collapsed .cfile-rows { display: none; }
+    .cfile-card.collapsed .cfile-head { border-bottom: none; }
+
+    /* 行：语言点 · 文件名 · 徽标 · ±行数 · 打开入口 */
+    .frow {
+        position: relative; display: flex; align-items: center; gap: 9px;
+        padding: 8px 13px; cursor: pointer; transition: background .12s;
+    }
+    .frow + .frow { border-top: 1px solid var(--border-soft); }
+    .frow:hover { background: var(--bg-hover); }
+    .frow.active { background: var(--bg-active); box-shadow: inset 2px 0 0 var(--text-primary); }
+    .frow .lang-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .frow .fpath { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
+    .frow .fname { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .frow .fdir { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+    .frow .fdir::before { content: "· "; }
+    .op-badge { font-size: 10px; font-weight: 600; border-radius: 5px; padding: 1px 7px; flex-shrink: 0; }
+    .op-create { color: var(--add); background: var(--add-tint); }
+    .op-modify { color: var(--mod); background: var(--mod-tint); }
+    .op-delete { color: var(--del); background: var(--del-tint); }
+    .fstats { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; white-space: nowrap; flex-shrink: 0; }
+    .fstats .a { color: var(--add); }
+    .fstats .d { color: var(--del); }
+    .fopen {
+        display: flex; align-items: center; gap: 3px; font-size: 10.5px; color: var(--text-muted);
+        opacity: 0; transition: opacity .12s; flex-shrink: 0;
+    }
+    .frow:hover .fopen { opacity: 1; color: var(--text-secondary); }
+
+    /* 悬停浮层：前 N 行代码预览 */
+    .pop {
+        position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%);
+        width: 330px; background: var(--bg-elev); border: 1px solid var(--border);
+        border-radius: 11px; box-shadow: 0 10px 32px rgba(0,0,0,0.16);
+        opacity: 0; visibility: hidden; transition: opacity .15s .1s, visibility .15s .1s;
+        z-index: 20; overflow: hidden; pointer-events: none;
+    }
+    .frow:hover .pop { opacity: 1; visibility: visible; }
+    .pop-head {
+        display: flex; align-items: center; gap: 7px; padding: 7px 11px;
+        border-bottom: 1px solid var(--border-soft); font-size: 10.5px; color: var(--text-secondary);
+    }
+    .pop-head .t { font-family: "JetBrains Mono", Consolas, monospace; font-weight: 600; color: var(--text-primary); font-size: 11px; }
+    .pop-head .n { margin-left: auto; color: var(--text-muted); }
+    .pop pre {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; line-height: 1.75;
+        padding: 9px 12px; color: var(--text-secondary); overflow: hidden; background: var(--bg-code);
+    }
+    .pop pre .kw { color: var(--mod); }
+    .pop pre .tagc { color: var(--lang-html); }
+    .pop pre .str { color: var(--add); }
+    .pop-foot { padding: 6px 11px; border-top: 1px solid var(--border-soft); font-size: 10px; color: var(--text-muted); }
+
+    /* ================= 方案 B：内联 Chips ================= */
+    .chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+    .fchip {
+        display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+        background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+        padding: 5px 10px; font-size: 11.5px; transition: border-color .12s, background .12s;
+    }
+    .fchip:hover { border-color: var(--border-active); background: var(--bg-hover); }
+    .fchip .lang-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .fchip .n { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; font-weight: 600; }
+    .fchip .s { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; }
+    .fchip .s .a { color: var(--add); } .fchip .s .d { color: var(--del); }
+    .fchip.op-delete .n { text-decoration: line-through; color: var(--text-muted); }
+
+    /* ================= 方案 C：双栏联动 ================= */
+    .split { display: flex; gap: 14px; width: 100%; align-items: stretch; }
+    .split .chat-col { width: 470px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .split .chat-col .cfile-card { flex: 1; align-self: flex-start; width: 100%; display: flex; flex-direction: column; }
+    .split .chat-col .cfile-rows { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+    .pane {
+        flex: 1; min-width: 0; background: var(--bg-elev);
+        border: 1px solid var(--border); border-radius: 13px; overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .pane-head {
+        display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    .pane-head .pf-name { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+    .pane-tabs { margin-left: auto; display: flex; gap: 4px; background: var(--bg-hover); border-radius: 8px; padding: 2px; }
+    .pane-tabs button {
+        border: none; background: transparent; cursor: pointer; border-radius: 6px;
+        font-size: 10.5px; padding: 3px 10px; color: var(--text-secondary);
+    }
+    .pane-tabs button.on { background: var(--bg-elev); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.10); }
+    .pane-tabs button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pane-body { flex: 1; min-height: 330px; position: relative; background: var(--bg-code); overflow: hidden; }
+    .pane-view { position: absolute; inset: 0; overflow: auto; }
+
+    /* 浏览器框（HTML 预览态） */
+    .browser { height: 100%; display: flex; flex-direction: column; }
+    .browser-bar {
+        display: flex; align-items: center; gap: 6px; padding: 7px 11px;
+        border-bottom: 1px solid var(--border-soft); background: var(--bg-elev);
+    }
+    .browser-bar .dots { display: flex; gap: 5px; }
+    .browser-bar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .browser-bar .url {
+        flex: 1; max-width: 260px; margin: 0 auto; text-align: center;
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted);
+        background: var(--bg-hover); border-radius: 6px; padding: 3px 10px;
+    }
+    .browser-view { flex: 1; display: flex; align-items: center; justify-content: center; }
+    /* 迷你登录页（login.html 渲染效果示意） */
+    .mini-login {
+        width: 230px; background: var(--bg-elev); border: 1px solid var(--border);
+        border-radius: 13px; padding: 20px 20px 18px; box-shadow: 0 8px 26px rgba(0,0,0,0.08);
+    }
+    .mini-login h4 { font-size: 14px; margin-bottom: 3px; }
+    .mini-login .hint { font-size: 10px; color: var(--text-muted); margin-bottom: 14px; }
+    .mini-login input {
+        width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-code);
+        padding: 7px 10px; font-size: 11px; color: var(--text-primary); margin-bottom: 9px; outline: none;
+    }
+    .mini-login input:focus { border-color: var(--border-active); }
+    .mini-login button {
+        width: 100%; border: none; border-radius: 8px; cursor: pointer;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 11.5px; font-weight: 600; padding: 8px 0;
+    }
+
+    /* Diff 视图 */
+    .diff-banner {
+        display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--text-secondary);
+        padding: 7px 12px; border-bottom: 1px solid var(--border-soft); background: var(--bg-hover);
+    }
+    .diff { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; line-height: 1.9; padding: 8px 0; }
+    .dl { display: flex; white-space: pre; }
+    .dl .no { width: 34px; flex-shrink: 0; text-align: right; padding-right: 10px; color: var(--text-muted); opacity: .6; user-select: none; }
+    .dl.add { background: var(--diff-add-bg); }
+    .dl.add .code { color: var(--add); }
+    .dl.del { background: var(--diff-del-bg); }
+    .dl.del .code { color: var(--del); text-decoration: line-through; text-decoration-thickness: 1px; }
+    .dl .code { color: var(--text-secondary); }
+    .dl.hunk { color: var(--mod); padding: 2px 0 2px 34px; font-size: 10px; }
+    .dl.deleted-only .code { color: var(--del); opacity: .75; }
+
+    /* ================= 设计说明卡 ================= */
+    .notes {
+        max-width: 940px; margin: 6px auto 0; background: var(--bg-stage);
+        border: 1px solid var(--border); border-radius: 18px; padding: 24px 26px;
+    }
+    .notes h2 { font-size: 15px; margin-bottom: 18px; letter-spacing: -0.3px; }
+    .notes-grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 26px; }
+    .notes h3 { font-size: 12px; margin-bottom: 10px; color: var(--text-primary); display: flex; align-items: center; gap: 7px; }
+    .notes h3 .idx {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; font-weight: 700;
+        color: var(--accent-ink); background: var(--accent-light); border-radius: 5px; padding: 1px 6px;
+    }
+    .notes p, .notes li { font-size: 11.5px; color: var(--text-secondary); line-height: 1.9; }
+    .notes ul { padding-left: 16px; }
+    .notes code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; }
+    .notes .codeblock {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; line-height: 1.9;
+        color: var(--text-secondary); background: var(--bg-code);
+        border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 14px;
+    }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+    .notes td { padding: 6px 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.5; }
+    .notes td:first-child { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; color: var(--text-primary); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更文件清单设计</h1>
+<p class="sub">
+    harness 从 <span class="mono">Write / SearchReplace / DeleteFile</span> 工具调用确定性聚合 <em>changedFiles</em>，不依赖模型自报路径<br>
+    过程块保持折叠 · 结果清单置底 · 点击路由到预览
+</p>
+
+<!-- ==================== 方案 A：消息尾部变更卡片（推荐） ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">方案 A · 推荐</span>
+        <span class="name">消息尾部变更卡片</span>
+    </div>
+    <p class="demo-desc">
+        助手回合末尾固定渲染结果清单：<em>徽标</em>标注新建/修改/删除，<em>±N 行</em>走 Git 语义，
+        行悬停出现<em>浮层预览</em>（前 20 行），点击整行路由到预览面板。过程记录（工具调用）保持折叠，与结果清单分层。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，包含表单校验与提交逻辑，样式内联在 <code>login.html</code> 中，可直接打开预览。</p>
+
+                    <!-- 过程块：默认折叠，点开才是工具调用流水 -->
+                    <div class="tool-strip">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        工具调用 × 3：write login.html · edit main.ts · delete old.css
+                        <svg class="ic" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+
+                    <!-- 变更文件卡片 -->
+                    <div class="cfile-card" id="cardA">
+                        <div class="cfile-head" onclick="document.getElementById('cardA').classList.toggle('collapsed')">
+                            <svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                            变更文件 <span class="cnt">3</span>
+                            <span class="sum">+128 −48</span>
+                        </div>
+                        <div class="cfile-rows">
+                            <div class="frow">
+                                <span class="lang-dot" style="background:var(--lang-html)"></span>
+                                <span class="fpath"><span class="fname">login.html</span><span class="fdir">workspace 根目录</span></span>
+                                <span class="op-badge op-create">新建</span>
+                                <span class="fstats"><span class="a">+120</span></span>
+                                <span class="fopen">预览 <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                                <!-- 悬停浮层：前 N 行预览 -->
+                                <div class="pop">
+                                    <div class="pop-head"><span class="t">login.html</span><span class="n">预览前 12 行 · 共 120 行</span></div>
+<pre><span class="tagc">&lt;!DOCTYPE html&gt;</span>
+<span class="tagc">&lt;html</span> <span class="kw">lang</span>=<span class="str">"zh-CN"</span><span class="tagc">&gt;</span>
+<span class="tagc">&lt;head&gt;</span>
+  <span class="tagc">&lt;meta</span> <span class="kw">charset</span>=<span class="str">"UTF-8"</span><span class="tagc">&gt;</span>
+  <span class="tagc">&lt;title&gt;</span>登录 · Qualia<span class="tagc">&lt;/title&gt;</span>
+  <span class="tagc">&lt;style&gt;</span>
+    .login-card { width: 320px; margin: 18vh auto;
+      padding: 32px; border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.08); }
+    ...<span class="tagc">&lt;/style&gt;</span></pre>
+                                    <div class="pop-foot">HTML 文件 → 点击进入 iframe 渲染预览</div>
+                                </div>
+                            </div>
+                            <div class="frow">
+                                <span class="lang-dot" style="background:var(--lang-ts)"></span>
+                                <span class="fpath"><span class="fname">main.ts</span><span class="fdir">src</span></span>
+                                <span class="op-badge op-modify">修改</span>
+                                <span class="fstats"><span class="a">+8</span> <span class="d">−2</span></span>
+                                <span class="fopen">Diff <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                            </div>
+                            <div class="frow">
+                                <span class="lang-dot" style="background:var(--lang-css)"></span>
+                                <span class="fpath"><span class="fname">old.css</span><span class="fdir">src/styles</span></span>
+                                <span class="op-badge op-delete">删除</span>
+                                <span class="fstats"><span class="d">−46</span></span>
+                                <span class="fopen">Diff <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        同一文件多次编辑合并为一条 · <code>op</code> 由工具类型推导（Write 且文件不存在 → 新建 / SearchReplace → 修改 / DeleteFile → 删除）·
+        卡片头部可折叠 · <code>+N</code> 绿 <code>−N</code> 红 · 已删除文件不提供渲染预览，仅 Diff
+    </p>
+</div>
+
+<!-- ==================== 方案 B：轻量内联 Chips ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">方案 B</span>
+        <span class="name">轻量内联 Chips</span>
+    </div>
+    <p class="demo-desc">
+        单文件或小改动场景下，卡片略重，退化为<em>一行 chips</em> 内联在消息文本下方；悬停仍出浮层，点击路由不变。
+        适合「改一行配置」这类轻交互，控制消息高度。
+    </p>
+    <div class="stage">
+        <div class="chat" style="max-width:560px">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:35</span></div>
+                    <p class="msg-text">已修复校验逻辑：用户名去除首尾空格，超长时提前拦截。</p>
+                    <div class="chip-row">
+                        <span class="fchip">
+                            <span class="lang-dot" style="background:var(--lang-ts)"></span>
+                            <span class="n">main.ts</span><span class="s"><span class="a">+8</span> <span class="d">−2</span></span>
+                        </span>
+                        <span class="fchip op-delete">
+                            <span class="lang-dot" style="background:var(--lang-css)"></span>
+                            <span class="n">old.css</span><span class="s"><span class="d">−46</span></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">触发规则建议：<code>changedFiles.length ≤ 2 且均为修改</code> 时用 Chips，其余回落方案 A · 删除文件文件名加删除线</p>
+</div>
+
+<!-- ==================== 方案 C：卡片 + 预览面板联动 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">方案 C</span>
+        <span class="name">卡片 + 预览面板联动（点击路由）</span>
+    </div>
+    <p class="demo-desc">
+        点击卡片行的完整形态：右侧滑出<em>预览面板</em>，按文件类型路由 ——
+        <em>HTML → iframe 渲染</em>、源码 → Diff 视图、已删除 → 仅 Diff 并提示。行高亮与面板标题双向同步。
+        <em>本区块可交互：点击左侧行试试。</em>
+    </p>
+    <div class="stage">
+        <div class="split">
+            <!-- 左：聊天列 -->
+            <div class="chat-col">
+                <div class="msg">
+                    <div class="avatar">Q</div>
+                    <div class="msg-body">
+                        <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                        <p class="msg-text" style="margin-bottom:12px">已完成登录页编写，点击文件查看效果。</p>
+                    </div>
+                </div>
+                <div class="cfile-card">
+                    <div class="cfile-head">
+                        <svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                        变更文件 <span class="cnt">3</span>
+                        <span class="sum">+128 −48</span>
+                    </div>
+                    <div class="cfile-rows">
+                        <div class="frow active" data-file="login.html" onclick="selectFile('login.html')">
+                            <span class="lang-dot" style="background:var(--lang-html)"></span>
+                            <span class="fpath"><span class="fname">login.html</span></span>
+                            <span class="op-badge op-create">新建</span>
+                            <span class="fstats"><span class="a">+120</span></span>
+                            <span class="fopen">预览 <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                        </div>
+                        <div class="frow" data-file="main.ts" onclick="selectFile('main.ts')">
+                            <span class="lang-dot" style="background:var(--lang-ts)"></span>
+                            <span class="fpath"><span class="fname">main.ts</span><span class="fdir">src</span></span>
+                            <span class="op-badge op-modify">修改</span>
+                            <span class="fstats"><span class="a">+8</span> <span class="d">−2</span></span>
+                            <span class="fopen">Diff <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                        </div>
+                        <div class="frow" data-file="old.css" onclick="selectFile('old.css')">
+                            <span class="lang-dot" style="background:var(--lang-css)"></span>
+                            <span class="fpath"><span class="fname">old.css</span><span class="fdir">src/styles</span></span>
+                            <span class="op-badge op-delete">删除</span>
+                            <span class="fstats"><span class="d">−46</span></span>
+                            <span class="fopen">Diff <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右：预览面板 -->
+            <div class="pane">
+                <div class="pane-head">
+                    <span class="pf-name">
+                        <span class="lang-dot" id="pfDot" style="width:7px;height:7px;border-radius:50%;background:var(--lang-html);display:inline-block"></span>
+                        <span id="pfName">login.html</span>
+                    </span>
+                    <div class="pane-tabs">
+                        <button id="tabPreview" onclick="switchTab('preview')">预览</button>
+                        <button id="tabDiff" onclick="switchTab('diff')">Diff</button>
+                    </div>
+                </div>
+                <div class="pane-body">
+                    <!-- 预览态：浏览器框 + 迷你登录页 -->
+                    <div class="pane-view" id="viewPreview">
+                        <div class="browser">
+                            <div class="browser-bar">
+                                <span class="dots"><i></i><i></i><i></i></span>
+                                <span class="url">workspace://login.html</span>
+                            </div>
+                            <div class="browser-view">
+                                <div class="mini-login">
+                                    <h4>欢迎回来</h4>
+                                    <p class="hint">登录你的 Qualia 账号</p>
+                                    <input placeholder="用户名">
+                                    <input placeholder="密码" type="password">
+                                    <button>登 录</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Diff 态：main.ts -->
+                    <div class="pane-view" id="viewDiffMain" style="display:none">
+                        <div class="diff-banner">
+                            <svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            SearchReplace · 2 处替换
+                        </div>
+                        <div class="diff">
+                            <div class="dl hunk">@@ -12,4 +12,7 @@ export function validateLogin(f: FormData)</div>
+                            <div class="dl del"><span class="no">12</span><span class="code">  const name = f.get('username') as string</span></div>
+                            <div class="dl del"><span class="no">13</span><span class="code">  if (!name) return false</span></div>
+                            <div class="dl add"><span class="no">12</span><span class="code">  const name = (f.get('username') ?? '').trim()</span></div>
+                            <div class="dl add"><span class="no">13</span><span class="code">  if (!name) return { ok: false, reason: '用户名不能为空' }</span></div>
+                            <div class="dl add"><span class="no">14</span><span class="code">  if (name.length &gt; 32) return { ok: false, reason: '用户名过长' }</span></div>
+                            <div class="dl"><span class="no">15</span><span class="code">  return { ok: true }</span></div>
+                        </div>
+                    </div>
+                    <!-- Diff 态：old.css（已删除） -->
+                    <div class="pane-view" id="viewDiffOld" style="display:none">
+                        <div class="diff-banner" style="color:var(--del)">
+                            <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0v14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V6"/></svg>
+                            文件已删除 · 仅可查看删除前内容
+                        </div>
+                        <div class="diff">
+                            <div class="dl hunk">@@ -1,8 +0,0 @@ /* legacy theme tokens */</div>
+                            <div class="dl deleted-only"><span class="no">1</span><span class="code">:root {</span></div>
+                            <div class="dl deleted-only"><span class="no">2</span><span class="code">  --legacy-bg: #f5f5f5;</span></div>
+                            <div class="dl deleted-only"><span class="no">3</span><span class="code">  --legacy-ink: #222;</span></div>
+                            <div class="dl deleted-only"><span class="no">4</span><span class="code">  --legacy-line: #ddd;</span></div>
+                            <div class="dl deleted-only"><span class="no">5</span><span class="code">}</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        面板从右侧滑入（桌面端与文件树共位，宽屏常驻）· <code>Esc</code> 或点击空白关闭 · 面板内 HTML 用 sandbox iframe 隔离脚本
+    </p>
+</div>
+
+<!-- ==================== 设计说明卡 ==================== -->
+<div class="notes">
+    <h2>设计说明</h2>
+    <div class="notes-grid">
+        <div>
+            <h3><span class="idx">01</span>数据从哪来</h3>
+            <ul>
+                <li>工具调用结果天然携带 <code>file_path</code>，harness 按 <code>messageId</code> 聚合为 <code>changedFiles[]</code></li>
+                <li>确定性数据，模型零感知、零幻觉；模型回复文本只负责描述，不负责报路径</li>
+            </ul>
+            <h3 style="margin-top:16px"><span class="idx">02</span>聚合规则</h3>
+            <ul>
+                <li>同文件多次编辑 → 合并一条，行数累加</li>
+                <li><code>op</code> 推导：Write 且不存在 → 新建；SearchReplace / Edit → 修改；Delete → 删除</li>
+                <li>行数统计由 harness 落盘前后 diff 得出，±N 为 Git 语义</li>
+            </ul>
+        </div>
+        <div>
+            <h3><span class="idx">03</span>点击路由表</h3>
+            <table>
+                <tr><th>文件类型</th><th>行为</th></tr>
+                <tr><td>.html / mockup</td><td>预览面板 iframe 渲染（sandbox）</td></tr>
+                <tr><td>源码 / 文本</td><td>只读查看，默认 Diff，可切原文</td></tr>
+                <tr><td>图片</td><td>内置查看器</td></tr>
+                <tr><td>已删除</td><td>仅 Diff，头部提示「已删除」</td></tr>
+            </table>
+            <h3 style="margin-top:16px"><span class="idx">04</span>方案取舍</h3>
+            <ul>
+                <li><b>A vs B</b>：B 省高度但多文件时拥挤，A 为默认，B 仅在 ≤2 个修改时启用</li>
+                <li>不采用弹窗确认：打断流式体验，危险操作才走审批流</li>
+            </ul>
+        </div>
+        <div>
+            <h3><span class="idx">05</span>数据结构示意</h3>
+            <p style="margin-bottom:10px">消息负载附带，渲染层零猜测：</p>
+            <pre class="codeblock">
+{
+  "messageId": "msg_9f2",
+  "changedFiles": [
+    { "path": "login.html",
+      "op": "create", "add": 120, "del": 0,
+      "lang": "html" },
+    { "path": "src/main.ts",
+      "op": "modify", "add": 8, "del": 2,
+      "lang": "ts" }
+  ]
+}
+            </pre>
+            <p style="margin-top:10px">改动集中在消息渲染层，不动模型协议与工具定义。</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+
+    /* 方案 C：行点击 → 路由预览面板 */
+    const FILES = {
+        'login.html': { name: 'login.html', dot: 'var(--lang-html)', preview: true  },
+        'main.ts':    { name: 'src/main.ts', dot: 'var(--lang-ts)',  preview: false },
+        'old.css':    { name: 'src/styles/old.css', dot: 'var(--lang-css)', preview: false }
+    };
+    let currentFile = 'login.html';
+
+    function selectFile(f) {
+        currentFile = f;
+        document.querySelectorAll('.split .frow').forEach(r =>
+            r.classList.toggle('active', r.dataset.file === f));
+        const meta = FILES[f];
+        document.getElementById('pfName').textContent = meta.name;
+        document.getElementById('pfDot').style.background = meta.dot;
+        document.getElementById('tabPreview').disabled = !meta.preview;
+        switchTab(meta.preview ? 'preview' : 'diff');
+    }
+
+    function switchTab(tab) {
+        document.getElementById('tabPreview').classList.toggle('on', tab === 'preview');
+        document.getElementById('tabDiff').classList.toggle('on', tab === 'diff');
+        const isOld = currentFile === 'old.css';
+        document.getElementById('viewPreview').style.display = (tab === 'preview' && !isOld) ? '' : 'none';
+        document.getElementById('viewDiffMain').style.display = (tab === 'diff' && !isOld) ? '' : 'none';
+        document.getElementById('viewDiffOld').style.display = (tab === 'diff' && isOld) ? '' : 'none';
+    }
+
+    switchTab('preview');
+</script>
+</body>
+</html>

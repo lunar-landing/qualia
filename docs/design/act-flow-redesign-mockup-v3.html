@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Act Flow 执行过程重设计 · 三稿 V9-V12 · Qualia</title>
+<style>
+    /* ===== 主题变量（沿用 code-wrap / act-flow 系列定稿） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --accent: #e6edf3;
+        --pill-bg: rgba(128, 144, 168, 0.14);
+        --pill-bg-hover: rgba(128, 144, 168, 0.24);
+        --hover: rgba(255, 255, 255, 0.05);
+        --ok: #3fb950;
+        --err: #f87171;
+        --float-bg: rgba(13, 17, 23, 0.82);
+        --pulse: rgba(230, 237, 243, 0.35);
+        --shimmer-hi: #f0f6fc;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #e4e8ee;
+        --code-bg: #eef1f4;
+        --line: rgba(31, 35, 40, 0.12);
+        --line-soft: rgba(31, 35, 40, 0.07);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --accent: #24292f;
+        --pill-bg: rgba(31, 35, 40, 0.06);
+        --pill-bg-hover: rgba(31, 35, 40, 0.11);
+        --hover: rgba(31, 35, 40, 0.045);
+        --ok: #1a7f37;
+        --err: #cf222e;
+        --float-bg: rgba(255, 255, 255, 0.88);
+        --pulse: rgba(31, 35, 40, 0.30);
+        --shimmer-hi: #24292f;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+    .ic { width: 12px; height: 12px; flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 52px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: var(--pill-bg); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 展示舞台（模拟聊天面板） ===== */
+    .stage {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 12px;
+    }
+    .replay {
+        position: absolute; top: 10px; right: 10px; z-index: 5;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-2);
+        font-size: 11px; transition: all 0.18s;
+    }
+    .replay:hover { color: var(--text-1); border-color: var(--text-3); }
+    .replay svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+    .stage-label { font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ===== 执行过程公共：时序入场 / spinner / 关键帧 ===== */
+    .fx { opacity: 0; transform: translateY(4px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .fx.show { opacity: 1; transform: none; }
+
+    .spin {
+        width: 11px; height: 11px; flex: 0 0 11px;
+        border-radius: 50%;
+        border: 1.6px solid var(--pill-bg);
+        border-top-color: var(--text-2);
+        animation: rot 0.8s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    @keyframes dot-pulse {
+        0% { box-shadow: 0 0 0 0 var(--pulse); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    @keyframes wf-flow { to { background-position: 14.14px 0; } }
+    @keyframes msgin { from { opacity: 0; transform: translateY(4px); } }
+
+    /* 流光文字（执行中当前动作通用） */
+    .t-shim {
+        background: linear-gradient(90deg, var(--text-2) 40%, var(--shimmer-hi) 50%, var(--text-2) 60%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 2s linear infinite;
+    }
+
+    /* ===== 文字 chip（V11 清单复用首篇 V4 定稿） ===== */
+    .mini {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 8px; border-radius: 7px;
+        border: none; background: transparent; color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .mini:hover { background: var(--pill-bg); color: var(--text-1); }
+    .mini .ic { width: 10.5px; height: 10.5px; flex: 0 0 10.5px; }
+    .mini .st { display: none; width: 10px; height: 10px; flex: 0 0 10px; }
+    .mini .st svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .mini.done .st-ok { display: flex; color: var(--ok); }
+    .mini.fail { color: var(--err); }
+    .mini.fail .st-bad { display: flex; }
+
+    /* ============================================================
+       V9 · 水平步进轴
+       ============================================================ */
+    .af9 { display: flex; flex-direction: column; }
+    .think9-wrap { position: relative; min-height: 22px; margin-bottom: 34px; }
+    .think9 {
+        position: absolute; inset: 0;
+        display: flex; gap: 7px; align-items: baseline;
+        font-size: 12px; color: var(--text-2); line-height: 1.65;
+        transition: opacity 0.3s;
+    }
+    .think9.past { opacity: 0; }
+    .think9 .ic { width: 11px; height: 11px; align-self: center; color: var(--text-3); }
+    .hs-zone { position: relative; padding-top: 36px; }
+    .hs-tip {
+        position: absolute; top: 0; left: 0; z-index: 2;
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 4px 11px; border-radius: 100px;
+        border: 1px solid var(--line); background: var(--float-bg);
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        font-size: 11.5px; color: var(--text-2); white-space: nowrap;
+        opacity: 0; transition: opacity 0.25s;
+    }
+    .hs-tip.show { opacity: 1; }
+    .hs-tip .spin { width: 9px; height: 9px; flex: 0 0 9px; border-width: 1.4px; }
+    .hs-tip::after {
+        content: ''; position: absolute; bottom: -4px; left: var(--tx, 50%);
+        width: 8px; height: 8px; transform: translateX(-50%) rotate(45deg);
+        border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+        background: var(--float-bg);
+    }
+    .hs-axis { display: flex; align-items: center; }
+    .hn {
+        position: relative; z-index: 1;
+        width: 26px; height: 26px; border-radius: 50%;
+        border: 1.5px solid var(--text-3); background: var(--panel); color: var(--text-3);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; padding: 0; transition: all 0.2s;
+    }
+    .hn svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .hn.run { border-color: var(--accent); color: var(--text-1); animation: dot-pulse 1.6s ease-out infinite; }
+    .hn.done { border-color: transparent; background: var(--pill-bg); color: var(--text-2); }
+    .hn.fail { border-color: transparent; background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+    .hl-link { flex: 1; height: 1.5px; background: var(--line-soft); }
+    .hs-sum {
+        display: flex; align-items: center; gap: 7px; margin-top: 18px;
+        font-size: 11.5px; color: var(--text-3);
+        opacity: 0; transition: opacity 0.45s;
+    }
+    .hs-sum .ic { color: var(--ok); }
+    .stage[data-v="v9"].finished .hs-tip { opacity: 0; visibility: hidden; }
+    .stage[data-v="v9"].finished .hs-sum { opacity: 1; }
+
+    /* ============================================================
+       V10 · 执行瀑布图
+       ============================================================ */
+    .af10 { display: flex; flex-direction: column; gap: 7px; }
+    .wf-row { display: flex; align-items: center; gap: 12px; }
+    .wf-name {
+        flex: 0 0 150px; font-size: 11.5px; color: var(--text-2);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;
+    }
+    .wf-name .ic { width: 11px; height: 11px; vertical-align: -2px; margin-right: 5px; color: var(--text-3); }
+    .wf-row.think-row .wf-name { color: var(--text-3); }
+    .wf-track {
+        position: relative; flex: 1; height: 14px;
+        background: repeating-linear-gradient(90deg, var(--line-soft) 0 1px, transparent 1px 25%);
+    }
+    .wf-bar {
+        position: absolute; top: 3px; height: 8px; border-radius: 4px;
+        left: var(--l); width: 0;
+        background: var(--pill-bg);
+        transition: width 0.5s ease;
+    }
+    .wf-bar.show { width: var(--w); }
+    .wf-bar.run {
+        background: repeating-linear-gradient(45deg, var(--pill-bg) 0 5px, var(--pill-bg-hover) 5px 10px);
+        animation: wf-flow 0.7s linear infinite;
+    }
+    .wf-bar.fail { background: color-mix(in srgb, var(--err) 32%, transparent); }
+    .wf-bar.think-bar { top: 5px; height: 4px; border-radius: 2px; background: var(--line); }
+    .wf-time { flex: 0 0 44px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-3); }
+    .wf-scale {
+        display: flex; justify-content: space-between;
+        padding-left: 162px; margin-top: 2px;
+        font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-3); opacity: 0.8;
+    }
+    .wf-sum {
+        display: flex; align-items: center; gap: 7px; margin-top: 12px;
+        font-size: 11.5px; color: var(--text-3);
+        opacity: 0; transition: opacity 0.45s;
+    }
+    .wf-sum .ic { color: var(--ok); }
+    .stage[data-v="v10"].finished .wf-sum { opacity: 1; }
+
+    /* ============================================================
+       V11 · 底部执行舱
+       ============================================================ */
+    .chat { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .msg { max-width: 78%; padding: 8px 13px; border-radius: 12px; font-size: 12.5px; line-height: 1.6; }
+    .msg.user { align-self: flex-end; background: var(--pill-bg); color: var(--text-1); border-bottom-right-radius: 4px; }
+    .msg.bot {
+        display: none; align-self: flex-start;
+        background: var(--code-bg); border: 1px solid var(--line-soft); color: var(--text-2);
+        border-bottom-left-radius: 4px;
+    }
+    .stage[data-v="v11"].finished .msg.bot { display: block; animation: msgin 0.4s ease; }
+    .dockbar { border: 1px solid var(--panel-border); border-radius: 12px; overflow: hidden; background: var(--code-bg); }
+    .dock {
+        display: flex; align-items: center; gap: 10px; width: 100%;
+        padding: 10px 14px; background: transparent; border: none;
+        cursor: pointer; font-family: inherit; color: var(--text-2);
+        font-size: 11.5px; text-align: left; transition: background 0.15s;
+    }
+    .dock:hover { background: var(--hover); }
+    .dk-acts { position: relative; flex: 1; min-width: 0; height: 18px; }
+    .dk-act {
+        position: absolute; inset: 0;
+        display: flex; align-items: center;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        transition: opacity 0.3s;
+    }
+    .dk-act.past { opacity: 0; }
+    .dk-act b { color: var(--text-1); font-weight: 600; }
+    .dk-fin { display: none; align-items: center; gap: 7px; flex: 1; color: var(--text-2); }
+    .dk-fin .ic { color: var(--ok); }
+    .stage[data-v="v11"].finished .dk-spin,
+    .stage[data-v="v11"].finished .dk-acts { display: none; }
+    .stage[data-v="v11"].finished .dk-fin { display: flex; }
+    .dk-meta {
+        display: flex; align-items: center; gap: 5px; flex: 0 0 auto;
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-3);
+    }
+    .dk-meta b { color: var(--text-2); font-weight: 600; }
+    .dock .chev { display: flex; color: var(--text-3); transition: transform 0.2s; }
+    .dock .chev svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .dock.open .chev { transform: rotate(180deg); }
+    .dk-drawer {
+        max-height: 0; overflow: hidden; opacity: 0;
+        border-top: 1px solid transparent;
+        transition: max-height 0.35s ease, opacity 0.25s ease, border-color 0.3s;
+    }
+    .dk-drawer.open { max-height: 220px; opacity: 1; border-top-color: var(--line-soft); }
+    .dk-list { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 14px; }
+
+    /* ============================================================
+       V12 · 径向进度环
+       ============================================================ */
+    .af12 { display: flex; align-items: center; gap: 16px; }
+    .rs-ring { position: relative; flex: 0 0 64px; width: 64px; height: 64px; }
+    .rs-ring svg { width: 100%; height: 100%; display: block; }
+    .ring-bg { fill: none; stroke: var(--pill-bg); stroke-width: 3.5; }
+    .ring-fg {
+        fill: none; stroke: var(--text-2); stroke-width: 3.5; stroke-linecap: round;
+        stroke-dasharray: 163.36; stroke-dashoffset: 163.36;
+        transform: rotate(-90deg); transform-origin: 50% 50%;
+        transition: stroke-dashoffset 0.5s ease, stroke 0.3s;
+    }
+    .rs-num {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; color: var(--text-1);
+    }
+    .rs-ok { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--ok); }
+    .rs-ok svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .rs-body { flex: 1; min-width: 0; }
+    .rs-acts { position: relative; height: 20px; }
+    .rd-act {
+        position: absolute; inset: 0;
+        display: flex; align-items: center;
+        font-size: 12px; color: var(--text-2);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        transition: opacity 0.3s;
+    }
+    .rd-act.past { opacity: 0; }
+    .rd-act b { color: var(--text-1); font-weight: 600; }
+    .rs-sub { margin-top: 3px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); }
+    .rs-done { display: none; align-items: center; gap: 7px; height: 20px; font-size: 12px; color: var(--text-2); }
+    .rs-done .ic { color: var(--ok); }
+    .stage[data-v="v12"].finished .rs-acts { display: none; }
+    .stage[data-v="v12"].finished .rs-done { display: flex; }
+    .stage[data-v="v12"].finished .rs-num { display: none; }
+    .stage[data-v="v12"].finished .rs-ok { display: flex; }
+    .stage[data-v="v12"].finished .ring-fg { stroke: var(--ok); }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+    footer.note b { color: var(--text-2); font-weight: 600; }
+</style>
+</head>
+<body data-theme="dark">
+
+    <!-- SVG 符号库 -->
+    <svg width="0" height="0" style="position:absolute">
+        <symbol id="i-read" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+        <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+        <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-5-6-5"/><path d="M12 19h8"/></symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5Z"/></symbol>
+        <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    </svg>
+
+    <div class="bar">
+        <h1>Act Flow 执行过程重设计 · 三稿<small>四个新方向 · 深浅主题 · 每个舞台可重放执行时序</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- ============ V9 ============ -->
+        <section class="vblock">
+            <header><span class="no">V9</span><h2>水平步进轴</h2></header>
+            <p class="desc">把时间线放平：一条<b>水平步进轴</b>，节点依次点亮、失败标红，当前动作以毛玻璃气泡跟随当前节点（小三角对位，边界自动收拢）。整段执行只占两行高度，聊天流几乎无感，适合窄屏与移动端；代价是节点多时轴会拥挤，且纵向空间换横向空间后单节点信息量小，需依赖气泡与 title。</p>
+            <div class="stage" data-stage data-v="v9">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（气泡跟随当前节点）</div>
+                <div class="af9">
+                    <div class="think9-wrap">
+                        <div class="think9 tswap fx" data-at="0"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</span></div>
+                        <div class="think9 tswap fx" data-at="2000"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">调用方只有 TokenStatService，在聚合处按日分组。</span></div>
+                        <div class="think9 tswap fx" data-at="4700"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">编译通过，整理变更说明。</span></div>
+                    </div>
+                    <div class="hs-zone">
+                        <div class="hs-tip"><span class="spin st"></span><span class="ht-txt"></span></div>
+                        <div class="hs-axis">
+                            <button class="hn fx" data-at="700" data-tool title="读取 model-config.ts"><svg><use href="#i-read"/></svg></button>
+                            <span class="hl-link"></span>
+                            <button class="hn fx" data-at="1300" data-tool title="搜索 aggregateDaily"><svg><use href="#i-read"/></svg></button>
+                            <span class="hl-link"></span>
+                            <button class="hn fx" data-at="2600" data-tool data-end="fail" title="编辑 TokenStatService.java"><svg><use href="#i-edit"/></svg></button>
+                            <span class="hl-link"></span>
+                            <button class="hn fx" data-at="3300" data-tool title="编辑 TokenStatService.java（重试）"><svg><use href="#i-edit"/></svg></button>
+                            <span class="hl-link"></span>
+                            <button class="hn fx" data-at="4100" data-tool title="mvn -q compile"><svg><use href="#i-term"/></svg></button>
+                        </div>
+                    </div>
+                    <div class="hs-sum"><svg class="ic"><use href="#i-check"/></svg>执行完成 · 5 步 · 12.4s</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V10 ============ -->
+        <section class="vblock">
+            <header><span class="no">V10</span><h2>执行瀑布图</h2></header>
+            <p class="desc">引入<b>时间维度</b>：每步一行，横条在共享时间轴上按实际开始时刻与时长铺开（仿 DevTools Network 面板），条纹流动表示运行中，红色横条为失败重试。一眼看出哪步最慢、时间花在哪，适合长任务复盘；代价是需要记录每步 start/duration，行数随步骤线性增长，不适合超长执行。</p>
+            <div class="stage" data-stage data-v="v10">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（横条长度 = 实际耗时）</div>
+                <div class="af10">
+                    <div class="wf-row think-row">
+                        <span class="wf-name fx" data-at="0"><svg class="ic"><use href="#i-spark"/></svg>思考</span>
+                        <div class="wf-track"><i class="wf-bar think-bar fx" data-at="0" style="--l:0%;--w:5.6%"></i></div>
+                        <span class="wf-time fx" data-at="0">0.7s</span>
+                    </div>
+                    <div class="wf-row">
+                        <span class="wf-name fx" data-at="700"><svg class="ic"><use href="#i-read"/></svg>model-config.ts</span>
+                        <div class="wf-track"><i class="wf-bar fx" data-at="700" data-tool style="--l:5.6%;--w:6.5%"></i></div>
+                        <span class="wf-time fx" data-at="700">0.8s</span>
+                    </div>
+                    <div class="wf-row">
+                        <span class="wf-name fx" data-at="1300"><svg class="ic"><use href="#i-read"/></svg>aggregateDaily</span>
+                        <div class="wf-track"><i class="wf-bar fx" data-at="1300" data-tool style="--l:12.1%;--w:4.8%"></i></div>
+                        <span class="wf-time fx" data-at="1300">0.6s</span>
+                    </div>
+                    <div class="wf-row think-row">
+                        <span class="wf-name fx" data-at="2000"><svg class="ic"><use href="#i-spark"/></svg>思考</span>
+                        <div class="wf-track"><i class="wf-bar think-bar fx" data-at="2000" style="--l:16.9%;--w:4%"></i></div>
+                        <span class="wf-time fx" data-at="2000">0.5s</span>
+                    </div>
+                    <div class="wf-row">
+                        <span class="wf-name fx" data-at="2600"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java</span>
+                        <div class="wf-track"><i class="wf-bar fx" data-at="2600" data-tool data-end="fail" style="--l:21%;--w:6.5%"></i></div>
+                        <span class="wf-time fx" data-at="2600">0.8s</span>
+                    </div>
+                    <div class="wf-row">
+                        <span class="wf-name fx" data-at="3300"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java</span>
+                        <div class="wf-track"><i class="wf-bar fx" data-at="3300" data-tool style="--l:27.4%;--w:10.5%"></i></div>
+                        <span class="wf-time fx" data-at="3300">1.3s</span>
+                    </div>
+                    <div class="wf-row">
+                        <span class="wf-name fx" data-at="4100"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile</span>
+                        <div class="wf-track"><i class="wf-bar fx" data-at="4100" data-tool style="--l:37.9%;--w:25.8%"></i></div>
+                        <span class="wf-time fx" data-at="4100">3.2s</span>
+                    </div>
+                    <div class="wf-row think-row">
+                        <span class="wf-name fx" data-at="5000"><svg class="ic"><use href="#i-spark"/></svg>整理说明</span>
+                        <div class="wf-track"><i class="wf-bar think-bar fx" data-at="5000" style="--l:63.7%;--w:28.2%"></i></div>
+                        <span class="wf-time fx" data-at="5000">3.5s</span>
+                    </div>
+                    <div class="wf-scale fx" data-at="0"><span>0s</span><span>3s</span><span>6s</span><span>9s</span><span>12.4s</span></div>
+                    <div class="wf-sum"><svg class="ic"><use href="#i-check"/></svg>共 5 步 · 12.4s · 最慢一步：mvn -q compile（3.2s · 占 26%）</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V11 ============ -->
+        <section class="vblock">
+            <header><span class="no">V11</span><h2>底部执行舱</h2></header>
+            <p class="desc">执行过程<b>整体移出聊天流</b>：输入框上方固定一条执行舱——左侧当前动作滚动、右侧步数计数，点击展开完整清单；聊天流内只有用户消息与最终回复。流式体验 100% 干净，适合多任务并行；代价是过程不与消息同行，历史回看时舱体与消息的归属关系需要额外设计。</p>
+            <div class="stage" data-stage data-v="v11">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（点击执行舱展开清单）</div>
+                <div class="chat">
+                    <div class="msg user fx" data-at="0">把 Token 统计改成按日聚合</div>
+                    <div class="msg bot">已将聚合改为按日分组（TokenStatService#aggregateDaily），编译通过，对外接口未变。</div>
+                </div>
+                <div class="dockbar">
+                    <button class="dock">
+                        <span class="spin st dk-spin"></span>
+                        <span class="dk-acts">
+                            <span class="dk-act tswap fx" data-at="0"><span class="t-shim">正在分析 Token 统计的聚合位置…</span></span>
+                            <span class="dk-act tswap fx" data-at="700" data-tool data-n="2"><span class="t-shim">正在 <b>读取与搜索</b> 模型配置…</span></span>
+                            <span class="dk-act tswap fx" data-at="2600" data-tool data-n="2"><span class="t-shim">正在 <b>编辑 TokenStatService.java</b></span></span>
+                            <span class="dk-act tswap fx" data-at="4100" data-tool data-n="1"><span class="t-shim">正在 <b>mvn -q compile</b></span></span>
+                        </span>
+                        <span class="dk-fin"><svg class="ic"><use href="#i-check"/></svg>执行完成</span>
+                        <span class="dk-meta"><b data-num data-final="5">0</b> 步 · 12.4s</span>
+                        <span class="chev"><svg><use href="#i-chev"/></svg></span>
+                    </button>
+                    <div class="dk-drawer">
+                        <div class="dk-list">
+                            <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                            <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                            <button class="mini fail"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-bad"><svg><use href="#i-x"/></svg></span></button>
+                            <button class="mini done"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                            <button class="mini done"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V12 ============ -->
+        <section class="vblock">
+            <header><span class="no">V12</span><h2>径向进度环</h2></header>
+            <p class="desc"><b>径向进度环</b>：SVG 圆环随完成步数填充，中心实时计数，右侧动作文字同步切换；完成后环染成绿色、数字换成对勾。装饰性与状态感最强，适合桌面端标题区或侧栏常驻；代价是纯图形对「具体在做什么」表达弱，必须搭配动作文字，且不适合步骤数波动大的场景（环粒度失真）。</p>
+            <div class="stage" data-stage data-v="v12">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（圆环随步数填充）</div>
+                <div class="af12">
+                    <div class="rs-ring">
+                        <svg viewBox="0 0 64 64">
+                            <circle class="ring-bg" cx="32" cy="32" r="26"/>
+                            <circle class="ring-fg" cx="32" cy="32" r="26"/>
+                        </svg>
+                        <span class="rs-num" data-num data-final="5">5</span>
+                        <span class="rs-ok"><svg><use href="#i-check"/></svg></span>
+                    </div>
+                    <div class="rs-body">
+                        <div class="rs-acts">
+                            <span class="rd-act tswap fx" data-at="0"><span class="t-shim">正在分析 Token 统计的聚合位置…</span></span>
+                            <span class="rd-act tswap fx" data-at="700" data-tool data-n="2"><span class="t-shim">正在 <b>读取与搜索</b> 模型配置…</span></span>
+                            <span class="rd-act tswap fx" data-at="2600" data-tool data-n="2"><span class="t-shim">正在 <b>编辑 TokenStatService.java</b></span></span>
+                            <span class="rd-act tswap fx" data-at="4100" data-tool data-n="1"><span class="t-shim">正在 <b>编译验证</b> 改动…</span></span>
+                        </div>
+                        <div class="rs-done"><svg class="ic"><use href="#i-check"/></svg>5 步 · 12.4s · 按日聚合已生效</div>
+                        <div class="rs-sub">TOKEN-STAT · 按日聚合改造</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        三稿说明：V9-V12 与前两稿共用同一套墨白 / 石墨主题变量与状态语义（<b>绿色仅表示成功状态、红色仅表示失败</b>，装饰不占用主题色）。V9 将时间线放平为水平步进轴，当前动作以气泡跟随，占用高度最小；V10 引入时间维度（瀑布图），可回看每步耗时分布，需要 messageStepsMap 记录 start/duration；V11 把执行过程整体移出聊天流，固定在输入框上方的执行舱，聊天流 100% 干净；V12 用径向进度环做图形化聚焦，适合桌面端标题区或侧栏。所有舞台右上角「重放」可再看执行时序；V11 点击执行舱可展开步骤清单。
+    </footer>
+
+    <script>
+        /* ===== 主题切换 ===== */
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+
+        /* ===== 播放引擎：data-at 时序入场，工具 run → done/fail，通用 tswap 切换与 data-n 计数 ===== */
+        const TOOL_SEL = '.mini,[data-tool]';
+        const hooks = {
+            v9: {
+                step(stage, el) {
+                    if (el.classList.contains('hn')) {
+                        const tip = stage.querySelector('.hs-tip');
+                        const axis = stage.querySelector('.hs-axis');
+                        tip.querySelector('.ht-txt').textContent = el.title;
+                        tip.classList.add('show');
+                        const nx = el.offsetLeft + el.offsetWidth / 2;
+                        let x = nx - tip.offsetWidth / 2;
+                        x = Math.max(0, Math.min(x, axis.offsetWidth - tip.offsetWidth));
+                        tip.style.transform = 'translateX(' + x + 'px)';
+                        tip.style.setProperty('--tx', (nx - x) + 'px');
+                    }
+                },
+                reset(stage) { const tip = stage.querySelector('.hs-tip'); if (tip) tip.classList.remove('show'); }
+            },
+            v12: {
+                step(stage, el, phase) {
+                    if (phase === 'end' && el.dataset.n) {
+                        const fg = stage.querySelector('.ring-fg');
+                        const cnt = stage.querySelector('[data-num]');
+                        if (fg && cnt) fg.style.strokeDashoffset = (163.36 * (1 - Math.min((+cnt.textContent) / 5, 1))).toFixed(1);
+                    }
+                },
+                settle(stage) { const fg = stage.querySelector('.ring-fg'); if (fg) fg.style.strokeDashoffset = 0; },
+                reset(stage) { const fg = stage.querySelector('.ring-fg'); if (fg) fg.style.strokeDashoffset = 163.36; }
+            }
+        };
+        function isTool(el) { return el.matches(TOOL_SEL); }
+        function settle(stage) {
+            stage.querySelectorAll('[data-at]').forEach(el => {
+                el.classList.add('show');
+                el.classList.remove('run');
+                if (isTool(el)) el.classList.add(el.dataset.end || 'done');
+            });
+            stage.classList.add('finished');
+            const h = hooks[stage.dataset.v];
+            if (h && h.settle) h.settle(stage);
+            const cnt = stage.querySelector('[data-num]');
+            if (cnt && cnt.dataset.final) cnt.textContent = cnt.dataset.final;
+        }
+        function play(stage) {
+            const els = [...stage.querySelectorAll('[data-at]')];
+            const max = Math.max(...els.map(e => +e.dataset.at));
+            stage.classList.remove('finished');
+            els.forEach(el => el.classList.remove('show', 'run', 'done', 'fail'));
+            stage.querySelectorAll('.tswap').forEach(t => t.classList.remove('past'));
+            const cnt = stage.querySelector('[data-num]');
+            if (cnt) cnt.textContent = '0';
+            const h = hooks[stage.dataset.v];
+            if (h && h.reset) h.reset(stage);
+            els.forEach(el => {
+                setTimeout(() => {
+                    el.classList.add('show');
+                    if (el.classList.contains('tswap')) {
+                        el.parentElement.querySelectorAll('.tswap').forEach(t => { if (t !== el) t.classList.add('past'); });
+                    }
+                    if (h && h.step) h.step(stage, el, 'start');
+                    if (isTool(el)) {
+                        el.classList.add('run');
+                        setTimeout(() => {
+                            el.classList.remove('run');
+                            el.classList.add(el.dataset.end || 'done');
+                            if (el.dataset.n) {
+                                const c = stage.querySelector('[data-num]');
+                                if (c) c.textContent = (+c.textContent || 0) + (+el.dataset.n);
+                            }
+                            if (h && h.step) h.step(stage, el, 'end');
+                        }, 520);
+                    }
+                }, +el.dataset.at);
+            });
+            setTimeout(() => settle(stage), max + 900);
+        }
+        document.querySelectorAll('[data-stage]').forEach(stage => {
+            settle(stage);
+            stage.querySelector('.replay').addEventListener('click', () => play(stage));
+        });
+
+        /* ===== V11 执行舱：点击展开 / 收起步骤清单 ===== */
+        document.querySelectorAll('.dock').forEach(dk => {
+            dk.addEventListener('click', () => {
+                dk.classList.toggle('open');
+                dk.parentElement.querySelector('.dk-drawer').classList.toggle('open');
+            });
+        });
+    </script>
+</body>
+</html>

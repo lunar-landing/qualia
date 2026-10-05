@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排队消息（预发送队列）· 界面设计稿</title>
+<!--
+  ============================================================================
+  排队消息（预发送队列）界面设计 · queued-messages-mockup
+  ----------------------------------------------------------------------------
+  功能：流进行中允许用户继续输入并入队，本轮回复完成后自动依次发送；
+        队列持久化到 localStorage（qualia:queue:{sid}），刷新后恢复但不自动发送。
+  本稿覆盖 3 个核心场景 + 1 张设计说明卡：
+    A  气泡视图 · 回复完成自动接发（主场景）
+    B  终端视图 · 多条排队 + 底栏计数
+    C  气泡视图 · 刷新恢复（空闲 + 队列非空）
+  规范对齐：
+    - 日间石墨工程风（#ffffff 底 / #eff2f5 侧 / #d0d7de 边 / #24292f 主文字）
+    - 排队态全部灰阶表达，唯一红色是删除与 esc 停止（复用现有语义色）
+    - 零依赖：图标为内联 SVG，无外部字体/脚本
+  落地组件映射：
+    - 气泡视图：ChatArea.vue + MessageItem.vue（排队气泡）+ InputArea.vue（提示条）
+    - 终端视图：ChatTerminal.vue（t-queued 行 + tc-foot 队列计数）
+  ============================================================================
+-->
+<style>
+  /* ================= 画布与公共变量（石墨日间） ================= */
+  :root{
+    --bg:#f6f8fa;            /* 画布 / 面板浅底 */
+    --panel:#ffffff;         /* 卡片白底 */
+    --border:#d0d7de;        /* 常规边框 */
+    --border-strong:#b6bec8; /* 排队虚线描边（略重于普通边框，可见但不喧宾） */
+    --text:#24292f;          /* 主文字 */
+    --text2:#57606a;         /* 次级文字 */
+    --muted:#8c959f;         /* 弱化文字（时间戳/前缀） */
+    --bubble:#e9edf2;        /* 已发送用户气泡底色（对齐线上版本） */
+    --danger:#cf222e;        /* 删除 / 停止（唯一彩色语义） */
+    --ok:#0f7b4f;            /* 终端 [ok] / spinner 日间绿 */
+    --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+       font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       padding:36px 16px 90px}
+  .page{max-width:1120px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.2px}
+  .sub{color:var(--text2);font-size:13px;margin:6px 0 28px}
+
+  /* ================= 场景容器与标注体系 ================= */
+  .scene{margin-bottom:52px}
+  .scene-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .scene-head .no{font-family:var(--mono);font-size:12px;color:#fff;background:var(--text);
+                  border-radius:5px;padding:2px 9px}
+  .scene-head h3{font-size:15px}
+  .scene-head .tag{font-size:12.5px;color:var(--text2)}
+  /* 元素标注圆点：与下方注释列表的编号一一对应 */
+  .mark{position:relative}
+  .mark::after{content:attr(data-mk);position:absolute;top:-8px;right:-8px;z-index:5;
+               width:17px;height:17px;border-radius:50%;background:var(--text);color:#fff;
+               font-size:10px;display:flex;align-items:center;justify-content:center;
+               font-family:"Segoe UI",sans-serif;box-shadow:0 0 0 2px #fff}
+  .scene-notes{margin-top:12px;font-size:12.5px;color:var(--text2);line-height:2.05;
+               background:var(--panel);border:1px solid var(--border);border-radius:8px;
+               padding:10px 16px}
+  .scene-notes b{color:var(--text)}
+  .mn{display:inline-flex;width:16px;height:16px;background:var(--text);color:#fff;
+      border-radius:50%;font-size:10px;align-items:center;justify-content:center;
+      margin-right:7px;vertical-align:-3px}
+
+  /* ================= 模拟窗口（对齐应用窗口框架） ================= */
+  .win{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+       overflow:hidden;box-shadow:0 1px 3px rgba(31,35,40,.06)}
+  .win-head{display:flex;align-items:center;gap:8px;padding:9px 14px;
+            border-bottom:1px solid var(--border);background:var(--bg)}
+  .win-title{font-size:12.5px;font-weight:600}
+  .win-dot{font-size:11px;color:var(--muted)}
+  .win-badge{margin-left:auto;display:inline-flex;align-items:center;gap:6px;
+             font-size:11px;color:var(--text2);border:1px solid var(--border);
+             border-radius:999px;padding:2px 10px;background:var(--panel)}
+  .win-badge .st{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .win-badge .st.run{background:var(--ok);animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.35}}
+
+  /* ============================================================
+     气泡视图（对齐 ChatArea / MessageItem 结构）
+     ============================================================ */
+  .bubble-view{padding:18px 22px 14px;display:flex;flex-direction:column;gap:15px}
+  .msg{display:flex}
+  .msg.user{justify-content:flex-end}
+  .msg>div{max-width:76%}
+  .bubble{border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.65}
+  .msg.user .bubble{background:var(--bubble)}
+  .time{font-size:10.5px;color:var(--muted);margin-top:4px}
+  .msg.user .time{text-align:right}
+
+  /* —— 排队气泡：虚线 + 弱化 + 徽标，位置仍在消息流内 —— */
+  .qbubble{position:relative;background:#fff;border:1.5px dashed var(--border-strong);
+           border-radius:10px;padding:8px 12px;font-size:13px;line-height:1.65;color:var(--text2)}
+  .q-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);
+           background:var(--bg);border:1px solid var(--border);border-radius:999px;
+           padding:1px 9px;margin-bottom:6px}
+  .q-badge svg{flex:none}
+  /* 悬停浮出的删除钮（本稿常显以供评审）；红色仅悬停时出现 */
+  .q-x{position:absolute;top:-9px;right:-9px;width:20px;height:20px;border-radius:50%;
+       background:#fff;border:1px solid var(--border);color:var(--text2);font-size:11px;
+       line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .q-x:hover{color:var(--danger);border-color:var(--danger)}
+  /* 排队气泡内附件 chip（附件可随消息入队） */
+  .q-att{display:inline-flex;align-items:center;gap:6px;margin-top:7px;border:1px solid var(--border);
+         border-radius:6px;padding:2px 8px;font-size:11px;color:var(--text2);background:var(--bg)}
+
+  /* —— AI 活动流（生成中形态，对齐 act-flow） —— */
+  .act-thought{background:var(--bg);border-left:2px solid var(--border);
+               padding:8px 12px;font-size:12.5px;line-height:1.7;color:var(--text2);
+               border-radius:0 8px 8px 0}
+  .think-bar{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);margin-top:8px}
+  .spin{width:12px;height:12px;border:1.6px solid var(--border);border-top-color:var(--text2);
+        border-radius:50%;animation:rot 1s linear infinite;flex:none}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  .chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:6px;
+        padding:3px 9px;font-size:11.5px;color:var(--text2);font-family:var(--mono);background:var(--panel)}
+  .chip .st{color:var(--ok)}
+
+  /* —— 气泡版输入区（对齐 InputArea 外框） —— */
+  .input-area{border-top:1px solid var(--border);padding:12px 16px 14px}
+  /* 恢复提示条：空闲 + 队列非空（刷新恢复）时出现在输入框上方 */
+  .queue-restore{display:flex;align-items:center;gap:10px;background:var(--bg);
+                 border:1px solid var(--border);border-radius:9px;padding:7px 12px;
+                 font-size:12.5px;color:var(--text2);margin-bottom:9px}
+  .queue-restore svg{flex:none;color:var(--text2)}
+  .queue-restore .spring{flex:1}
+  .btn{font-size:12px;border-radius:6px;padding:3.5px 13px;cursor:pointer;
+       border:1px solid var(--border);background:#fff;color:var(--text2)}
+  .btn.primary{background:var(--text);border-color:var(--text);color:#fff}
+  .btn.primary:hover{opacity:.88}
+  .btn:hover{border-color:var(--border-strong);color:var(--text)}
+
+  .input-wrapper{border:1px solid var(--border);border-radius:10px;position:relative;
+                 background:var(--panel)}
+  .input-wrapper:focus-within{border-color:var(--text);box-shadow:0 0 0 3px rgba(36,41,47,.07)}
+  .input-wrapper textarea{width:100%;border:0;outline:0;resize:none;background:transparent;
+                          padding:12px 52px 12px 14px;font-size:13px;font-family:inherit;
+                          color:var(--text);height:52px}
+  .input-wrapper textarea::placeholder{color:var(--muted)}
+  .send-btn{position:absolute;right:9px;bottom:9px;width:30px;height:30px;border-radius:8px;
+            border:0;background:var(--text);color:#fff;cursor:pointer;
+            display:flex;align-items:center;justify-content:center}
+  .send-btn.stop{background:var(--danger)}
+  /* 附件/模型工具行（简化示意，非本稿重点） */
+  .input-tools{display:flex;gap:10px;align-items:center;padding:8px 4px 0;font-size:12px;color:var(--muted)}
+  .tool-ic{width:26px;height:26px;border:1px solid var(--border);border-radius:7px;background:#fff;
+           display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer}
+  .model-pill{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text2);
+              border:1px solid var(--border);border-radius:999px;padding:2px 10px;background:var(--panel)}
+
+  /* ============================================================
+     终端视图（对齐 ChatTerminal：t-* 行 + tc 控制台）
+     ============================================================ */
+  .term-view{background:var(--bg);padding:16px 18px 12px;font-family:var(--mono);
+             font-size:12.5px;display:flex;flex-direction:column;gap:9px}
+  .t-row{display:flex;gap:9px;align-items:baseline}
+  .pfx{color:var(--muted);flex:none}
+  .t-user{color:var(--text)}
+  .t-think{color:var(--muted);font-style:italic;font-size:12px}
+  .t-cmd{color:var(--text2)}
+  .t-cmd .dollar{color:var(--muted)}
+  .t-cmd .st-ok{color:var(--ok)}
+  .t-ans{color:var(--text);line-height:1.7}
+  /* —— 终端排队行：❯ 前缀 + 弱化正文 + [queued] 徽标 + 删除 —— */
+  .t-queued{color:var(--text2)}
+  .t-queued .txt{opacity:.72}
+  .tq-badge{font-size:10.5px;color:var(--text2);border:1px solid var(--border);border-radius:4px;
+            padding:0 6px;background:#fff;white-space:nowrap}
+  .tq-x{margin-left:auto;color:var(--muted);cursor:pointer;font-size:12px;padding:0 4px}
+  .tq-x:hover{color:var(--danger)}
+
+  /* —— 终端控制台输入区（对齐 V3 三段式） —— */
+  .term-console{border-top:1px solid var(--border);background:var(--bg)}
+  .tc-body{padding:10px 16px}
+  .tc-row{display:flex;gap:9px;align-items:baseline;font-family:var(--mono)}
+  .tc-row textarea{flex:1;border:0;outline:0;resize:none;background:transparent;
+                   font-family:var(--mono);font-size:12.5px;color:var(--text);height:22px}
+  .tc-row textarea::placeholder{color:var(--muted)}
+  .tc-foot{display:flex;align-items:center;gap:14px;padding:8px 16px;
+           border-top:1px dashed var(--border);font-family:var(--mono);
+           font-size:12px;color:var(--text2)}
+  .tc-live{color:var(--ok)}
+  .spring{flex:1}
+  .key{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
+       padding:0 5px;font-size:10.5px;background:#fff;margin-right:5px}
+  .tc-btn{display:inline-flex;align-items:center;gap:2px;font-family:var(--mono);font-size:11.5px;
+          border-radius:6px;padding:2.5px 10px;cursor:pointer;background:#fff;color:var(--text2);
+          border:1px solid var(--border)}
+  .tc-btn.stop{color:var(--danger);border-color:#e3a6ad;background:#fff}
+  .tc-btn.stop:hover{border-color:var(--danger)}
+  /* 底栏实时队列计数 */
+  .q-count{display:inline-flex;align-items:center;gap:6px;color:var(--text2);white-space:nowrap}
+  .q-count b{font-weight:600;color:var(--text)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>排队消息（预发送队列）· 界面设计稿</h1>
+  <p class="sub">流进行中 Enter 入队 → 回复完成自动依次接发 · 队列持久化（qualia:queue:{sid}）· 刷新恢复但不自动发送 · 双视图各自形态</p>
+
+  <!-- ================= 设计说明卡 ================= -->
+  <div class="spec" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:44px">
+    <h2 style="font-size:14px;margin-bottom:12px">状态 → 展示 → 出口</h2>
+    <table style="border-collapse:collapse;width:100%;font-size:12.5px">
+      <tr>
+        <th style="border:1px solid #eaeef2;background:var(--bg);padding:7px 10px;text-align:left;width:15%">状态</th>
+        <th style="border:1px solid #eaeef2;background:var(--bg);padding:7px 10px;text-align:left;width:22%">位置</th>
+        <th style="border:1px solid #eaeef2;background:var(--bg);padding:7px 10px;text-align:left;width:33%">展示</th>
+        <th style="border:1px solid #eaeef2;background:var(--bg);padding:7px 10px;text-align:left">出口</th>
+      </tr>
+      <tr>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">生成中入队</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">消息列表末尾</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">虚线气泡 +「排队中 #n」徽标（终端视图为 <code>[queued #n]</code> 行）</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">悬停删除 / 本轮完成自动接发</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">自动接发</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">消息列表原位</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">排队气泡原地变为普通用户气泡，无残留痕迹</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">—</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">错误 / 手动停止</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">队列保留</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">排队气泡保持，输入区上方出现提示条</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">立即发送 / 清空 / 继续排队</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">刷新恢复</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">输入区上方提示条 + 列表末尾</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">恢复条（N 条未发送）+ 排队气泡；附件只存元数据，预览走会话回显接口</td>
+        <td style="border:1px solid #eaeef2;padding:7px 10px">立即发送 / 清空 / 继续排队（不自动发送）</td>
+      </tr>
+    </table>
+    <p style="font-size:12.5px;color:var(--text2);margin-top:12px;line-height:1.9">
+      <b style="color:var(--text)">设计要点：</b>
+      ① 排队气泡与消息流同位放置，不另设独立队列面板（避免双列表心智）；
+      ② 差异信号只用三个：虚线描边、正文弱化、排队徽标，全灰阶不引入彩色（石墨规范）；
+      ③ 恢复条是唯一的新增块级 UI，仅在「空闲 + 队列非空」时出现；
+      ④ 生成中的接发链条对用户不可见——排队消息变普通气泡即完成交接，无中间提示打断。
+    </p>
+  </div>
+
+  <!-- ================= 场景 A：气泡视图 · 回复完成自动接发 ================= -->
+  <div class="scene">
+    <div class="scene-head">
+      <span class="no">A</span><h3>气泡视图 · 回复完成自动接发（主场景）</h3>
+      <span class="tag">生成中，排队 #1 已自动发出，#2 仍在队列</span>
+    </div>
+    <div class="win">
+      <div class="win-head">
+        <span class="win-title">utils 日期函数重构</span>
+        <span class="win-dot">· 12 条消息</span>
+        <span class="win-badge"><span class="st run"></span>生成中 · 队列 1</span>
+      </div>
+      <div class="bubble-view">
+
+        <!-- 历史：用户 -->
+        <div class="msg user"><div>
+          <div class="bubble">先跑一遍测试，看看现在的用例状态</div>
+          <div class="time">14:02</div>
+        </div></div>
+
+        <!-- 历史：AI（工具 + 回答） -->
+        <div class="msg"><div style="max-width:86%">
+          <div class="chip mark" data-mk="1"><span>$</span> npm test <span class="st">[ok]</span></div>
+          <div class="bubble" style="background:transparent;padding:8px 2px">
+            24 个用例全部通过。<code>utils.ts</code> 里有 2 处日期格式化逻辑比较分散，建议先合并再做替换。
+          </div>
+          <div class="time">14:02</div>
+        </div></div>
+
+        <!-- 排队 #1：本轮完成已自动接发 → 原地变为普通气泡（无任何排队痕迹） -->
+        <div class="msg user mark" data-mk="2"><div>
+          <div class="bubble">把 formatDate 和 parseDate 合并到 date.ts，用 dayjs 替换</div>
+          <div class="time">14:05</div>
+        </div></div>
+
+        <!-- AI 生成中 -->
+        <div class="msg"><div style="max-width:86%">
+          <div class="act-thought">正在改写 src/utils/date.ts，保持对外签名不变…</div>
+          <div class="think-bar"><span class="spin"></span>思考中</div>
+        </div></div>
+
+        <!-- 排队 #2：仍排队 -->
+        <div class="msg user"><div>
+          <div class="qbubble mark" data-mk="3">
+            <button class="q-x mark" data-mk="4" title="移除">✕</button>
+            <span class="q-badge">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              排队中 · 第 2 条
+            </span>
+            <div>顺便把 README 里的示例更新成新 API</div>
+          </div>
+          <div class="time">回复完成后自动发送</div>
+        </div></div>
+      </div>
+
+      <!-- 输入区：流进行中 -->
+      <div class="input-area">
+        <div class="input-wrapper mark" data-mk="5">
+          <textarea placeholder="回复完成后自动发送排队消息 · Enter 继续「排队」"></textarea>
+          <button class="send-btn stop mark" data-mk="6" title="停止生成">
+            <svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+          </button>
+        </div>
+        <div class="input-tools">
+          <span class="tool-ic"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 6.5 8.2 9.8a2.6 2.6 0 0 1-3.7-3.7l4.2-4.2a1.8 1.8 0 0 1 2.5 2.5L7 8.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+          <span class="model-pill">gpt-4o ▾</span>
+        </div>
+      </div>
+    </div>
+    <div class="scene-notes">
+      <div><span class="mn">1</span><b>接发链条不引入新组件</b>：工具 chip / 思考流沿用现有 act-flow 形态。</div>
+      <div><span class="mn">2</span><b>排队 → 已发送的交接在原位完成</b>：气泡原地变实底，位置不动、内容不变，用户无感知切换。</div>
+      <div><span class="mn">3</span><b>排队气泡三信号</b>：虚线描边 + 正文弱化 + 「排队中 · 第 2 条」徽标（序号仅多条时体现顺序）。</div>
+      <div><span class="mn">4</span><b>删除钮悬停浮出</b>（本稿常显演示），悬停才变红；删除即时持久化。</div>
+      <div><span class="mn">5</span><b>placeholder 接管教学</b>：流进行中提示「Enter 继续「排队」」，无需弹窗说明。</div>
+      <div><span class="mn">6</span><b>发送按钮保持停止语义不变</b>：入队不改变现有按钮状态机。</div>
+    </div>
+  </div>
+
+  <!-- ================= 场景 B：终端视图 · 多条排队 ================= -->
+  <div class="scene">
+    <div class="scene-head">
+      <span class="no">B</span><h3>终端视图 · 多条排队 + 底栏计数</h3>
+      <span class="tag">队列 2 条，生成中</span>
+    </div>
+    <div class="win">
+      <div class="win-head">
+        <span class="win-title">utils 日期函数重构</span>
+        <span class="win-badge"><span class="st run"></span>终端视图 · 生成中</span>
+      </div>
+      <div class="term-view">
+        <div class="t-row"><span class="pfx">❯</span><span class="t-user">先跑一遍测试，看看现在的用例状态</span></div>
+        <div class="t-row t-cmd"><span class="pfx">$</span><span>npm test</span><span class="st-ok">[ok]</span></div>
+        <div class="t-row"><span class="t-think">:: 24 passed, 0 failed · 日期逻辑分散在 2 处，建议先合并…</span></div>
+
+        <!-- 排队行 ×2 -->
+        <div class="t-row t-queued mark" data-mk="1">
+          <span class="pfx">❯</span><span class="txt">把 formatDate 和 parseDate 合并到 date.ts，用 dayjs 替换</span>
+          <span class="tq-badge">queued ·1</span><span class="tq-x">✕</span>
+        </div>
+        <div class="t-row t-queued">
+          <span class="pfx">❯</span><span class="txt">顺便把 README 里的示例更新成新 API</span>
+          <span class="tq-badge">queued ·2</span><span class="tq-x">✕</span>
+        </div>
+
+        <div class="t-row"><span class="pfx">⠹</span><span class="t-think">正在改写 src/utils/date.ts…</span></div>
+      </div>
+      <div class="term-console">
+        <div class="tc-body">
+          <div class="tc-row">
+            <span class="pfx">❯</span>
+            <textarea placeholder="回复完成后自动依次发送 · Enter 排队" class="mark" data-mk="4"></textarea>
+          </div>
+        </div>
+        <div class="tc-foot mark" data-mk="2">
+          <span class="tc-live">⠹</span><span>生成中</span>
+          <span class="q-count mark" data-mk="3">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            队列 <b>2</b>
+          </span>
+          <span class="spring"></span>
+          <button class="tc-btn stop"><span class="key">esc</span>停止</button>
+        </div>
+      </div>
+    </div>
+    <div class="scene-notes">
+      <div><span class="mn">1</span><b>终端排队行</b>：保持 ❯ 前缀对齐，正文透明度弱化，<code>[queued ·n]</code> 方角徽标贴右，行尾 ✕ 删除；与正常 ❯ 行的差异一眼可辨但不破坏 REPL 语感。</div>
+      <div><span class="mn">2</span><b>底栏结构不变</b>：生成中仍是 spinner + esc 停止，队列计数插在「生成中」之后。</div>
+      <div><span class="mn">3</span><b>队列计数</b>：实时反映条数；esc 停止后计数保留（队列冻结），.spinner 变 idle 后由恢复提示条接管。</div>
+      <div><span class="mn">4</span><b>placeholder 排队提示</b>与气泡视图文案同源（i18n 共用 key）。</div>
+    </div>
+  </div>
+
+  <!-- ================= 场景 C：气泡视图 · 刷新恢复 ================= -->
+  <div class="scene">
+    <div class="scene-head">
+      <span class="no">C</span><h3>气泡视图 · 刷新恢复（空闲 + 队列非空）</h3>
+      <span class="tag">从 localStorage 恢复 2 条，不自动发送</span>
+    </div>
+    <div class="win">
+      <div class="win-head">
+        <span class="win-title">utils 日期函数重构</span>
+        <span class="win-badge"><span class="st"></span>空闲 · 待处理队列 2</span>
+      </div>
+      <div class="bubble-view">
+        <!-- 历史问答（略） -->
+        <div class="msg user"><div>
+          <div class="bubble">把 formatDate 和 parseDate 合并到 date.ts，用 dayjs 替换</div>
+          <div class="time">14:05</div>
+        </div></div>
+        <div class="msg"><div style="max-width:86%">
+          <div class="bubble" style="background:transparent;padding:8px 2px">
+            已合并到 <code>src/utils/date.ts</code>，对外签名保持不变，内部改用 dayjs 实现。
+          </div>
+          <div class="time">14:07</div>
+        </div></div>
+
+        <!-- 恢复的排队气泡 ×2 -->
+        <div class="msg user"><div>
+          <div class="qbubble mark" data-mk="1">
+            <button class="q-x" title="移除">✕</button>
+            <span class="q-badge">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              排队中 · 第 1 条
+            </span>
+            <div>顺便把 README 里的示例更新成新 API</div>
+          </div>
+          <div class="time">上次未发送 · 14:06</div>
+        </div></div>
+        <div class="msg user"><div>
+          <div class="qbubble mark" data-mk="2">
+            <button class="q-x" title="移除">✕</button>
+            <span class="q-badge">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              排队中 · 第 2 条
+            </span>
+            <div>再跑一遍测试确认没有回归</div>
+            <span class="q-att">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="5.6" cy="6.2" r="1.2" fill="currentColor"/><path d="m4 11 3-3 2.4 2.4L11.6 8l2.4 2.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+              screenshot.png
+            </span>
+          </div>
+          <div class="time">上次未发送 · 14:06</div>
+        </div></div>
+      </div>
+
+      <div class="input-area">
+        <!-- 恢复提示条：空闲 + 队列非空的唯一新块级 UI -->
+        <div class="queue-restore mark" data-mk="3">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>上次有 <b style="color:var(--text)">2</b> 条消息未发送（已从本地恢复，不会自动发出）</span>
+          <span class="spring"></span>
+          <button class="btn primary mark" data-mk="4">立即发送</button>
+          <button class="btn">清空</button>
+        </div>
+        <div class="input-wrapper">
+          <textarea placeholder="输入消息…（Enter 发送）"></textarea>
+          <button class="send-btn" title="发送">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13V3.5M8 3.5 4 7.5M8 3.5l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="input-tools">
+          <span class="tool-ic"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 6.5 8.2 9.8a2.6 2.6 0 0 1-3.7-3.7l4.2-4.2a1.8 1.8 0 0 1 2.5 2.5L7 8.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+          <span class="model-pill">gpt-4o ▾</span>
+        </div>
+      </div>
+    </div>
+    <div class="scene-notes">
+      <div><span class="mn">1</span><b>恢复的排队气泡</b>与生成中入队的形态完全一致（同一渲染路径），时间行标注「上次未发送 · {time}」交代来源。</div>
+      <div><span class="mn">2</span><b>附件降级</b>：持久化只存 { id, name, type, size }；图片缩略图走会话回显接口（<code>/api/attachments/{sid}/file/{name}</code>），文本说明仅文件名。</div>
+      <div><span class="mn">3</span><b>恢复不自动发送</b>：刷新语义视为「用户主动暂停」，恢复条明示「不会自动发出」，消除静默发出的不确定性。</div>
+      <div><span class="mn">4</span><b>「立即发送」= tryConsume</b>：从队首开始接发；此时若用户直接输入新消息，新消息同样先入队（保证先来先发），不插队。</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

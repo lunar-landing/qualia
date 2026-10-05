@@ -1,0 +1,34 @@
+{
+	"messages":[
+		{
+			"content":"使用 Java 编写一个 HelloWord 代码",
+			"createdAt":1790733092910,
+			"id":"bd523700-929a-4388-ab76-2c0256b341b2",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"1a033431-b2d8-4a2b-92e5-626fae5d6e06"
+		},
+		{
+			"completionTokens":222,
+			"content":"这是一个标准的 Java \"Hello World\" 程序代码：\n\n```java\npublic class HelloWorld {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}\n```\n\n### 如何运行：\n\n1.  **保存文件**：将上述代码保存为 `HelloWorld.java`（文件名必须与类名 `HelloWorld` 完全一致，包括大小写）。\n2.  **编译**：打开终端或命令提示符，进入文件所在目录，运行以下命令进行编译：\n    ```bash\n    javac HelloWorld.java\n    ```\n3.  **运行**：编译成功后，会生成一个 `HelloWorld.class` 文件。运行以下命令执行程序：\n    ```bash\n    java HelloWorld\n    ```\n\n### 输出结果：\n```\nHello, World!\n```",
+			"createdAt":1790733099334,
+			"durationMs":6424,
+			"id":"24e79eb0-a4c2-4341-83bc-fbd063d9881e",
+			"promptTokens":1027,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"1a033431-b2d8-4a2b-92e5-626fae5d6e06",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"用户请求编写Java HelloWord代码，这是一个基础的编程问题，无需调用工具，直接提供代码即可。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"用户请求编写Java HelloWord代码，这是一个基础的编程问题，无需调用工具，直接提供代码即可。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":1249
+		}
+	],
+	"sessionId":"1a033431-b2d8-4a2b-92e5-626fae5d6e06"
+}

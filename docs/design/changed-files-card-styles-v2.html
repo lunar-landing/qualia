@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更文件卡片样式变体 Vol.2</title>
+<!--
+  ============================================================
+  设计稿：变更文件卡片（方案 A）样式变体 第二批
+  与 Vol.1（终端风 / 玻璃拟态 / 去彩化色带 / 摘要胶囊）方向互补：
+
+    变体 5 · 时间线节点 —— 纵向 git-graph 隐喻，op 即节点色
+    变体 6 · 拆分小卡   —— 一文件一卡，op 色左脊条，颗粒感强
+    变体 7 · 统计条     —— 数据可视化，绿/红占比条（GitHub diff stat 隐喻）
+    变体 8 · 动作横幅   —— 水平一条，行动优先，右侧「预览」主按钮
+
+  可交互：右上角切换日/夜间 · 变体 5/6/7 行悬停出浮层预览
+  浮层锚定在行下方右侧，不会被 stage 裁剪
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 主题变量（默认日间 · 近白基底 + 克制 Accent） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-stage: #eff2f5;
+        --bg-elev: #ffffff;
+        --bg-code: #f6f8fa;
+        --bg-hover: #e9edf1;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #1a7f37;
+        --add-tint: rgba(26, 127, 55, 0.12);
+        --mod: #0969da;
+        --mod-tint: rgba(9, 105, 218, 0.10);
+        --del: #cf222e;
+        --del-tint: rgba(207, 34, 46, 0.08);
+        --lang-html: #cf5f24;
+        --lang-ts: #2f6ec4;
+        --lang-css: #7d5bbd;
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-stage: rgba(255, 255, 255, 0.02);
+        --bg-elev: #141922;
+        --bg-code: #0d1117;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #3fb950;
+        --add-tint: rgba(63, 185, 80, 0.14);
+        --mod: #4493f8;
+        --mod-tint: rgba(68, 147, 248, 0.12);
+        --del: #f85149;
+        --del-tint: rgba(248, 81, 73, 0.10);
+        --lang-html: #e8854a;
+        --lang-ts: #6ba3f5;
+        --lang-css: #a48ae0;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 860px; margin: 0 auto 42px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        position: relative; background: var(--bg-stage); border: 1px solid var(--border);
+        border-radius: 18px; padding: 26px 24px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ===== 消息语境 ===== */
+    .chat { position: relative; width: 100%; max-width: 560px; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; margin-bottom: 12px; }
+
+    /* ============================================================
+       变体 5 · 时间线节点：纵向连线 + op 色节点
+       ============================================================ */
+    .tl { position: relative; padding-left: 26px; }
+    .tl::before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 12px; width: 2px; background: var(--border); border-radius: 1px; }
+    .tl-sum {
+        display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--text-muted);
+    }
+    .tl-sum .a { color: var(--add); } .tl-sum .d { color: var(--del); }
+    .t-row { position: relative; padding: 7px 10px; margin-left: -10px; border-radius: 9px; cursor: pointer; transition: background .12s; }
+    .t-row:hover { background: var(--bg-hover); }
+    .t-node { position: absolute; left: -22px; top: 13px; width: 10px; height: 10px; border-radius: 50%; }
+    .t-node.c { background: var(--add); box-shadow: 0 0 0 3px var(--add-tint); }
+    .t-node.m { background: var(--mod); box-shadow: 0 0 0 3px var(--mod-tint); }
+    .t-node.d { background: var(--del); box-shadow: 0 0 0 3px var(--del-tint); }
+    .t-row .l1 { display: flex; align-items: center; gap: 8px; }
+    .t-row .fn { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .t-row .st { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; }
+    .t-row .st .a { color: var(--add); } .t-row .st .d { color: var(--del); }
+    .t-row .l2 { margin-top: 2px; font-size: 10.5px; color: var(--text-muted); }
+    .t-row .l2 .oc { font-weight: 600; }
+    .t-row .l2 .oc.c { color: var(--add); } .t-row .l2 .oc.m { color: var(--mod); } .t-row .l2 .oc.d { color: var(--del); }
+
+    /* ============================================================
+       变体 6 · 拆分小卡：一文件一卡，op 色左脊条
+       ============================================================ */
+    .mc-sum {
+        display: flex; align-items: center; gap: 7px; margin-bottom: 9px;
+        font-size: 11px; color: var(--text-muted);
+    }
+    .mc-sum .a { color: var(--add); font-family: "JetBrains Mono", Consolas, monospace; }
+    .mc-sum .d { color: var(--del); font-family: "JetBrains Mono", Consolas, monospace; }
+    .mc {
+        position: relative; display: flex; align-items: center; gap: 9px;
+        background: var(--bg-elev); border: 1px solid var(--border); border-radius: 11px;
+        padding: 9px 13px 9px 15px; margin-bottom: 7px; cursor: pointer;
+        transition: border-color .15s, box-shadow .15s; overflow: visible;
+    }
+    .mc::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 2px; }
+    .mc.c::before { background: var(--add); }
+    .mc.m::before { background: var(--mod); }
+    .mc.d::before { background: var(--del); }
+    .mc:hover { border-color: var(--border-active); box-shadow: 0 3px 12px rgba(70, 90, 120, 0.10); }
+    .mc .lang-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .mc .fn { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .mc .fd { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted); }
+    .mc .fd::before { content: "· "; }
+    .mc .ot { font-size: 10.5px; color: var(--text-secondary); }
+    .mc .st { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; }
+    .mc .st .a { color: var(--add); } .mc .st .d { color: var(--del); }
+    .mc .ar { opacity: 0; color: var(--text-muted); transition: opacity .12s; }
+    .mc:hover .ar { opacity: 1; }
+
+    /* ============================================================
+       变体 7 · 统计条：绿/红占比条（diff stat 可视化）
+       ============================================================ */
+    .sbx { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 13px; padding: 12px 14px 6px; }
+    .sbx-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-soft); margin-bottom: 4px; }
+    .sbx-head .lb { font-size: 11.5px; font-weight: 600; }
+    .sbx-head .lb .n { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; color: var(--text-muted); font-weight: 500; }
+    .sbar { display: flex; gap: 2px; width: 76px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--bg-hover); }
+    .sbar.big { width: 120px; }
+    .sbar i { display: block; height: 100%; }
+    .sbar i.sa { background: var(--add); }
+    .sbar i.sd { background: var(--del); }
+    .sbx-head .st { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; }
+    .sbx-head .st .a { color: var(--add); } .sbx-head .st .d { color: var(--del); }
+    .s-row {
+        position: relative; display: flex; align-items: center; gap: 9px;
+        padding: 8px 8px; margin: 0 -8px; border-radius: 8px; cursor: pointer; transition: background .12s;
+    }
+    .s-row:hover { background: var(--bg-hover); }
+    .s-row .lang-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .s-row .fn { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 500; }
+    .s-row .fd { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted); }
+    .s-row .fd::before { content: "· "; }
+    .s-row .sbar { margin-left: auto; }
+    .s-row .st { width: 74px; text-align: right; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; white-space: nowrap; }
+    .s-row .st .a { color: var(--add); } .s-row .st .d { color: var(--del); }
+
+    /* ============================================================
+       变体 8 · 动作横幅：水平一条，行动优先
+       ============================================================ */
+    .aban {
+        display: flex; align-items: center; gap: 12px;
+        background: var(--bg-elev); border: 1px solid var(--border); border-radius: 13px;
+        padding: 11px 12px 11px 11px; transition: border-color .15s, box-shadow .15s;
+    }
+    .aban:hover { border-color: var(--border-active); box-shadow: 0 3px 14px rgba(70, 90, 120, 0.10); }
+    .aban-ic {
+        width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .aban-tx { flex: 1; min-width: 0; }
+    .aban-tx .t1 { font-size: 12.5px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+    .aban-tx .t1 .s { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; font-weight: 500; color: var(--text-muted); }
+    .aban-tx .t1 .s .a { color: var(--add); } .aban-tx .t1 .s .d { color: var(--del); }
+    .aban-tx .t2 {
+        margin-top: 2px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px;
+        color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .aban button { cursor: pointer; border-radius: 8px; font-size: 11.5px; padding: 7px 13px; flex-shrink: 0; }
+    .aban .ghost { border: 1px solid var(--border); background: transparent; color: var(--text-secondary); }
+    .aban .ghost:hover { border-color: var(--border-active); color: var(--text-primary); }
+    .aban .cta { border: 1px solid transparent; background: var(--accent-light); color: var(--accent-ink); font-weight: 600; display: flex; align-items: center; gap: 5px; }
+    .aban .cta:hover { opacity: 0.9; }
+
+    /* ===== 悬停浮层（锚定行下方右侧，不会被 stage 裁剪） ===== */
+    .pop {
+        position: absolute; right: -6px; top: calc(100% + 6px);
+        width: 320px; background: var(--bg-elev); border: 1px solid var(--border);
+        border-radius: 11px; box-shadow: 0 10px 32px rgba(0,0,0,0.16);
+        opacity: 0; visibility: hidden; transition: opacity .15s .1s, visibility .15s .1s;
+        z-index: 20; overflow: hidden; pointer-events: none;
+    }
+    .t-row:hover .pop, .mc:hover .pop, .s-row:hover .pop { opacity: 1; visibility: visible; }
+    .pop-head {
+        display: flex; align-items: center; gap: 7px; padding: 7px 11px;
+        border-bottom: 1px solid var(--border-soft); font-size: 10.5px; color: var(--text-secondary);
+    }
+    .pop-head .t { font-family: "JetBrains Mono", Consolas, monospace; font-weight: 600; color: var(--text-primary); font-size: 11px; }
+    .pop-head .n { margin-left: auto; color: var(--text-muted); }
+    .pop pre {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; line-height: 1.75;
+        padding: 9px 12px; color: var(--text-secondary); overflow: hidden; background: var(--bg-code);
+    }
+    .pop pre .kw { color: var(--mod); }
+    .pop pre .tagc { color: var(--lang-html); }
+    .pop pre .str { color: var(--add); }
+    .pop-foot { padding: 6px 11px; border-top: 1px solid var(--border-soft); font-size: 10px; color: var(--text-muted); }
+
+    /* ===== 底部说明 ===== */
+    .notes {
+        max-width: 860px; margin: 4px auto 0; background: var(--bg-stage);
+        border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px;
+    }
+    .notes h2 { font-size: 15px; margin-bottom: 14px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .notes td { padding: 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更文件卡片 · 样式变体 Vol.2</h1>
+<p class="sub">
+    与 Vol.1（终端风 / 玻璃拟态 / 去彩化色带 / 摘要胶囊）互补的四个方向<br>
+    <em>时间线叙事 · 颗粒小卡 · 数据可视化 · 行动横幅</em> —— 悬停浮层已锚定行下方，不再被裁剪
+</p>
+
+<!-- ==================== 变体 5 · 时间线节点 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">变体 5</span>
+        <span class="name">时间线节点</span>
+    </div>
+    <p class="demo-desc">
+        纵向 <em>git-graph 隐喻</em>：一条连线串起文件节点，<em>节点色即 op 语义</em>（绿新建 / 蓝修改 / 红删除，外圈同色晕环），
+        第二行放灰色元信息。把「这次改动」讲成一个自上而下的故事，叙述感最强。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，包含表单校验与提交逻辑。</p>
+                    <div class="tl">
+                        <div class="tl-sum">
+                            <svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="8" r="2.6"/><path d="M6 8.6v6.8M18 10.6c0 4-4.5 4.4-9 4.4"/></svg>
+                            3 changesets · <span class="a">+128</span> <span class="d">−48</span>
+                        </div>
+                        <div class="t-row">
+                            <span class="t-node c"></span>
+                            <div class="l1"><span class="fn">login.html</span><span class="st"><span class="a">+120</span></span></div>
+                            <div class="l2"><span class="oc c">新建</span> · workspace 根目录 · HTML</div>
+                            <div class="pop">
+                                <div class="pop-head"><span class="t">login.html</span><span class="n">预览前 8 行 · 共 120 行</span></div>
+<pre><span class="tagc">&lt;!DOCTYPE html&gt;</span>
+<span class="tagc">&lt;html</span> <span class="kw">lang</span>=<span class="str">"zh-CN"</span><span class="tagc">&gt;</span>
+<span class="tagc">&lt;head&gt;</span>
+  <span class="tagc">&lt;meta</span> <span class="kw">charset</span>=<span class="str">"UTF-8"</span><span class="tagc">&gt;</span>
+  <span class="tagc">&lt;title&gt;</span>登录 · Qualia<span class="tagc">&lt;/title&gt;</span>
+  ...</pre>
+                                <div class="pop-foot">HTML → 点击进入 iframe 渲染预览</div>
+                            </div>
+                        </div>
+                        <div class="t-row">
+                            <span class="t-node m"></span>
+                            <div class="l1"><span class="fn">main.ts</span><span class="st"><span class="a">+8</span> <span class="d">−2</span></span></div>
+                            <div class="l2"><span class="oc m">修改</span> · src · TypeScript</div>
+                        </div>
+                        <div class="t-row">
+                            <span class="t-node d"></span>
+                            <div class="l1"><span class="fn">old.css</span><span class="st"><span class="d">−46</span></span></div>
+                            <div class="l2"><span class="oc d">删除</span> · src/styles · CSS</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">双行布局纵向最高 · 节点晕环用同色低透明 tint，无新色相 · 适合「产物生成的过程感」叙事</p>
+</div>
+
+<!-- ==================== 变体 6 · 拆分小卡 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">变体 6</span>
+        <span class="name">拆分小卡</span>
+    </div>
+    <p class="demo-desc">
+        一文件一卡：<em>op 色左脊条</em>承担分类视觉（比徽标更安静），卡体白底描边，悬停浮起。
+        颗粒感强，每个文件可独立 hover / click，为后续「单文件操作菜单」（如重新生成、还原）预留了挂载位。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，包含表单校验与提交逻辑。</p>
+                    <div class="mc-sum">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9Z"/><path d="M13 3v6h6"/></svg>
+                        工作区生成 3 个文件 · <span class="a">+128</span> <span class="d">−48</span>
+                    </div>
+                    <div class="mc c">
+                        <span class="lang-dot" style="background:var(--lang-html)"></span>
+                        <span class="fn">login.html</span>
+                        <span class="ot">新建</span>
+                        <span class="st"><span class="a">+120</span></span>
+                        <svg class="ic ar" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                        <div class="pop">
+                            <div class="pop-head"><span class="t">login.html</span><span class="n">预览前 8 行 · 共 120 行</span></div>
+<pre><span class="tagc">&lt;!DOCTYPE html&gt;</span>
+<span class="tagc">&lt;html</span> <span class="kw">lang</span>=<span class="str">"zh-CN"</span><span class="tagc">&gt;</span>
+<span class="tagc">&lt;head&gt;</span>
+  <span class="tagc">&lt;meta</span> <span class="kw">charset</span>=<span class="str">"UTF-8"</span><span class="tagc">&gt;</span>
+  <span class="tagc">&lt;title&gt;</span>登录 · Qualia<span class="tagc">&lt;/title&gt;</span>
+  ...</pre>
+                            <div class="pop-foot">HTML → 点击进入 iframe 渲染预览</div>
+                        </div>
+                    </div>
+                    <div class="mc m">
+                        <span class="lang-dot" style="background:var(--lang-ts)"></span>
+                        <span class="fn">main.ts</span><span class="fd">src</span>
+                        <span class="ot">修改</span>
+                        <span class="st"><span class="a">+8</span> <span class="d">−2</span></span>
+                        <svg class="ic ar" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                    </div>
+                    <div class="mc d">
+                        <span class="lang-dot" style="background:var(--lang-css)"></span>
+                        <span class="fn">old.css</span><span class="fd">src/styles</span>
+                        <span class="ot">删除</span>
+                        <span class="st"><span class="d">−46</span></span>
+                        <svg class="ic ar" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">脊条 3px 宽、上下留 9px 内缩，避免「整边描边」的笨重感 · 单卡可挂二级菜单（还原 / 重新生成）· 文件多时纵向偏长</p>
+</div>
+
+<!-- ==================== 变体 7 · 统计条 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">变体 7</span>
+        <span class="name">统计条</span>
+    </div>
+    <p class="demo-desc">
+        数据可视化方向：每行一条 <em>绿/红占比条</em>（GitHub diff stat 隐喻），头部是总量条。
+        改动规模一眼可读 —— 「login.html 几乎全新增」「main.ts 小改」，数字退居辅助。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，包含表单校验与提交逻辑。</p>
+                    <div class="sbx">
+                        <div class="sbx-head">
+                            <span class="lb">变更统计 <span class="n">· 3 files</span></span>
+                            <span class="sbar big"><i class="sa" style="flex-grow:128"></i><i class="sd" style="flex-grow:48"></i></span>
+                            <span class="st"><span class="a">+128</span> <span class="d">−48</span></span>
+                        </div>
+                        <div class="s-row">
+                            <span class="lang-dot" style="background:var(--lang-html)"></span>
+                            <span class="fn">login.html</span>
+                            <span class="sbar"><i class="sa" style="flex-grow:1"></i></span>
+                            <span class="st"><span class="a">+120</span></span>
+                            <div class="pop">
+                                <div class="pop-head"><span class="t">login.html</span><span class="n">预览前 8 行 · 共 120 行</span></div>
+<pre><span class="tagc">&lt;!DOCTYPE html&gt;</span>
+<span class="tagc">&lt;html</span> <span class="kw">lang</span>=<span class="str">"zh-CN"</span><span class="tagc">&gt;</span>
+<span class="tagc">&lt;head&gt;</span>
+  <span class="tagc">&lt;meta</span> <span class="kw">charset</span>=<span class="str">"UTF-8"</span><span class="tagc">&gt;</span>
+  <span class="tagc">&lt;title&gt;</span>登录 · Qualia<span class="tagc">&lt;/title&gt;</span>
+  ...</pre>
+                                <div class="pop-foot">HTML → 点击进入 iframe 渲染预览</div>
+                            </div>
+                        </div>
+                        <div class="s-row">
+                            <span class="lang-dot" style="background:var(--lang-ts)"></span>
+                            <span class="fn">main.ts</span><span class="fd">src</span>
+                            <span class="sbar"><i class="sa" style="flex-grow:8"></i><i class="sd" style="flex-grow:2"></i></span>
+                            <span class="st"><span class="a">+8</span> <span class="d">−2</span></span>
+                        </div>
+                        <div class="s-row">
+                            <span class="lang-dot" style="background:var(--lang-css)"></span>
+                            <span class="fn">old.css</span><span class="fd">src/styles</span>
+                            <span class="sbar"><i class="sd" style="flex-grow:1"></i></span>
+                            <span class="st"><span class="d">−46</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">条宽固定 76px，占比 = 行数比例 · 「全绿 / 全红」两态最直观 · 无 op 文字徽标，靠图例或 hover 补充语义</p>
+</div>
+
+<!-- ==================== 变体 8 · 动作横幅 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">变体 8</span>
+        <span class="name">动作横幅</span>
+    </div>
+    <p class="demo-desc">
+        水平一条、行动优先（GitHub banner 隐喻）：左侧 <em>mono 块图标位</em>，中间标题 + 灰色文件路径摘要，
+        右侧 <em>「预览」主按钮</em>直达方案 C 的预览面板。适合「本轮就是为交付这个文件」的强意图回合。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，包含表单校验与提交逻辑。</p>
+                    <div class="aban">
+                        <span class="aban-ic">
+                            <svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 3l7 4v10l-7 4-7-4V7Z"/><path d="M12 12l7-4M12 12v9M12 12L5 8"/></svg>
+                        </span>
+                        <div class="aban-tx">
+                            <div class="t1">3 个文件已变更 <span class="s"><span class="a">+128</span> <span class="d">−48</span></span></div>
+                            <div class="t2">login.html · src/main.ts · src/styles/old.css</div>
+                        </div>
+                        <button class="ghost">Diff</button>
+                        <button class="cta">预览
+                            <svg class="ic" style="width:11px;height:11px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="spec">
+        主按钮直达 HTML 渲染预览，Diff 为次动作 · 单文件时 t2 显示完整路径、多文件截断省略 · 无逐行清单，细节交给点击后的面板
+    </div>
+</div>
+
+<!-- ==================== 选型说明 ==================== -->
+<div class="notes">
+    <h2>选型说明（含 Vol.1 汇总）</h2>
+    <table>
+        <tr><th>变体</th><th>形态关键词</th><th>优势</th><th>代价</th></tr>
+        <tr><td>5 时间线节点</td><td>git-graph 叙事</td><td>过程感强，op 语义清晰</td><td>纵向最高，不适合长清单</td></tr>
+        <tr><td>6 拆分小卡</td><td>一文件一卡 + 脊条</td><td>颗粒独立，可挂单文件操作菜单</td><td>视觉碎片感，多文件偏长</td></tr>
+        <tr><td>7 统计条</td><td>绿/红占比条</td><td>规模直觉化，最数据驱动</td><td>op 语义弱化，需图例补充</td></tr>
+        <tr><td>8 动作横幅</td><td>水平一条 + CTA</td><td>行动导向，交付意图最强</td><td>无逐行清单，细节靠面板</td></tr>
+        <tr><td>1-4（Vol.1）</td><td>终端 / 玻璃 / 色带 / 胶囊</td><td>见上页选型表</td><td>—</td></tr>
+    </table>
+    <p style="margin-top:12px; font-size:11.5px; color:var(--text-secondary); line-height:1.8">
+        组合思路：卡片形态（怎么排）与配色质感（什么调）是两个正交维度 —— 例如「变体 6 的拆分小卡 × 变体 2 的玻璃质感」、
+        「变体 8 的横幅 × 变体 3 的去彩化」都可以混搭。建议先选定形态方向，再统一质感参数。
+    </p>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话列表状态指示 · 四方案对比</title>
+<!--
+  会话列表「生成中 / 已完成未读 / 空闲」三态指示设计对比
+  背景：当前实现用 --accent-light 做状态点，日间主题下该变量为石墨黑(#32382f)，状态点呈黑色，语义感缺失
+  约束：全部色值取自项目现有变量体系（--success / --th-glow / --bg-surface），
+        或以蓝灰调色相带派生（对齐「UI 配色蓝灰调规范」），不引入突兀新色
+  方案：
+    A 呼吸绿点（图标徽标形态）—— 对齐项目既有「运行中」视觉先例 ★推荐
+    B 琥珀工作 × 蓝未读（双色语义）
+    C 微型 Spinner × 冷雾蓝（工具感）
+    D 光弧进度环 × 渐变绿（精致版）
+  默认日间模式展示；顶部按钮可切「双主题并排」，逐方案均给出色值标注
+-->
+<style>
+  :root {
+    /* ===== 日间主题（石墨工程风，取自 index.css light-theme 段） ===== */
+    --bg-app: #f5f7f9;
+    --bg-list: #ffffff;
+    --bg-hover: #eef1f4;
+    --bg-active: #e4e9ee;
+    --bg-surface: #ffffff;
+    --border-color: #d5dbe1;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --accent-light: #32382f;
+    --success: #1a7f37;
+    --th-glow: rgba(51, 189, 88, 0.35);
+    /* 方案专用派生色（蓝灰调色相带） */
+    --amber: #9a6700;
+    --amber-glow: rgba(154, 103, 0, 0.30);
+    --info-blue: #0969da;
+    --mist-blue: #0550ae;
+  }
+  html.night {
+    /* ===== 夜间主题（取自 index.css 默认段） ===== */
+    --bg-app: #0d1117;
+    --bg-list: #131820;
+    --bg-hover: rgba(230, 237, 243, 0.06);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-surface: rgba(19, 24, 32, 0.85);
+    --border-color: rgba(230, 237, 243, 0.14);
+    --text-primary: #e6edf3;
+    --text-secondary: #9ea7b3;
+    --text-muted: #6e7681;
+    --accent-light: #f0f6fc;
+    --success: #34d399;
+    --th-glow: rgba(126, 231, 135, 0.45);
+    --amber: #d29922;
+    --amber-glow: rgba(210, 153, 34, 0.32);
+    --info-blue: #4493f8;
+    --mist-blue: #79c0ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    padding: 32px 40px 64px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* ===== 页头 ===== */
+  header { max-width: 1180px; margin: 0 auto 28px; }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.3px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .sub b { color: var(--text-primary); }
+  .mode-switch {
+    margin-top: 16px; display: inline-flex; gap: 0;
+    border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+  }
+  .mode-switch button {
+    background: var(--bg-list); border: none; color: var(--text-secondary);
+    font-size: 12.5px; padding: 7px 16px; cursor: pointer;
+    border-right: 1px solid var(--border-color);
+  }
+  .mode-switch button:last-child { border-right: none; }
+  .mode-switch button.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+
+  /* ===== 方案卡 ===== */
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card {
+    background: var(--bg-list);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 22px 24px 24px;
+  }
+  .card-title { display: flex; align-items: baseline; gap: 10px; }
+  .card-title h2 { font-size: 15.5px; font-weight: 650; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px;
+    background: var(--success); color: #fff; letter-spacing: 0.5px;
+  }
+  html:not(.night) .badge { color: #fff; }
+  .card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.75; margin: 10px 0 16px; }
+  .card-desc code {
+    font-family: Consolas, monospace; font-size: 11.5px;
+    background: var(--bg-active); padding: 1px 5px; border-radius: 4px;
+  }
+
+  /* ===== 会话列表示例（结构与真实 UI 一致：18px 图标位 + 标题） ===== */
+  .demo-row { display: flex; gap: 18px; }
+  .conv {
+    flex: 1; background: var(--bg-app); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: 14px 16px 16px;
+  }
+  .conv h4 { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 10px; }
+  ul { list-style: none; }
+  li {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 10px; border-radius: 7px; margin-bottom: 4px;
+    color: var(--text-secondary); font-size: 12.5px; font-weight: 500;
+    cursor: default;
+  }
+  li:hover { background: var(--bg-hover); }
+  li.sel { background: var(--bg-active); color: var(--text-primary); }
+  li .icon-slot { position: relative; width: 18px; height: 18px; flex: none; display: flex; align-items: center; justify-content: center; }
+  li .icon-slot svg { width: 14.5px; height: 14.5px; stroke: var(--text-muted); }
+  li.sel .icon-slot svg { stroke: var(--text-primary); }
+  .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ============================================================
+     方案 A · 呼吸绿点（图标右上角徽标，对齐「项目运行中」先例）
+     生成中：--success 底 + --bg-surface 描边圈 + --th-glow 呼吸光晕
+     已完成未读：同位静态绿点（无光晕）
+     ============================================================ */
+  .dot {
+    position: absolute; top: -2px; right: -3px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success);
+    border: 1.5px solid var(--bg-list);   /* 描边圈：与列表底同色，浮于图标右上角 */
+    box-sizing: border-box;
+  }
+  .dot.breath { animation: breath 1.8s ease-out infinite; }
+  @keyframes breath {
+    0%   { box-shadow: 0 0 0 0 var(--th-glow); }
+    70%  { box-shadow: 0 0 0 5px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+
+  /* ============================================================
+     方案 B · 琥珀工作 × 蓝未读（双色语义）
+     ============================================================ */
+  .dot.amber { background: var(--amber); border-color: var(--bg-list); }
+  .dot.amber.breath { animation-name: breath-amber; }
+  @keyframes breath-amber {
+    0%   { box-shadow: 0 0 0 0 var(--amber-glow); }
+    70%  { box-shadow: 0 0 0 5px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .dot.blue { background: var(--info-blue); border-color: var(--bg-list); }
+
+  /* ============================================================
+     方案 C · 微型 Spinner × 冷雾蓝
+     生成中：图标位整体替换为 12px 旋转弧线；未读：冷雾蓝静态点
+     ============================================================ */
+  .spinner {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1.5px solid var(--mist-blue);
+    border-top-color: transparent;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dot.mist { background: var(--mist-blue); border-color: var(--bg-list); }
+
+  /* ============================================================
+     方案 D · 光弧进度环 × 渐变绿
+     生成中：绿点 + 环绕旋转光弧（conic 渐变 mask）；未读：径向渐变绿点
+     ============================================================ */
+  .halo {
+    position: absolute; top: -5px; right: -6px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: conic-gradient(var(--success) 0 270deg, transparent 270deg 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: spin 1.6s linear infinite;
+  }
+  .halo-core {
+    position: absolute; top: -2px; right: -3px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success); border: 1.5px solid var(--bg-list); box-sizing: border-box;
+  }
+  .dot.grad {
+    background: radial-gradient(circle at 35% 35%, var(--th-glow), var(--success) 70%);
+    border-color: var(--bg-list);
+  }
+
+  /* ===== 色值标注 ===== */
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; }
+  .sw { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-muted); }
+  .sw i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .sw code { font-family: Consolas, monospace; font-size: 11px; color: var(--text-secondary); }
+
+  .day-note, .night-note { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>会话列表状态指示 · 四方案对比</h1>
+  <p class="sub">
+    三态：<b>生成中</b>（呼吸/动效）· <b>已完成未读</b>（静态点，切入即清除）· <b>空闲</b>（comment 图标）。<br>
+    现状问题：状态点使用 <code>--accent-light</code>，日间主题下为石墨黑 <code>#32382f</code>，无语义。以下方案全部改用<b>彩色语义</b>。
+  </p>
+  <div class="mode-switch">
+    <button class="on" id="btnBoth" onclick="setMode('both')">双主题并排</button>
+    <button id="btnDay" onclick="setMode('day')">仅日间</button>
+    <button id="btnNight" onclick="setMode('night')">仅夜间</button>
+  </div>
+</header>
+
+<div class="grid" id="grid">
+
+  <!-- ============ 方案 A · 呼吸绿点 ★推荐 ============ -->
+  <div class="card theme-day">
+    <div class="card-title"><h2>方案 A · 呼吸绿点（图标徽标）</h2><span class="badge">推荐</span></div>
+    <p class="card-desc">
+      与项目既有「运行中」视觉先例完全同语言（<code>--success</code> 底 + 描边圈 + <code>--th-glow</code> 光晕）：
+      点挂在图标右上角而非替换图标，列表结构不变、跳动最小。绿 = 活跃 / 待查看，双色单语义最克制。<br>
+      实现：现有 <code>streaming-dot / unread-dot</code> 直接换 <code>var(--success)</code> 并改为角标定位，改动最小。
+    </p>
+    <div class="demo-row">
+      <div class="conv">
+        <h4>日间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot breath"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+        <p class="day-note">日间 --success: <b>#1a7f37</b></p>
+      </div>
+      <div class="conv">
+        <h4>夜间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot breath"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+        <p class="night-note">夜间 --success: <b>#34d399</b></p>
+      </div>
+    </div>
+    <div class="swatches">
+      <span class="sw"><i style="background:#34d399"></i>夜间点 <code>#34d399</code></span>
+      <span class="sw"><i style="background:#1a7f37"></i>日间点 <code>#1a7f37</code></span>
+      <span class="sw">光晕 <code>--th-glow</code> 描边 <code>--bg-list</code></span>
+    </div>
+  </div>
+
+  <!-- ============ 方案 B · 琥珀工作 × 蓝未读 ============ -->
+  <div class="card theme-day">
+    <div class="card-title"><h2>方案 B · 琥珀工作 × 蓝未读</h2></div>
+    <p class="card-desc">
+      双色双语义：琥珀 = 正在工作（暖色进行时），蓝 = 有未读产出（IM 惯例）。
+      状态区分度最高，一眼分辨「在跑」和「跑完了」。代价：引入两个新色相，页面彩色面积增加。<br>
+      色相取自蓝灰调色相带的暖/冷两端，与主界面不冲突。
+    </p>
+    <div class="demo-row">
+      <div class="conv">
+        <h4>日间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot amber breath"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot blue"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+      <div class="conv">
+        <h4>夜间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot amber breath"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot blue"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="swatches">
+      <span class="sw"><i style="background:#d29922"></i>夜琥珀 <code>#d29922</code></span>
+      <span class="sw"><i style="background:#9a6700"></i>日琥珀 <code>#9a6700</code></span>
+      <span class="sw"><i style="background:#4493f8"></i>夜蓝 <code>#4493f8</code></span>
+      <span class="sw"><i style="background:#0969da"></i>日蓝 <code>#0969da</code></span>
+    </div>
+  </div>
+
+  <!-- ============ 方案 C · 微型 Spinner × 冷雾蓝 ============ -->
+  <div class="card theme-day">
+    <div class="card-title"><h2>方案 C · 微型 Spinner × 冷雾蓝</h2></div>
+    <p class="card-desc">
+      生成中：图标位整体替换为 12px 旋转弧线——「正在处理」的表达最直白，工具感强（IDE / CI 风格）。
+      未读：冷雾蓝静态点。动态与静态形态差异大，弱光下辨识度也高。<br>
+      代价：图标消失，行高在流式期间有轻微视觉重量变化；旋转动画持续耗电因素略高于呼吸点。
+    </p>
+    <div class="demo-row">
+      <div class="conv">
+        <h4>日间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><span class="spinner"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot mist"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+      <div class="conv">
+        <h4>夜间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><span class="spinner"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot mist"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="swatches">
+      <span class="sw"><i style="background:#79c0ff"></i>夜冷雾蓝 <code>#79c0ff</code></span>
+      <span class="sw"><i style="background:#0550ae"></i>日冷雾蓝 <code>#0550ae</code></span>
+    </div>
+  </div>
+
+  <!-- ============ 方案 D · 光弧进度环 × 渐变绿 ============ -->
+  <div class="card theme-day">
+    <div class="card-title"><h2>方案 D · 光弧进度环 × 渐变绿</h2></div>
+    <p class="card-desc">
+      精致版：生成中 = 绿点 + 环绕旋转光弧（<code>conic-gradient</code> mask），有「进行中的进度感」；
+      未读 = 径向渐变绿点（中心亮、边缘沉），比纯色点更有质感。<br>
+      代价：实现最复杂（mask 兼容性、双层元素），视觉存在感最强，与整体克制基调有张力。
+    </p>
+    <div class="demo-row">
+      <div class="conv">
+        <h4>日间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="halo"></span><span class="halo-core"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot grad"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+      <div class="conv">
+        <h4>夜间</h4>
+        <ul>
+          <li class="sel"><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="halo"></span><span class="halo-core"></span></span><span class="title">重构会话存储模块</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg><span class="dot grad"></span></span><span class="title">排查 Vite 代理超时</span></li>
+          <li><span class="icon-slot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span><span class="title">周报生成脚本</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="swatches">
+      <span class="sw"><i style="background:#34d399"></i>环/点 <code>--success</code></span>
+      <span class="sw">渐变 <code>--th-glow → --success</code></span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* 主题模式：both = 双主题并排（两列各挂一个主题 class 作用域）；day / night = 全局切换 */
+  function setMode(mode) {
+    document.documentElement.classList.toggle('night', mode === 'night')
+    const cards = document.querySelectorAll('.card .conv h4')
+    const convs = document.querySelectorAll('.conv')
+    if (mode === 'both') {
+      convs.forEach((c, i) => { c.style.display = '' })
+      applyScope()
+    } else {
+      convs.forEach((c) => {
+        const isNightCol = c.querySelector('h4').textContent === '夜间'
+        c.style.display = (mode === 'night') === isNightCol ? '' : 'none'
+      })
+    }
+    ;['btnBoth', 'btnDay', 'btnNight'].forEach((id) => {
+      document.getElementById(id).classList.toggle('on', id === 'btn' + mode.charAt(0).toUpperCase() + mode.slice(1))
+    })
+  }
+
+  /* 双主题并排：给每个 .conv 局部注入对应主题的变量（day 默认 / night 覆盖） */
+  function applyScope() {
+    const NIGHT = {
+      '--bg-app': '#0d1117', '--bg-list': '#131820', '--bg-hover': 'rgba(230,237,243,0.06)',
+      '--bg-active': 'rgba(230,237,243,0.10)', '--border-color': 'rgba(230,237,243,0.14)',
+      '--text-primary': '#e6edf3', '--text-secondary': '#9ea7b3', '--text-muted': '#6e7681',
+      '--success': '#34d399', '--th-glow': 'rgba(126,231,135,0.45)',
+      '--amber': '#d29922', '--amber-glow': 'rgba(210,153,34,0.32)',
+      '--info-blue': '#4493f8', '--mist-blue': '#79c0ff',
+    }
+    document.querySelectorAll('.conv').forEach((c) => {
+      const isNight = c.querySelector('h4').textContent === '夜间'
+      const vars = isNight ? NIGHT : {}
+      Object.entries(vars).forEach(([k, v]) => c.style.setProperty(k, v))
+    })
+  }
+  applyScope()
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Spring Boot Web 应用
  */
-@SpringBootApplication(scanBasePackages = "cn.lunarlanding.qualia.code.web")
+@SpringBootApplication(scanBasePackages = {"cn.lunarlanding.qualia.code.web", "cn.lunarlanding.qualia.code.service"})
 public class WebApplication {
 
     private static ConfigurableApplicationContext context;

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Act Flow 执行过程重设计 · 四版本 · Qualia</title>
+<style>
+    /* ===== 主题变量（沿用 code-wrap 系列定稿） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --accent: #e6edf3;
+        --pill-bg: rgba(128, 144, 168, 0.14);
+        --pill-bg-hover: rgba(128, 144, 168, 0.24);
+        --hover: rgba(255, 255, 255, 0.05);
+        --ok: #3fb950;
+        --err: #f87171;
+        --float-bg: rgba(13, 17, 23, 0.82);
+        --pulse: rgba(230, 237, 243, 0.35);
+        --shimmer-hi: #f0f6fc;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #e4e8ee;
+        --code-bg: #eef1f4;
+        --line: rgba(31, 35, 40, 0.12);
+        --line-soft: rgba(31, 35, 40, 0.07);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --accent: #24292f;
+        --pill-bg: rgba(31, 35, 40, 0.06);
+        --pill-bg-hover: rgba(31, 35, 40, 0.11);
+        --hover: rgba(31, 35, 40, 0.045);
+        --ok: #1a7f37;
+        --err: #cf222e;
+        --float-bg: rgba(255, 255, 255, 0.88);
+        --pulse: rgba(31, 35, 40, 0.30);
+        --shimmer-hi: #24292f;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+    .ic { width: 12px; height: 12px; flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 52px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: var(--pill-bg); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 展示舞台（模拟聊天面板） ===== */
+    .stage {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 12px;
+    }
+    .replay {
+        position: absolute; top: 10px; right: 10px; z-index: 5;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-2);
+        font-size: 11px; transition: all 0.18s;
+    }
+    .replay:hover { color: var(--text-1); border-color: var(--text-3); }
+    .replay svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+    .stage-label { font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ===== 执行过程公共：时序入场 ===== */
+    .fx { opacity: 0; transform: translateY(4px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .fx.show { opacity: 1; transform: none; }
+
+    /* spinner（运行中通用） */
+    .spin {
+        width: 11px; height: 11px; flex: 0 0 11px;
+        border-radius: 50%;
+        border: 1.6px solid var(--pill-bg);
+        border-top-color: var(--text-2);
+        animation: rot 0.8s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    @keyframes dot-pulse {
+        0% { box-shadow: 0 0 0 0 var(--pulse); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes shimmer {
+        to { background-position: -200% 0; }
+    }
+
+    /* ============================================================
+       V1 · 时间线降噪版（现行结构演进）
+       ============================================================ */
+    .af1-flow { position: relative; display: flex; flex-direction: column; padding-left: 18px; }
+    .af1-flow::before {
+        content: ''; position: absolute; left: 5px; top: 7px; bottom: 6px; width: 1px;
+        background: var(--line-soft);
+    }
+    .af1-flow .th {
+        position: relative; font-size: 11.5px; color: var(--text-2); line-height: 1.65;
+        margin-top: 12px; white-space: pre-wrap;
+    }
+    .af1-flow .th:first-child { margin-top: 0; }
+    .af1-flow .th::before {
+        content: ''; position: absolute; left: -16px; top: 5px;
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--panel); border: 1.5px solid var(--text-3);
+    }
+    .af1-flow .th.cur { color: var(--text-1); }
+    .af1-flow .th.cur::before { border-color: var(--accent); background: var(--accent); animation: dot-pulse 1.6s ease-out infinite; }
+    .af1-flow .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .af1-flow .chips:first-child { margin-top: 0; }
+    /* chip：灰底胶囊，无边框 */
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 11px; border-radius: 100px;
+        border: none; background: var(--pill-bg); color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .chip:hover { background: var(--pill-bg-hover); color: var(--text-1); }
+    .chip .st { display: none; width: 11px; height: 11px; flex: 0 0 11px; }
+    .chip .st svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .chip.run { color: var(--text-1); }
+    .chip.run .spin { display: block; }
+    .chip.done .st-ok { display: flex; color: var(--ok); }
+    .chip.fail { color: var(--err); }
+    .chip.fail .st-bad { display: flex; }
+    /* 详情：挂时间线下方，缩进对齐节点文本 */
+    .detail {
+        margin-top: 8px;
+        border: 1px solid var(--line); border-radius: 9px;
+        background: var(--code-bg); overflow: hidden;
+    }
+    .detail .dhead {
+        display: flex; align-items: center; gap: 7px;
+        padding: 6px 12px; font-size: 10.5px; color: var(--text-2);
+        border-bottom: 1px solid var(--line-soft);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .detail .dhead .ic { width: 11px; height: 11px; }
+    .detail pre {
+        margin: 0; padding: 10px 14px;
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 11.5px; line-height: 1.7; color: var(--text-2);
+        overflow-x: auto; white-space: pre;
+    }
+    .detail pre .hl { color: var(--text-1); }
+    /* 状态条 */
+    .tbar {
+        display: flex; align-items: center; gap: 7px;
+        margin-top: 14px; font-size: 11.5px; color: var(--text-2);
+    }
+    .tbar .tb-text {
+        background: linear-gradient(90deg, var(--text-2) 40%, var(--shimmer-hi) 50%, var(--text-2) 60%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+        animation: shimmer 2s linear infinite;
+    }
+    .stage.finished .tbar .tb-text,
+    .tbar.ok .tb-text {
+        background: none; -webkit-text-fill-color: currentColor; color: var(--text-3);
+        animation: none;
+    }
+    .stage.finished .tbar .spin, .tbar.ok .spin { display: none; }
+
+    /* ============================================================
+       V2 · 步骤卡片流
+       ============================================================ */
+    .af2-flow { display: flex; flex-direction: column; gap: 7px; }
+    /* 思考：左竖条引用行，无底色 */
+    .af2-flow .th {
+        position: relative; padding: 2px 0 2px 13px;
+        font-size: 11.5px; color: var(--text-2); line-height: 1.65;
+    }
+    .af2-flow .th::before {
+        content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+        width: 2px; border-radius: 2px; background: var(--line);
+    }
+    .af2-flow .th.cur { color: var(--text-1); }
+    .af2-flow .th.cur::before { background: var(--accent); }
+    /* 工具：整行卡片 */
+    .card {
+        display: flex; align-items: center; gap: 9px;
+        padding: 8px 12px;
+        border: 1px solid var(--line); border-radius: 10px;
+        background: var(--code-bg); color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer; text-align: left;
+        transition: border-color 0.15s, color 0.15s;
+    }
+    .card:hover { border-color: var(--text-3); color: var(--text-1); }
+    .card .cname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card .cname b { font-weight: 600; color: inherit; }
+    .card .st { display: none; width: 12px; height: 12px; flex: 0 0 12px; }
+    .card .st svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .card.run { color: var(--text-1); border-color: var(--text-3); }
+    .card.run .spin { display: block; }
+    .card.done .st-ok { display: flex; color: var(--ok); }
+    .card.fail { color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, transparent); }
+    .card.fail .st-bad { display: flex; }
+    /* 卡片详情：更软一层的嵌套块 */
+    .af2-flow .detail { margin: -2px 0 0; border-radius: 10px; }
+
+    /* ============================================================
+       V3 · 折叠活动组（运行中胶囊 / 完成折叠条）
+       ============================================================ */
+    /* 运行中：毛玻璃活动胶囊 */
+    .af3-live {
+        display: inline-flex; align-items: center; gap: 10px;
+        padding: 8px 14px 8px 12px;
+        border: 1px solid var(--line); border-radius: 100px;
+        background: var(--float-bg);
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        font-size: 12px; color: var(--text-2);
+    }
+    .af3-live .lv-text b { color: var(--text-1); font-weight: 600; }
+    .af3-live .lv-count {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 2px 9px; border-radius: 100px;
+        background: var(--pill-bg); font-size: 10.5px; color: var(--text-2);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .af3-live .lv-count i { width: 4px; height: 4px; border-radius: 50%; background: var(--ok); }
+    /* 迷你步进点 */
+    .lv-dots { display: flex; gap: 4px; margin-left: 2px; }
+    .lv-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--pill-bg); }
+    .lv-dots i.on { background: var(--text-2); }
+    .lv-dots i.bad { background: var(--err); }
+    /* 完成：单行折叠条 */
+    .af3-fold {
+        display: inline-flex; align-items: center; gap: 9px;
+        padding: 7px 13px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent; color: var(--text-2);
+        font-size: 12px; font-family: inherit;
+        transition: background 0.15s, color 0.15s;
+    }
+    .af3-fold:hover { background: var(--hover); color: var(--text-1); }
+    .af3-fold .fd-sum { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); }
+    .af3-fold .fd-arrow { transition: transform 0.2s; display: flex; }
+    .af3-fold .fd-arrow svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .af3-fold.open .fd-arrow { transform: rotate(90deg); }
+    /* 展开后的时间线：复用 V1 结构 */
+    .af3-panel { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.3s ease, opacity 0.25s ease, margin 0.3s ease; }
+    .af3-panel.open { max-height: 700px; opacity: 1; margin-top: 14px; }
+    .af3-panel .af1-flow::before { bottom: 0; }
+
+    /* ============================================================
+       V4 · 极简行内流
+       ============================================================ */
+    .af4-flow { display: flex; flex-direction: column; gap: 8px; transition: opacity 0.5s ease; }
+    .af4-flow .th {
+        font-size: 11.5px; color: var(--text-2); line-height: 1.65;
+        display: flex; align-items: baseline; gap: 7px;
+    }
+    .af4-flow .th .ic { width: 11px; height: 11px; align-self: center; color: var(--text-3); }
+    .af4-flow .th.cur { color: var(--text-1); }
+    .af4-flow .th.cur .t-shim {
+        background: linear-gradient(90deg, var(--text-2) 40%, var(--shimmer-hi) 50%, var(--text-2) 60%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 2s linear infinite;
+    }
+    /* 行内工具：无边框文字 chip，hover 出底色 */
+    .af4-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-left: 18px; }
+    .mini {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 8px; border-radius: 7px;
+        border: none; background: transparent; color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .mini:hover { background: var(--pill-bg); color: var(--text-1); }
+    .mini .ic { width: 10.5px; height: 10.5px; flex: 0 0 10.5px; }
+    .mini .st { display: none; width: 10px; height: 10px; flex: 0 0 10px; }
+    .mini .st svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .mini.run { color: var(--text-1); }
+    .mini.run .spin { display: block; width: 10px; height: 10px; flex: 0 0 10px; border-width: 1.4px; }
+    .mini.done .st-ok { display: flex; color: var(--ok); }
+    .mini.fail { color: var(--err); }
+    .mini.fail .st-bad { display: flex; }
+    .af4-row .sep { color: var(--text-3); font-size: 11px; }
+    /* 完成摘要行 */
+    .af4-done {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 11.5px; color: var(--text-3);
+        opacity: 0; transition: opacity 0.45s ease;
+    }
+    .af4-done .ic { color: var(--ok); }
+    .stage.finished .af4-flow .th:not(:first-child),
+    .stage.finished .af4-flow .af4-row { opacity: 0.35; }
+    .stage.finished .af4-done { opacity: 1; }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+    footer.note b { color: var(--text-2); font-weight: 600; }
+</style>
+</head>
+<body data-theme="dark">
+
+    <!-- SVG 符号库 -->
+    <svg width="0" height="0" style="position:absolute">
+        <symbol id="i-read" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+        <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+        <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-5-6-5"/><path d="M12 19h8"/></symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5Z"/></symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+        <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/></symbol>
+    </svg>
+
+    <div class="bar">
+        <h1>Act Flow 执行过程重设计<small>四个方向 · 深浅主题 · 每个舞台可重放执行时序</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- ============ V1 ============ -->
+        <section class="vblock">
+            <header><span class="no">V1</span><h2>时间线 · 降噪版</h2></header>
+            <p class="desc">现行结构的演进而非替换：保留<b>垂直时间线 + 圆点 + chips</b>，竖线与圆点减淡缩小，chip 从带边框改为<b>灰底胶囊</b>，思考节点当前项用墨白脉冲。改动最小、延续性最好，适合作为稳妥基线。</p>
+            <div class="stage" data-stage>
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（失败一次后重试成功）</div>
+                <div class="af1-flow">
+                    <div class="th fx" data-at="0">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</div>
+                    <div class="chips fx" data-at="700">
+                        <button class="chip done"><svg class="ic"><use href="#i-read"/></svg>读取 model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        <button class="chip done"><svg class="ic"><use href="#i-read"/></svg>搜索 aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    </div>
+                    <div class="detail fx" data-at="1500">
+                        <div class="dhead"><svg class="ic"><use href="#i-file"/></svg>src/main/java/.../TokenStatService.java</div>
+                        <pre><span class="hl">public DailyUsage aggregateDaily(List&lt;TokenStat&gt; stats) {</span>
+    return stats.stream().collect(groupingBy(s -> day(s.timestamp()), summingLong(TokenStat::total)));
+<span class="hl">}</span></pre>
+                    </div>
+                    <div class="th fx" data-at="2100">调用方只有 TokenStatService，直接在聚合处按日分组，不动接口。</div>
+                    <div class="chips fx" data-at="2700">
+                        <button class="chip" data-end="fail"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        <button class="chip"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    </div>
+                    <div class="chips fx" data-at="3600">
+                        <button class="chip"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    </div>
+                    <div class="th fx" data-at="4300">编译通过，按日聚合已生效，整理变更说明。</div>
+                    <div class="tbar fx" data-at="0"><span class="spin st"></span><span class="tb-text" data-orig="正在思考…" data-done="执行完成 · 12.4s">正在思考…</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V2 ============ -->
+        <section class="vblock">
+            <header><span class="no">V2</span><h2>步骤卡片流</h2></header>
+            <p class="desc">去掉时间线，每一步是<b>独立的整行卡片</b>：思考是左竖条引用行，工具是带边框的行卡片，右侧固定状态槽（spinner → 绿勾 / 红叉）。步骤边界最清晰，长执行也不乱，视觉上更像一份执行清单。</p>
+            <div class="stage" data-stage>
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED</div>
+                <div class="af2-flow">
+                    <div class="th fx" data-at="0">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</div>
+                    <button class="card fx" data-at="700"><svg class="ic"><use href="#i-read"/></svg><span class="cname">读取 <b>model-config.ts</b></span><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    <button class="card fx" data-at="1400"><svg class="ic"><use href="#i-read"/></svg><span class="cname">搜索 <b>aggregateDaily</b></span><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    <div class="th fx" data-at="2000">调用方只有 TokenStatService，直接在聚合处按日分组，不动接口。</div>
+                    <button class="card fx" data-at="2600" data-end="fail"><svg class="ic"><use href="#i-edit"/></svg><span class="cname">编辑 <b>TokenStatService.java</b></span><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    <button class="card fx" data-at="3400"><svg class="ic"><use href="#i-edit"/></svg><span class="cname">编辑 <b>TokenStatService.java</b></span><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    <button class="card fx" data-at="4100"><svg class="ic"><use href="#i-term"/></svg><span class="cname">执行 <b>mvn -q compile</b></span><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    <div class="th fx" data-at="4800">编译通过，按日聚合已生效，整理变更说明。</div>
+                    <div class="tbar fx" data-at="0"><span class="spin st"></span><span class="tb-text" data-orig="正在思考…" data-done="执行完成 · 12.4s">正在思考…</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V3 ============ -->
+        <section class="vblock">
+            <header><span class="no">V3</span><h2>折叠活动组</h2></header>
+            <p class="desc">把「展示过程」和「留存历史」分开：执行中是一条<b>毛玻璃活动胶囊</b>（当前动作 + 步数计数 + 迷你步进点）；完成后折叠为<b>单行摘要条</b>，点击才展开完整时间线。历史消息最省空间，代价是回看时多一次点击。</p>
+            <div class="stage" data-stage>
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">形态一 · 执行中</div>
+                <div class="af3-live fx" data-at="0" style="position:relative">
+                    <span class="spin st"></span>
+                    <span class="lv-text">正在 <b>编辑 TokenStatService.java</b></span>
+                    <span class="lv-dots"><i class="on"></i><i class="on"></i><i class="bad"></i><i class="on"></i></span>
+                    <span class="lv-count">4 步 · 8.2s</span>
+                </div>
+
+                <div class="stage-label" style="margin-top:22px">形态二 · 完成后折叠（点击摘要条展开）</div>
+                <button class="af3-fold open" data-fold>
+                    <span class="st st-ok" style="display:flex;color:var(--ok)"><svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><use href="#i-check"/></svg></span>
+                    执行完成
+                    <span class="fd-sum">6 步 · 2 次读取 · 1 次编辑 · 1 次编译 · 12.4s</span>
+                    <span class="fd-arrow"><svg><use href="#i-arrow"/></svg></span>
+                </button>
+                <div class="af3-panel open" data-panel>
+                    <div class="af1-flow">
+                        <div class="th">分析 aggregateDaily 的调用方与返回结构。</div>
+                        <div class="chips">
+                            <button class="chip done"><svg class="ic"><use href="#i-read"/></svg>读取 model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                            <button class="chip done"><svg class="ic"><use href="#i-read"/></svg>搜索 aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        </div>
+                        <div class="th">按日分组落在聚合处，不动对外接口。</div>
+                        <div class="chips">
+                            <button class="chip fail"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-bad"><svg><use href="#i-x"/></svg></span></button>
+                            <button class="chip done"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        </div>
+                        <div class="chips">
+                            <button class="chip done"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        </div>
+                        <div class="th">编译通过，整理变更说明。</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V4 ============ -->
+        <section class="vblock">
+            <header><span class="no">V4</span><h2>极简行内流</h2></header>
+            <p class="desc">无线、无边框、无卡片：思考是一行<b>星芒前缀的摘要文字</b>（当前项流光），工具是<b>无边框文字 chip</b> 以间隔点串行。完成后整段流淡出，只留一行「✓ 执行了 6 步 · 12.4s」。视觉最轻，聊天流几乎不被执行过程打断。</p>
+            <div class="stage" data-stage>
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（完成后淡出为摘要行）</div>
+                <div class="af4-flow">
+                    <div class="th fx" data-at="0"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</span></div>
+                    <div class="af4-row fx" data-at="700">
+                        <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        <span class="sep">·</span>
+                        <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    </div>
+                    <div class="th fx" data-at="2000"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">调用方只有 TokenStatService，在聚合处按日分组。</span></div>
+                    <div class="af4-row fx" data-at="2600">
+                        <button class="mini" data-end="fail"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        <span class="sep">·</span>
+                        <button class="mini"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        <span class="sep">·</span>
+                        <button class="mini"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                    </div>
+                    <div class="th fx" data-at="4400"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">编译通过，整理变更说明。</span></div>
+                    <div class="af4-done"><svg class="ic"><use href="#i-check"/></svg>执行了 6 步 · 12.4s</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        说明：四个版本共用同一套墨白 / 石墨主题变量与状态语义（<b>绿色仅表示成功状态、红色仅表示失败</b>，装饰不占用主题色）。V1 为现行结构微调；V2 强化步骤边界；V3 主打历史折叠；V4 主打轻量。所有舞台右上角「重放」可再看一次执行时序；落地时 V1/V2 直接替换 .act-flow 样式与 ToolChip 外壳，V3 需要新增折叠条组件，V4 的完成淡出需要 messageStepsMap 配合记录步数与耗时。
+    </footer>
+
+    <script>
+        /* ===== 主题切换 ===== */
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+
+        /* ===== 重放引擎：按 data-at 时序显示，工具依次 run → done/fail ===== */
+        function settle(stage) {
+            stage.querySelectorAll('[data-at]').forEach(el => {
+                el.classList.add('show');
+                el.classList.remove('run', 'cur');
+                if (el.classList.contains('chip') || el.classList.contains('card') || el.classList.contains('mini')) {
+                    el.classList.add(el.dataset.end || 'done');
+                }
+            });
+            stage.classList.add('finished');
+            const tt = stage.querySelector('.tbar .tb-text');
+            if (tt) tt.textContent = tt.dataset.done || '执行完成 · 12.4s';
+        }
+        function play(stage) {
+            const els = [...stage.querySelectorAll('[data-at]')];
+            const max = Math.max(...els.map(e => +e.dataset.at));
+            stage.classList.remove('finished');
+            const tt = stage.querySelector('.tbar .tb-text');
+            if (tt) tt.textContent = tt.dataset.orig || tt.textContent;
+            els.forEach(el => el.classList.remove('show', 'run', 'done', 'fail', 'cur'));
+            els.forEach(el => {
+                setTimeout(() => {
+                    el.classList.add('show');
+                    const isTool = el.classList.contains('chip') || el.classList.contains('card') || el.classList.contains('mini');
+                    if (isTool) {
+                        el.classList.add('run');
+                        setTimeout(() => {
+                            el.classList.remove('run');
+                            el.classList.add(el.dataset.end || 'done');
+                        }, 520);
+                    }
+                    if (el.classList.contains('th')) {
+                        stage.querySelectorAll('.th.cur').forEach(t => t.classList.remove('cur'));
+                        el.classList.add('cur');
+                    }
+                }, +el.dataset.at);
+            });
+            setTimeout(() => settle(stage), max + 900);
+        }
+
+        /* 初始呈现完成态；重放按钮触发时序 */
+        document.querySelectorAll('[data-stage]').forEach(stage => {
+            settle(stage);
+            stage.querySelector('.replay').addEventListener('click', () => play(stage));
+        });
+
+        /* ===== V3 折叠条 ===== */
+        document.querySelectorAll('[data-fold]').forEach(fold => {
+            fold.addEventListener('click', () => {
+                fold.classList.toggle('open');
+                fold.closest('.stage').querySelector('[data-panel]').classList.toggle('open');
+            });
+        });
+    </script>
+</body>
+</html>

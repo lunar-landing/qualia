@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更清单贴原生风格重设计</title>
+<!--
+  ============================================================
+  设计稿：变更清单 · 贴原生风格重设计
+  背景：线上 V5「整行染底」与产品语言不搭 —— 产品消息区是
+  「去气泡平铺 + 线框式」，从无大面积色块填充。
+
+  本稿四个方案全部只用产品现有原子，零新语言：
+    N1 · Tool-chip 同款   —— 变更即 chips，与上方工具调用条同构
+    N2 · 时间线节点       —— act-flow 竖线延伸，产物挂在过程流末尾
+    N3 · 线框清单         —— code-wrap 同构：1px 边框 + 无底色头部 + 悬浮钮
+    N4 · 行内摘要行       —— git 字符前缀（+/~/−）的单行元信息
+
+  三要素不变：文件名 + op + 预览。op 色沿用产品语义色：
+  写入=ok 绿 / 修改=琥珀（审查面板徽标）/ 删除=err 红，仅 10px 小字使用。
+  可交互：右上角切日/夜间（token 取自 index.css 双主题实测值）
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== token 1:1 取自 index.css（默认日间） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-hover: #e9edf1;
+        --bg-codeblock: #eef1f4;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --link: #0969da;
+        --ok: #059669;      /* tool-chip ok / 审查面板 write */
+        --edit: #b45309;    /* 审查面板 edit 徽标 */
+        --err: #dc2626;     /* tool-chip err */
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-codeblock: #0b0e14;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --link: #4493f8;
+        --ok: #34d399;
+        --edit: #f59e0b;
+        --err: #f87171;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.25s;
+        -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+    .ic { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border-color); background: var(--bg-app); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 820px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: #ffffff;
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin: 6px 0 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-app); border: 1px solid var(--border-color); border-radius: 14px;
+        padding: 25px 29px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 10px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ===== 线上消息语境还原（平铺 codex 消息 + 工具 chips + 回答 + time） ===== */
+    .mbody { width: 100%; max-width: 620px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 13px; }
+    .tchip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
+        color: var(--text-secondary); background: var(--bg-hover);
+        border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 7px;
+    }
+    .tchip .cio { font-size: 10.5px; color: var(--accent-light); display: inline-flex; }
+    .tchip .cst { font-size: 10px; }
+    .tchip .cst.ok { color: var(--ok); }
+    .answer { font-size: 13.5px; line-height: 1.65; margin-bottom: 12px; }
+    .mtime { font-size: 10px; color: var(--text-muted); }
+    .variant-slot { margin-top: 12px; }
+
+    /* ============================================================
+       现状对比：V5 整行染底（线上实现）
+       ============================================================ */
+    .v5row { display: flex; align-items: center; gap: 12px; padding: 7px 11px; border-radius: 9px; margin-bottom: 6px; }
+    .v5row.w { background: rgba(52, 211, 153, 0.07); }
+    .v5row.e { background: rgba(245, 158, 11, 0.07); }
+    .v5row .fn { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
+    .v5row .op { font-size: 11px; }
+    .v5row.w .op { color: var(--ok); } .v5row.e .op { color: var(--edit); }
+    .v5row .pv {
+        margin-left: auto; font-size: 11px; color: var(--text-secondary); cursor: pointer;
+        border: 1px solid var(--border-color); border-radius: 7px; background: transparent; padding: 3px 10px;
+        display: inline-flex; align-items: center; gap: 5px;
+    }
+
+    /* ============================================================
+       N1 · Tool-chip 同款：变更即 chip，悬浮出预览箭头
+       ============================================================ */
+    .nchip {
+        display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+        font-size: 11px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
+        color: var(--text-secondary); background: var(--bg-hover);
+        border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 7px;
+        transition: border-color 0.15s, color 0.15s; max-width: 100%;
+    }
+    .nchip:hover, .nchip.active { border-color: var(--border-active); color: var(--text-primary); }
+    .nchip .cio { font-size: 10.5px; color: var(--accent-light); display: inline-flex; }
+    .nchip .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nchip .nop { font-size: 10px; flex-shrink: 0; }
+    .nchip .nop.c { color: var(--ok); }
+    .nchip .nop.m { color: var(--edit); }
+    .nchip .nop.d { color: var(--err); }
+    .nchip .nact { display: inline-flex; color: var(--accent-light); opacity: 0; transition: opacity 0.15s; }
+    .nchip:hover .nact { opacity: 1; }
+    .nchip.static { cursor: default; }
+    .nchip.static:hover { border-color: var(--border-color); color: var(--text-secondary); }
+
+    /* ============================================================
+       N2 · 时间线节点：act-flow 竖线延伸
+       ============================================================ */
+    .ntl { position: relative; padding-left: 19px; }
+    .ntl::before { content: ''; position: absolute; left: 6px; top: 7px; bottom: 7px; width: 1px; background: var(--border-color); }
+    .ntl-row { position: relative; display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .ntl-row::before {
+        content: ''; position: absolute; left: -17px; top: 9px;
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--bg-app); border: 1.5px solid var(--text-muted); box-sizing: border-box;
+    }
+    .ntl-row.c::before { border-color: var(--ok); }
+    .ntl-row.m::before { border-color: var(--edit); }
+    .ntl-row.d::before { border-color: var(--err); }
+    .ntl-row .nn { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 500; color: var(--text-primary); }
+    .ntl-row .nop { font-size: 10px; }
+    .ntl-row .nop.c { color: var(--ok); } .ntl-row .nop.m { color: var(--edit); } .ntl-row .nop.d { color: var(--err); }
+    .nlink {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+        border: none; background: transparent; padding: 2px 4px; border-radius: 5px;
+        font-size: 10.5px; color: var(--text-secondary); transition: color 0.15s;
+    }
+    .nlink:hover { color: var(--link); }
+
+    /* ============================================================
+       N3 · 线框清单：code-wrap 同构
+       ============================================================ */
+    .nframe { border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; max-width: 420px; }
+    .nframe-head {
+        display: flex; align-items: center; padding: 6px 11px;
+        border-bottom: 1px solid var(--border-color);
+        font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1px;
+        color: var(--text-muted); text-transform: uppercase;
+    }
+    .nframe-row { display: flex; align-items: center; gap: 9px; padding: 6px 11px; transition: background 0.12s; }
+    .nframe-row + .nframe-row { border-top: 1px solid var(--border-color); }
+    .nframe-row:hover { background: var(--bg-hover); }
+    .nframe-row .nn { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 500; color: var(--text-primary); }
+    .nframe-row .nop { font-size: 10px; }
+    .nframe-row .nop.c { color: var(--ok); } .nframe-row .nop.m { color: var(--edit); } .nframe-row .nop.d { color: var(--err); }
+    .nicon {
+        margin-left: auto; width: 22px; height: 22px; cursor: pointer; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid transparent; border-radius: 6px; background: transparent;
+        color: var(--text-muted); transition: all 0.15s;
+    }
+    .nframe-row:hover .nicon { color: var(--text-secondary); border-color: var(--border-color); }
+    .nicon:hover { color: var(--text-primary) !important; border-color: var(--border-active) !important; }
+
+    /* ============================================================
+       N4 · 行内摘要行：git 字符前缀单行
+       ============================================================ */
+    .nline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-secondary); line-height: 1.9; }
+    .nseg { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 5px; padding: 1px 4px; transition: background 0.12s; }
+    .nseg:hover { background: var(--bg-hover); }
+    .nseg .gk { font-weight: 700; }
+    .nseg.c .gk { color: var(--ok); } .nseg.m .gk { color: var(--edit); } .nseg.d .gk { color: var(--err); }
+    .nseg .nn { color: var(--text-primary); }
+    .nseg .nact { display: inline-flex; color: var(--accent-light); opacity: 0; transition: opacity 0.15s; }
+    .nseg:hover .nact { opacity: 1; }
+    .nseg.static { cursor: default; }
+    .nsep { color: var(--text-muted); }
+
+    /* ===== 底部说明 ===== */
+    .notes { max-width: 820px; margin: 4px auto 0; border: 1px solid var(--border-color); border-radius: 14px; padding: 20px 24px; }
+    .notes h2 { font-size: 15px; margin-bottom: 12px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--border-color); }
+    .notes td { padding: 7px 8px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更清单 · 贴原生风格重设计</h1>
+<p class="sub">
+    产品语言是<em>线框式</em>：1px 边框 · 无底色 · mono 小字 · 状态色只出现在 10px 小字<br>
+    四个方案零新语言，全部由 <em>tool-chip / act-flow / code-wrap</em> 现有原子拼装
+</p>
+
+<!-- ==================== 现状对比 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">现状</span>
+        <span class="name">V5 整行染底（线上实现 · 供对比）</span>
+    </div>
+    <p class="demo-desc">大面积色块填充是消息区唯一一处，与去气泡平铺排版和 tool-chip 线框语言冲突。</p>
+    <div class="stage">
+        <div class="mbody">
+            <div class="chips">
+                <span class="tchip"><span class="cio">✎</span>edit main.ts<span class="cst ok">✓</span></span>
+                <span class="tchip"><span class="cio">▤</span>write login.html<span class="cst ok">✓</span></span>
+            </div>
+            <p class="answer">已完成登录页编写，包含表单校验与提交逻辑，可直接预览。</p>
+            <div class="variant-slot">
+                <div class="v5row w"><span class="fn">login.html</span><span class="op">写入</span><span class="pv">预览 ↗</span></div>
+                <div class="v5row e"><span class="fn">main.ts</span><span class="op">修改</span><span class="pv">预览 ↗</span></div>
+            </div>
+            <div class="mtime">14:32</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== N1 · Tool-chip 同款 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">N1 · 推荐</span>
+        <span class="name">Tool-chip 同款 chips 行</span>
+    </div>
+    <p class="demo-desc">
+        变更即 chips，与上方工具调用条<em>完全同构</em>（同字体、同边框、同 hover），只是 op 换成 10px 语义色小字、
+        悬浮浮现<em>预览箭头</em>（沿用 code-wrap「悬浮图标钮」语言）。点击 chip 预览；删除 chip 无箭头不可点。
+        消息区从头到尾只有一种「胶囊」语言。
+    </p>
+    <div class="stage">
+        <div class="mbody">
+            <div class="chips">
+                <span class="tchip"><span class="cio">✎</span>edit main.ts<span class="cst ok">✓</span></span>
+                <span class="tchip"><span class="cio">▤</span>write login.html<span class="cst ok">✓</span></span>
+            </div>
+            <p class="answer">已完成登录页编写，包含表单校验与提交逻辑，可直接预览。</p>
+            <div class="variant-slot">
+                <div class="chips" style="margin-bottom:0">
+                    <span class="nchip">
+                        <span class="cio">▤</span><span class="nn">login.html</span><span class="nop c">新建</span>
+                        <span class="nact"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                    </span>
+                    <span class="nchip">
+                        <span class="cio">✎</span><span class="nn">main.ts</span><span class="nop m">修改</span>
+                        <span class="nact"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                    </span>
+                    <span class="nchip static">
+                        <span class="cio">⌫</span><span class="nn">old.css</span><span class="nop d">删除</span>
+                    </span>
+                </div>
+            </div>
+            <div class="mtime" style="margin-top:12px">14:32</div>
+        </div>
+    </div>
+    <p class="spec">与 <code>.tool-chip</code> 共用全部样式原子（11px mono / bg-hover / 1px 边框 / radius 7）· 预览箭头 hover 浮现，静态零噪音 · 多文件自动换行</p>
+</div>
+
+<!-- ==================== N2 · 时间线节点 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">N2</span>
+        <span class="name">时间线节点（act-flow 延伸）</span>
+    </div>
+    <p class="demo-desc">
+        复用活动流的<em>竖线 + 8px 空心节点</em>：节点描边即 op 语义色，产物作为过程流的收尾挂在同一条时间线上，
+        叙事连贯（过程 → 产物）；预览为右侧文字链接按钮（hover 变 <code>--link</code> 蓝）。
+    </p>
+    <div class="stage">
+        <div class="mbody">
+            <div class="chips">
+                <span class="tchip"><span class="cio">✎</span>edit main.ts<span class="cst ok">✓</span></span>
+                <span class="tchip"><span class="cio">▤</span>write login.html<span class="cst ok">✓</span></span>
+            </div>
+            <p class="answer">已完成登录页编写，包含表单校验与提交逻辑，可直接预览。</p>
+            <div class="variant-slot">
+                <div class="ntl">
+                    <div class="ntl-row c">
+                        <span class="nn">login.html</span><span class="nop c">新建</span>
+                        <button class="nlink">预览 <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                    <div class="ntl-row m">
+                        <span class="nn">main.ts</span><span class="nop m">修改</span>
+                        <button class="nlink">预览 <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                    <div class="ntl-row d">
+                        <span class="nn">old.css</span><span class="nop d">删除</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mtime" style="margin-top:10px">14:32</div>
+        </div>
+    </div>
+    <p class="spec">竖线/节点尺寸与 <code>.act-flow</code> 完全一致（left 6px / 8px 节点 / 1.5px 描边）· 节点空心底色 bg-app，与思考节点同款 · 纵向最舒展</p>
+</div>
+
+<!-- ==================== N3 · 线框清单 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">N3</span>
+        <span class="name">线框清单（code-wrap 同构）</span>
+    </div>
+    <p class="demo-desc">
+        一个与代码块同语言的<em>1px 线框容器</em>：头部左置 mono 小字距标签（同 code-wrap 头部语言名），
+        行间 hairline 分隔，行悬浮出背景 + 预览图标钮（同「悬浮图标钮」）。边界清晰，文件多时最整齐。
+    </p>
+    <div class="stage">
+        <div class="mbody">
+            <div class="chips">
+                <span class="tchip"><span class="cio">✎</span>edit main.ts<span class="cst ok">✓</span></span>
+                <span class="tchip"><span class="cio">▤</span>write login.html<span class="cst ok">✓</span></span>
+            </div>
+            <p class="answer">已完成登录页编写，包含表单校验与提交逻辑，可直接预览。</p>
+            <div class="variant-slot">
+                <div class="nframe">
+                    <div class="nframe-head">Changed · 3</div>
+                    <div class="nframe-row">
+                        <span class="nn">login.html</span><span class="nop c">新建</span>
+                        <button class="nicon" title="预览"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                    <div class="nframe-row">
+                        <span class="nn">main.ts</span><span class="nop m">修改</span>
+                        <button class="nicon" title="预览"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                    <div class="nframe-row">
+                        <span class="nn">old.css</span><span class="nop d">删除</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mtime" style="margin-top:12px">14:32</div>
+        </div>
+    </div>
+    <p class="spec">容器/头部/悬浮钮与 <code>.code-wrap</code> 同语言 · 头部可加总数，行内零装饰 · 是四案中唯一有「容器边界」的，与代码块视觉权重对等</p>
+</div>
+
+<!-- ==================== N4 · 行内摘要行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">N4</span>
+        <span class="name">行内摘要行（git 字符前缀）</span>
+    </div>
+    <p class="demo-desc">
+        压成<em>一行元信息</em>：git diff 字符前缀（<code>+</code> 新建 / <code>~</code> 修改 / <code>−</code> 删除）着色标注，
+        文件名后随悬浮箭头即预览。最轻，几乎与回答正文融为一体，适合单文件微改动。
+    </p>
+    <div class="stage">
+        <div class="mbody">
+            <div class="chips">
+                <span class="tchip"><span class="cio">✎</span>edit main.ts<span class="cst ok">✓</span></span>
+                <span class="tchip"><span class="cio">▤</span>write login.html<span class="cst ok">✓</span></span>
+            </div>
+            <p class="answer">已完成登录页编写，包含表单校验与提交逻辑，可直接预览。</p>
+            <div class="variant-slot">
+                <div class="nline">
+                    <span class="nseg c"><span class="gk">+</span><span class="nn">login.html</span>
+                        <span class="nact"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                    </span>
+                    <span class="nsep">·</span>
+                    <span class="nseg m"><span class="gk">~</span><span class="nn">main.ts</span>
+                        <span class="nact"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+                    </span>
+                    <span class="nsep">·</span>
+                    <span class="nseg d static"><span class="gk">−</span><span class="nn">old.css</span></span>
+                </div>
+            </div>
+            <div class="mtime" style="margin-top:10px">14:32</div>
+        </div>
+    </div>
+    <p class="spec">字符前缀即 op，无文字标签（hover 可补 title）· 悬浮箭头 = 预览入口 · 单文件时与 N1 二选一，多文件建议回落 N1/N3</p>
+</div>
+
+<!-- ==================== 选型说明 ==================== -->
+<div class="notes">
+    <h2>选型说明</h2>
+    <table>
+        <tr><th>方案</th><th>借用原子</th><th>优势</th><th>代价</th></tr>
+        <tr><td>N1 chips 行</td><td>tool-chip 全套</td><td>与工具调用条零违和，换行自适应</td><td>预览箭头 hover 才出现，可发现性略降</td></tr>
+        <tr><td>N2 时间线</td><td>act-flow 竖线+节点</td><td>过程→产物叙事最连贯，op 色在节点上很自然</td><td>纵向最高，长清单略空</td></tr>
+        <tr><td>N3 线框清单</td><td>code-wrap 容器</td><td>边界清晰、文件多时最整齐</td><td>容器感最重，与「去气泡」稍有张力</td></tr>
+        <tr><td>N4 摘要行</td><td>行内 mono 元信息</td><td>最轻，几乎零占位</td><td>op 只有字符，新用户需学习；多文件拥挤</td></tr>
+    </table>
+    <p style="margin-top:11px; font-size:11.5px; color:var(--text-secondary); line-height:1.8">
+        建议：<em>N1 为默认</em>（与消息区现有胶囊语言完全一致，回归成本最低）；若希望突出「产物收尾」的仪式感选 N2；
+        文件经常 ≥4 个的场景选 N3。四案 op 色统一沿用产品语义色（写入=ok 绿 / 修改=琥珀 / 删除=err 红），
+        仅 10px 小字使用，与 tool-chip 状态字同权重。
+    </p>
+</div>
+
+<script>
+    /* 日/夜间切换：token 取自 index.css 双主题实测值 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+</script>
+</body>
+</html>

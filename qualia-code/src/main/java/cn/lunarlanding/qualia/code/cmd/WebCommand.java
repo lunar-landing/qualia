@@ -27,9 +27,7 @@ public class WebCommand implements Callable<Integer> {
             Path workspacePath = workspace != null ? workspace : WorkspaceHistory.latestValid();
 
             System.out.println("正在启动 Web 服务...");
-            System.out.println("Workspace: " + (workspacePath != null
-                    ? workspacePath.toAbsolutePath().toString()
-                    : "未指定（请在页面中选择）"));
+            System.out.println("Workspace: " + (workspacePath != null ? workspacePath.toAbsolutePath().toString() : "未指定（请在页面中选择）"));
             System.out.println("端口: " + port);
             System.out.println();
             

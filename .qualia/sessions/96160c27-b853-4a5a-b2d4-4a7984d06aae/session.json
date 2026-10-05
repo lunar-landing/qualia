@@ -1,0 +1,82 @@
+{
+	"messages":[
+		{
+			"content":"删除根目录下的 login.html",
+			"createdAt":1790756358149,
+			"id":"6174d85b-0d35-4dfe-9091-943a779dd1d6",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"96160c27-b853-4a5a-b2d4-4a7984d06aae"
+		},
+		{
+			"completionTokens":131,
+			"content":"`login.html` 已经删掉了。根目录现在清爽了不少，要是之后有相关的引用报错，记得顺手清理一下。",
+			"createdAt":1790756364611,
+			"durationMs":6462,
+			"id":"6761a280-8b20-4d7d-8e0a-3854a36f2070",
+			"promptTokens":3218,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"96160c27-b853-4a5a-b2d4-4a7984d06aae",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"action\",\n    \"thought\": \"用户要求删除根目录下的 login.html，直接调用 delete 工具执行删除操作。\",\n    \"actions\": [\n        {\n            \"name\": \"delete\",\n            \"arguments\": {\n                \"path\": \"login.html\"\n            }\n        }\n    ]\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				},
+				{
+					"content":"调用工具: delete",
+					"stepType":"ACTION",
+					"timestamp":0,
+					"toolArgs":{
+						"path":"login.html"
+					},
+					"toolName":"delete"
+				},
+				{
+					"content":"文件已删除: login.html",
+					"stepType":"OBSERVATION",
+					"timestamp":0
+				},
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"login.html 已成功删除，任务完成。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"action\\\",\\n    \\\"thought\\\": \\\"用户要求删除根目录下的 login.html，直接调用 delete 工具执行删除操作。\\\",\\n    \\\"actions\\\": [\\n        {\\n            \\\"name\\\": \\\"delete\\\",\\n            \\\"arguments\\\": {\\n                \\\"path\\\": \\\"login.html\\\"\\n            }\\n        }\\n    ]\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0},{\"content\":\"调用工具: delete\",\"stepType\":\"ACTION\",\"timestamp\":0,\"toolArgs\":{\"path\":\"login.html\"},\"toolName\":\"delete\"},{\"content\":\"文件已删除: login.html\",\"stepType\":\"OBSERVATION\",\"timestamp\":0},{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"login.html 已成功删除，任务完成。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":3349
+		},
+		{
+			"content":"使用 markdown 直接输出一个用户数据，使用模拟数据",
+			"createdAt":1790756528424,
+			"id":"6753224e-b1f8-467a-a91b-c26cad674e26",
+			"role":"USER",
+			"sequence":3,
+			"sessionId":"96160c27-b853-4a5a-b2d4-4a7984d06aae"
+		},
+		{
+			"completionTokens":302,
+			"content":"没问题，这就给你整一份模拟的用户数据。为了看起来更像那么回事，我加了点常见的字段，比如头像、角色和最后登录时间：\n\n```markdown\n# 用户档案\n\n## 基本信息\n- **ID**: `USR-2026-8842`\n- **用户名**: @code_wanderer\n- **昵称**: 流浪代码\n- **邮箱**: wanderer@example.com\n- **头像**: ![Avatar](https://api.dicebear.com/7.x/avataaars/svg?seed=Felix)\n\n## 账户状态\n- **角色**: 高级开发者\n- **状态**: 🟢 在线\n- **注册时间**: 2023-11-15\n- **最后登录**: 2026-09-30 16:20:05 (UTC+8)\n\n## 偏好设置\n- **主题**: Dark Mode (Dracula)\n- **语言**: zh-CN\n- **通知**: 仅重要提醒\n\n## 最近活动\n> \"刚刚提交了关于 qualia-code 性格模块的优化补丁。\"\n```\n\n这份数据可以直接复制到你的文档或测试用例里。如果需要 JSON 格式或者其他特定结构的数据，随时喊我。",
+			"createdAt":1790756536773,
+			"durationMs":8349,
+			"id":"b98130fd-786f-448d-9ebb-6f863d030d61",
+			"promptTokens":1972,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":4,
+			"sessionId":"96160c27-b853-4a5a-b2d4-4a7984d06aae",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"用户要求直接输出模拟用户数据的Markdown，无需调用工具，直接生成回答即可。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"用户要求直接输出模拟用户数据的Markdown，无需调用工具，直接生成回答即可。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":2274
+		}
+	],
+	"sessionId":"96160c27-b853-4a5a-b2d4-4a7984d06aae"
+}

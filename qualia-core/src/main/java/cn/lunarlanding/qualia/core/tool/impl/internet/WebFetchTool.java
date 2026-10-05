@@ -289,4 +289,10 @@ public class WebFetchTool extends FunctionTool {
                 .replace("&reg;", "®")
                 .replace("&trade;", "™");
     }
+
+    /** 只读工具：仅抓取网页正文，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

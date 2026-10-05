@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Act Flow 执行过程重设计 · 续篇 V5-V8 · Qualia</title>
+<style>
+    /* ===== 主题变量（沿用 code-wrap / act-flow 系列定稿） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --accent: #e6edf3;
+        --pill-bg: rgba(128, 144, 168, 0.14);
+        --pill-bg-hover: rgba(128, 144, 168, 0.24);
+        --hover: rgba(255, 255, 255, 0.05);
+        --ok: #3fb950;
+        --err: #f87171;
+        --float-bg: rgba(13, 17, 23, 0.82);
+        --pulse: rgba(230, 237, 243, 0.35);
+        --shimmer-hi: #f0f6fc;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #e4e8ee;
+        --code-bg: #eef1f4;
+        --line: rgba(31, 35, 40, 0.12);
+        --line-soft: rgba(31, 35, 40, 0.07);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --accent: #24292f;
+        --pill-bg: rgba(31, 35, 40, 0.06);
+        --pill-bg-hover: rgba(31, 35, 40, 0.11);
+        --hover: rgba(31, 35, 40, 0.045);
+        --ok: #1a7f37;
+        --err: #cf222e;
+        --float-bg: rgba(255, 255, 255, 0.88);
+        --pulse: rgba(31, 35, 40, 0.30);
+        --shimmer-hi: #24292f;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+    .ic { width: 12px; height: 12px; flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 52px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: var(--pill-bg); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 展示舞台（模拟聊天面板） ===== */
+    .stage {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 12px;
+    }
+    .replay {
+        position: absolute; top: 10px; right: 10px; z-index: 5;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-2);
+        font-size: 11px; transition: all 0.18s;
+    }
+    .replay:hover { color: var(--text-1); border-color: var(--text-3); }
+    .replay svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+    .stage-label { font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+
+    /* ===== 执行过程公共：时序入场 ===== */
+    .fx { opacity: 0; transform: translateY(4px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .fx.show { opacity: 1; transform: none; }
+
+    /* spinner（运行中通用） */
+    .spin {
+        width: 11px; height: 11px; flex: 0 0 11px;
+        border-radius: 50%;
+        border: 1.6px solid var(--pill-bg);
+        border-top-color: var(--text-2);
+        animation: rot 0.8s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    @keyframes dot-pulse {
+        0% { box-shadow: 0 0 0 0 var(--pulse); }
+        70% { box-shadow: 0 0 0 6px transparent; }
+        100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes shimmer {
+        to { background-position: -200% 0; }
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ===== 状态 chip（V5 泳道内复用首篇 V1 定稿样式） ===== */
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 11px; border-radius: 100px;
+        border: none; background: var(--pill-bg); color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .chip:hover { background: var(--pill-bg-hover); color: var(--text-1); }
+    .chip .st { display: none; width: 11px; height: 11px; flex: 0 0 11px; }
+    .chip .st svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .chip.run { color: var(--text-1); }
+    .chip.run .spin { display: block; }
+    .chip.done .st-ok { display: flex; color: var(--ok); }
+    .chip.fail { color: var(--err); }
+    .chip.fail .st-bad { display: flex; }
+
+    /* ===== 状态条（V5 复用首篇定稿） ===== */
+    .tbar { display: flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 11.5px; color: var(--text-2); }
+    .tbar .tb-text {
+        background: linear-gradient(90deg, var(--text-2) 40%, var(--shimmer-hi) 50%, var(--text-2) 60%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+        animation: shimmer 2s linear infinite;
+    }
+    .stage.finished .tbar .tb-text {
+        background: none; -webkit-text-fill-color: currentColor; color: var(--text-3);
+        animation: none;
+    }
+    .stage.finished .tbar .spin { display: none; }
+
+    /* ===== 文字 chip（V8 历史列表复用首篇 V4 定稿） ===== */
+    .mini {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 8px; border-radius: 7px;
+        border: none; background: transparent; color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .mini:hover { background: var(--pill-bg); color: var(--text-1); }
+    .mini .ic { width: 10.5px; height: 10.5px; flex: 0 0 10.5px; }
+    .mini .st { display: none; width: 10px; height: 10px; flex: 0 0 10px; }
+    .mini .st svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .mini.done .st-ok { display: flex; color: var(--ok); }
+    .mini.fail { color: var(--err); }
+    .mini.fail .st-bad { display: flex; }
+
+    /* ===== 焦点卡（V6 主区 / V8 中央共用） ===== */
+    .fwrap { display: grid; margin-top: 10px; }
+    .fcard {
+        grid-area: 1 / 1;
+        opacity: 0; visibility: hidden;
+        transition: opacity 0.28s ease, visibility 0.28s;
+        border: 1px solid var(--line); border-radius: 11px;
+        background: var(--code-bg); overflow: hidden;
+    }
+    .fcard.on { opacity: 1; visibility: visible; }
+    .fcard.bad { border-color: color-mix(in srgb, var(--err) 35%, transparent); }
+    .fc-head { display: flex; align-items: center; gap: 9px; padding: 10px 14px; font-size: 12px; color: var(--text-2); }
+    .fc-head b { color: var(--text-1); font-weight: 600; }
+    .fc-file { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fc-state { margin-left: auto; display: flex; align-items: center; }
+    .fc-state .spin { display: block; }
+    .fc-state .st { display: none; }
+    .fc-state .st svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .fcard.end .fc-state .spin { display: none; }
+    .fcard.end .fc-state .st-ok { display: flex; color: var(--ok); }
+    .fcard.bad .fc-state .spin { display: none; }
+    .fcard.bad .fc-state .st-bad { display: flex; color: var(--err); }
+    .fc-out {
+        margin: 0; border-top: 1px solid var(--line-soft);
+        padding: 10px 14px;
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 11px; line-height: 1.75; color: var(--text-2);
+        white-space: pre; overflow-x: auto;
+    }
+    .fc-out .hl { color: var(--text-1); }
+    .fc-out .dim2 { color: var(--text-3); font-style: normal; }
+    .fc-foot {
+        display: flex; align-items: center; gap: 7px;
+        border-top: 1px solid var(--line-soft);
+        padding: 6px 14px;
+        font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-3);
+    }
+
+    /* ============================================================
+       V5 · 阶段泳道
+       ============================================================ */
+    .af5 { display: flex; flex-direction: column; }
+    .ph { position: relative; padding: 11px 0 13px 16px; }
+    .ph + .ph { border-top: 1px solid var(--line-soft); }
+    .ph::before {
+        content: ''; position: absolute; left: 0; top: 15px; bottom: 15px;
+        width: 2px; border-radius: 2px; background: var(--line);
+        transition: background 0.2s;
+    }
+    .ph.cur::before { background: var(--accent); }
+    .ph-head { display: flex; align-items: center; gap: 9px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 1px; }
+    .ph-no { color: var(--text-3); transition: color 0.2s; }
+    .ph.cur .ph-no { color: var(--accent); }
+    .ph-name { color: var(--text-2); font-weight: 600; letter-spacing: 3px; transition: color 0.2s; }
+    .ph.cur .ph-name { color: var(--text-1); }
+    .ph-rule { flex: 1; height: 1px; background: var(--line-soft); }
+    .ph-meta { display: none; align-items: center; gap: 4px; color: var(--text-3); letter-spacing: 0.5px; }
+    .ph.ok .ph-meta { display: inline-flex; }
+    .ph-meta .ic { width: 10px; height: 10px; color: var(--ok); }
+    .ph-th { margin-top: 6px; font-size: 11.5px; color: var(--text-2); line-height: 1.65; white-space: pre-wrap; transition: color 0.2s; }
+    .ph.cur .ph-th { color: var(--text-1); }
+    .ph-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+
+    /* ============================================================
+       V6 · 步骤轨道（焦点 + 迷你地图）
+       ============================================================ */
+    .af6 { display: flex; gap: 18px; }
+    .af6-main { flex: 1; min-width: 0; }
+    .af6 .th { display: flex; gap: 7px; align-items: baseline; font-size: 11.5px; color: var(--text-2); line-height: 1.65; transition: opacity 0.4s; }
+    .af6 .th .ic { width: 11px; height: 11px; align-self: center; color: var(--text-3); }
+    .af6 .th.cur { color: var(--text-1); }
+    .af6 .th.dim { opacity: 0.3; }
+    .af6-rail { flex: 0 0 20px; display: flex; flex-direction: column; align-items: center; position: relative; padding: 4px 0; }
+    .af6-rail::before { content: ''; position: absolute; top: 12px; bottom: 12px; width: 1px; background: var(--line-soft); }
+    .rl {
+        position: relative; width: 20px; height: 20px; margin: 3px 0;
+        border-radius: 6px; border: 1px solid transparent;
+        background: transparent; color: var(--text-3);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; padding: 0; transition: all 0.2s;
+    }
+    .rl svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .rl.done { background: var(--pill-bg); color: var(--text-2); }
+    .rl.done:hover, .rl.on { border-color: var(--text-3); color: var(--text-1); }
+    .rl.run { color: var(--text-1); border-color: var(--text-3); animation: dot-pulse 1.6s ease-out infinite; }
+    .rl.fail { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+    .af6-sum { display: flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 11.5px; color: var(--text-3); opacity: 0; transition: opacity 0.45s; }
+    .af6-sum.show { opacity: 1; }
+    .af6-sum .ic { color: var(--ok); }
+
+    /* ============================================================
+       V7 · 终端流
+       ============================================================ */
+    .term { border: 1px solid var(--panel-border); border-radius: 12px; overflow: hidden; background: var(--code-bg); }
+    .term-bar {
+        display: flex; align-items: center; gap: 6px;
+        padding: 9px 13px;
+        border-bottom: 1px solid var(--line-soft);
+        background: color-mix(in srgb, var(--panel) 55%, transparent);
+    }
+    .term-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--pill-bg); }
+    .term-bar span { margin-left: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-3); letter-spacing: 0.5px; }
+    .term-body {
+        padding: 13px 16px 15px;
+        font-family: 'JetBrains Mono', 'Consolas', monospace;
+        font-size: 11.5px; line-height: 2.0;
+        overflow-x: auto;
+    }
+    .trm { display: flex; align-items: baseline; gap: 9px; color: var(--text-2); }
+    .trm .pfx { flex: 0 0 auto; color: var(--text-3); }
+    .trm .txt { min-width: 0; }
+    .trm.think { white-space: pre-wrap; }
+    .trm.cmd { white-space: nowrap; color: var(--text-2); transition: color 0.2s; }
+    .trm.cmd .txt { color: var(--text-1); }
+    .trm.cmd.run { color: var(--text-1); }
+    .trm .crt { flex: 0 0 auto; align-self: center; width: 6px; height: 12px; background: var(--text-2); animation: blink 1s steps(1) infinite; }
+    .trm .stat { display: none; margin-left: auto; font-size: 11px; }
+    .trm.cmd.done .crt, .trm.cmd.fail .crt { display: none; }
+    .trm.cmd.done .st-ok { display: inline; color: var(--ok); }
+    .trm.cmd.fail .st-bad { display: inline; color: var(--err); }
+    .trm.out { padding-left: 20px; color: var(--text-3); white-space: pre-wrap; }
+    .trm.out.errout .txt { color: var(--err); opacity: 0.85; }
+    .trm.fin .pfx { color: var(--ok); }
+    .trm.fin .txt { color: var(--text-1); }
+
+    /* ============================================================
+       V8 · 焦点卡片（堆叠历史 + 单步聚光灯）
+       ============================================================ */
+    .af8 { display: flex; flex-direction: column; align-items: flex-start; }
+    .stk {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 5px 13px; border-radius: 100px;
+        border: 1px solid var(--line); background: transparent; color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .stk:hover { background: var(--hover); color: var(--text-1); }
+    .stk b { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-1); }
+    .stk .ic { width: 11px; height: 11px; color: var(--text-3); }
+    .af8-hist {
+        display: flex; flex-wrap: wrap; gap: 6px; align-self: stretch;
+        max-height: 0; overflow: hidden; opacity: 0; margin-top: 0;
+        transition: max-height 0.35s ease, opacity 0.25s ease, margin 0.35s ease;
+    }
+    .af8-hist.open { max-height: 150px; opacity: 1; margin-top: 12px; }
+    .think8-wrap { position: relative; align-self: stretch; min-height: 22px; margin-top: 14px; }
+    .think8 {
+        position: absolute; inset: 0;
+        display: flex; gap: 7px; align-items: baseline;
+        font-size: 12px; color: var(--text-2); line-height: 1.65;
+        transition: opacity 0.3s;
+    }
+    .think8.past { opacity: 0; }
+    .think8 .ic { width: 11px; height: 11px; align-self: center; color: var(--text-3); }
+    .think8 .t-shim {
+        background: linear-gradient(90deg, var(--text-2) 40%, var(--shimmer-hi) 50%, var(--text-2) 60%);
+        background-size: 200% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 2s linear infinite;
+    }
+    .stage[data-v="v8"].finished .think8-wrap,
+    .stage[data-v="v8"].finished .af8-fwrap { display: none; }
+    .af8-done { display: none; margin-top: 14px; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
+    .stage[data-v="v8"].finished .af8-done { display: flex; }
+    .af8-done .ic { color: var(--ok); }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+    footer.note b { color: var(--text-2); font-weight: 600; }
+</style>
+</head>
+<body data-theme="dark">
+
+    <!-- SVG 符号库 -->
+    <svg width="0" height="0" style="position:absolute">
+        <symbol id="i-read" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+        <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
+        <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-5-6-5"/><path d="M12 19h8"/></symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5Z"/></symbol>
+        <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    </svg>
+
+    <div class="bar">
+        <h1>Act Flow 执行过程重设计 · 续篇<small>四个新方向 · 深浅主题 · 每个舞台可重放执行时序</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- ============ V5 ============ -->
+        <section class="vblock">
+            <header><span class="no">V5</span><h2>阶段泳道</h2></header>
+            <p class="desc">把执行组织成三段认知阶段：<b>理解 → 修改 → 验证</b>。每个阶段是一条独立泳道，当前阶段左侧墨色竖条 + 文字提亮，完成的阶段在阶段名右侧留下「✓ 步数」徽标。强调「现在进行到哪一类工作」，回看历史时结构一目了然；代价是阶段划分需要模型在思考里显式声明，或按工具类型推断。</p>
+            <div class="stage" data-stage data-v="v5">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（阶段依次点亮）</div>
+                <div class="af5">
+                    <div class="ph fx" data-at="0">
+                        <div class="ph-head"><span class="ph-no">01</span><span class="ph-name">理解</span><span class="ph-rule"></span><span class="ph-meta"><svg class="ic"><use href="#i-check"/></svg>2 步</span></div>
+                        <div class="ph-th">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</div>
+                        <div class="ph-tools">
+                            <button class="chip fx" data-at="700"><svg class="ic"><use href="#i-read"/></svg>读取 model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                            <button class="chip fx" data-at="1300"><svg class="ic"><use href="#i-read"/></svg>搜索 aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        </div>
+                    </div>
+                    <div class="ph fx" data-at="2100">
+                        <div class="ph-head"><span class="ph-no">02</span><span class="ph-name">修改</span><span class="ph-rule"></span><span class="ph-meta"><svg class="ic"><use href="#i-check"/></svg>2 步</span></div>
+                        <div class="ph-th">调用方只有 TokenStatService，直接在聚合处按日分组，不动接口。</div>
+                        <div class="ph-tools">
+                            <button class="chip fx" data-at="2700" data-end="fail"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                            <button class="chip fx" data-at="3400"><svg class="ic"><use href="#i-edit"/></svg>编辑 TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        </div>
+                    </div>
+                    <div class="ph fx" data-at="4100">
+                        <div class="ph-head"><span class="ph-no">03</span><span class="ph-name">验证</span><span class="ph-rule"></span><span class="ph-meta"><svg class="ic"><use href="#i-check"/></svg>1 步</span></div>
+                        <div class="ph-th">编译验证改动，确认无回归。</div>
+                        <div class="ph-tools">
+                            <button class="chip fx" data-at="4700"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="tbar fx" data-at="0"><span class="spin st"></span><span class="tb-text" data-orig="正在思考…" data-done="执行完成 · 5 步 · 12.4s · 3 个阶段">正在思考…</span></div>
+            </div>
+        </section>
+
+        <!-- ============ V6 ============ -->
+        <section class="vblock">
+            <header><span class="no">V6</span><h2>步骤轨道 · 焦点视图</h2></header>
+            <p class="desc">聊天流只保留<b>当前焦点</b>：主区仅一条思考 + 一张当前工具卡（含实时输出），全部步骤压缩成右侧一条<b>细轨迷你地图</b>——执行中逐节点亮、失败节点标红，完成后点击任意节点即可回看该步。长执行时信息密度最低、定位最快；代价是需要维护主区与轨道的双向联动。</p>
+            <div class="stage" data-stage data-v="v6">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（完成后点击右侧轨道回看）</div>
+                <div class="af6">
+                    <div class="af6-main">
+                        <div class="th fx" data-at="0"><svg class="ic"><use href="#i-spark"/></svg><span>先看模型配置的读取路径，确认 Token 统计在哪里聚合。</span></div>
+                        <div class="th fx" data-at="2000"><svg class="ic"><use href="#i-spark"/></svg><span>调用方只有 TokenStatService，在聚合处按日分组。</span></div>
+                        <div class="th fx" data-at="4700"><svg class="ic"><use href="#i-spark"/></svg><span>编译通过，按日聚合已生效，整理变更说明。</span></div>
+                        <div class="fwrap">
+                            <div class="fcard" data-fc="0">
+                                <div class="fc-head"><svg class="ic"><use href="#i-read"/></svg><b>读取</b><span class="fc-file">src/config/model-config.ts</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                                <pre class="fc-out"><span class="dim2"># 86 行 · tokens 聚合入口：</span><span class="hl">provider:</span>
+  baseUrl: https://api.example.com/v1
+  model: qualia-max</pre>
+                                <div class="fc-foot">步骤 1 / 5 · 0.8s</div>
+                            </div>
+                            <div class="fcard" data-fc="1">
+                                <div class="fc-head"><svg class="ic"><use href="#i-read"/></svg><b>搜索</b><span class="fc-file">aggregateDaily</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                                <pre class="fc-out">aggregateDaily  <span class="dim2">→</span>  <span class="hl">TokenStatService.java:47</span>
+aggregateDaily  <span class="dim2">→</span>  TokenStatService.java:112 <span class="dim2">(仅定义)</span></pre>
+                                <div class="fc-foot">步骤 2 / 5 · 0.6s</div>
+                            </div>
+                            <div class="fcard" data-fc="2">
+                                <div class="fc-head"><svg class="ic"><use href="#i-edit"/></svg><b>编辑</b><span class="fc-file">TokenStatService.java</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                                <pre class="fc-out"><span class="dim2">- collect(stats)          // 旧：总量累加</span><span class="hl">+ collect(stats) {        // 新：按日分组</span><span class="hl">+   groupingBy(s -> day(s.timestamp()),</span><span class="hl">+     summingLong(TokenStat::total))</span></pre>
+                                <div class="fc-foot">步骤 3-4 / 5 · 重试 1 次 · 2.1s</div>
+                            </div>
+                            <div class="fcard" data-fc="3">
+                                <div class="fc-head"><svg class="ic"><use href="#i-term"/></svg><b>执行</b><span class="fc-file">mvn -q compile</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                                <pre class="fc-out"><span class="dim2">$ mvn -q compile</span>[INFO] BUILD SUCCESS  ·  3.2s</pre>
+                                <div class="fc-foot">步骤 5 / 5 · 3.2s</div>
+                            </div>
+                        </div>
+                        <div class="af6-sum"><svg class="ic"><use href="#i-check"/></svg>执行完成 · 5 步 · 12.4s · 点击右侧轨道节点回看任意步骤</div>
+                    </div>
+                    <div class="af6-rail">
+                        <button class="rl fx" data-at="700" data-tool data-fc="0" title="读取 model-config.ts"><svg><use href="#i-read"/></svg></button>
+                        <button class="rl fx" data-at="1300" data-tool data-fc="1" title="搜索 aggregateDaily"><svg><use href="#i-read"/></svg></button>
+                        <button class="rl fx" data-at="2600" data-tool data-fc="2" data-end="fail" title="编辑 TokenStatService.java"><svg><use href="#i-edit"/></svg></button>
+                        <button class="rl fx" data-at="3300" data-tool data-fc="2" title="编辑 TokenStatService.java（重试）"><svg><use href="#i-edit"/></svg></button>
+                        <button class="rl fx" data-at="4000" data-tool data-fc="3" title="mvn -q compile"><svg><use href="#i-term"/></svg></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V7 ============ -->
+        <section class="vblock">
+            <header><span class="no">V7</span><h2>终端流</h2></header>
+            <p class="desc">面向开发者审美的<b>日志视图</b>：整个执行装进一个仿终端面板，等宽字体——思考以 <b>»</b> 前缀、工具以 <b>$ 命令行</b>呈现，运行中带块状光标闪烁，失败输出红色错误行，结尾停在等待输入的提示符。氛围感最强、与 CLI 心智一致，落地仅需替换 .act-flow 外壳，成本最低；代价是中文思考文本在等宽字体下行宽消耗较快。</p>
+            <div class="stage" data-stage data-v="v7">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（终端日志流）</div>
+                <div class="term">
+                    <div class="term-bar"><i></i><i></i><i></i><span>qualia · act — session 7f3a</span></div>
+                    <div class="term-body">
+                        <div class="trm think fx" data-at="0"><span class="pfx">»</span><span class="txt">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</span></div>
+                        <div class="trm cmd fx" data-at="700" data-tool><span class="pfx">$</span><span class="txt">read src/config/model-config.ts</span><span class="crt"></span><span class="stat st-ok">✓</span><span class="stat st-bad">✗</span></div>
+                        <div class="trm out fx" data-at="1050"><span class="txt">→ tokens 聚合入口：TokenStatService#aggregateDaily</span></div>
+                        <div class="trm cmd fx" data-at="1600" data-tool data-end="fail"><span class="pfx">$</span><span class="txt">edit src/.../TokenStatService.java</span><span class="crt"></span><span class="stat st-ok">✓</span><span class="stat st-bad">✗</span></div>
+                        <div class="trm out errout fx" data-at="2150"><span class="txt">✗ write failed: file modified on disk</span></div>
+                        <div class="trm cmd fx" data-at="2700" data-tool><span class="pfx">$</span><span class="txt">edit src/.../TokenStatService.java</span><span class="crt"></span><span class="stat st-ok">✓</span><span class="stat st-bad">✗</span></div>
+                        <div class="trm cmd fx" data-at="3400" data-tool><span class="pfx">$</span><span class="txt">mvn -q compile</span><span class="crt"></span><span class="stat st-ok">✓</span><span class="stat st-bad">✗</span></div>
+                        <div class="trm out fx" data-at="3900"><span class="txt">[INFO] BUILD SUCCESS · 3.2s</span></div>
+                        <div class="trm think fx" data-at="4400"><span class="pfx">»</span><span class="txt">编译通过，按日聚合已生效，整理变更说明。</span></div>
+                        <div class="trm fin fx" data-at="5000"><span class="pfx">✓</span><span class="txt">done in 12.4s</span></div>
+                        <div class="trm cmd fx" data-at="5300"><span class="pfx">$</span><span class="txt">&nbsp;</span><span class="crt"></span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ V8 ============ -->
+        <section class="vblock">
+            <header><span class="no">V8</span><h2>焦点卡片 · 堆叠历史</h2></header>
+            <p class="desc"><b>一次只看一件事</b>：历史步骤收纳进顶部堆叠条（实时计数，点击展开完整清单），视口中央只留<b>当前步骤的大卡片</b>——工具、目标、实时输出、步数进度。当前上下文最强、视觉最安静；代价是全局视野弱，回看需点击堆叠条，落地时要处理卡片叠放切换动画与 messageStepsMap 的步数记录。</p>
+            <div class="stage" data-stage data-v="v8">
+                <button class="replay"><svg><use href="#i-play"/></svg>重放</button>
+                <div class="stage-label">EXECUTING → FINISHED（完成后点堆叠条展开历史）</div>
+                <div class="af8">
+                    <button class="stk fx" data-at="0"><span>已完成</span><b class="stk-num">0</b><span>步</span><svg class="ic"><use href="#i-chev"/></svg></button>
+                    <div class="af8-hist">
+                        <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>model-config.ts<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        <button class="mini done"><svg class="ic"><use href="#i-read"/></svg>aggregateDaily<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        <button class="mini fail"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-bad"><svg><use href="#i-x"/></svg></span></button>
+                        <button class="mini done"><svg class="ic"><use href="#i-edit"/></svg>TokenStatService.java<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                        <button class="mini done"><svg class="ic"><use href="#i-term"/></svg>mvn -q compile<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                    </div>
+                    <div class="think8-wrap">
+                        <div class="think8 fx" data-at="0"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">先看模型配置的读取路径，确认 Token 统计在哪里聚合。</span></div>
+                        <div class="think8 fx" data-at="2000"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">调用方只有 TokenStatService，在聚合处按日分组。</span></div>
+                        <div class="think8 fx" data-at="4700"><svg class="ic"><use href="#i-spark"/></svg><span class="t-shim">编译通过，整理变更说明。</span></div>
+                    </div>
+                    <div class="af8-fwrap fwrap">
+                        <div class="fcard" data-at="700" data-tool data-n="2">
+                            <div class="fc-head"><svg class="ic"><use href="#i-read"/></svg><b>读取 + 搜索</b><span class="fc-file">model-config.ts → aggregateDaily</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                            <pre class="fc-out"><span class="dim2"># model-config.ts · tokens 聚合入口</span><span class="hl">aggregateDaily  →  TokenStatService.java:47</span></pre>
+                            <div class="fc-foot">步骤 1-2 / 5 · 1.4s</div>
+                        </div>
+                        <div class="fcard" data-at="2600" data-tool data-n="2">
+                            <div class="fc-head"><svg class="ic"><use href="#i-edit"/></svg><b>编辑</b><span class="fc-file">TokenStatService.java</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                            <pre class="fc-out"><span class="dim2">- collect(stats)          // 旧：总量累加</span><span class="hl">+ collect(stats) {        // 新：按日分组</span><span class="hl">+   groupingBy(s -> day(s.timestamp()))</span></pre>
+                            <div class="fc-foot">步骤 3-4 / 5 · 重试 1 次 · 2.1s</div>
+                        </div>
+                        <div class="fcard" data-at="4100" data-tool data-n="1">
+                            <div class="fc-head"><svg class="ic"><use href="#i-term"/></svg><b>执行</b><span class="fc-file">mvn -q compile</span><span class="fc-state"><span class="st st-ok"><svg><use href="#i-check"/></svg></span><span class="st st-bad"><svg><use href="#i-x"/></svg></span><span class="spin st"></span></span></div>
+                            <pre class="fc-out"><span class="dim2">$ mvn -q compile</span>[INFO] BUILD SUCCESS  ·  3.2s</pre>
+                            <div class="fc-foot">步骤 5 / 5 · 3.2s</div>
+                        </div>
+                    </div>
+                    <div class="af8-done"><svg class="ic"><use href="#i-check"/></svg>执行完成 · 5 步 · 12.4s · 点击上方堆叠条回看</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        续篇说明：V5-V8 与首篇四版本共用同一套墨白 / 石墨主题变量与状态语义（<b>绿色仅表示成功状态、红色仅表示失败</b>，装饰不占用主题色）。V5 需要阶段标注来源（模型显式声明，或按工具类型推断）；V6 是焦点卡 + 轨道的双组件联动，完成后点击右侧轨道节点可回看；V7 仅需替换 .act-flow 外壳，落地成本最低；V8 需要步骤级流式输出与卡片叠放切换，堆叠条点击可展开历史。所有舞台右上角「重放」可再看一次执行时序。
+    </footer>
+
+    <script>
+        /* ===== 主题切换 ===== */
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+
+        /* ===== 播放引擎（扩展版）：data-at 时序入场，工具 run → done/fail，版本钩子联动 ===== */
+        const TOOL_SEL = '.chip,.mini,[data-tool]';
+        const CUR_SEL = '.th,.ph';
+        const hooks = {
+            v5: {
+                step(stage, el) {
+                    if (el.classList.contains('ph')) {
+                        let p = el.previousElementSibling;
+                        while (p) { if (p.classList.contains('ph')) p.classList.add('ok'); p = p.previousElementSibling; }
+                    }
+                },
+                settle(stage) { stage.querySelectorAll('.ph').forEach(p => p.classList.add('ok')); }
+            },
+            v6: {
+                step(stage, el, phase) {
+                    if (el.classList.contains('rl')) {
+                        const fc = stage.querySelector('.af6-main .fcard[data-fc="' + el.dataset.fc + '"]');
+                        if (!fc) return;
+                        if (phase === 'start') {
+                            stage.querySelectorAll('.af6-main .fcard').forEach(f => { if (f !== fc) f.classList.remove('on', 'bad', 'end'); });
+                            fc.classList.add('on');
+                            fc.classList.remove('bad', 'end');
+                            stage.querySelector('.af6-sum').classList.remove('show');
+                        } else {
+                            fc.classList.add(el.dataset.end === 'fail' ? 'bad' : 'end');
+                        }
+                    }
+                },
+                settle(stage) {
+                    stage.querySelector('.af6-sum').classList.add('show');
+                    stage.querySelectorAll('.af6-main .th').forEach(t => t.classList.add('dim'));
+                    const fcs = stage.querySelectorAll('.af6-main .fcard');
+                    fcs.forEach((f, i) => {
+                        f.classList.toggle('on', i === fcs.length - 1);
+                        f.classList.remove('bad');
+                        f.classList.toggle('end', i === fcs.length - 1);
+                    });
+                }
+            },
+            v8: {
+                step(stage, el, phase) {
+                    if (el.classList.contains('think8')) {
+                        stage.querySelectorAll('.think8').forEach(t => { if (t !== el) t.classList.add('past'); });
+                    }
+                    if (el.classList.contains('fcard')) {
+                        if (phase === 'start') {
+                            stage.querySelectorAll('.fcard').forEach(f => { if (f !== el) f.classList.remove('on', 'bad', 'end'); });
+                            el.classList.add('on');
+                        } else {
+                            el.classList.add('end');
+                            const num = stage.querySelector('.stk-num');
+                            if (num && el.dataset.n) num.textContent = (+num.textContent || 0) + (+el.dataset.n);
+                        }
+                    }
+                },
+                settle(stage) {
+                    const num = stage.querySelector('.stk-num');
+                    if (num) num.textContent = '5';
+                    stage.querySelectorAll('.think8').forEach(t => t.classList.add('past'));
+                }
+            }
+        };
+        function isTool(el) { return el.matches(TOOL_SEL); }
+        function settle(stage) {
+            stage.querySelectorAll('[data-at]').forEach(el => {
+                el.classList.add('show');
+                el.classList.remove('run', 'cur');
+                if (isTool(el)) el.classList.add(el.dataset.end || 'done');
+            });
+            stage.classList.add('finished');
+            const h = hooks[stage.dataset.v];
+            if (h && h.settle) h.settle(stage);
+            const tt = stage.querySelector('.tbar .tb-text');
+            if (tt) tt.textContent = tt.dataset.done || '';
+        }
+        function play(stage) {
+            const els = [...stage.querySelectorAll('[data-at]')];
+            const max = Math.max(...els.map(e => +e.dataset.at));
+            stage.classList.remove('finished');
+            const tt = stage.querySelector('.tbar .tb-text');
+            if (tt) tt.textContent = tt.dataset.orig || '';
+            els.forEach(el => el.classList.remove('show', 'run', 'done', 'fail', 'cur'));
+            stage.querySelectorAll('.ph').forEach(p => p.classList.remove('ok'));
+            stage.querySelectorAll('.fcard').forEach(f => f.classList.remove('on', 'bad', 'end'));
+            stage.querySelectorAll('.think8').forEach(t => t.classList.remove('past'));
+            stage.querySelectorAll('.rl.on').forEach(r => r.classList.remove('on'));
+            stage.querySelectorAll('.af6-sum').forEach(s => s.classList.remove('show'));
+            stage.querySelectorAll('.af6-main .th').forEach(t => t.classList.remove('dim'));
+            const stkNum = stage.querySelector('.stk-num');
+            if (stkNum) stkNum.textContent = '0';
+            const h = hooks[stage.dataset.v];
+            els.forEach(el => {
+                setTimeout(() => {
+                    el.classList.add('show');
+                    if (h && h.step) h.step(stage, el, 'start');
+                    if (isTool(el)) {
+                        el.classList.add('run');
+                        setTimeout(() => {
+                            el.classList.remove('run');
+                            el.classList.add(el.dataset.end || 'done');
+                            if (h && h.step) h.step(stage, el, 'end');
+                        }, 520);
+                    }
+                    if (el.matches(CUR_SEL)) {
+                        stage.querySelectorAll('.cur').forEach(t => t.classList.remove('cur'));
+                        el.classList.add('cur');
+                    }
+                }, +el.dataset.at);
+            });
+            setTimeout(() => settle(stage), max + 900);
+        }
+        document.querySelectorAll('[data-stage]').forEach(stage => {
+            settle(stage);
+            stage.querySelector('.replay').addEventListener('click', () => play(stage));
+        });
+
+        /* ===== V6 轨道节点：完成态点击回看对应步骤 ===== */
+        document.querySelectorAll('.af6 .rl').forEach(rl => {
+            rl.addEventListener('click', () => {
+                const stage = rl.closest('[data-stage]');
+                stage.querySelectorAll('.rl.on').forEach(x => x.classList.remove('on'));
+                rl.classList.add('on');
+                stage.querySelectorAll('.af6-main .fcard').forEach(f => f.classList.toggle('on', f.dataset.fc === rl.dataset.fc));
+                stage.querySelector('.af6-sum').classList.remove('show');
+                stage.querySelectorAll('.af6-main .th').forEach(t => t.classList.remove('dim'));
+            });
+        });
+
+        /* ===== V8 堆叠条：展开 / 收起历史清单 ===== */
+        document.querySelectorAll('.af8 .stk').forEach(stk => {
+            stk.addEventListener('click', () => stk.closest('.af8').querySelector('.af8-hist').classList.toggle('open'));
+        });
+    </script>
+</body>
+</html>

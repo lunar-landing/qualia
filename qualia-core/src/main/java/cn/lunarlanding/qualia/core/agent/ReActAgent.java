@@ -101,6 +101,13 @@ public class ReActAgent implements Agent {
     }
 
     /**
+     * 按名称移除技能（技能热重载用）
+     */
+    public boolean removeSkill(String name) {
+        return skills.removeIf(s -> java.util.Objects.equals(s.getName(), name));
+    }
+
+    /**
      * 动态替换ChatModel（用于模型切换）
      * 
      * @param model 新的ChatModel实例
@@ -132,8 +139,10 @@ public class ReActAgent implements Agent {
      * 获取当前可用工具
      * 技能脚本通过 SkillScriptRunner 统一调用，不单独暴露
      * 技能列表为空时，过滤掉 skill 相关工具，避免模型猜测加载不存在的技能
+     * 只读问答模式（readOnly）下，仅保留 isReadOnly 工具：
+     * 注解自定义工具、MCP 工具等默认视为有副作用，一并移除
      */
-    private List<FunctionTool> getAvailableTools() {
+    private List<FunctionTool> getAvailableTools(boolean readOnly) {
         List<FunctionTool> availableTools = new ArrayList<>(tools);
         if (skills.isEmpty()) {
             availableTools.removeIf(tool ->
@@ -141,6 +150,9 @@ public class ReActAgent implements Agent {
                 tool instanceof SkillScriptRunner ||
                 tool instanceof SkillReferenceReader
             );
+        }
+        if (readOnly) {
+            availableTools.removeIf(tool -> !tool.isReadOnly());
         }
         return availableTools;
     }
@@ -258,9 +270,12 @@ public class ReActAgent implements Agent {
 
     /**
      * 根据名称在可用工具中查找
+     *
+     * <p>固定传 {@code readOnly=false}：只查注册表全量（技能空过滤照常），
+     * 只读模式的拦截由执行兜底统一完成，保证错误文案准确（"只读模式下不可用"而非"不存在"）。</p>
      */
     private FunctionTool findToolByName(String name) {
-        for (FunctionTool tool : getAvailableTools()) {
+        for (FunctionTool tool : getAvailableTools(false)) {
             if (tool.getClass().getSimpleName().equals(name) || tool.getName().equals(name)) {
                 return tool;
             }
@@ -271,9 +286,9 @@ public class ReActAgent implements Agent {
     /**
      * 获取当前可用工具名称列表（用于工具不存在时反馈给模型，供其自行纠正）
      */
-    private String availableToolNames() {
+    private String availableToolNames(boolean readOnly) {
         List<String> names = new ArrayList<>();
-        for (FunctionTool tool : getAvailableTools()) {
+        for (FunctionTool tool : getAvailableTools(readOnly)) {
             names.add(tool.getName());
         }
         return names.isEmpty() ? "无" : String.join(", ", names);
@@ -313,10 +328,26 @@ public class ReActAgent implements Agent {
      */
     @Override
     public Flux<AgentResponse> callStream(String sessionId, String input, List<Attachment> attachments) {
+        return callStream(sessionId, input, attachments, null);
+    }
+
+    /**
+     * 流式运行智能体（携带附件与会话选项）
+     *
+     * @param sessionId   会话编号
+     * @param input       输入（可为空字符串，表示纯附件提问）
+     * @param attachments 随消息发送的附件列表，可为 null
+     * @param options     会话选项，null = 全部默认值（只读问答等开关见 {@link CallOptions}）
+     */
+    public Flux<AgentResponse> callStream(String sessionId, String input, List<Attachment> attachments, CallOptions options) {
 
         if (sessionId == null || sessionId.isEmpty()) {
             throw new IllegalArgumentException("sessionId 不能为空");
         }
+
+        // 只读问答开关在入口立即解析为局部变量，贯穿本次请求；
+        // 若作为实例字段，单实例多会话并发时会互相覆盖（对齐 detectedLanguage 先例）
+        final boolean readOnly = options != null && Boolean.TRUE.equals(options.getReadOnly());
 
         boolean hasAttachments = attachments != null && !attachments.isEmpty();
         // 附件以引用元数据（名称+类型）随记忆存储，正文与 base64 不入记忆；
@@ -341,8 +372,8 @@ public class ReActAgent implements Agent {
             // 若作为实例字段，单实例多会话并发时会互相覆盖导致提示词语言污染
             String detectedLanguage = detectLanguage(memoryText);
             List<AgentStep> allSteps = Collections.synchronizedList(new ArrayList<>());
-            List<ChatMessage> messages = initializeMessages(sessionId, input, attachments, detectedLanguage, emitter, allSteps);
-            runIteration(emitter, messages, new AtomicInteger(0), startTime, allSteps, sessionId, usageAccumulator, detectedLanguage);
+            List<ChatMessage> messages = initializeMessages(sessionId, input, attachments, detectedLanguage, readOnly, emitter, allSteps);
+            runIteration(emitter, messages, new AtomicInteger(0), startTime, allSteps, sessionId, usageAccumulator, detectedLanguage, readOnly);
         });
     }
 
@@ -360,10 +391,11 @@ public class ReActAgent implements Agent {
      * @param input       输入
      * @param attachments 随消息发送的附件列表，可为 null
      * @param detectedLanguage 本次请求检测到的用户语言（通过参数传递，避免并发会话互相污染）
+     * @param readOnly 只读问答开关（本次请求内有效，传递给系统提示词构建）
      * @param emitter SSE 发射器（用于推送压缩步骤）
      * @param allSteps 步骤收集器（用于存储压缩步骤）
      */
-    private List<ChatMessage> initializeMessages(String sessionId, String input, List<Attachment> attachments, String detectedLanguage, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
+    private List<ChatMessage> initializeMessages(String sessionId, String input, List<Attachment> attachments, String detectedLanguage, boolean readOnly, FluxSink<AgentResponse> emitter, List<AgentStep> allSteps) {
         logger.info("[ReActAgent] initializeMessages sessionId={}", sessionId);
         
         List<ChatMessage> chatMessages = new ArrayList<>();
@@ -377,7 +409,7 @@ public class ReActAgent implements Agent {
             logger.info("[ReActAgent]   {} : {}", role, preview);
         }
         appendRecentMessages(chatMessages, contextMessages);
-        chatMessages.add(ChatMessage.system(buildSystemPrompt(detectedLanguage)));
+        chatMessages.add(ChatMessage.system(buildSystemPrompt(detectedLanguage, readOnly)));
         if (attachments != null && !attachments.isEmpty()) {
             // 文档附件的正文边界块（截断到上限）；有图片时作为文本块随多模态消息发送，无图片时拼入纯文本消息
             String docBlock = buildDocumentBlock(attachments);
@@ -484,7 +516,8 @@ public class ReActAgent implements Agent {
                               List<AgentStep> allSteps,
                               String sessionId,
                               int[] usageAccumulator,
-                              String detectedLanguage) {
+                              String detectedLanguage,
+                              boolean readOnly) {
 
 
         int current = iterationCount.get();
@@ -546,7 +579,7 @@ public class ReActAgent implements Agent {
                 if (tool == null) {
                     // 工具可能被动态移除或模型幻觉出工具名：作为观察结果反馈给模型自行纠正，不终止会话
                     String missingToolMsg = "错误：工具 '" + toolRequest.toolName()
-                            + "' 不存在或已被移除。可用工具：" + availableToolNames();
+                            + "' 不存在或已被移除。可用工具：" + availableToolNames(readOnly);
                     combinedResult.append("【").append(toolRequest.toolName()).append("】\n")
                             .append(missingToolMsg).append("\n");
 
@@ -559,6 +592,27 @@ public class ReActAgent implements Agent {
                     missingToolResponse.setResponseType("step");
                     missingToolResponse.addStep(missingToolStep);
                     emitter.next(missingToolResponse);
+                    continue;
+                }
+
+                // 只读问答模式兜底：非只读工具已从 prompt 移除，模型幻觉调用时
+                // 以错误观察反馈（对齐「拒绝不是报错」语义），模型自行纠正，会话不中断
+                if (readOnly && !tool.isReadOnly()) {
+                    String blockedMsg = "错误：当前处于只读问答模式，工具 '" + toolRequest.toolName()
+                            + "' 不可用。请仅使用查询类工具完成任务；如需修改文件或执行命令，"
+                            + "请提示用户切换回智能体模式。";
+                    combinedResult.append("【").append(toolRequest.toolName()).append("】\n")
+                            .append(blockedMsg).append("\n");
+
+                    AgentStep blockedStep = new AgentStep();
+                    blockedStep.setStepType(AgentStep.StepType.OBSERVATION);
+                    blockedStep.setContent(blockedMsg);
+                    allSteps.add(blockedStep);
+
+                    AgentResponse blockedResponse = new AgentResponse();
+                    blockedResponse.setResponseType("step");
+                    blockedResponse.addStep(blockedStep);
+                    emitter.next(blockedResponse);
                     continue;
                 }
 
@@ -602,7 +656,7 @@ public class ReActAgent implements Agent {
 
             // 递归继续下一轮
             iterationCount.incrementAndGet();
-            runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator, detectedLanguage);
+            runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator, detectedLanguage, readOnly);
 
         } else {
 
@@ -893,7 +947,7 @@ public class ReActAgent implements Agent {
     /**
      * 构建系统提示词，包含当前可用工具信息和可用技能信息
      */
-    private String buildSystemPrompt(String detectedLanguage) {
+    private String buildSystemPrompt(String detectedLanguage, boolean readOnly) {
         StringBuilder prompt = new StringBuilder();
         // 首先注入用户配置的系统提示词（限制、角色定义等），确保 ReAct 推理阶段和最终回答阶段一致生效
         prompt.append(this.systemPrompt).append("\n\n");
@@ -906,8 +960,15 @@ public class ReActAgent implements Agent {
         // 使用统一的提示词（技能列表已封装为skill-selector工具）
         prompt.append(Constant.REACT_PROMPT_NO_SKILLS);
 
+        // 只读问答模式声明：引导模型仅检索与回答，不越界尝试写操作
+        if (readOnly) {
+            prompt.append("\n\n## 只读问答模式\n\n")
+                  .append("当前处于只读问答模式：仅检索与回答，不修改任何文件、不执行命令。")
+                  .append("如任务需要改动，给出具体建议改法，并提示用户切换回智能体模式执行。\n");
+        }
+
         // ===== 1. 拼接工具列表 =====
-        List<FunctionTool> availableTools = getAvailableTools();
+        List<FunctionTool> availableTools = getAvailableTools(readOnly);
 
         if (!availableTools.isEmpty()) {
             prompt.append("## 工具列表\n\n");

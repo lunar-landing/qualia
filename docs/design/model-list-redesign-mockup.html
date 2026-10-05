@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置 · 模型列表重设计 · 8 方案 · Qualia</title>
+<style>
+    /* ======================================================================
+       设置弹窗「模型」Tab 列表重设计：现状 240px 卡片网格（按钮常驻）的
+       四个方向。视觉基因与已落地的 D2 设置弹窗一致（含日间浅灰弹窗底
+       #f6f8fa + 白色卡片/输入的层次）。纯静态，无后端。
+       ====================================================================== */
+
+    body {
+        --bg-app: #080a10;
+        --sf: #131820;          /* 弹窗底（日间已落地为浅灰） */
+        --card: rgba(255, 255, 255, 0.03);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --tx: #e4e9f2;
+        --tx2: #8f97ae;
+        --tx3: #4f566b;
+        --hover: rgba(255, 255, 255, 0.045);
+        --accent: #e6edf3;
+        --accent-ink: #0d1117;
+        --amber: #f59e0b;
+        --green: #34d399;
+        --red: #f87171;
+        --page-bg: #05070b;
+    }
+    body[data-scheme="light"] {
+        --bg-app: #ffffff;
+        --sf: #f6f8fa;          /* 与落地代码一致：浅灰弹窗底 */
+        --card: #ffffff;
+        --line: #d0d7de;
+        --line-soft: #e4e9ee;
+        --tx: #1f2328;
+        --tx2: #57657a;
+        --tx3: #8c959f;
+        --hover: #e9edf1;
+        --accent: #24292f;
+        --accent-ink: #ffffff;
+        --amber: #9a6700;
+        --green: #1a7f37;
+        --red: #cf222e;
+        --page-bg: #dfe3e8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page-bg);
+        color: var(--tx);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 70px;
+        transition: background 0.25s;
+    }
+
+    .page-head { max-width: 1080px; margin: 0 auto 6px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: var(--tx2); margin-top: 7px; line-height: 1.75; }
+
+    .ctrl-bar {
+        max-width: 1080px; margin: 18px auto 8px;
+        display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+        font-size: 12px; color: var(--tx2);
+    }
+    .ctrl-btn {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent;
+        color: var(--tx2); font-size: 12px; transition: all 0.15s; font-family: inherit;
+    }
+    .ctrl-btn:hover { color: var(--tx); border-color: var(--tx3); }
+    .ctrl-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+    .ver-sec { max-width: 1080px; margin: 34px auto 0; }
+    .ver-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+    .ver-badge {
+        font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+        color: var(--tx); border: 1px solid var(--line);
+        border-radius: 6px; padding: 2px 9px;
+    }
+    .ver-name { font-size: 15px; font-weight: 600; }
+    .ver-desc { font-size: 12px; color: var(--tx2); line-height: 1.7; margin-bottom: 14px; }
+
+    /* ===== 公共小件 ===== */
+    .dot { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .dot.dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
+    .dot.deepseek { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
+    .dot.xiaomi { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+    .dot.openai { background: linear-gradient(145deg, #30333e, #5a5f70); }
+
+    .tag {
+        display: inline-flex; align-items: center;
+        font-size: 10.5px; line-height: 1; padding: 3px 8px;
+        border-radius: 5px; color: var(--tx2);
+        border: 1px solid var(--line); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace;
+    }
+    .tag.warn { color: var(--amber); border-color: transparent; background: rgba(245, 158, 11, 0.12); font-family: inherit; }
+    .tag.def { color: var(--tx); background: var(--accent); border-color: var(--accent); font-family: inherit; font-weight: 600; }
+
+    .btn {
+        font-size: 11.5px; padding: 4px 11px; border-radius: 7px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent; color: var(--tx2);
+        font-family: inherit; transition: all 0.15s;
+    }
+    .btn:hover { color: var(--tx); border-color: var(--tx3); }
+    .btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .btn.pri:hover { opacity: 0.88; }
+    .btn.dgr:hover { color: var(--red); border-color: var(--red); }
+
+    .mono { font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+
+    /* ===== 内容面板：模拟 D2 设置弹窗内容列 ===== */
+    .panel {
+        width: 760px; max-width: 100%;
+        background: var(--sf); border: 1px solid var(--line);
+        border-radius: 14px; padding: 18px 20px 20px;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+    }
+    body[data-scheme="light"] .panel { box-shadow: 0 16px 40px rgba(31, 35, 40, 0.14); }
+    .sec-head { margin-bottom: 14px; }
+    .sec-title { font-size: 13.5px; font-weight: 650; }
+    .sec-sub { font-size: 11.5px; color: var(--tx3); margin-top: 3px; }
+
+    /* ======================================================================
+       M1 行式列表（IDE 风）：一条一行，密度高，操作 hover 浮出
+       ====================================================================== */
+    .m1-list { display: flex; flex-direction: column; }
+    .m1-row {
+        position: relative; display: flex; align-items: center; gap: 12px;
+        padding: 10px 12px 10px 14px; border-radius: 9px;
+        border: 1px solid transparent; cursor: pointer;
+        transition: background 0.15s;
+    }
+    .m1-row + .m1-row { margin-top: 2px; }
+    .m1-row:hover { background: var(--hover); }
+    .m1-row.is-def { background: var(--card); border-color: var(--line); }
+    .m1-row.is-def::before {
+        content: ""; position: absolute; left: -1px; top: 9px; bottom: 9px;
+        width: 3px; border-radius: 3px; background: var(--accent);
+    }
+    .m1-row.hov { background: var(--hover); }
+    .m1-info { min-width: 0; flex: 1; }
+    .m1-nm { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .m1-id { font-size: 11.5px; color: var(--tx2); margin-top: 3px; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m1-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .m1-ops { display: flex; gap: 6px; flex-shrink: 0; visibility: hidden; }
+    .m1-row.hov .m1-ops, .m1-row:hover .m1-ops { visibility: visible; }
+    .m1-add {
+        margin-top: 10px; padding: 9px; border-radius: 9px; text-align: center;
+        border: 1px dashed var(--line); color: var(--tx2); font-size: 12px; cursor: pointer;
+        transition: all 0.15s;
+    }
+    .m1-add:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+
+    /* ======================================================================
+       M2 卡片网格精修：层级重排 + 默认顶边条 + hover 底部操作滑出
+       ====================================================================== */
+    .m2-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+    .m2-card {
+        position: relative; border-radius: 11px; overflow: hidden;
+        background: var(--card); border: 1px solid var(--line);
+        padding: 14px 14px 12px; cursor: pointer;
+        transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+    }
+    .m2-card:hover { border-color: var(--tx3); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22); }
+    .m2-card.is-def { border-color: var(--accent); }
+    .m2-card.is-def::before {
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent);
+    }
+    .m2-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .m2-pv { font-size: 12px; color: var(--tx2); }
+    .m2-brand .tag { margin-left: auto; }
+    .m2-id { font-size: 15px; font-weight: 650; letter-spacing: -0.2px; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m2-nm { font-size: 11.5px; color: var(--tx2); margin-top: 4px; }
+    .m2-meta { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 10.5px; color: var(--tx3); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m2-meta .kd { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .m2-meta .kd.no { background: var(--amber); }
+    .m2-url { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m2-ops {
+        display: flex; gap: 6px; margin-top: 11px; padding-top: 10px;
+        border-top: 1px solid var(--line-soft);
+        opacity: 0; transform: translateY(4px); transition: all 0.18s;
+    }
+    .m2-card.hov .m2-ops, .m2-card:hover .m2-ops { opacity: 1; transform: none; }
+    .m2-add {
+        border: 1px dashed var(--line); border-radius: 11px; min-height: 128px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+        color: var(--tx2); font-size: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .m2-add:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+    .m2-add .pl { font-size: 17px; }
+
+    /* ======================================================================
+       M5 双列卡片 · 与工具 Tab（T2 已落地）同语言：同规格白卡 / 圆角 /
+       mono 主文案 / 徽章；默认徽章 = 工具停用徽章的镜像（accent 反色）
+       ====================================================================== */
+    .m5-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .m5-card {
+        display: flex; flex-direction: column;
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 10px; padding: 12px 13px 11px; cursor: pointer;
+        transition: border-color 0.15s;
+    }
+    .m5-card:hover { border-color: var(--tx3); }
+    .m5-card.is-def { border-color: var(--accent); }
+    .m5-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .m5-pv { font-size: 11px; color: var(--tx2); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m5-defb {
+        margin-left: auto; font-size: 10px; font-weight: 600; line-height: 1;
+        padding: 3px 7px; border-radius: 4px;
+        background: var(--accent); color: var(--accent-ink);
+    }
+    .m5-id { font-size: 14.5px; font-weight: 650; letter-spacing: -0.2px; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m5-nm { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+    .m5-meta { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+    .m5-ops {
+        display: flex; gap: 6px; margin-top: 11px; padding-top: 10px;
+        border-top: 1px solid var(--line-soft);
+        opacity: 0; transform: translateY(4px); transition: all 0.18s;
+    }
+    .m5-card.hov .m5-ops, .m5-card:hover .m5-ops { opacity: 1; transform: none; }
+    .m5-add {
+        border: 1px dashed var(--line); border-radius: 10px; min-height: 122px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+        color: var(--tx2); font-size: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .m5-add:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+    .m5-add .pl { font-size: 17px; }
+
+    /* ======================================================================
+       M6 主从式：左紧凑行列表 + 右详情面板，baseUrl 等字段直接可见；
+       交互变化：点行 = 选中查看，「编辑」才进子弹窗
+       ====================================================================== */
+    .m6-wrap { display: flex; gap: 10px; align-items: stretch; }
+    .m6-list { width: 248px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+    .m6-row {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 11px; border-radius: 9px; cursor: pointer;
+        border: 1px solid transparent; transition: background 0.15s;
+    }
+    .m6-row:hover { background: var(--hover); }
+    .m6-row.sel { background: var(--card); border-color: var(--line); box-shadow: inset 3px 0 0 var(--accent); }
+    .m6-id { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m6-row .st { color: var(--amber); font-size: 10px; }
+    .m6-addrow {
+        padding: 8px; border-radius: 9px; text-align: center;
+        border: 1px dashed var(--line); color: var(--tx2); font-size: 11.5px; cursor: pointer;
+    }
+    .m6-addrow:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+    .m6-detail {
+        flex: 1; min-width: 0;
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 11px; padding: 14px 16px;
+        display: flex; flex-direction: column;
+    }
+    .m6-dh { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
+    .m6-dh .nm { font-size: 13px; font-weight: 650; }
+    .m6-dh .pv { font-size: 11px; color: var(--tx2); margin-top: 2px; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m6-defb {
+        margin-left: auto; font-size: 10px; font-weight: 600; line-height: 1;
+        padding: 3px 7px; border-radius: 4px; background: var(--accent); color: var(--accent-ink);
+    }
+    .m6-drow { display: flex; gap: 12px; padding: 8px 0; font-size: 12px; border-bottom: 1px solid var(--line-soft); }
+    .m6-drow label { width: 64px; flex-shrink: 0; color: var(--tx3); font-size: 11px; padding-top: 1px; }
+    .m6-drow .v { flex: 1; min-width: 0; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m6-dops { display: flex; gap: 6px; margin-top: auto; padding-top: 12px; }
+
+    /* ======================================================================
+       M7 层级式：默认主卡置顶 + 备选行区，强调「当前生效」
+       ====================================================================== */
+    .m7-main {
+        background: var(--card); border: 1px solid var(--accent);
+        border-radius: 12px; padding: 14px 16px 12px;
+    }
+    .m7-mh { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+    .m7-mh .pv { font-size: 11.5px; color: var(--tx2); }
+    .m7-defb {
+        margin-left: auto; font-size: 10px; font-weight: 600; line-height: 1;
+        padding: 3px 7px; border-radius: 4px; background: var(--accent); color: var(--accent-ink);
+    }
+    .m7-id { font-size: 16px; font-weight: 650; letter-spacing: -0.2px; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m7-nm { font-size: 11.5px; color: var(--tx2); margin-top: 3px; }
+    .m7-meta { display: flex; gap: 6px; margin-top: 10px; }
+    .m7-mops { display: flex; gap: 6px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line-soft); }
+    .m7-alt-head { font-size: 11px; font-weight: 650; letter-spacing: 0.5px; color: var(--tx3); margin: 14px 2px 7px; }
+    .m7-alt { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .m7-row { display: flex; align-items: center; gap: 10px; padding: 9px 13px; cursor: pointer; transition: background 0.15s; }
+    .m7-row + .m7-row { border-top: 1px solid var(--line-soft); }
+    .m7-row:hover { background: var(--hover); }
+    .m7-radio { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; border: 1.5px solid var(--tx3); position: relative; }
+    .m7-radio:hover { border-color: var(--tx); }
+    .m7-nm2 { font-size: 12px; font-weight: 600; }
+    .m7-id2 { font-size: 11px; color: var(--tx2); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m7-flex { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 9px; }
+
+    /* ======================================================================
+       M8 胶囊墙：模型即胶囊 chip，点击弹悬浮菜单；最轻最紧凑
+       ====================================================================== */
+    .m8-wrap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .m8-chip {
+        position: relative;
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 7px 13px 7px 8px; border-radius: 999px;
+        background: var(--card); border: 1px solid var(--line);
+        font-size: 12.5px; font-weight: 600; cursor: pointer;
+        font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace;
+        transition: border-color 0.15s;
+    }
+    .m8-chip:hover { border-color: var(--tx3); }
+    .m8-chip.is-def { border-color: var(--accent); }
+    .m8-chip .star { color: var(--amber); font-size: 10px; }
+    .m8-chip .cnt { font-size: 10px; color: var(--tx3); font-weight: 400; font-family: inherit; }
+    .m8-add {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 14px; border-radius: 999px;
+        border: 1px dashed var(--line); color: var(--tx2); font-size: 12px; cursor: pointer;
+    }
+    .m8-add:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+    .m8-menu {
+        position: absolute; left: 8px; top: calc(100% + 6px); z-index: 5;
+        min-width: 128px; padding: 4px;
+        background: var(--sf); border: 1px solid var(--line); border-radius: 9px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+        display: flex; flex-direction: column;
+    }
+    body[data-scheme="light"] .m8-menu { box-shadow: 0 10px 28px rgba(31, 35, 40, 0.22); }
+    .m8-menu button {
+        border: none; background: transparent; text-align: left;
+        font-size: 11.5px; padding: 6px 9px; border-radius: 6px;
+        color: var(--tx2); cursor: pointer; font-family: inherit;
+    }
+    .m8-menu button:hover { background: var(--hover); color: var(--tx); }
+    .m8-menu button.dgr:hover { color: var(--red); }
+
+    /* ======================================================================
+       M3 Provider 分组：组头 dot + 厂商 + 数量，组内行式
+       ====================================================================== */
+    .m3-grp { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .m3-grp + .m3-grp { margin-top: 10px; }
+    .m3-head {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 13px; background: var(--hover);
+        border-bottom: 1px solid var(--line-soft);
+        font-size: 12px; font-weight: 600;
+    }
+    .m3-cnt {
+        font-size: 10.5px; color: var(--tx2); font-weight: 500;
+        border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    }
+    .m3-defmark { margin-left: auto; font-size: 10.5px; color: var(--tx3); font-weight: 400; display: flex; align-items: center; gap: 5px; }
+    .m3-defmark .st { color: var(--amber); font-size: 10px; }
+    .m3-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 9px 13px; cursor: pointer; transition: background 0.15s;
+    }
+    .m3-row + .m3-row { border-top: 1px solid var(--line-soft); }
+    .m3-row:hover { background: var(--hover); }
+    .m3-radio {
+        width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+        border: 1.5px solid var(--tx3); position: relative;
+    }
+    .m3-row.is-def .m3-radio { border-color: var(--tx); }
+    .m3-row.is-def .m3-radio::after {
+        content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--tx);
+    }
+    .m3-nm { font-size: 12.5px; font-weight: 600; }
+    .m3-id { font-size: 11px; color: var(--tx2); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m3-nmid { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 9px; }
+    .m3-tags { display: flex; gap: 6px; flex-shrink: 0; }
+
+    /* ======================================================================
+       M4 紧凑数据表：IDE 表格风，默认列 radio 直切，最紧凑
+       ====================================================================== */
+    .m4-tbl { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .m4-tr {
+        display: grid; grid-template-columns: 52px 1.2fr 1.3fr 86px 1fr 118px;
+        align-items: center; gap: 10px; padding: 9px 13px;
+        font-size: 12px; cursor: pointer; transition: background 0.15s;
+    }
+    .m4-tr + .m4-tr { border-top: 1px solid var(--line-soft); }
+    .m4-tr:hover { background: var(--hover); }
+    .m4-tr.th {
+        cursor: default; font-size: 10.5px; color: var(--tx3); font-weight: 600;
+        letter-spacing: 0.6px; background: var(--hover);
+    }
+    .m4-tr.th:hover { background: var(--hover); }
+    .m4-tr.is-def { box-shadow: inset 3px 0 0 var(--accent); }
+    .m4-radio {
+        width: 13px; height: 13px; border-radius: 50%;
+        border: 1.5px solid var(--tx3); position: relative; margin: 0 auto;
+    }
+    .is-def .m4-radio { border-color: var(--tx); }
+    .is-def .m4-radio::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--tx); }
+    .m4-nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m4-nm .un { color: var(--tx3); font-weight: 400; font-style: italic; }
+    .m4-id { font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; font-size: 11.5px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m4-key { font-size: 11px; color: var(--tx2); font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .m4-key.miss { color: var(--amber); font-family: inherit; }
+    .m4-ops { display: flex; gap: 4px; justify-content: flex-end; visibility: hidden; }
+    .m4-tr.hov .m4-ops, .m4-tr:hover .m4-ops { visibility: visible; }
+    .m4-ic {
+        width: 24px; height: 24px; border-radius: 6px; border: none; background: transparent;
+        color: var(--tx2); cursor: pointer; font-size: 11.5px;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .m4-ic:hover { background: var(--line); color: var(--tx); }
+    .m4-ic.dgr:hover { color: var(--red); }
+    .m4-add {
+        margin-top: 10px; padding: 9px; border-radius: 9px; text-align: center;
+        border: 1px dashed var(--line); color: var(--tx2); font-size: 12px; cursor: pointer;
+    }
+    .m4-add:hover { color: var(--tx); border-color: var(--tx3); background: var(--hover); }
+
+    /* ===== 设计注释 ===== */
+    .notes { max-width: 1080px; margin: 46px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .note-card { border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px; font-size: 12px; line-height: 1.8; color: var(--tx2); background: var(--sf); }
+    .note-card h3 { font-size: 12.5px; color: var(--tx); margin-bottom: 6px; }
+    .note-card code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--tx); background: var(--hover); border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <h1>设置 · 模型列表重设计</h1>
+    <div class="page-sub">现状：240px 卡片网格，编辑 / 设为默认 / 删除三按钮常驻每卡，信息层级平。以下 8 方案均在已落地的 D2 设置弹窗内容列（含日间浅灰底）内呈现；工具 Tab 已落地双列卡片网格（M5 与之同语言）。能力集不变：默认模型唯一、Key 掩码展示、草稿式保存。</div>
+</div>
+
+<div class="ctrl-bar">
+    主题预览
+    <button class="ctrl-btn on" data-scheme="dark">夜间 GitHub Dark</button>
+    <button class="ctrl-btn" data-scheme="light">日间 GitHub Light</button>
+    <span>· 每版含：默认态 / 缺 Key 态 / 未命名态 / hover 态（M5 与工具 Tab 同语言）</span>
+</div>
+
+<!-- ===================== M1 行式列表 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M1</span><span class="ver-name">行式列表 · IDE 风</span></div>
+    <div class="ver-desc">一条一行，与 MCP Tab 的行式表单基因一致。名称为主、模型 ID 走等宽次级行；默认行左侧 accent 竖条 + 反色「默认」徽章；操作 hover 浮出。密度最高，模型多时不塌陷。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m1-list">
+            <div class="m1-row is-def">
+                <span class="dot dashscope">通</span>
+                <span class="m1-info">
+                    <span class="m1-nm">通义千问主力 <span class="tag def">默认</span></span>
+                    <span class="m1-id" style="display:block">qwen-max · dashscope</span>
+                </span>
+                <span class="m1-tags"><span class="tag">openai</span><span class="tag">sk-****8f3d</span></span>
+                <span class="m1-ops"><button class="btn pri">编辑</button><button class="btn dgr">删除</button></span>
+            </div>
+            <div class="m1-row hov">
+                <span class="dot deepseek">D</span>
+                <span class="m1-info">
+                    <span class="m1-nm">DeepSeek 推理</span>
+                    <span class="m1-id" style="display:block">deepseek-chat · deepseek</span>
+                </span>
+                <span class="m1-tags"><span class="tag">openai</span><span class="tag">sk-****21aa</span></span>
+                <span class="m1-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></span>
+            </div>
+            <div class="m1-row">
+                <span class="dot openai">O</span>
+                <span class="m1-info">
+                    <span class="m1-nm">GPT-4o 备选</span>
+                    <span class="m1-id" style="display:block">gpt-4o · openai</span>
+                </span>
+                <span class="m1-tags"><span class="tag">openai</span><span class="tag">sk-****c912</span></span>
+                <span class="m1-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></span>
+            </div>
+            <div class="m1-row">
+                <span class="dot xiaomi">小</span>
+                <span class="m1-info">
+                    <span class="m1-nm" style="color: var(--tx3); font-style: italic;">未命名配置</span>
+                    <span class="m1-id" style="display:block">MiMo · xiaomi</span>
+                </span>
+                <span class="m1-tags"><span class="tag warn">缺少 API Key</span></span>
+                <span class="m1-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></span>
+            </div>
+        </div>
+        <div class="m1-add">＋ 添加模型</div>
+    </div>
+</div>
+
+<!-- ===================== M2 卡片网格精修 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M2</span><span class="ver-name">卡片网格精修 · 延续现状骨架</span></div>
+    <div class="ver-desc">保留网格，但重排层级：厂商品牌行（dot + 厂商 + 协议 pill 右浮）→ 大号等宽模型 ID 作主视觉 → 名称次级 → Key 状态点 + baseUrl 省略；默认卡顶部 accent 顶边条，操作条 hover 时底部滑出（不再常驻）。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m2-grid">
+            <div class="m2-card is-def">
+                <div class="m2-brand"><span class="dot dashscope">通</span><span class="m2-pv">dashscope</span><span class="tag">openai</span></div>
+                <div class="m2-id">qwen-max</div>
+                <div class="m2-nm">通义千问主力</div>
+                <div class="m2-meta"><span class="kd"></span>sk-****8f3d<span class="m2-url">dashscope.aliyuncs.com</span></div>
+                <div class="m2-ops"><button class="btn pri">编辑</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m2-card hov">
+                <div class="m2-brand"><span class="dot deepseek">D</span><span class="m2-pv">deepseek</span><span class="tag">openai</span></div>
+                <div class="m2-id">deepseek-chat</div>
+                <div class="m2-nm">DeepSeek 推理</div>
+                <div class="m2-meta"><span class="kd"></span>sk-****21aa<span class="m2-url">api.deepseek.com</span></div>
+                <div class="m2-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m2-card">
+                <div class="m2-brand"><span class="dot openai">O</span><span class="m2-pv">openai</span><span class="tag">openai</span></div>
+                <div class="m2-id">gpt-4o</div>
+                <div class="m2-nm">GPT-4o 备选</div>
+                <div class="m2-meta"><span class="kd"></span>sk-****c912<span class="m2-url">api.openai.com</span></div>
+                <div class="m2-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m2-card">
+                <div class="m2-brand"><span class="dot xiaomi">小</span><span class="m2-pv">xiaomi</span><span class="tag">openai</span></div>
+                <div class="m2-id">MiMo</div>
+                <div class="m2-nm" style="color: var(--tx3); font-style: italic;">未命名配置</div>
+                <div class="m2-meta"><span class="kd no"></span>未配置 Key<span class="m2-url"></span></div>
+                <div class="m2-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m2-add"><span class="pl">＋</span>添加模型</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== M3 Provider 分组 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M3</span><span class="ver-name">按厂商分组 · radio 直切默认</span></div>
+    <div class="ver-desc">按 provider 分 section，组头为 dot + 厂商名 + 数量徽章，默认模型所在组标注星标；组内行式 + 行首 radio，点 radio 即切默认（省一次进编辑）。适合同一厂商配多个模型 / 多 Key 的场景。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 3 个厂商 · 默认 qwen-max</div>
+        </div>
+        <div class="m3-grp">
+            <div class="m3-head"><span class="dot dashscope">通</span>dashscope<span class="m3-cnt">1</span><span class="m3-defmark"><span class="st">★</span>含默认模型</span></div>
+            <div class="m3-row is-def">
+                <span class="m3-radio"></span>
+                <span class="m3-nmid"><span class="m3-nm">通义千问主力</span><span class="m3-id">qwen-max</span></span>
+                <span class="m3-tags"><span class="tag">openai</span><span class="tag">sk-****8f3d</span></span>
+            </div>
+        </div>
+        <div class="m3-grp">
+            <div class="m3-head"><span class="dot deepseek">D</span>deepseek<span class="m3-cnt">1</span></div>
+            <div class="m3-row">
+                <span class="m3-radio"></span>
+                <span class="m3-nmid"><span class="m3-nm">DeepSeek 推理</span><span class="m3-id">deepseek-chat</span></span>
+                <span class="m3-tags"><span class="tag">openai</span><span class="tag">sk-****21aa</span></span>
+            </div>
+        </div>
+        <div class="m3-grp">
+            <div class="m3-head"><span class="dot openai">O</span>openai<span class="m3-cnt">1</span></div>
+            <div class="m3-row">
+                <span class="m3-radio"></span>
+                <span class="m3-nmid"><span class="m3-nm">GPT-4o 备选</span><span class="m3-id">gpt-4o</span></span>
+                <span class="m3-tags"><span class="tag">openai</span><span class="tag">sk-****c912</span></span>
+            </div>
+        </div>
+        <div class="m3-grp">
+            <div class="m3-head"><span class="dot xiaomi">小</span>xiaomi<span class="m3-cnt">1</span></div>
+            <div class="m3-row">
+                <span class="m3-radio"></span>
+                <span class="m3-nmid"><span class="m3-nm" style="color: var(--tx3); font-style: italic;">未命名配置</span><span class="m3-id">MiMo</span></span>
+                <span class="m3-tags"><span class="tag warn">缺少 API Key</span></span>
+            </div>
+        </div>
+        <div class="m1-add">＋ 添加模型</div>
+    </div>
+</div>
+
+<!-- ===================== M4 紧凑数据表 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M4</span><span class="ver-name">紧凑数据表 · 最工程感</span></div>
+    <div class="ver-desc">IDE 数据表风：默认 / 名称 / 模型 ID / 协议 / API Key / 操作六列，一屏可扫全部字段；默认列 radio 直切，默认行左侧 accent 内嵌条；操作列 hover 浮出图标钮。信息密度最高，但行内仅单行，长名称截断。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m4-tbl">
+            <div class="m4-tr th"><span style="text-align:center">默认</span><span>名称</span><span>模型 ID</span><span>协议</span><span>API Key</span><span></span></div>
+            <div class="m4-tr is-def">
+                <span class="m4-radio"></span>
+                <span class="m4-nm">通义千问主力</span>
+                <span class="m4-id">qwen-max</span>
+                <span><span class="tag">openai</span></span>
+                <span class="m4-key">sk-****8f3d</span>
+                <span class="m4-ops"><button class="m4-ic">✎</button><button class="m4-ic dgr">✕</button></span>
+            </div>
+            <div class="m4-tr hov">
+                <span class="m4-radio"></span>
+                <span class="m4-nm">DeepSeek 推理</span>
+                <span class="m4-id">deepseek-chat</span>
+                <span><span class="tag">openai</span></span>
+                <span class="m4-key">sk-****21aa</span>
+                <span class="m4-ops"><button class="m4-ic">✎</button><button class="m4-ic">★</button><button class="m4-ic dgr">✕</button></span>
+            </div>
+            <div class="m4-tr">
+                <span class="m4-radio"></span>
+                <span class="m4-nm">GPT-4o 备选</span>
+                <span class="m4-id">gpt-4o</span>
+                <span><span class="tag">openai</span></span>
+                <span class="m4-key">sk-****c912</span>
+                <span class="m4-ops"><button class="m4-ic">✎</button><button class="m4-ic">★</button><button class="m4-ic dgr">✕</button></span>
+            </div>
+            <div class="m4-tr">
+                <span class="m4-radio"></span>
+                <span class="m4-nm"><span class="un">未命名配置</span></span>
+                <span class="m4-id">MiMo</span>
+                <span><span class="tag">openai</span></span>
+                <span class="m4-key miss">缺少 Key</span>
+                <span class="m4-ops"><button class="m4-ic">✎</button><button class="m4-ic">★</button><button class="m4-ic dgr">✕</button></span>
+            </div>
+        </div>
+        <div class="m4-add">＋ 添加模型</div>
+    </div>
+</div>
+
+<!-- ===================== M5 双列卡片 · 与工具 Tab 同语言 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M5</span><span class="ver-name">双列卡片 · 与工具 Tab 统一</span></div>
+    <div class="ver-desc">与已落地工具 Tab（T2）同规格：白卡 + 同圆角边框 + hover 同反应；默认徽章 = 工具停用徽章的镜像（accent 反色胶囊，右浮于品牌行）；操作 hover 底部滑出。设置弹窗「扩展」分组视觉语言完全统一。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m5-grid">
+            <div class="m5-card is-def">
+                <div class="m5-head"><span class="dot dashscope">通</span><span class="m5-pv">dashscope</span><span class="m5-defb">默认</span></div>
+                <div class="m5-id">qwen-max</div>
+                <div class="m5-nm">通义千问主力</div>
+                <div class="m5-meta"><span class="tag">openai</span><span class="tag">sk-****8f3d</span></div>
+                <div class="m5-ops"><button class="btn pri">编辑</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m5-card hov">
+                <div class="m5-head"><span class="dot deepseek">D</span><span class="m5-pv">deepseek</span></div>
+                <div class="m5-id">deepseek-chat</div>
+                <div class="m5-nm">DeepSeek 推理</div>
+                <div class="m5-meta"><span class="tag">openai</span><span class="tag">sk-****21aa</span></div>
+                <div class="m5-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m5-card">
+                <div class="m5-head"><span class="dot openai">O</span><span class="m5-pv">openai</span></div>
+                <div class="m5-id">gpt-4o</div>
+                <div class="m5-nm">GPT-4o 备选</div>
+                <div class="m5-meta"><span class="tag">openai</span><span class="tag">sk-****c912</span></div>
+                <div class="m5-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m5-card">
+                <div class="m5-head"><span class="dot xiaomi">小</span><span class="m5-pv">xiaomi</span></div>
+                <div class="m5-id">MiMo</div>
+                <div class="m5-nm" style="color: var(--tx3); font-style: italic;">未命名配置</div>
+                <div class="m5-meta"><span class="tag">openai</span><span class="tag warn">缺少 API Key</span></div>
+                <div class="m5-ops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+            <div class="m5-add"><span class="pl">＋</span>添加模型</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== M6 主从式 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M6</span><span class="ver-name">主从式 · 列表 + 详情面板</span></div>
+    <div class="ver-desc">左列紧凑行（dot + mono ID + 默认星）选中态高亮，右侧详情面板直接展示全部字段（含 baseUrl，现需进编辑才能看）。交互变化：点行 = 选中查看，「编辑」才进子弹窗。模型 ≥ 5 个时详情面板价值最高。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m6-wrap">
+            <div class="m6-list">
+                <div class="m6-row sel"><span class="dot dashscope">通</span><span class="m6-id">qwen-max</span><span class="st">★</span></div>
+                <div class="m6-row"><span class="dot deepseek">D</span><span class="m6-id">deepseek-chat</span></div>
+                <div class="m6-row"><span class="dot openai">O</span><span class="m6-id">gpt-4o</span></div>
+                <div class="m6-row"><span class="dot xiaomi">小</span><span class="m6-id">MiMo</span></div>
+                <div class="m6-addrow">＋ 添加模型</div>
+            </div>
+            <div class="m6-detail">
+                <div class="m6-dh">
+                    <span class="dot dashscope">通</span>
+                    <span><span class="nm" style="display:block">通义千问主力</span><span class="pv" style="display:block">dashscope · openai 协议</span></span>
+                    <span class="m6-defb">默认</span>
+                </div>
+                <div class="m6-drow"><label>模型 ID</label><span class="v">qwen-max</span></div>
+                <div class="m6-drow"><label>Base URL</label><span class="v">https://dashscope.aliyuncs.com/compatible-mode/v1</span></div>
+                <div class="m6-drow"><label>API Key</label><span class="v">sk-****8f3d</span></div>
+                <div class="m6-dops"><button class="btn pri">编辑</button><button class="btn">设为默认</button><button class="btn dgr">删除</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== M7 层级式 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M7</span><span class="ver-name">层级式 · 默认主卡 + 备选行</span></div>
+    <div class="ver-desc">当前默认模型置顶为大卡（accent 边框强调「当前生效」），其余模型收进「其他模型」紧凑行区，radio 直切默认。主次最分明，「设为默认」心智最清晰。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m7-main">
+            <div class="m7-mh"><span class="dot dashscope">通</span><span class="pv">dashscope</span><span class="m7-defb">当前默认</span></div>
+            <div class="m7-id">qwen-max</div>
+            <div class="m7-nm">通义千问主力</div>
+            <div class="m7-meta"><span class="tag">openai</span><span class="tag">sk-****8f3d</span></div>
+            <div class="m7-mops"><button class="btn pri">编辑</button><button class="btn dgr">删除</button></div>
+        </div>
+        <div class="m7-alt-head">其他模型 · 3</div>
+        <div class="m7-alt">
+            <div class="m7-row"><span class="m7-radio"></span><span class="dot deepseek">D</span><span class="m7-flex"><span class="m7-nm2">DeepSeek 推理</span><span class="m7-id2">deepseek-chat</span></span><span class="tag">sk-****21aa</span></div>
+            <div class="m7-row"><span class="m7-radio"></span><span class="dot openai">O</span><span class="m7-flex"><span class="m7-nm2">GPT-4o 备选</span><span class="m7-id2">gpt-4o</span></span><span class="tag">sk-****c912</span></div>
+            <div class="m7-row"><span class="m7-radio"></span><span class="dot xiaomi">小</span><span class="m7-flex"><span class="m7-nm2" style="color: var(--tx3); font-style: italic;">未命名配置</span><span class="m7-id2">MiMo</span></span><span class="tag warn">缺少 Key</span></div>
+        </div>
+        <div class="m1-add">＋ 添加模型</div>
+    </div>
+</div>
+
+<!-- ===================== M8 胶囊墙 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">M8</span><span class="ver-name">胶囊墙 · 点击弹悬浮菜单</span></div>
+    <div class="ver-desc">模型即胶囊 chip（dot + mono ID，默认带星 accent 边），流式排列，末尾「＋」胶囊；点击弹出悬浮操作菜单（编辑 / 设为默认 / 删除），复用现有悬浮菜单规范（Teleport 定位）。最轻最紧凑，适合把模型当「可选项」而非「配置对象」的心智；Key 状态不在胶囊上展示。</div>
+    <div class="panel">
+        <div class="sec-head">
+            <div class="sec-title">模型</div>
+            <div class="sec-sub">4 个模型 · 默认 qwen-max</div>
+        </div>
+        <div class="m8-wrap">
+            <div class="m8-chip is-def"><span class="dot dashscope">通</span>qwen-max<span class="star">★</span></div>
+            <div class="m8-chip">
+                <span class="dot deepseek">D</span>deepseek-chat
+                <span class="m8-menu">
+                    <button>编辑</button>
+                    <button>设为默认</button>
+                    <button class="dgr">删除</button>
+                </span>
+            </div>
+            <div class="m8-chip"><span class="dot openai">O</span>gpt-4o</div>
+            <div class="m8-chip"><span class="dot xiaomi">小</span>MiMo<span class="cnt">未配 Key</span></div>
+            <div class="m8-add">＋ 添加模型</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 设计注释 ===================== -->
+<div class="notes">
+    <div class="note-card">
+        <h3>M1 行式列表 · 密度与一致性优先</h3>
+        <span class="m">与 MCP Tab 行式表单、设置弹窗整体基因最统一；按钮 hover 浮出后视觉噪音最低。默认用「竖条 + 反色徽章」表达。改动小（仅重写 models Tab 模板与样式），编辑子弹窗完全不动。</span>
+    </div>
+    <div class="note-card">
+        <h3>M2 卡片精修 · 迁移成本最低</h3>
+        <span class="m">骨架不变，只重排信息层级（模型 ID 升主视觉）+ 默认顶边条 + 操作滑出。卡片在模型数 ≤ 8 时观感最好；baseUrl 为新增展示字段（现卡片未展示）。</span>
+    </div>
+    <div class="note-card">
+        <h3>M3 厂商分组 · 多模型友好</h3>
+        <span class="m">radio 直切默认省去「编辑 → 设为默认」两步；组头数量与星标提供结构感。模型都不同厂商时分组头略冗余（每组 1 条），分组价值随同厂商模型数增长。</span>
+    </div>
+    <div class="note-card">
+        <h3>M4 数据表 · 扫读效率最高</h3>
+        <span class="m">六列一屏全字段对比，radio 直切 + 图标操作；代价是单行截断、无次要信息（baseUrl 需进编辑看），移动端窄弹窗下需要降级为行式。</span>
+    </div>
+    <div class="note-card">
+        <h3>M5 双列卡片 · 弹窗内统一</h3>
+        <span class="m">与工具 Tab 已落地的 T2 双列卡片同规格（白卡 / 圆角 / 边框 / hover 反应 / mono 主文案），</span>
+        <code>默认</code>
+        <span class="m">徽章与工具</span>
+        <code>停用</code>
+        <span class="m">徽章互为镜像（accent 反色 vs 琥珀）。整个「扩展」分组观感一致；模型数少时双列比 M2 的自适应网格更稳定不空心。</span>
+    </div>
+    <div class="note-card">
+        <h3>M6 主从式 · 信息最全</h3>
+        <span class="m">唯一能把 baseUrl 等编辑态字段直接摆出来的方案；代价是交互模式变化（点击 = 选中而非进编辑），需新增 selected 状态。模型数多时列表 + 详情双区不拥挤；模型只有 2-3 个时右栏略空。</span>
+    </div>
+    <div class="note-card">
+        <h3>M7 层级式 · 主次分明</h3>
+        <span class="m">「当前默认」大卡 + 备选行 radio 直切；把「默认」从徽章升为结构（置顶大卡），切换心智最清晰。模型增多时备选区自然滚动，主卡始终可见。</span>
+    </div>
+    <div class="note-card">
+        <h3>M8 胶囊墙 · 最轻</h3>
+        <span class="m">一屏可容纳 10+ 胶囊；悬浮菜单复用现有规范（Teleport 定位 / 外点关闭）。信息量最少（Key 状态只留「未配 Key」提示），适合模型数多且配置稳定的场景。</span>
+    </div>
+    <div class="note-card">
+        <h3>通用约束</h3>
+        <span class="m">能力集不变：点击行 / 卡仍进编辑子弹窗、默认唯一、Key 掩码、草稿式保存；配色零新增（日间浅灰弹窗底 + 白卡片层次已落地）；厂商渐变 dot 延续；M2 之外的方案均可把「设为默认」并入 radio/徽章。</span>
+    </div>
+    <div class="note-card">
+        <h3>选型建议</h3>
+        <span class="m">与设置弹窗整体一致性最好选 M1；改动最小选 M2；预判单厂商多模型选 M3；重扫读效率、模型字段对比选 M4；要求与工具 Tab 观感统一选 M5；模型配置复杂、想直接看 baseUrl 选 M6；强调当前生效 / 切换心智选 M7；模型多且轻管理选 M8。M1 与 M4 可互为窄宽度降级形态。</span>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.ctrl-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.ctrl-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.dataset.scheme = btn.dataset.scheme;
+        });
+    });
+</script>
+</body>
+</html>

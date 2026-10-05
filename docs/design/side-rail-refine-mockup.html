@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · side-rail 渐变滑轨优化方案（6 变体）</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 与 qualia-code-ui 线上主题一致的设计变量 ===== */
+    :root {
+        --bg-app: #080a10;
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --ms-card: #141824;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
+        --accent-ink: #0d1117;
+        --glass-bg: rgba(230, 237, 243, 0.14);
+        --glass-border: rgba(255, 255, 255, 0.22);
+        --glass-hi: rgba(255, 255, 255, 0.16);
+        --rail-glow: rgba(240, 246, 252, 0.38);
+    }
+    body.light-theme {
+        --bg-app: #ffffff;
+        --bg-sidebar: #eff2f5;
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --ms-card: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-gradient: linear-gradient(145deg, #32383f, #24292f);
+        --accent-ink: #ffffff;
+        --glass-bg: rgba(255, 255, 255, 0.72);
+        --glass-border: rgba(31, 35, 40, 0.18);
+        --glass-hi: rgba(255, 255, 255, 0.9);
+        --rail-glow: rgba(36, 41, 47, 0.25);
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    .ic { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--ms-card); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 640px; margin: 0 auto 34px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-gradient); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 18px;
+        padding: 22px 0; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; color: var(--text-secondary);
+    }
+
+    /* ===== 迷你侧栏（234px 真实语境） ===== */
+    .mside {
+        width: 234px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 14px;
+        padding: 12px 9px 9px; display: flex; flex-direction: column;
+    }
+    .ms-brand { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; padding: 0 4px 11px; }
+    .ms-brand .ic { width: 14px; height: 14px; }
+    .ms-ws {
+        display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 11px;
+        background: var(--bg-hover); border: 1px solid var(--border); border-radius: 10px;
+        font-size: 11.5px; color: var(--text-secondary);
+    }
+    .ms-ws .ws-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+    .ms-ws .ws-t b { font-weight: 600; color: var(--text-primary); font-size: 11px; }
+    .ms-ws .ws-t i { font-style: normal; font-size: 9.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-ws .cv { width: 11px; height: 11px; color: var(--text-muted); }
+    .ms-hdr {
+        display: flex; align-items: center; justify-content: space-between; gap: 6px;
+        padding: 0 4px 9px; border-bottom: 1px solid var(--border); min-height: 32px;
+    }
+    .ms-list { margin-top: 9px; min-height: 118px; display: flex; flex-direction: column; }
+    .ms-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 6px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+    .ms-row span { overflow: hidden; text-overflow: ellipsis; }
+    .ms-row .ic { width: 12px; height: 12px; color: var(--text-muted); }
+    .ms-row.on { background: var(--bg-active); color: var(--accent-light); font-weight: 500; }
+    .ms-row.i1 { padding-left: 20px; }
+    .ms-row.i2 { padding-left: 33px; }
+    .ms-foot { margin-top: auto; padding: 7px 4px 0; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-secondary); }
+
+    /* ===== 视图切换通用机制 ===== */
+    .p-f, .act-f { display: none !important; }
+    .mside[data-view="s"] .act-s { display: inline-flex !important; }
+    .mside[data-view="f"] .p-s, .mside[data-view="f"] .act-s { display: none !important; }
+    .mside[data-view="f"] .p-f, .mside[data-view="f"] .act-f { display: flex !important; }
+    .act {
+        display: none; align-items: center; justify-content: center; width: 26px; height: 26px;
+        background: transparent; border: none; border-radius: 6px; color: var(--text-muted); transition: 0.2s;
+    }
+    .act:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* ===== 滑轨公共骨架：端点图标 + 滑块（滑块携带激活图标，交叉淡入切换） ===== */
+    .rail {
+        position: relative; border-radius: 100px; flex-shrink: 0;
+        background: var(--bg-hover); border: 1px solid var(--border); cursor: pointer;
+        transition: background 0.2s;
+    }
+    .rail:hover { background: var(--bg-active); }
+    .rail .end {
+        position: absolute; top: 0; bottom: 0; display: flex; align-items: center; gap: 5px;
+        color: var(--text-muted); font-size: 11px; font-weight: 500; transition: opacity 0.2s;
+    }
+    .rail .end .ic { width: 12px; height: 12px; }
+    .rail .thumb {
+        position: absolute; display: flex; align-items: center; justify-content: center;
+        border-radius: 100px; color: var(--accent-ink);
+    }
+    .rail .thumb .ic { width: 11px; height: 11px; }
+    /* 滑块内双图标叠放：激活侧淡入放大，另一侧淡出缩小（交叉淡入） */
+    .rail .ti {
+        position: absolute; display: flex; align-items: center; gap: 5px;
+        opacity: 0; transform: scale(0.5);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    .mside[data-view="s"] .rail .ti-s, .mside[data-view="f"] .rail .ti-f { opacity: 1; transform: none; }
+    /* 被滑块盖住的端点淡出，防重影 */
+    .mside[data-view="s"] .end-l, .mside[data-view="f"] .end-r { opacity: 0; }
+
+    /* ===== A · 交叉淡入（几何与现行实现一致，动效打磨） ===== */
+    .v-a { width: 64px; height: 26px; }
+    .v-a .end-l { left: 8px; } .v-a .end-r { right: 8px; }
+    .v-a .thumb {
+        top: 2px; left: 2px; width: 28px; height: 20px;
+        background: var(--accent-gradient); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.5, 1);
+    }
+    .mside[data-view="f"] .v-a .thumb { transform: translateX(32px); }
+
+    /* ===== B · 玻璃滑块（磨砂质感，深色主题尤其出彩） ===== */
+    .v-b { width: 64px; height: 26px; background: var(--bg-active); }
+    .v-b .end-l { left: 8px; } .v-b .end-r { right: 8px; }
+    .v-b .thumb {
+        top: 2px; left: 2px; width: 28px; height: 20px;
+        background: var(--glass-bg); border: 1px solid var(--glass-border);
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        box-shadow: inset 0 1px 0 var(--glass-hi);
+        color: var(--text-primary);
+        transition: transform 0.3s cubic-bezier(0.3, 1.2, 0.4, 1);
+    }
+    .mside[data-view="f"] .v-b .thumb { transform: translateX(32px); }
+
+    /* ===== C · 宽版带字（图标+文字，语义最明确） ===== */
+    .v-c { width: 126px; height: 26px; }
+    .v-c .end-l { left: 9px; } .v-c .end-r { right: 9px; }
+    .v-c .thumb {
+        top: 2px; left: 2px; width: 59px; height: 20px;
+        background: var(--accent-gradient); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.5, 1);
+    }
+    .v-c .thumb .ti .ic { width: 12px; height: 12px; }
+    .v-c .thumb .ti { font-size: 11px; font-weight: 600; }
+    .mside[data-view="f"] .v-c .thumb { transform: translateX(63px); }
+
+    /* ===== D · 描边滑块（去渐变，安静单色） ===== */
+    .v-d { width: 64px; height: 26px; }
+    .v-d .end-l { left: 8px; } .v-d .end-r { right: 8px; }
+    .v-d .thumb {
+        top: 2px; left: 2px; width: 28px; height: 20px;
+        background: transparent; border: 1px solid var(--border-active);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+        color: var(--text-primary);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .mside[data-view="f"] .v-d .thumb { transform: translateX(32px); }
+
+    /* ===== E · 柔光滑块（光晕 + 按压下陷） ===== */
+    .v-e { width: 64px; height: 26px; background: var(--bg-active); }
+    .v-e .end-l { left: 8px; } .v-e .end-r { right: 8px; }
+    .v-e .thumb {
+        top: 2px; left: 2px; width: 28px; height: 20px;
+        background: var(--accent-gradient);
+        box-shadow: 0 0 0 1px var(--border), 0 2px 12px var(--rail-glow);
+        transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.5, 1), box-shadow 0.2s;
+    }
+    .v-e:active .thumb { box-shadow: 0 0 0 1px var(--border), 0 1px 5px var(--rail-glow); }
+    .mside[data-view="f"] .v-e .thumb { transform: translateX(32px); }
+
+    /* ===== F · 紧凑薄轨（20px 瘦身） ===== */
+    .v-f { width: 56px; height: 20px; }
+    .v-f .end .ic { width: 10px; height: 10px; }
+    .v-f .end-l { left: 6px; } .v-f .end-r { right: 6px; }
+    .v-f .thumb {
+        top: 2px; left: 2px; width: 24px; height: 14px;
+        background: var(--accent-gradient); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+        transition: transform 0.26s cubic-bezier(0.34, 1.3, 0.5, 1);
+    }
+    .v-f .thumb .ic { width: 10px; height: 10px; }
+    .mside[data-view="f"] .v-f .thumb { transform: translateX(28px); }
+
+    /* ===== 对比总表 ===== */
+    .cmp { max-width: 640px; margin: 46px auto 0; }
+    .cmp h2 { font-size: 14px; margin-bottom: 12px; padding-left: 4px; }
+    .cmp table { width: 100%; border-collapse: collapse; font-size: 11.5px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .cmp th, .cmp td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .cmp th { color: var(--text-muted); font-size: 10.5px; letter-spacing: 0.5px; font-weight: 600; }
+    .cmp tr:last-child td { border-bottom: none; }
+    .cmp td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+    <defs>
+        <symbol id="i-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+        <symbol id="i-sync" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+        <symbol id="i-chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+        <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    </defs>
+</svg>
+
+<div class="topbar-fixed"><button id="themeBtn">切换日间 / 夜间</button></div>
+
+<h1>side-rail 渐变滑轨 · 优化变体（6 款）</h1>
+<p class="sub">基于现行定稿（渐变滑块 + 滑块携带选中图标），保持<em>二态开关语义不变</em>，只打磨质感、动效与信息量；<em>所有滑轨均可点击</em>，即时预览切换效果。</p>
+
+<!-- A -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">A</span><span class="name">交叉淡入 · 动效打磨（推荐量产）</span></div>
+    <p class="demo-desc">几何与现行实现完全一致，滑块内图标由硬切换改为<em>交叉淡入 + 缩放</em>（旧图标缩小淡出、新图标放大淡入，与滑块位移并行）；成本几乎为零，观感立刻细腻一档。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-a tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span class="end end-r"><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg></span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg></span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：<code>.ti</code> 双图标绝对定位叠放，<code>opacity + scale</code> 交叉过渡；与位移曲线并行播放，端点淡出节奏同步。</p>
+</section>
+
+<!-- B -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">B</span><span class="name">玻璃滑块 · 磨砂质感</span></div>
+    <p class="demo-desc">滑块改为<em>磨砂玻璃</em>（半透明底 + 背景模糊 + 内描边高光），轨道加深一档；色语更轻更现代，深色主题尤其出彩，浅色主题换高透白玻璃保持可读。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-b tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span class="end end-r"><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg></span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg></span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：<code>--glass-bg / --glass-border / --glass-hi</code> 三变量随主题切换；<code>backdrop-filter: blur(6px)</code>，滑块图标色改 <code>--text-primary</code>。</p>
+</section>
+
+<!-- C -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">C</span><span class="name">宽版带字 · 图标 + 文字</span></div>
+    <p class="demo-desc">滑轨加宽至 126px，两端「图标 + 文字」，滑块携带<em>完整的图标 + 文字</em>盖向当前侧。语义最明确、零学习成本；横向占用最大，挤压右侧动作钮空间。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-c tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg><span>会话</span></span>
+                <span class="end end-r"><span>文件</span><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg>会话</span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg>文件</span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：端点组 <code>gap: 5px + 11px 字号</code>；滑块 <code>59×20 / translateX(63px)</code>；右侧动作钮可能需要移位（同 C 方案权衡）。</p>
+</section>
+
+<!-- D -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">D</span><span class="name">描边滑块 · 去渐变化</span></div>
+    <p class="demo-desc">滑块改为<em>描边环 + 透明底</em>，去掉渐变填充与投影；最安静的单色表达，与整体 GitHub 风 G2+ 定稿血缘最近，切换动效也换成更克制的标准缓动。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-d tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span class="end end-r"><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg></span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg></span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：滑块 <code>transparent + border-active 描边</code>，图标色 <code>--text-primary</code>；缓动换 <code>cubic-bezier(0.4, 0, 0.2, 1)</code> 标准曲线，去回弹。</p>
+</section>
+
+<!-- E -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">E</span><span class="name">柔光滑块 · 光晕 + 按压下陷</span></div>
+    <p class="demo-desc">渐变滑块外扩一圈<em>柔光光晕</em>（日/夜主题各自取色），轨道加深一档；按住滑轨时滑块轻微下陷（投影收紧），触感反馈最强的一款。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-e tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span class="end end-r"><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg></span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg></span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：<code>--rail-glow</code> 光晕色随主题切换；<code>:active</code> 收紧投影模拟按压；回弹系数加大（1.4）强化「落位」感。</p>
+</section>
+
+<!-- F -->
+<section class="demo">
+    <div class="demo-head"><span class="tag">F</span><span class="name">紧凑薄轨 · 20px 瘦身</span></div>
+    <p class="demo-desc">整体高度压到 <em>20px</em>（滑块 24×14、图标 10px），宽度收到 56px；给侧栏纵向空间抠细节的取向，代价是触控热区变小。</p>
+    <div class="stage"><div class="mside" data-view="s">
+        <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+        <div class="ms-ws"><svg class="ic"><use href="#i-folder"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+        <div class="ms-hdr">
+            <div class="rail v-f tgl" data-v="f" role="switch" title="切换 会话 / 文件">
+                <span class="end end-l"><svg class="ic"><use href="#i-chat"/></svg></span>
+                <span class="end end-r"><svg class="ic"><use href="#i-folder"/></svg></span>
+                <span class="thumb"><span class="ti ti-s"><svg class="ic"><use href="#i-chat"/></svg></span><span class="ti ti-f"><svg class="ic"><use href="#i-folder"/></svg></span></span>
+            </div>
+            <button class="act act-s" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+            <button class="act act-f" title="刷新文件"><svg class="ic"><use href="#i-sync"/></svg></button>
+        </div>
+        <div class="ms-list">
+            <div class="p-s">
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>重构侧栏视图切换</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>修复主题切换闪烁</span></div>
+            </div>
+            <div class="p-f">
+                <div class="ms-row"><svg class="ic"><use href="#i-folder"/></svg><span>src</span></div>
+                <div class="ms-row i1"><svg class="ic"><use href="#i-folder"/></svg><span>components</span></div>
+                <div class="ms-row i2"><svg class="ic"><use href="#i-file"/></svg><span>SidebarArea.vue</span></div>
+            </div>
+        </div>
+        <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+    </div></div>
+    <p class="spec">要点：<code>56×20 / 滑块 24×14 / translateX(28px)</code>；触控热区 20px 已低于 24px 建议值，若量产建议外扩 padding 补偿。</p>
+</section>
+
+<!-- 对比总表 -->
+<div class="cmp">
+    <h2>横向对比</h2>
+    <table>
+        <tr><th>变体</th><th>滑块</th><th>轨道</th><th>尺寸</th><th>亮点</th><th>适用考量</th></tr>
+        <tr><td>A 交叉淡入</td><td>渐变</td><td>bg-hover</td><td>64×26</td><td>硬切 → 交叉淡入，动效细腻</td><td>量产推荐，零布局成本</td></tr>
+        <tr><td>B 玻璃滑块</td><td>磨砂玻璃</td><td>bg-active</td><td>64×26</td><td>质感轻盈现代</td><td>质感取向，浅色需验证可读性</td></tr>
+        <tr><td>C 宽版带字</td><td>渐变 + 文字</td><td>bg-hover</td><td>126×26</td><td>语义最明确</td><td>新手友好，牺牲横向空间</td></tr>
+        <tr><td>D 描边滑块</td><td>描边环</td><td>bg-hover</td><td>64×26</td><td>最安静单色</td><td>极简取向，弱化控件存在感</td></tr>
+        <tr><td>E 柔光滑块</td><td>渐变 + 光晕</td><td>bg-active</td><td>64×26</td><td>按压下陷，触感最强</td><td>强调手感，装饰性略高</td></tr>
+        <tr><td>F 紧凑薄轨</td><td>渐变（小）</td><td>bg-hover</td><td>56×20</td><td>最省纵向空间</td><td>密度优先，热区偏小</td></tr>
+    </table>
+</div>
+
+<script>
+    // 与定稿 mockup 相同的 data-view 机制：.tgl 滑轨为二态开关（已处于文件视图则切回）
+    document.querySelectorAll('.mside').forEach(function (ms) {
+        ms.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-v]');
+            if (!b) return;
+            ms.dataset.view = b.classList.contains('tgl') && ms.dataset.view === 'f' ? 's' : b.dataset.v;
+        });
+    });
+    document.getElementById('themeBtn').addEventListener('click', function () {
+        document.body.classList.toggle('light-theme');
+    });
+</script>
+</body>
+</html>

@@ -1,54 +1,73 @@
-# Qualia Claw 界面重设计 · QwenPaw 风格原型
+# UI 设计稿（docs/design）
 
-本目录包含 Claw 界面仿 [QwenPaw Console](https://github.com/agentscope-ai/QwenPaw) 风格的重设计 HTML 原型。
+UI 视觉设计的 mockup 存放目录。全部为**自包含零依赖 HTML**，浏览器直接打开即可查看，多数支持日间/夜间主题切换与方案对比。
 
-## 文件说明
+技术方案文档已移至 [`docs/tech/`](../tech/README.md)；README 配图在 [`docs/images/`](../images/)。
+
+## 索引
+
+### 全局主题与外观
 
 | 文件 | 说明 |
 | --- | --- |
-| `claw-qwenpaw-style.html` | 单文件自包含原型（内联 CSS + JS），浏览器直接打开即可交互 |
+| `dark-theme-mockup.html` / `theme-dark-mockup.html` | 夜间主题方案 |
+| `theme-light-mockup.html` / `light-theme-mockup.html` / `light-theme-mockup-v2.html` | 日间主题迭代 |
+| `light-theme-near-white.html` / `light-theme-gray.html` / `light-theme-cool-mist.html` / `light-theme-graphite-final.html` | 日间主题选型：近白 / 灰 / 冷雾 / 石墨工程风（定稿） |
+| `theme-switcher-mockup.html` | 主题切换器交互 |
 
-## 设计要点（从 QwenPaw Console 提取）
+### 终端视图（ChatTerminal）
 
-### 视觉令牌
-
-| 令牌 | 值 | 用途 |
-| --- | --- | --- |
-| 站点背景 | `#FEFBF9` | 暖白页面底色 |
-| 侧边栏背景 | `#F9F7F4` | 侧边栏 / 顶栏底色 |
-| 选中项 | `#F0EDE8` | 侧边栏激活导航块 |
-| 品牌主色 | `#FF9D4D` | 主按钮 / Toggle / 高亮（橙） |
-| 浅橙底 | `#FDE8D7` | 用户气泡 / emoji 底 / 头像底 |
-| 深琥珀 | `#D97706` | 激活图标 / 强调文字 |
-| 边框 | `#EAE8E7` | 全局 1px 细边框 |
-| 状态绿 | `#15803D` / `#E5F5E8` | Live / 已启用 胶囊标签 |
-| 圆角 | `10px`（卡片 12-14px） | QwenPaw `--radius: 0.625rem` |
-| 字体 | `Inter`，官网大标题用 `Newsreader` 衬线斜体 | 正文无衬线，品牌字衬线 |
-
-关键差异点：主按钮为**橙色实底 + 深色文字**（非白字），这是 QwenPaw 的标志性样式。
-
-### 布局映射（现有 Claw → 新设计）
-
-| 现有 Claw | QwenPaw 风格重设计 |
+| 文件 | 说明 |
 | --- | --- |
-| 顶栏 logo（紫色渐变四角星） | 保留四角星火花符号，渐变改为暖橙系 `#FFB86B → #FF8A3D`，文字 "Qualia *Claw*"（Claw 用衬线斜体，呼应 QwenPaw 官网排版），右侧新增版本号胶囊 + 文档/FAQ/GitHub 链接 |
-| 侧边栏两段式（智能体平铺列表 + 会话列表） | 顶部「当前智能体 (N)」下拉选择器（QwenPaw Current Agent 样式）+ 分组导航（控制：对话/会话；工作区：文件/技能/MCP/模型；设置：智能体管理/Token 用量/系统设置）+ 底部最近会话列表 + 运行状态行 |
-| 技能/MCP/模型管理：侧边栏底部按钮切换聊天区内容 | 独立全页视图：面包屑标题 + 右上橙色主操作按钮 + 卡片网格（QwenPaw Skills/Models 页结构），带 Enabled 绿点、Built-in 标签、Toggle 开关 |
-| 智能体管理弹窗 | 独立表格页（QwenPaw Agent Management 样式）：emoji 名称 / ID / 描述 / 工作区路径 / 编辑·停用·删除 |
-| Token 热力图固定侧边栏底部 | 独立「Token 用量」页：统计卡片 + GitHub 风格热力图 |
-| 右侧工作区面板（文件树 + 预览） | 独立「文件」页：左文件树 + 右预览（QwenPaw Files 页结构），顶栏文件夹图标仍可直达 |
-| 聊天输入区（附件 + 发送） | QwenPaw 输入框：大圆角卡片、聚焦橙色描边、左侧附件/麦克风、右侧字符计数 + 橙色发送键，底部标语行 |
-| 工具调用 chip | 可折叠浅灰圆角工具卡片（🔍 检索 / ✏️ 写入，带"完成"绿点状态），点击展开参数详情 |
+| `terminal-chat-theme-mockup.html` | 终端形态聊天总稿（t1~t7 截图对应此稿主题变体） |
+| `terminal-layout-mockup.html` / `terminal-sidebar-mockup.html` | 终端布局 / 侧栏 |
+| `term-hero-mockup.html` | 终端欢迎页 Hero（neofetch 隐喻信息卡） |
+| `term-input-redesign-mockup.html` / `term-input-redesign-mockup-v2.html` | REPL 输入区重设计 |
+| `term-table-mockup.html` / `table-mockup.html` / `table-mockup-v2.html` | 终端表格排版 |
+| `term-code-lang-mockup.html` / `code-wrap-mockup.html` / `code-wrap-mockup-v2.html` / `code-wrap-mockup-v3.html` / `code-wrap-redesign-mockup.html` | 代码块语言徽标与换行方案 |
+| `t-banner-ascii-block-mockup.html` / `t-banner-pixel-duo-mockup.html` / `t-banner-pixel-led-mockup.html` | 终端 ASCII / 像素 banner |
 
-### 原型内可交互项
+### 聊天消息与流
 
-- 侧边栏导航切换全部 8 个视图（对话/会话/文件/技能/MCP/模型/智能体管理/Token 用量/系统设置）
-- 智能体下拉切换（联动聊天标题、输入框占位符、消息署名）
-- 聊天输入：Enter 发送演示回复 + typing 动画，Shift+Enter 换行，字符计数
-- 工具卡片点击折叠/展开、技能 Toggle 开关、热力图随机生成
+| 文件 | 说明 |
+| --- | --- |
+| `blockquote-mockup.html` | 引用块样式 |
+| `multi-pane-chat-mockup.html` | 多栏聊天 |
+| `act-flow-redesign-mockup.html` / `-v2.html` / `-v3.html` | Act 执行流可视化迭代 |
 
-## 与现有产品规范的取舍说明
+### 输入区
 
-1. **logo 色板**：原型为贴近 QwenPaw 暖橙基调，将四角星渐变从紫色系改为橙色系；若需保留 Qualia 家族紫（`#a78bfa → #5b4ad0`），仅需改 `#clawLogoGrad` 两个 stop-color。
-2. **智能体展示**：现有产品为侧边栏平铺智能体列表；QwenPaw 采用顶部下拉选择器。原型按 QwenPaw 方式重设计，两者取舍待评审确认。
-3. **Token 热力图**：从侧边栏底部提升为独立页面（QwenPaw Token Usage 页），信息密度更高。
+| 文件 | 说明 |
+| --- | --- |
+| `input-area-mockup.html` / `input-area-mockup-v2.html` | 输入区方案 |
+| `queued-messages-mockup.html` | 待发送队列 · 消息流展示版（已废弃，被输入区方案取代） |
+| `queued-messages-inputarea-mockup.html` | 待发送队列 · 输入框顶部三版本对比（V1 紧凑 / V2 卡片 / V3 折叠） |
+| `queued-messages-inputarea-v2.html` | V1 精修 + 行内编辑 |
+| `queued-messages-inputarea-v3.html` | **定稿**：极简纯文字行 + `#n` 编号（已实现，见 QueuedPanel.vue） |
+| `chat-mode-toggle-mockup.html` / `chat-mode-switch-style-mockup.html` | 智能体/问答模式切换 |
+| `model-list-redesign-mockup.html` | 模型列表 |
+
+### 侧边栏与导航
+
+| 文件 | 说明 |
+| --- | --- |
+| `side-rail-icons-mockup.html` / `side-rail-refine-mockup.html` | 侧栏图标导航 |
+| `sidebar-view-toggle-mockup.html` / `sidebar-coexistence-styles.html` | 侧栏视图切换 / 共存样式 |
+| `session-search-mockup.html` | 会话搜索 |
+| `session-status-indicator-mockup.html` | 会话状态指示 |
+
+### 工作区与工具面板
+
+| 文件 | 说明 |
+| --- | --- |
+| `workspace-browser-redesign.html` | 工作区文件浏览 |
+| `changed-files-mockup.html` / `changed-files-native.html` / `changed-files-card-styles.html` / `changed-files-card-styles-v2.html` / `changed-files-minimal.html` / `changed-files-minimal-v2.html` | 变更文件卡片样式迭代 |
+| `ws-switch-quick-dropdown-prototype.html` | 工作区快速切换下拉 |
+| `tool-list-redesign-mockup.html` | 工具列表 |
+| `mcp-verify-mockup.html` | MCP 连接验证 |
+| `web-search-list-mockup.html` | 网络搜索结果列表 |
+| `settings-dialog-redesign-mockup.html` | 设置弹窗 |
+
+## 配图（PNG）
+
+`v1-default.png`、`t1-full.png` ~ `t7-right-expanded.png`：终端主题截图（对应 `terminal-chat-theme-mockup.html` 的变体与滚动状态）；`verify-chat-history-1-bubble-dark.png`：历史回显验证截图。

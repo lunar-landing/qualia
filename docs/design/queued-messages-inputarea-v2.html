@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>待发送队列 · V1 紧凑行式精修稿</title>
+<!--
+  ============================================================================
+  待发送队列 · V1 紧凑行式精修 · queued-messages-inputarea-v2
+  ----------------------------------------------------------------------------
+  在 V1 选稿基础上精修（结构不变，逐项打磨）：
+    1. 分层：列表区改浅灰底（--bg），与白色输入区分层；头部虚线改实体细线
+    2. 可读性：条目正文由次级灰提到主文字色——排队消息也是用户自己的话，
+       弱化交给「结构 + 队首徽章」完成，不牺牲正文对比度
+    3. 队首语义：#1 实底深色徽章 =「下一条发送」，其余条目浅灰徽章
+    4. 计数徽章化：头部计数独立 pill，扫一眼可得
+    5. 动效：入队 slide+高亮渐隐 / 删除与接发收起淡出（页面加载即可见 ② 中演示）
+    6. 长队列：max-height 内滚动 + 底部渐隐遮罩（④）
+    7. 附件 chip 白底浮于浅灰列表区，避免同色粘连
+    8. placeholder 文案微调：「Enter 排队」→「Enter 加入队列」
+  动效参数见文末规格表。零依赖、石墨日间。
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#f6f8fa; --panel:#ffffff;
+    --border:#d0d7de; --border-strong:#b6bec8;
+    --text:#24292f; --text2:#57606a; --muted:#8c959f;
+    --danger:#cf222e; --ok:#0f7b4f;
+    --flash:rgba(36,41,47,.07);
+    --mono:ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);
+       font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       padding:36px 16px 90px}
+  .page{max-width:860px;margin:0 auto}
+  h1{font-size:20px}
+  .sub{color:var(--text2);font-size:13px;margin:6px 0 26px;line-height:1.8}
+  .sub b{color:var(--text)}
+
+  .variant{margin-bottom:50px}
+  .v-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .v-head .no{font-family:var(--mono);font-size:12px;color:#fff;background:var(--text);
+              border-radius:5px;padding:2px 9px}
+  .v-head h3{font-size:15px}
+  .v-head .tag{font-size:12.5px;color:var(--text2)}
+
+  .mark{position:relative;display:inline-block}
+  .mark::after{content:attr(data-mk);position:absolute;top:-8px;right:-8px;z-index:5;
+               width:17px;height:17px;border-radius:50%;background:var(--text);color:#fff;
+               font-size:10px;display:flex;align-items:center;justify-content:center;
+               font-family:"Segoe UI",sans-serif;box-shadow:0 0 0 2px #fff}
+  .notes{margin-top:12px;font-size:12.5px;color:var(--text2);line-height:2.05;
+         background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px}
+  .notes b{color:var(--text)}
+  .mn{display:inline-flex;width:16px;height:16px;background:var(--text);color:#fff;border-radius:50%;
+      font-size:10px;align-items:center;justify-content:center;margin-right:7px;vertical-align:-3px}
+
+  /* ============================================================
+     输入面板：待发送列表（浅灰层） + 输入框（白层）
+     ============================================================ */
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+         box-shadow:0 1px 3px rgba(31,35,40,.06);overflow:visible}
+  .qlist{background:var(--bg);border-bottom:1px solid var(--border);
+         border-radius:12px 12px 0 0;padding:9px 10px 8px}
+  .q-head{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text2);
+          padding:0 4px 8px}
+  .q-head svg{flex:none;color:var(--text2)}
+  .q-head .spring{flex:1}
+  .q-count{font-family:var(--mono);font-size:11px;color:var(--text);background:#fff;
+           border:1px solid var(--border);border-radius:999px;padding:0 8px;line-height:17px}
+  .q-hint{color:var(--muted)}
+  .btn{font-size:11.5px;border-radius:6px;padding:2.5px 11px;cursor:pointer;
+       border:1px solid var(--border);background:#fff;color:var(--text2)}
+  .btn.primary{background:var(--text);border-color:var(--text);color:#fff}
+  .btn:hover{border-color:var(--border-strong);color:var(--text)}
+  .btn.primary:hover{opacity:.88}
+
+  /* —— 条目行（正文主色 + 队首深徽章） —— */
+  .q-row{display:flex;align-items:center;gap:10px;padding:6px 9px;border-radius:7px;
+         font-size:13px;color:var(--text);transition:background .12s ease}
+  .q-row + .q-row{margin-top:2px}
+  .q-row:hover{background:rgba(36,41,47,.05)}
+  .q-no{flex:none;min-width:24px;text-align:center;font-family:var(--mono);font-size:10.5px;
+        line-height:17px;color:var(--text2);background:#fff;border:1px solid var(--border);
+        border-radius:5px}
+  .q-no.next{background:var(--text);border-color:var(--text);color:#fff}
+  .q-text{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-att{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);
+         background:#fff;border:1px solid var(--border);border-radius:5px;
+         padding:1px 7px;flex:none;max-width:150px}
+  .q-att .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .q-del{flex:none;width:20px;height:20px;border-radius:5px;border:0;background:transparent;
+         color:var(--muted);font-size:11px;cursor:pointer;
+         display:flex;align-items:center;justify-content:center;
+         opacity:0;transition:opacity .12s ease,color .12s ease}
+  .q-row:hover .q-del{opacity:1}
+  .q-del:hover{color:var(--danger);background:#fff}
+
+  /* —— 动效（页面加载即可见） —— */
+  @keyframes q-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  @keyframes q-flash{from{background:var(--flash)}to{background:transparent}}
+  .q-row.enter{animation:q-in .22s ease-out both, q-flash 1.8s ease-out .12s both}
+  @keyframes q-out{to{opacity:0;transform:translateY(4px)}}
+  .q-row.leaving{animation:q-out .16s ease-in both;pointer-events:none}
+
+  /* —— 长队列内滚动 + 渐隐遮罩 —— */
+  .q-scroll{max-height:172px;overflow-y:auto;
+            -webkit-mask-image:linear-gradient(#000 78%,transparent 100%);
+            mask-image:linear-gradient(#000 78%,transparent 100%);
+            padding-bottom:10px;margin-bottom:-2px}
+  .q-scroll::-webkit-scrollbar{width:6px}
+  .q-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+
+  /* —— 行内编辑态：白底浮起 + 主色描边 —— */
+  .q-row.editing{background:#fff;box-shadow:0 0 0 1.5px var(--text),0 2px 8px rgba(31,35,40,.10);
+                 padding:7px 9px}
+  .q-row.editing .q-no{border-color:var(--text)}
+  .q-edit{flex:1}
+  .q-edit textarea{width:100%;border:0;outline:0;resize:none;background:transparent;
+                   font:inherit;font-size:13px;color:var(--text);line-height:1.55;min-height:38px}
+  .kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
+       padding:0 4px;font-size:10px;line-height:14px;background:var(--bg);margin-right:4px}
+  .q-edit-keys{display:flex;justify-content:flex-end;gap:10px;font-size:10.5px;
+               color:var(--muted);margin-top:3px}
+
+  /* —— 输入框（白层） —— */
+  .input-row{display:flex;align-items:flex-end;gap:10px;padding:11px 12px 9px}
+  .caret{width:1.5px;height:18px;background:var(--text);align-self:center;
+         animation:blink 1.1s steps(1) infinite;flex:none}
+  @keyframes blink{50%{opacity:0}}
+  .input-row textarea{flex:1;border:0;outline:0;resize:none;background:transparent;
+                      font-size:13px;font-family:inherit;color:var(--text);height:40px}
+  .input-row textarea::placeholder{color:var(--muted)}
+  .send-btn{flex:none;width:30px;height:30px;border-radius:8px;border:0;background:var(--danger);
+            color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .send-btn.idle{background:var(--text)}
+  .tools-row{display:flex;gap:10px;align-items:center;padding:0 14px 10px;font-size:12px;color:var(--muted)}
+  .tool-ic{width:25px;height:25px;border:1px solid var(--border);border-radius:7px;background:#fff;
+           display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer}
+  .model-pill{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text2);
+              border:1px solid var(--border);border-radius:999px;padding:2px 10px;background:var(--panel)}
+
+  /* 规格表 */
+  .spec{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+        padding:18px 22px;margin-top:8px}
+  .spec table{border-collapse:collapse;width:100%;font-size:12.5px}
+  .spec th,.spec td{border:1px solid #eaeef2;padding:7px 11px;text-align:left;vertical-align:top;line-height:1.6}
+  .spec th{background:var(--bg);font-weight:600;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>待发送队列 · V1 紧凑行式精修稿</h1>
+  <p class="sub">
+    结构不变，八处打磨：<b>浅灰分层</b>、<b>正文提回主色</b>、<b>队首「下一条」深徽章</b>、<b>计数 pill</b>、
+    <b>入队/删除/接发动效</b>、<b>长队列内滚动渐隐</b>、<b>附件白底 chip</b>、<b>文案微调</b>。
+  </p>
+
+  <!-- ================= ① 主场景 ================= -->
+  <div class="variant">
+    <div class="v-head">
+      <span class="no">1</span><h3>生成中 · 3 条排队</h3>
+      <span class="tag">队首深徽章 = 下一条发送</span>
+    </div>
+    <div class="panel">
+      <div class="qlist">
+        <div class="q-head mark" data-mk="1">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>待发送</span>
+          <span class="q-count">3</span>
+          <span class="spring"></span>
+          <span class="q-hint">回复完成后自动依次发送</span>
+        </div>
+        <div class="q-row mark" data-mk="2">
+          <span class="q-no next">#1</span>
+          <span class="q-text" title="把 README 里的示例更新成新 API">把 README 里的示例更新成新 API</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row">
+          <span class="q-no">#2</span>
+          <span class="q-text" title="再跑一遍测试确认没有回归，附一张当前页面截图">再跑一遍测试确认没有回归，附一张当前页面截图</span>
+          <span class="q-att mark" data-mk="3">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="5.6" cy="6.2" r="1.2" fill="currentColor"/><path d="m4 11 3-3 2.4 2.4L11.6 8l2.4 2.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            <span class="n">screenshot.png</span>
+          </span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row">
+          <span class="q-no">#3</span>
+          <span class="q-text" title="把 token 统计面板的日环比数字补上">把 token 统计面板的日环比数字补上</span>
+          <button class="q-del" style="opacity:1" title="移除">✕</button>
+        </div>
+      </div>
+      <div class="input-row">
+        <span class="caret"></span>
+        <textarea placeholder="回复完成后自动发送排队消息 · Enter 加入队列"></textarea>
+        <button class="send-btn" title="停止生成">
+          <svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        </button>
+      </div>
+      <div class="tools-row">
+        <span class="tool-ic"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 6.5 8.2 9.8a2.6 2.6 0 0 1-3.7-3.7l4.2-4.2a1.8 1.8 0 0 1 2.5 2.5L7 8.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+        <span class="model-pill">gpt-4o ▾</span>
+      </div>
+    </div>
+    <div class="notes">
+      <div><span class="mn">1</span><b>两层结构</b>：列表区浅灰底、输入区白底，同容器内用细实线分隔——队列是输入框的「载货区」，不是浮层。</div>
+      <div><span class="mn">2</span><b>队首徽章反白</b>：#1 实底深色即「下一条发送」，其余浅灰；接发后徽章自动轮转，顺序信息零成本可见。</div>
+      <div><span class="mn">3</span><b>附件白底 chip</b>：浮于浅灰列表区不粘连，超长文件名 chip 内截断（max-width 150px）。</div>
+      <div><b>正文对比度</b>：条目文字为主色 #24292f（V1 为次级灰），长指令直接可读，弱化全部交给结构信号。</div>
+    </div>
+  </div>
+
+  <!-- ================= ② 入队瞬间（动效可见） ================= -->
+  <div class="variant">
+    <div class="v-head">
+      <span class="no">2</span><h3>入队瞬间</h3>
+      <span class="tag">#3 为刚入队条目：下滑入场 + 高亮渐隐（打开页面即可见一次）</span>
+    </div>
+    <div class="panel">
+      <div class="qlist">
+        <div class="q-head">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>待发送</span>
+          <span class="q-count">3</span>
+          <span class="spring"></span>
+          <span class="q-hint">回复完成后自动依次发送</span>
+        </div>
+        <div class="q-row">
+          <span class="q-no next">#1</span>
+          <span class="q-text">把 README 里的示例更新成新 API</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row">
+          <span class="q-no">#2</span>
+          <span class="q-text">再跑一遍测试确认没有回归</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row enter mark" data-mk="1">
+          <span class="q-no">#3</span>
+          <span class="q-text">把 token 统计面板的日环比数字补上</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+      </div>
+      <div class="input-row">
+        <span class="caret"></span>
+        <textarea></textarea>
+        <button class="send-btn" title="停止生成">
+          <svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="notes">
+      <div><span class="mn">1</span><b>入场动效</b>：translateY(-5px)+淡入 220ms ease-out，随后浅灰高亮 1.8s 渐隐——不依赖声音/徽标，「刚进去了」的确认感由动效完成；输入框保持清空并聚焦，可连续排队。</div>
+    </div>
+  </div>
+
+  <!-- ================= ③ 恢复 / 空闲态 ================= -->
+  <div class="variant">
+    <div class="v-head">
+      <span class="no">3</span><h3>恢复 / 空闲态</h3>
+      <span class="tag">仅列表头切换为操作态，条目样式不变</span>
+    </div>
+    <div class="panel">
+      <div class="qlist">
+        <div class="q-head mark" data-mk="1">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>待发送</span>
+          <span class="q-count">2</span>
+          <span style="color:var(--muted)">· 上次未发送，已从本地恢复</span>
+          <span class="spring"></span>
+          <button class="btn primary mark" data-mk="2">立即发送</button>
+          <button class="btn">清空</button>
+        </div>
+        <div class="q-row">
+          <span class="q-no next">#1</span>
+          <span class="q-text">把 README 里的示例更新成新 API</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row">
+          <span class="q-no">#2</span>
+          <span class="q-text">再跑一遍测试确认没有回归</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+      </div>
+      <div class="input-row">
+        <span class="caret"></span>
+        <textarea placeholder="输入消息…（Enter 发送，将排在队列之后）"></textarea>
+        <button class="send-btn idle" title="发送">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 13V3.5M8 3.5 4 7.5M8 3.5l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="tools-row">
+        <span class="tool-ic"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 6.5 8.2 9.8a2.6 2.6 0 0 1-3.7-3.7l4.2-4.2a1.8 1.8 0 0 1 2.5 2.5L7 8.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+        <span class="model-pill">gpt-4o ▾</span>
+      </div>
+    </div>
+    <div class="notes">
+      <div><span class="mn">1</span><b>来源说明内联在头部</b>：恢复=「上次未发送，已从本地恢复」；停止/错误后=「已暂停，等待发送」；不新增块级 UI。</div>
+      <div><span class="mn">2</span><b>「立即发送」= tryConsume</b>：从队首接发；输入新消息同样先入队（placeholder 已提示「将排在队列之后」）。</div>
+    </div>
+  </div>
+
+  <!-- ================= ④ 长队列 ================= -->
+  <div class="variant">
+    <div class="v-head">
+      <span class="no">4</span><h3>长队列 · 内滚动</h3>
+      <span class="tag">超过 4 条：max-height 内滚动 + 底部渐隐遮罩</span>
+    </div>
+    <div class="panel">
+      <div class="qlist">
+        <div class="q-head">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>待发送</span>
+          <span class="q-count">6</span>
+          <span class="spring"></span>
+          <span class="q-hint">回复完成后自动依次发送</span>
+        </div>
+        <div class="q-scroll mark" data-mk="1">
+          <div class="q-row"><span class="q-no next">#1</span><span class="q-text">把 README 里的示例更新成新 API</span><button class="q-del" title="移除">✕</button></div>
+          <div class="q-row"><span class="q-no">#2</span><span class="q-text">再跑一遍测试确认没有回归</span><button class="q-del" title="移除">✕</button></div>
+          <div class="q-row"><span class="q-no">#3</span><span class="q-text">把 token 统计面板的日环比数字补上</span><button class="q-del" title="移除">✕</button></div>
+          <div class="q-row"><span class="q-no">#4</span><span class="q-text">侧边栏会话列表按最后活跃时间排序</span><button class="q-del" title="移除">✕</button></div>
+          <div class="q-row"><span class="q-no">#5</span><span class="q-text">检查 deploy-docs 工作流的缓存命中率</span><button class="q-del" title="移除">✕</button></div>
+          <div class="q-row"><span class="q-no">#6</span><span class="q-text">把这轮改动整理成一条更新日志</span><button class="q-del" title="移除">✕</button></div>
+        </div>
+      </div>
+      <div class="input-row">
+        <span class="caret"></span>
+        <textarea placeholder="回复完成后自动发送排队消息 · Enter 加入队列"></textarea>
+        <button class="send-btn" title="停止生成">
+          <svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="notes">
+      <div><span class="mn">1</span><b>滚动边界</b>：约 4.5 条（172px）开始内滚动，底部渐隐暗示可滚；列表自身滚动，页面与消息流不受挤压。</div>
+      <div><b>上限保护</b>：队列上限 10 条，超限时 placeholder 短暂提示「队列已满」并入队失败，不静默丢弃。</div>
+    </div>
+  </div>
+
+  <!-- ================= ⑤ 行内二次编辑 ================= -->
+  <div class="variant">
+    <div class="v-head">
+      <span class="no">5</span><h3>行内二次编辑</h3>
+      <span class="tag">点击条目文本进入编辑 · 编辑中暂停自动接发</span>
+    </div>
+    <div class="panel">
+      <div class="qlist">
+        <div class="q-head">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.1 1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>待发送</span>
+          <span class="q-count">3</span>
+          <span class="spring"></span>
+          <span class="q-hint">编辑中 · 自动接发已暂停</span>
+        </div>
+        <div class="q-row">
+          <span class="q-no next">#1</span>
+          <span class="q-text">把 README 里的示例更新成新 API</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+        <div class="q-row editing mark" data-mk="1">
+          <span class="q-no">#2</span>
+          <div class="q-edit">
+            <textarea>再跑一遍测试确认没有回归，跑完把失败用例汇总贴出来</textarea>
+            <div class="q-edit-keys"><span><span class="kbd">⏎</span>保存</span><span><span class="kbd">esc</span>取消</span></div>
+          </div>
+        </div>
+        <div class="q-row">
+          <span class="q-no">#3</span>
+          <span class="q-text">把 token 统计面板的日环比数字补上</span>
+          <button class="q-del" title="移除">✕</button>
+        </div>
+      </div>
+      <div class="input-row">
+        <span class="caret"></span>
+        <textarea placeholder="回复完成后自动发送排队消息 · Enter 加入队列"></textarea>
+        <button class="send-btn" title="停止生成">
+          <svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="notes">
+      <div><span class="mn">1</span><b>编辑态</b>：行白底浮起 + 主色描边（与输入框聚焦态同语言）；单行原地变多行 textarea，行尾键帽提示操作。</div>
+      <div><b>竞态规则</b>：编辑中轮到该条发送 → 队列挂起，头部提示「自动接发已暂停」；保存 / 取消后自动继续，顺序不乱、编辑不丢。</div>
+      <div><b>保存与取消</b>：Enter 或失焦保存（即时写 localStorage）；Esc 还原原文。附件不参与编辑，改附件 = 删整条重排。</div>
+    </div>
+  </div>
+
+  <!-- ================= 动效与行为规格 ================= -->
+  <div class="spec">
+    <table>
+      <tr><th style="width:22%">动效</th><th style="width:38%">参数</th><th>说明</th></tr>
+      <tr><td>入队进场</td><td>translateY(-5px)→0 + opacity 0→1，220ms ease-out</td><td>新条目顶部插入位播放</td></tr>
+      <tr><td>入队高亮</td><td>background var(--flash)→transparent，1.8s ease-out</td><td>进场后接续播放，一次性确认信号</td></tr>
+      <tr><td>删除 / 接发离场</td><td>opacity→0 + translateY(4px)，160ms ease-in</td><td>列表收合不留空位；接发即离场进入消息流</td></tr>
+      <tr><td>行悬停</td><td>background 120ms</td><td>rgba(36,41,47,.05)；删除钮同步浮出</td></tr>
+      <tr><th colspan="3">行为规格</th></tr>
+      <tr><td>队列上限</td><td>10 条</td><td>超限入队失败并提示，不静默丢弃</td></tr>
+      <tr><td>滚动</td><td>max-height 172px 内滚动</td><td>底部 mask 渐隐；自身滚动不挤占消息流</td></tr>
+      <tr><td>二次编辑</td><td>点击条目文本进入行内编辑</td><td>Enter / 失焦保存，Esc 取消；编辑中暂停自动接发（保存 / 取消后恢复）；附件只读，改附件删整条重排</td></tr>
+      <tr><td>顺序</td><td>入队顺序即发送顺序</td><td>不支持拖拽排序（保持最简）</td></tr>
+      <tr><td>持久化</td><td>localStorage <code>qualia:queue:{sid}</code></td><td>增删接发即时写入；恢复不自动发送</td></tr>
+      <tr><td>终端视图</td><td>同组件浅色变体</td><td>文案键帽化（queued），删除钮常驻</td></tr>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

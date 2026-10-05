@@ -380,6 +380,11 @@
                 msgEl.innerHTML = `
                     <div class="avatar">${agentAvatarHtml()}</div>
                     <div class="act-col">
+                        <div class="think-toggle" style="display: none;">
+                            <i class="fas fa-chevron-right tt-chevron"></i>
+                            <span class="tt-text">思考过程</span>
+                            <span class="tt-badge">0</span>
+                        </div>
                         <div class="act-flow"></div>
                         <div class="think-bar" style="display: none;">
                             <i class="fas fa-circle-notch fa-spin"></i>
@@ -433,13 +438,39 @@
                 }
             }
 
-            // 执行结束：状态条隐藏、脉冲节点复位，未完成 chip 置为完成（详情保持展开）
+            // 执行结束：状态条隐藏、脉冲节点复位，未完成 chip 置为完成（详情保持展开）；思考与步骤折叠为摘要条
             function finalizeActivity(msgEl) {
                 if (!msgEl) return;
                 ToolChip.resolveAll(msgEl);
                 msgEl.querySelector('.think-bar').style.display = 'none';
                 msgEl.querySelectorAll('.act-thought.current').forEach(t => t.classList.remove('current'));
+                collapseActivity(msgEl);
             }
+
+            // 折叠思考与步骤：flow 收起，摘要条带角标（思考段数 + 工具次数）；已折叠过则保留用户当前的展开状态
+            function collapseActivity(msgEl) {
+                const toggle = msgEl.querySelector('.think-toggle');
+                const flow = msgEl.querySelector('.act-flow');
+                if (!toggle || !flow) return;
+                const count = flow.querySelectorAll('.act-thought').length
+                    + flow.querySelectorAll('.tool-chips .tool-chip').length;
+                if (count === 0) return;
+                toggle.querySelector('.tt-badge').textContent = count;
+                if (toggle.style.display === 'flex') return;
+                flow.classList.add('collapsed');
+                toggle.classList.remove('open');
+                toggle.style.display = 'flex';
+            }
+
+            // 摘要条点击：展开/收起思考与步骤（事件委托，活动消息为动态生成）
+            document.addEventListener('click', function(e) {
+                const toggle = e.target.closest('.think-toggle');
+                if (!toggle) return;
+                const flow = toggle.parentElement.querySelector('.act-flow');
+                if (!flow) return;
+                const open = toggle.classList.toggle('open');
+                flow.classList.toggle('collapsed', !open);
+            });
 
             // 回答写入活动容器（活动 + 回答同列）
             function setActivityAnswer(msgEl, content) {

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>终端 Hero 设计选型 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（终端两套主题） ===== */
+    :root {
+        --bg: #0d1117; --text: #e6edf3; --idle: #8b949e;
+        --line: #21262d; --green: #7ee787; --soft: #10161d;
+        --sel: rgba(126, 231, 135, 0.1);
+    }
+    body.light-theme {
+        --bg: #f6f8fa; --text: #24292f; --idle: #8c959f;
+        --line: #d0d7de; --green: #0f7b4f; --soft: #eef1f4;
+        --sel: rgba(15, 123, 79, 0.08);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Sarasa Mono SC', 'Microsoft YaHei', monospace;
+        background: var(--bg); color: var(--text);
+        padding: 32px 24px 64px;
+        transition: background .25s, color .25s;
+    }
+
+    .page-head {
+        max-width: 860px; margin: 0 auto 28px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 12.5px; color: var(--idle); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0; border: 1px solid var(--line);
+        background: transparent; color: var(--idle);
+        font: inherit; font-size: 12px; padding: 6px 14px; border-radius: 6px;
+        cursor: pointer; transition: all .15s;
+    }
+    .theme-toggle:hover { color: var(--green); border-color: var(--green); }
+
+    .variant { max-width: 860px; margin: 0 auto 48px; }
+    .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .variant-head .tag {
+        font-size: 12px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; border: 1px solid var(--line);
+        color: var(--idle); flex-shrink: 0;
+    }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12px; color: var(--idle); margin-bottom: 14px; line-height: 1.7; }
+    .variant-desc b { color: var(--text); font-weight: 600; }
+
+    /* ===== 通用小元素 ===== */
+    .cursor {
+        display: inline-block; width: 8px; height: 15px;
+        background: var(--green); vertical-align: -2px;
+        animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+    .hints { display: inline-flex; flex-direction: column; align-items: stretch; gap: 2px; }
+    .hints-title { font-size: 10.5px; color: var(--idle); opacity: .65; letter-spacing: 2px; margin-bottom: 6px; }
+    .hint {
+        display: flex; align-items: center; gap: 12px;
+        color: var(--idle); padding: 3px 12px; border-radius: 6px;
+        font: inherit; font-size: 12px; background: none; border: none;
+        cursor: pointer; text-align: left; transition: all .15s;
+    }
+    .hint:hover { background: var(--sel); color: var(--text); }
+    .hint .no { font-size: 10px; color: var(--idle); opacity: .5; transition: all .15s; }
+    .hint:hover .no { color: var(--green); opacity: 1; }
+
+    /* 逐行淡入（启动日志 / 窗口内容用） */
+    .seq > * { animation: lineIn .35s ease-out both; }
+    .seq > *:nth-child(1) { animation-delay: .05s; }
+    .seq > *:nth-child(2) { animation-delay: .18s; }
+    .seq > *:nth-child(3) { animation-delay: .31s; }
+    .seq > *:nth-child(4) { animation-delay: .44s; }
+    .seq > *:nth-child(5) { animation-delay: .57s; }
+    .seq > *:nth-child(6) { animation-delay: .70s; }
+    .seq > *:nth-child(7) { animation-delay: .83s; }
+    .seq > *:nth-child(8) { animation-delay: .96s; }
+    .seq > *:nth-child(9) { animation-delay: 1.09s; }
+    .seq > *:nth-child(10) { animation-delay: 1.22s; }
+    .seq > *:nth-child(11) { animation-delay: 1.35s; }
+    @keyframes lineIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* =========================================================
+       H1 启动日志：模拟 CLI 启动自检输出
+       $ 命令 + 绿 ✓ 检查行 + 空行 + tagline + 建议
+       ========================================================= */
+    .h1-hero { max-width: 560px; margin: 0 auto; font-size: 12.5px; line-height: 2.05; padding: 30px 0 10px; }
+    .h1-hero .cmd .p { color: var(--green); font-weight: 600; margin-right: 8px; }
+    .h1-hero .cmd .name { color: var(--text); }
+    .h1-hero .ok { display: flex; gap: 0; }
+    .h1-hero .ok .tick { color: var(--green); margin-right: 10px; }
+    .h1-hero .ok .k { color: var(--idle); width: 92px; flex-shrink: 0; }
+    .h1-hero .ok .v { color: var(--text); opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .h1-hero .gap { height: 14px; }
+    .h1-hero .tagline-main { font-size: 13px; color: var(--text); opacity: .9; }
+    .h1-hero .tagline-sub { font-size: 11.5px; color: var(--idle); }
+    .h1-hero .hints { margin-top: 18px; }
+
+    /* =========================================================
+       H2 neofetch 信息卡：左侧品牌符号列 + 右侧键值信息
+       ========================================================= */
+    .h2-hero { max-width: 560px; margin: 0 auto; padding: 30px 0 10px; display: flex; gap: 30px; }
+    .h2-hero .mark {
+        flex-shrink: 0; color: var(--green);
+        font-size: 68px; line-height: 1;
+        display: flex; align-items: center;
+        text-shadow: 0 0 26px color-mix(in srgb, var(--green) 45%, transparent);
+    }
+    .h2-hero .info { font-size: 12.5px; line-height: 2.05; padding-top: 2px; }
+    .h2-hero .info .head { color: var(--text); font-weight: 600; }
+    .h2-hero .info .head .dim { color: var(--idle); font-weight: 400; }
+    .h2-hero .info .rule { color: var(--line); letter-spacing: -1px; }
+    .h2-hero .info .kv .k { color: var(--green); margin-right: 12px; }
+    .h2-hero .info .kv .v { color: var(--text); opacity: .85; }
+    .h2-hero .info .sub { margin-top: 10px; color: var(--idle); font-size: 11.5px; }
+    .h2-hero .info .hints { margin-top: 14px; }
+
+    /* =========================================================
+       H3 巨型提示符：大 ❯ + 闪烁光标 + tagline + 建议
+       ========================================================= */
+    .h3-hero { max-width: 560px; margin: 0 auto; padding: 26px 0 8px; text-align: center; }
+    .h3-hero .prompt {
+        font-size: 96px; line-height: 1; color: var(--green);
+        text-shadow: 0 0 34px color-mix(in srgb, var(--green) 40%, transparent);
+    }
+    .h3-hero .prompt .cursor { width: 20px; height: 66px; vertical-align: 6px; margin-left: 18px; }
+    .h3-hero .tagline-main { margin-top: 22px; font-size: 13px; color: var(--text); opacity: .9; letter-spacing: 1px; }
+    .h3-hero .tagline-sub { margin-top: 5px; font-size: 11.5px; color: var(--idle); }
+    .h3-hero .tagline-sub i { font-style: normal; color: var(--green); margin: 0 6px; }
+    .h3-hero .hints { margin-top: 24px; text-align: left; }
+
+    /* =========================================================
+       H4 虚拟终端窗：标题栏（三点 + 标题）+ 窗内欢迎文本
+       ========================================================= */
+    .h4-hero { max-width: 600px; margin: 0 auto; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); overflow: hidden; }
+    .h4-hero .bar {
+        display: flex; align-items: center; gap: 7px;
+        padding: 8px 13px; border-bottom: 1px solid var(--line);
+    }
+    .h4-hero .bar i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--line); }
+    .h4-hero .bar .title { margin: 0 auto; font-size: 11px; color: var(--idle); }
+    .h4-hero .body { padding: 20px 22px 22px; font-size: 12.5px; line-height: 2; }
+    .h4-hero .body .brand { color: var(--text); font-weight: 600; font-size: 13.5px; }
+    .h4-hero .body .brand .ver { color: var(--idle); font-weight: 400; font-size: 11px; margin-left: 8px; }
+    .h4-hero .body .sub { color: var(--idle); font-size: 11.5px; }
+    .h4-hero .body .hints { margin-top: 12px; }
+    .h4-hero .body .ps1 { margin-top: 14px; color: var(--green); }
+
+    /* =========================================================
+       H5 路径横幅：大号工作区路径 prompt（你在这里）
+       ========================================================= */
+    .h5-hero { max-width: 560px; margin: 0 auto; padding: 34px 0 8px; }
+    .h5-hero .path {
+        font-size: 21px; font-weight: 600; color: var(--text);
+        letter-spacing: .3px; word-break: break-all;
+    }
+    .h5-hero .path .tilde { color: var(--green); }
+    .h5-hero .prompt-line { margin-top: 8px; font-size: 15px; }
+    .h5-hero .prompt-line .p { color: var(--green); font-weight: 600; margin-right: 10px; }
+    .h5-hero .prompt-line .cursor { width: 10px; height: 18px; }
+    .h5-hero .tagline { margin-top: 20px; font-size: 12px; color: var(--idle); }
+    .h5-hero .tagline i { font-style: normal; color: var(--green); margin: 0 6px; }
+    .h5-hero .hints { margin-top: 20px; }
+
+    .foot-note {
+        max-width: 860px; margin: 40px auto 0;
+        font-size: 12px; color: var(--idle);
+        border-top: 1px solid var(--line);
+        padding-top: 14px; line-height: 1.7;
+    }
+    .foot-note code { color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <div>
+        <h1>终端 Hero 设计选型 · 第二批</h1>
+        <p>跳出方块拼字路线的五个新方向 · 右上角可切换深 / 浅主题</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== H1 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H1</span><h2>启动日志（boot sequence）</h2></div>
+    <div class="variant-desc"><b>模拟 CLI 工具启动自检</b>：`<span style="color:var(--green)">$</span> qualia-code` + 绿 ✓ 检查行（工作区 / 模型 / 工具 / 会话），随后 tagline 与建议。信息真实可用、逐行淡入，像工具每次启动打印的横幅——终端原生感最强。</div>
+    <div class="h1-hero seq">
+        <div class="cmd"><span class="p">$</span><span class="name">qualia-code</span></div>
+        <div class="ok"><span class="tick">✓</span><span class="k">workspace</span><span class="v">d:\Projects\qualia</span></div>
+        <div class="ok"><span class="tick">✓</span><span class="k">model</span><span class="v">gpt-5 · streaming</span></div>
+        <div class="ok"><span class="tick">✓</span><span class="k">tools</span><span class="v">12 builtin · 8 mcp</span></div>
+        <div class="ok"><span class="tick">✓</span><span class="k">sessions</span><span class="v">3 restored</span></div>
+        <div class="gap"></div>
+        <div class="tagline-main">工作区内的对话式编程终端</div>
+        <div class="tagline-sub">对话 · 读写代码 · 运行命令</div>
+        <div class="hints">
+            <div class="hints-title">── 试试 ──</div>
+            <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+            <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+            <button class="hint"><span class="no">03</span>审查最近的改动，给出风险清单</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== H2 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H2</span><h2>neofetch 信息卡</h2></div>
+    <div class="variant-desc"><b>左侧单个品牌符号（垂直居中）+ 右侧环境键值</b>（workspace / model / tools / sessions）：neofetch 式「系统信息卡」。neofetch 原版的左栏是整块大 logo，这里收敛为单颗四角星火花（与聊天模式 hero-logo 同源）；品牌与真实环境信息同屏，极客辨识度最高。</div>
+    <div class="h2-hero seq">
+        <div class="mark">✦</div>
+        <div class="info">
+            <div class="head">qualia-code <span class="dim">v0.2.0</span></div>
+            <div class="rule">────────────────────────</div>
+            <div class="kv"><span class="k">workspace</span><span class="v">qualia</span></div>
+            <div class="kv"><span class="k">model</span><span class="v">gpt-5</span></div>
+            <div class="kv"><span class="k">tools</span><span class="v">12 builtin · 8 mcp</span></div>
+            <div class="kv"><span class="k">sessions</span><span class="v">3</span></div>
+            <div class="sub">工作区内的对话式编程终端 —— 对话 · 读写代码 · 运行命令</div>
+            <div class="hints">
+                <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+                <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== H3 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H3</span><h2>巨型提示符</h2></div>
+    <div class="variant-desc"><b>一个大号 <span style="color:var(--green)">❯</span> 作为视觉主体</b>（带辉光 + 闪烁方块光标），下接两行 tagline 与建议。留白最多、最现代；品牌符号与输入区的提示符前后呼应。</div>
+    <div class="h3-hero seq">
+        <div class="prompt">❯<span class="cursor"></span></div>
+        <div class="tagline-main">工作区内的对话式编程终端</div>
+        <div class="tagline-sub">对话 <i>·</i> 读写代码 <i>·</i> 运行命令</div>
+        <div class="hints">
+            <div class="hints-title">── 试试 ──</div>
+            <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+            <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+            <button class="hint"><span class="no">03</span>审查最近的改动，给出风险清单</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== H4 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H4</span><h2>虚拟终端窗</h2></div>
+    <div class="variant-desc"><b>整块 hero 就是一扇终端窗口</b>：标题栏（熄灭三点 + `qualia-code — session`）+ 窗内品牌行 / tagline / 建议 / 末行 PS1 待命光标。滚动进入会话时窗体可整体淡出，舞台感强。</div>
+    <div class="h4-hero">
+        <div class="bar"><i></i><i></i><i></i><span class="title">qualia-code — session</span></div>
+        <div class="body seq">
+            <div class="brand">Qualia Code <span class="ver">v0.2.0</span></div>
+            <div class="sub">工作区内的对话式编程终端 —— 对话 · 读写代码 · 运行命令</div>
+            <div class="hints">
+                <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+                <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+                <button class="hint"><span class="no">03</span>审查最近的改动，给出风险清单</button>
+            </div>
+            <div class="ps1">❯ <span class="cursor"></span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== H5 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H5</span><h2>路径横幅（你在这里）</h2></div>
+    <div class="variant-desc"><b>大号真实工作区路径当主标题</b>：`<span style="color:var(--green)">~</span>/Projects/qualia` + 待命 prompt（❯ + 闪烁光标），下接 tagline 与建议。「你在这里」的定位感最强，路径随工作区切换自动变化。</div>
+    <div class="h5-hero seq">
+        <div class="path"><span class="tilde">~</span>/Projects/qualia</div>
+        <div class="prompt-line"><span class="p">❯</span><span class="cursor"></span></div>
+        <div class="tagline">工作区内的对话式编程终端 <i>·</i> 对话 <i>·</i> 读写代码 <i>·</i> 运行命令</div>
+        <div class="hints">
+            <div class="hints-title">── 试试 ──</div>
+            <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+            <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+            <button class="hint"><span class="no">03</span>审查最近的改动，给出风险清单</button>
+        </div>
+    </div>
+</div>
+
+<div class="foot-note">
+    通用说明：五个方向均可与现有虚线卡壳自由组合（H1 / H3 / H5 无壳更「裸」，H4 自带窗口壳）；✓ 自检行（H1）与键值（H2）的数据均可从运行态取真实值（workspace / config store），建议区沿用已定稿的编号式；动效仅 CSS（逐行淡入 / 光标闪烁），落地替换 <code>.t-banner</code> 模板与样式即可，输入区与底部控制台不受影响。
+</div>
+
+</body>
+</html>

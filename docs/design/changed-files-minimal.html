@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更清单极简版</title>
+<!--
+  ============================================================
+  设计稿：变更清单 · 极简版
+  需求收敛：文件名 + 修改/新建 + 预览按钮，其余全部去掉
+  （去语言点、去 ±N 行数、去徽标底色、去路径）
+
+  三个行样式：
+    V1 · 极简行（推荐）—— hairline 分隔，op 着色文字，右侧 ghost 预览按钮
+    V2 · 胶囊行        —— 每行浅底圆角，无外框
+    V3 · 单行内联      —— 最紧凑，预览为文字按钮
+
+  末尾组合演示：V1 放回消息流，点「预览」→ 右侧面板按类型路由
+  （html → 渲染预览，源码 → Diff）
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 主题变量（默认日间） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-stage: #eff2f5;
+        --bg-elev: #ffffff;
+        --bg-code: #f6f8fa;
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #1a7f37;
+        --mod: #0969da;
+        --lang-html: #cf5f24;
+        --lang-ts: #2f6ec4;
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-stage: rgba(255, 255, 255, 0.02);
+        --bg-elev: #141922;
+        --bg-code: #0d1117;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #3fb950;
+        --mod: #4493f8;
+        --lang-html: #e8854a;
+        --lang-ts: #6ba3f5;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 860px; margin: 0 auto 42px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-stage); border: 1px solid var(--border); border-radius: 18px;
+        padding: 26px 24px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ===== 消息语境 ===== */
+    .chat { width: 100%; max-width: 560px; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; margin-bottom: 12px; }
+
+    /* ============================================================
+       V1 · 极简行（推荐）：标签 + hairline 行 + ghost 预览按钮
+       ============================================================ */
+    .fx-label {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+        font-size: 11px; color: var(--text-muted);
+    }
+    .fx-label .ln { flex: 1; height: 1px; background: var(--border-soft); }
+    .fx-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 2px; border-bottom: 1px solid var(--border-soft);
+    }
+    .fx-row:last-child { border-bottom: none; }
+    .fx-row .fn { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .fx-row .op { width: 30px; font-size: 11px; flex-shrink: 0; }
+    .fx-row .op.c { color: var(--add); }
+    .fx-row .op.m { color: var(--mod); }
+    .pv {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+        border: 1px solid var(--border); border-radius: 7px; background: transparent;
+        color: var(--text-secondary); font-size: 11px; padding: 3px 10px;
+        transition: border-color .12s, color .12s;
+    }
+    .pv:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+    /* ============================================================
+       V2 · 胶囊行：浅底圆角，无外框
+       ============================================================ */
+    .fx2 .fx-row {
+        background: var(--bg-code); border-bottom: none; border-radius: 9px;
+        padding: 8px 12px; margin-bottom: 6px;
+    }
+    .fx2 .fx-row:hover { background: var(--bg-hover); }
+
+    /* ============================================================
+       V3 · 单行内联：最紧凑，预览为文字按钮
+       ============================================================ */
+    .fx3 .fx-row { padding: 5px 2px; gap: 8px; }
+    .fx3 .fn { font-size: 12px; }
+    .fx3 .op { width: auto; }
+    .pv-link {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+        border: none; background: transparent; color: var(--text-secondary); font-size: 11px; padding: 2px 2px;
+    }
+    .pv-link:hover { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ============================================================
+       组合演示：V1 + 右侧预览面板（点按钮路由）
+       ============================================================ */
+    .split { display: flex; gap: 14px; width: 100%; align-items: stretch; }
+    .split .chat-col { width: 400px; flex-shrink: 0; }
+    .pane {
+        flex: 1; min-width: 0; background: var(--bg-elev);
+        border: 1px solid var(--border); border-radius: 13px; overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .pane-head {
+        display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+        border-bottom: 1px solid var(--border-soft);
+    }
+    .pane-head .pf-name { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+    .pane-head .pf-close {
+        margin-left: auto; cursor: pointer; border: none; background: transparent;
+        color: var(--text-muted); font-size: 13px; padding: 0 2px; line-height: 1;
+    }
+    .pane-head .pf-close:hover { color: var(--text-primary); }
+    .pane-body { flex: 1; min-height: 300px; position: relative; background: var(--bg-code); overflow: hidden; }
+    .pane-empty {
+        position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px;
+        align-items: center; justify-content: center; color: var(--text-muted); font-size: 11.5px;
+    }
+    .pane-view { position: absolute; inset: 0; overflow: auto; display: none; }
+    .pane-view.on { display: block; }
+
+    /* 浏览器框（HTML 预览态） */
+    .browser { height: 100%; display: flex; flex-direction: column; }
+    .browser-bar {
+        display: flex; align-items: center; gap: 6px; padding: 7px 11px;
+        border-bottom: 1px solid var(--border-soft); background: var(--bg-elev);
+    }
+    .browser-bar .dots { display: flex; gap: 5px; }
+    .browser-bar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .browser-bar .url {
+        flex: 1; max-width: 240px; margin: 0 auto; text-align: center;
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted);
+        background: var(--bg-hover); border-radius: 6px; padding: 3px 10px;
+    }
+    .browser-view { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .mini-login {
+        width: 220px; background: var(--bg-elev); border: 1px solid var(--border);
+        border-radius: 13px; padding: 20px 20px 18px; box-shadow: 0 8px 26px rgba(0,0,0,0.08);
+    }
+    .mini-login h4 { font-size: 14px; margin-bottom: 3px; }
+    .mini-login .hint { font-size: 10px; color: var(--text-muted); margin-bottom: 14px; }
+    .mini-login input {
+        width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-code);
+        padding: 7px 10px; font-size: 11px; color: var(--text-primary); margin-bottom: 9px; outline: none;
+    }
+    .mini-login button {
+        width: 100%; border: none; border-radius: 8px; cursor: pointer;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 11.5px; font-weight: 600; padding: 8px 0;
+    }
+
+    /* Diff 视图 */
+    .diff { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; line-height: 1.9; padding: 8px 0; }
+    .dl { display: flex; white-space: pre; }
+    .dl .no { width: 34px; flex-shrink: 0; text-align: right; padding-right: 10px; color: var(--text-muted); opacity: .6; user-select: none; }
+    .dl .code { color: var(--text-secondary); }
+    .dl.add { background: rgba(26, 127, 55, 0.12); } .dl.add .code { color: var(--add); }
+    body.dark-theme .dl.add { background: rgba(63, 185, 80, 0.12); }
+    .dl.del { background: rgba(207, 34, 46, 0.10); } .dl.del .code { color: var(--del, #cf222e); text-decoration: line-through; text-decoration-thickness: 1px; }
+    body.dark-theme .dl.del { background: rgba(248, 81, 73, 0.10); } body.dark-theme .dl.del .code { color: #f85149; }
+    .dl.hunk { color: var(--mod); padding: 2px 0 2px 34px; font-size: 10px; }
+
+    /* 组合演示中行的选中态 */
+    .fx-row.on { background: var(--bg-active); border-radius: 8px; }
+    .fx-row.on .pv { border-color: var(--border-active); color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更清单 · 极简版</h1>
+<p class="sub">
+    只保留三件事：<em>文件名 · 新建/修改 · 预览按钮</em> —— 去语言点、去行数、去徽标、去路径
+</p>
+
+<!-- ==================== V1 · 极简行（推荐） ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V1 · 推荐</span>
+        <span class="name">极简行</span>
+    </div>
+    <p class="demo-desc">
+        一行一文件：mono 文件名 + <em>着色文字 op</em>（新建绿 / 修改蓝，无底色徽标）+ 右侧 ghost <em>预览按钮</em>。
+        行间 hairline 分隔，顶部一行灰色小标签带数量。安静、清晰、可扫读。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="fx-label">变更文件 · 2 <span class="ln"></span></div>
+                    <div class="fx-row">
+                        <span class="fn">login.html</span>
+                        <span class="op c">新建</span>
+                        <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                    <div class="fx-row">
+                        <span class="fn">main.ts</span>
+                        <span class="op m">修改</span>
+                        <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">op 为纯色文字（11px）· 预览按钮常显（非 hover 才出现，明确可点）· 删除文件不显示预览按钮，op 显示灰色「删除」</p>
+</div>
+
+<!-- ==================== V2 · 胶囊行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V2</span>
+        <span class="name">胶囊行</span>
+    </div>
+    <p class="demo-desc">
+        同样的三要素，行退为<em>浅底圆角胶囊</em>，无外框无标签行。每行自带边界，暗色主题下行更易区分，适合列表稍长的场景。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="fx2">
+                        <div class="fx-row">
+                            <span class="fn">login.html</span>
+                            <span class="op c">新建</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="fx-row">
+                            <span class="fn">main.ts</span>
+                            <span class="op m">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">胶囊底 <code>--bg-code</code>，hover 加深一档 · 与 V1 的差别只在容器，可整体切换</p>
+</div>
+
+<!-- ==================== V3 · 单行内联 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V3</span>
+        <span class="name">单行内联</span>
+    </div>
+    <p class="demo-desc">
+        最紧凑形态：op 用「·」弱分隔跟在文件名后，预览为<em>文字按钮</em>（hover 下划线）。没有任何容器与描边，
+        视觉上像消息正文的一部分。适合单文件、微改动。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已修复校验逻辑，可直接预览。</p>
+                    <div class="fx3">
+                        <div class="fx-row">
+                            <span class="fn">main.ts</span>
+                            <span class="op m">修改</span>
+                            <button class="pv-link">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">行高 ~24px，与消息文本行距接近 · 建议规则：1 个文件用 V3，2 个及以上用 V1/V2</p>
+</div>
+
+<!-- ==================== 组合演示 · 点预览按钮路由 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">交互演示</span>
+        <span class="name">点「预览」后的路由（V1 + 右侧面板）</span>
+    </div>
+    <p class="demo-desc">
+        预览按钮是唯一点击目标，按文件类型路由：<em>html → 渲染预览</em>，<em>源码 → Diff</em>。
+        当前行高亮，面板右上角关闭。<em>本区块可点击。</em>
+    </p>
+    <div class="stage">
+        <div class="split">
+            <div class="chat-col">
+                <div class="msg">
+                    <div class="avatar">Q</div>
+                    <div class="msg-body">
+                        <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                        <p class="msg-text" style="margin-bottom:12px">已完成登录页编写。</p>
+                        <div id="fxMain">
+                            <div class="fx-label">变更文件 · 2 <span class="ln"></span></div>
+                            <div class="fx-row" data-file="login.html">
+                                <span class="fn">login.html</span>
+                                <span class="op c">新建</span>
+                                <button class="pv" onclick="openPreview('login.html')">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                            </div>
+                            <div class="fx-row" data-file="main.ts">
+                                <span class="fn">main.ts</span>
+                                <span class="op m">修改</span>
+                                <button class="pv" onclick="openPreview('main.ts')">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="pane">
+                <div class="pane-head">
+                    <span class="pf-name">
+                        <span id="pfDot" style="width:7px;height:7px;border-radius:50%;background:var(--lang-html);display:inline-block"></span>
+                        <span id="pfName">未选择文件</span>
+                    </span>
+                    <button class="pf-close" onclick="closePreview()">✕</button>
+                </div>
+                <div class="pane-body">
+                    <div class="pane-empty" id="paneEmpty">
+                        <svg class="ic" style="width:18px;height:18px;opacity:.5" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        点击左侧「预览」查看
+                    </div>
+                    <!-- login.html 渲染预览 -->
+                    <div class="pane-view" id="viewLogin">
+                        <div class="browser">
+                            <div class="browser-bar">
+                                <span class="dots"><i></i><i></i><i></i></span>
+                                <span class="url">workspace://login.html</span>
+                            </div>
+                            <div class="browser-view">
+                                <div class="mini-login">
+                                    <h4>欢迎回来</h4>
+                                    <p class="hint">登录你的 Qualia 账号</p>
+                                    <input placeholder="用户名">
+                                    <input placeholder="密码" type="password">
+                                    <button>登 录</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- main.ts Diff -->
+                    <div class="pane-view" id="viewMain">
+                        <div class="diff">
+                            <div class="dl hunk">@@ -12,4 +12,7 @@ export function validateLogin(f: FormData)</div>
+                            <div class="dl del"><span class="no">12</span><span class="code">  const name = f.get('username') as string</span></div>
+                            <div class="dl del"><span class="no">13</span><span class="code">  if (!name) return false</span></div>
+                            <div class="dl add"><span class="no">12</span><span class="code">  const name = (f.get('username') ?? '').trim()</span></div>
+                            <div class="dl add"><span class="no">13</span><span class="code">  if (!name) return { ok: false, reason: '用户名不能为空' }</span></div>
+                            <div class="dl add"><span class="no">14</span><span class="code">  if (name.length &gt; 32) return { ok: false, reason: '用户名过长' }</span></div>
+                            <div class="dl"><span class="no">15</span><span class="code">  return { ok: true }</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">按钮点击后行加选中底色 · 面板标题跟随文件与语言点色 · <code>✕</code> 关闭回到空态提示</p>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+
+    /* 组合演示：预览按钮 → 面板路由 */
+    const FILES = {
+        'login.html': { name: 'login.html', dot: 'var(--lang-html)', view: 'viewLogin' },
+        'main.ts':    { name: 'main.ts',    dot: 'var(--lang-ts)',  view: 'viewMain'  }
+    };
+
+    function openPreview(f) {
+        const meta = FILES[f];
+        document.querySelectorAll('#fxMain .fx-row').forEach(r =>
+            r.classList.toggle('on', r.dataset.file === f));
+        document.getElementById('pfName').textContent = meta.name;
+        document.getElementById('pfDot').style.background = meta.dot;
+        document.getElementById('paneEmpty').style.display = 'none';
+        document.querySelectorAll('.pane-view').forEach(v => v.classList.remove('on'));
+        document.getElementById(meta.view).classList.add('on');
+    }
+
+    function closePreview() {
+        document.querySelectorAll('#fxMain .fx-row').forEach(r => r.classList.remove('on'));
+        document.getElementById('pfName').textContent = '未选择文件';
+        document.getElementById('pfDot').style.background = 'var(--border)';
+        document.querySelectorAll('.pane-view').forEach(v => v.classList.remove('on'));
+        document.getElementById('paneEmpty').style.display = '';
+    }
+</script>
+</body>
+</html>

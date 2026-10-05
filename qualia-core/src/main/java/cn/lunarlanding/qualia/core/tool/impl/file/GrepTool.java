@@ -145,4 +145,10 @@ public class GrepTool extends FunctionTool {
             return true;
         }
     }
+
+    /** 只读工具：仅搜索文件内容，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

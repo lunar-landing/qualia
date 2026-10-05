@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 会话列表搜索设计</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 与 qualia-code-ui 线上主题一致的设计变量（取自 index.css :root） ===== */
+    :root {
+        --bg-app: #080a10;
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --bg-input: rgba(255, 255, 255, 0.03);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --mark-bg: rgba(230, 237, 243, 0.20);
+        --mark-ink: #f0f4ff;
+        --scrollbar-thumb: #2e3546;
+    }
+    body.light-theme {
+        --bg-app: #ffffff;
+        --bg-sidebar: #eff2f5;
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --bg-input: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --mark-bg: rgba(31, 35, 40, 0.10);
+        --mark-ink: #1f2328;
+        --scrollbar-thumb: #c8d0d8;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .ic { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: rgba(19, 24, 32, 0.85); color: var(--text-secondary);
+    }
+    body.light-theme .topbar-fixed button { background: #ffffff; }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 640px; margin: 0 auto 34px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 18px;
+        padding: 22px 0; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; color: var(--text-secondary);
+    }
+
+    /* ===== 迷你侧栏（234px，还原真实布局语境） ===== */
+    .mside {
+        width: 234px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 14px;
+        padding: 12px 9px 9px; display: flex; flex-direction: column;
+    }
+    .ms-brand { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; padding: 0 4px 11px; }
+    .ms-brand .ic { width: 14px; height: 14px; }
+    .ms-ws {
+        display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 11px;
+        background: var(--bg-hover); border: 1px solid var(--border); border-radius: 10px;
+        font-size: 11.5px; color: var(--text-secondary);
+    }
+    .ms-ws .ws-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+    .ms-ws .ws-t b { font-weight: 600; color: var(--text-primary); font-size: 11px; }
+    .ms-ws .ws-t i { font-style: normal; font-size: 9.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-ws .cv { width: 11px; height: 11px; color: var(--text-muted); }
+
+    /* header：左滑轨 + 右操作钮组（搜索 + 新建） */
+    .ms-hdr {
+        display: flex; align-items: center; justify-content: space-between; gap: 6px;
+        padding: 0 4px 9px; border-bottom: 1px solid var(--border); min-height: 32px;
+    }
+    .rail {
+        display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+        border: 1px solid var(--border); border-radius: 8px; background: var(--bg-hover);
+    }
+    .rail span { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 20px; border-radius: 6px; color: var(--text-muted); }
+    .rail span.on { background: var(--accent-light); color: var(--accent-ink); }
+    .acts { display: flex; align-items: center; gap: 4px; }
+    .act {
+        display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+        background: transparent; border: none; border-radius: 6px; color: var(--text-muted); transition: 0.2s;
+    }
+    .act:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .act.on { background: var(--bg-active); color: var(--text-primary); }
+
+    /* ===== 搜索框：grid-rows 展开动画，展开后常驻列表上方（不随列表滚动） ===== */
+    .ss-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.18s ease, opacity 0.15s ease, margin 0.18s ease; }
+    .ss-wrap.open { grid-template-rows: 1fr; opacity: 1; margin-top: 9px; }
+    .ss-clip { overflow: hidden; min-height: 0; }
+    .ss-bar {
+        display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px;
+        background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+        transition: border-color 0.15s;
+    }
+    .ss-bar:focus-within { border-color: var(--border-active); }
+    .ss-bar .ic { width: 11px; height: 11px; color: var(--text-muted); }
+    .ss-bar input {
+        flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+        color: var(--text-primary); font-size: 12px; font-family: inherit;
+    }
+    .ss-bar input::placeholder { color: var(--text-muted); }
+    .ss-clear {
+        display: none; align-items: center; justify-content: center; width: 16px; height: 16px;
+        border: none; background: transparent; border-radius: 4px; color: var(--text-muted); cursor: pointer; flex-shrink: 0;
+    }
+    .ss-bar.has-q .ss-clear { display: inline-flex; }
+    .ss-clear:hover { color: var(--text-primary); }
+    .ss-clear .ic { width: 9px; height: 9px; }
+
+    /* ===== 会话列表：分组标签沿用，命中 mark 中性高亮 ===== */
+    .ms-list { margin-top: 9px; min-height: 128px; display: flex; flex-direction: column; }
+    .ms-grp { padding: 4px 7px; font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+    .ms-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 6px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; cursor: pointer; }
+    .ms-row .ic { width: 12px; height: 12px; color: var(--text-muted); }
+    .ms-row span { overflow: hidden; text-overflow: ellipsis; }
+    .ms-row:hover { background: var(--bg-hover); }
+    .ms-row.on { background: var(--bg-active); color: var(--accent-light); font-weight: 500; }
+    .ms-row.on .ic { color: var(--accent-light); }
+    .ms-list mark {
+        background: var(--mark-bg); color: var(--mark-ink);
+        border-radius: 3px; padding: 0 1px; font-weight: 600;
+    }
+    .ss-empty { display: none; flex-direction: column; align-items: center; gap: 8px; padding: 24px 0 18px; color: var(--text-muted); font-size: 11.5px; }
+    .ss-empty.show { display: flex; }
+    .ss-empty .ic { width: 18px; height: 18px; opacity: 0.7; }
+
+    .ms-foot { margin-top: auto; padding: 7px 4px 0; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-secondary); }
+    .ms-foot .ic { width: 12px; height: 12px; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-folder-tree" viewBox="0 0 24 24"><path d="M3 4h6M3 4v14a2 2 0 0 0 2 2h4M13 4h8M13 10h8M13 16h8"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></symbol>
+</svg>
+
+<div class="topbar-fixed">
+    <button id="btn-theme">☾ 切换日间/夜间</button>
+</div>
+
+<h1>会话列表搜索 · 交互设计</h1>
+<div class="sub">
+    入口收敛于侧栏 header 操作钮区，搜索框随列表顶部展开；纯前端标题过滤，<em>零后端改动</em>。<br>
+    B / C 面板可直接输入体验：实时过滤 · 分组重组 · 命中高亮 · 空态 · <em>Esc 收起</em>
+</div>
+
+<!-- ===================== A · 默认态 ===================== -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">A</span><span class="name">默认态 · 入口就位</span></div>
+    <div class="demo-desc">
+        header 右侧操作钮由单个「新建」扩为 <em>搜索 + 新建</em> 双钮；搜索默认收起，列表与现状完全一致，零视觉噪音。
+    </div>
+    <div class="stage">
+        <div class="mside">
+            <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+            <div class="ms-ws"><svg class="ic"><use href="#i-folder-tree"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+            <div class="ms-hdr">
+                <span class="rail"><span class="on"><svg class="ic"><use href="#i-chat"/></svg></span><span><svg class="ic"><use href="#i-folder"/></svg></span></span>
+                <span class="acts">
+                    <button class="act" title="搜索会话"><svg class="ic"><use href="#i-search"/></svg></button>
+                    <button class="act" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+                </span>
+            </div>
+            <div class="ms-list" data-static>
+                <div class="ms-grp">今天</div>
+                <div class="ms-row on"><svg class="ic"><use href="#i-chat"/></svg><span>会话存储重构方案</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>工作区切换动画修复</span></div>
+                <div class="ms-grp">昨天</div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>重构 JSON 存储层</span></div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>token 热力图配色调整</span></div>
+                <div class="ms-grp">本周</div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>侧栏宽度拖拽手感</span></div>
+                <div class="ms-grp">更早</div>
+                <div class="ms-row"><svg class="ic"><use href="#i-chat"/></svg><span>CLI 启动参数解析</span></div>
+            </div>
+            <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+        </div>
+    </div>
+    <div class="spec">切换到文件视图时搜索钮随之让位给「刷新」（沿用现有 <code>v-if</code> 分支），搜索态不跨视图残留。</div>
+</div>
+
+<!-- ===================== B · 搜索展开（夜间） ===================== -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">B</span><span class="name">搜索展开 · 命中过滤（夜间，可输入）</span></div>
+    <div class="demo-desc">
+        点击放大镜滑出搜索框并自动聚焦（预填「重构」演示）。输入即时过滤：<em>时间分组按命中项重新归组</em>，命中片段 <em>中性高亮</em>；试试输入「zzz」看空态。
+    </div>
+    <div class="stage">
+        <div class="mside" data-search>
+            <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+            <div class="ms-ws"><svg class="ic"><use href="#i-folder-tree"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+            <div class="ms-hdr">
+                <span class="rail"><span class="on"><svg class="ic"><use href="#i-chat"/></svg></span><span><svg class="ic"><use href="#i-folder"/></svg></span></span>
+                <span class="acts">
+                    <button class="act ss-toggle on" title="搜索会话"><svg class="ic"><use href="#i-search"/></svg></button>
+                    <button class="act" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+                </span>
+            </div>
+            <div class="ss-wrap open">
+                <div class="ss-clip">
+                    <div class="ss-bar has-q">
+                        <svg class="ic"><use href="#i-search"/></svg>
+                        <input type="text" placeholder="搜索会话…" value="重构">
+                        <button class="ss-clear" title="清空"><svg class="ic"><use href="#i-x"/></svg></button>
+                    </div>
+                </div>
+            </div>
+            <div class="ms-list"></div>
+            <div class="ss-empty">
+                <svg class="ic"><use href="#i-search"/></svg>
+                <span>未找到匹配会话</span>
+            </div>
+            <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+        </div>
+    </div>
+    <div class="spec">
+        展开/收起：<code>grid-template-rows 0fr→1fr</code> 180ms；搜索框固定于滚动区上方，长列表滚动时保持可见。<br>
+        退出路径：Esc 收起并清空 · <code>X</code> 仅清空 · 再次点击放大镜收起；选中态/流式光点在过滤结果中照常保留。
+    </div>
+</div>
+
+<!-- ===================== C · 日间主题 ===================== -->
+<div class="demo">
+    <div class="demo-head"><span class="tag">C</span><span class="name">日间主题 · 同款交互</span></div>
+    <div class="demo-desc">
+        高亮沿用 accent 中性石墨 tint（<em>不引入彩色</em>），与选中态灰底 <code>#e4e9ee</code> 同语言；可输入体验，行为与 B 完全一致。
+    </div>
+    <div class="stage">
+        <div class="mside light-theme" data-search>
+            <div class="ms-brand"><svg class="ic"><use href="#i-code"/></svg>Qualia Code</div>
+            <div class="ms-ws"><svg class="ic"><use href="#i-folder-tree"/></svg><span class="ws-t"><b>qualia</b><i>D:\Projects\qualia</i></span><svg class="ic cv"><use href="#i-chev"/></svg></div>
+            <div class="ms-hdr">
+                <span class="rail"><span class="on"><svg class="ic"><use href="#i-chat"/></svg></span><span><svg class="ic"><use href="#i-folder"/></svg></span></span>
+                <span class="acts">
+                    <button class="act ss-toggle on" title="搜索会话"><svg class="ic"><use href="#i-search"/></svg></button>
+                    <button class="act" title="新建会话"><svg class="ic"><use href="#i-plus"/></svg></button>
+                </span>
+            </div>
+            <div class="ss-wrap open">
+                <div class="ss-clip">
+                    <div class="ss-bar has-q">
+                        <svg class="ic"><use href="#i-search"/></svg>
+                        <input type="text" placeholder="搜索会话…" value="重构">
+                        <button class="ss-clear" title="清空"><svg class="ic"><use href="#i-x"/></svg></button>
+                    </div>
+                </div>
+            </div>
+            <div class="ms-list"></div>
+            <div class="ss-empty">
+                <svg class="ic"><use href="#i-search"/></svg>
+                <span>未找到匹配会话</span>
+            </div>
+            <div class="ms-foot"><svg class="ic"><use href="#i-sliders"/></svg>设置</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== mock 数据与真实 store 同构：按时间倒序、含分组标签 =====
+const SESSIONS = [
+    { g: '今天', t: '会话存储重构方案', on: true },
+    { g: '今天', t: '工作区切换动画修复' },
+    { g: '昨天', t: '重构 JSON 存储层' },
+    { g: '昨天', t: 'token 热力图配色调整' },
+    { g: '昨天', t: 'Vite 代理链路排查' },
+    { g: '本周', t: '会话列表分组优化' },
+    { g: '本周', t: '侧栏宽度拖拽手感' },
+    { g: '更早', t: 'CLI 启动参数解析' },
+];
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/** 命中片段包 <mark>（大小写不敏感，与真实实现一致） */
+function hl(title, q) {
+    if (!q) return esc(title);
+    const i = title.toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return esc(title);
+    return esc(title.slice(0, i)) + '<mark>' + esc(title.slice(i, i + q.length)) + '</mark>' + esc(title.slice(i + q.length));
+}
+
+function render(side) {
+    const q = side.querySelector('input').value.trim();
+    const list = side.querySelector('.ms-list');
+    const empty = side.querySelector('.ss-empty');
+    let html = '', lastG = null, hits = 0;
+    for (const s of SESSIONS) {
+        if (q && !s.t.toLowerCase().includes(q.toLowerCase())) continue;
+        hits++;
+        if (s.g !== lastG) { html += `<div class="ms-grp">${esc(s.g)}</div>`; lastG = s.g; }
+        html += `<div class="ms-row${s.on ? ' on' : ''}"><svg class="ic"><use href="#i-chat"/></svg><span>${hl(s.t, q)}</span></div>`;
+    }
+    list.innerHTML = html;
+    empty.classList.toggle('show', hits === 0);
+    list.style.display = hits ? 'flex' : 'none';
+}
+
+function init(side) {
+    const wrap = side.querySelector('.ss-wrap');
+    const toggle = side.querySelector('.ss-toggle');
+    const input = side.querySelector('input');
+    const bar = side.querySelector('.ss-bar');
+    const clear = side.querySelector('.ss-clear');
+
+    render(side);
+
+    function setOpen(open) {
+        wrap.classList.toggle('open', open);
+        toggle.classList.toggle('on', open);
+        if (!open) { input.value = ''; }
+        render(side);
+        if (open) setTimeout(() => input.focus(), 120);
+    }
+
+    toggle.addEventListener('click', () => setOpen(!wrap.classList.contains('open')));
+    input.addEventListener('input', () => {
+        bar.classList.toggle('has-q', !!input.value);
+        render(side);
+    });
+    clear.addEventListener('click', () => { input.value = ''; bar.classList.add('has-q'); render(side); input.focus(); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } });
+}
+
+document.querySelectorAll('[data-search]').forEach(init);
+
+// 顶部日/夜切换（仅 demo 页整体预览用）
+document.getElementById('btn-theme').addEventListener('click', () => document.body.classList.toggle('light-theme'));
+</script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置 · 工具列表重设计 · 3 方案 · Qualia</title>
+<style>
+    /* ======================================================================
+       设置弹窗「工具」Tab 重设计：现状 emoji 图标 + 无容器行式列表 + toggle。
+       三个方向均沿用已落地 D2 设置弹窗基因（日间浅灰底 + 白卡片层次）。
+       纯静态，无后端。
+       ====================================================================== */
+
+    body {
+        --bg-app: #080a10;
+        --sf: #131820;
+        --card: rgba(255, 255, 255, 0.03);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --tx: #e4e9f2;
+        --tx2: #8f97ae;
+        --tx3: #4f566b;
+        --hover: rgba(255, 255, 255, 0.045);
+        --accent: #e6edf3;
+        --accent-ink: #0d1117;
+        --amber: #f59e0b;
+        --green: #34d399;
+        --red: #f87171;
+        --page-bg: #05070b;
+    }
+    body[data-scheme="light"] {
+        --bg-app: #ffffff;
+        --sf: #f6f8fa;
+        --card: #ffffff;
+        --line: #d0d7de;
+        --line-soft: #e4e9ee;
+        --tx: #1f2328;
+        --tx2: #57657a;
+        --tx3: #8c959f;
+        --hover: #e9edf1;
+        --accent: #24292f;
+        --accent-ink: #ffffff;
+        --amber: #9a6700;
+        --green: #1a7f37;
+        --red: #cf222e;
+        --page-bg: #dfe3e8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page-bg);
+        color: var(--tx);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 70px;
+        transition: background 0.25s;
+    }
+
+    .page-head { max-width: 1080px; margin: 0 auto 6px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: var(--tx2); margin-top: 7px; line-height: 1.75; }
+
+    .ctrl-bar {
+        max-width: 1080px; margin: 18px auto 8px;
+        display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+        font-size: 12px; color: var(--tx2);
+    }
+    .ctrl-btn {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent;
+        color: var(--tx2); font-size: 12px; transition: all 0.15s; font-family: inherit;
+    }
+    .ctrl-btn:hover { color: var(--tx); border-color: var(--tx3); }
+    .ctrl-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+    .ver-sec { max-width: 1080px; margin: 34px auto 0; }
+    .ver-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+    .ver-badge {
+        font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+        color: var(--tx); border: 1px solid var(--line);
+        border-radius: 6px; padding: 2px 9px;
+    }
+    .ver-name { font-size: 15px; font-weight: 600; }
+    .ver-desc { font-size: 12px; color: var(--tx2); line-height: 1.7; margin-bottom: 14px; }
+
+    .mono { font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+
+    /* ===== 内容面板：模拟 D2 设置弹窗内容列 ===== */
+    .panel {
+        width: 760px; max-width: 100%;
+        background: var(--sf); border: 1px solid var(--line);
+        border-radius: 14px; padding: 18px 20px 20px;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+    }
+    body[data-scheme="light"] .panel { box-shadow: 0 16px 40px rgba(31, 35, 40, 0.14); }
+    .sec-head { margin-bottom: 14px; display: flex; align-items: baseline; gap: 10px; }
+    .sec-title { font-size: 13.5px; font-weight: 650; }
+    .sec-sub { font-size: 11.5px; color: var(--tx3); }
+
+    /* ===== 公共小件 ===== */
+    .tag {
+        display: inline-flex; align-items: center;
+        font-size: 10.5px; line-height: 1; padding: 3px 8px;
+        border-radius: 5px; color: var(--tx2); border: 1px solid var(--line);
+    }
+    .tag.off { color: var(--amber); border-color: transparent; background: rgba(245, 158, 11, 0.12); }
+
+    /* toggle 开关（与 app 实现同款比例） */
+    .tsw { position: relative; display: inline-block; width: 30px; height: 17px; flex-shrink: 0; }
+    .tsw input { opacity: 0; width: 0; height: 0; }
+    .tsw .sl {
+        position: absolute; inset: 0; border-radius: 999px; cursor: pointer;
+        background: var(--line); transition: background 0.18s;
+    }
+    .tsw .sl::before {
+        content: ""; position: absolute; width: 13px; height: 13px; border-radius: 50%;
+        left: 2px; top: 2px; background: #fff; transition: transform 0.18s;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+    .tsw input:checked + .sl { background: var(--green); }
+    .tsw input:checked + .sl::before { transform: translateX(13px); }
+
+    /* ======================================================================
+       T1 行式精修：组容器化 + mono 双字母图标块（替换 emoji）
+       ====================================================================== */
+    .t1-grp { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .t1-grp + .t1-grp { margin-top: 10px; }
+    .t1-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 13px; background: var(--hover);
+        border-bottom: 1px solid var(--line-soft);
+        font-size: 11px; font-weight: 650; letter-spacing: 0.6px;
+    }
+    .t1-cnt { font-size: 10px; color: var(--tx2); font-weight: 500; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+    .t1-offcnt { margin-left: auto; font-size: 10.5px; color: var(--amber); font-weight: 500; }
+    .t1-row {
+        display: flex; align-items: center; gap: 11px;
+        padding: 9px 13px; transition: background 0.15s;
+    }
+    .t1-row + .t1-row { border-top: 1px solid var(--line-soft); }
+    .t1-row:hover { background: var(--hover); }
+    .t1-row.off .t1-nm, .t1-row.off .t1-desc { opacity: 0.45; }
+    .t1-ic {
+        width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--hover); border: 1px solid var(--line);
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px; color: var(--tx2);
+    }
+    .t1-txt { flex: 1; min-width: 0; }
+    .t1-nm { font-size: 12.5px; font-weight: 600; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .t1-desc { font-size: 11px; color: var(--tx2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .t1-st { font-size: 10.5px; color: var(--tx3); width: 42px; text-align: right; }
+    .t1-info {
+        margin-top: 12px; display: flex; gap: 9px; align-items: flex-start;
+        padding: 10px 13px; border-radius: 9px;
+        border: 1px solid var(--line-soft); background: var(--card);
+        font-size: 11px; color: var(--tx2); line-height: 1.65;
+    }
+    .t1-info .ii { color: var(--tx3); }
+    .t1-info strong { color: var(--tx); font-weight: 600; }
+
+    /* ======================================================================
+       T2 双列卡片：网格化扫读，卡片即开关
+       ====================================================================== */
+    .t2-cat { margin-bottom: 16px; }
+    .t2-cat-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: 11px; font-weight: 650; letter-spacing: 0.6px; color: var(--tx3); }
+    .t2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .t2-card {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 10px; padding: 10px 12px; cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .t2-card:hover { border-color: var(--tx3); }
+    .t2-card.on { border-color: var(--line); }
+    .t2-card.off { opacity: 0.62; }
+    .t2-ic {
+        width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--hover); border: 1px solid var(--line);
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 10px; font-weight: 700; color: var(--tx2);
+    }
+    .t2-txt { flex: 1; min-width: 0; }
+    .t2-nm { font-size: 12px; font-weight: 600; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; display: flex; align-items: center; gap: 6px; }
+    .t2-desc { font-size: 10.5px; color: var(--tx2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ======================================================================
+       T3 权限清单：组级批量开关 + 压缩行高，管理效率优先
+       ====================================================================== */
+    .t3-grp { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .t3-grp + .t3-grp { margin-top: 10px; }
+    .t3-head {
+        display: flex; align-items: center; gap: 9px;
+        padding: 8px 13px; background: var(--hover);
+        border-bottom: 1px solid var(--line-soft);
+        font-size: 11px; font-weight: 650; letter-spacing: 0.6px;
+    }
+    .t3-sum { font-size: 10.5px; color: var(--tx2); font-weight: 500; }
+    .t3-ops { margin-left: auto; display: flex; gap: 4px; }
+    .t3-lk {
+        font-size: 10.5px; padding: 2px 9px; border-radius: 6px; cursor: pointer;
+        border: none; background: transparent; color: var(--tx2); font-family: inherit;
+    }
+    .t3-lk:hover { background: var(--line); color: var(--tx); }
+    .t3-row { display: flex; align-items: center; gap: 10px; padding: 7px 13px; }
+    .t3-row + .t3-row { border-top: 1px solid var(--line-soft); }
+    .t3-row:hover { background: var(--hover); }
+    .t3-row.off .t3-nm, .t3-row.off .t3-desc { opacity: 0.45; }
+    .t3-nm { font-size: 12px; font-weight: 600; font-family: "JetBrains Mono", "Sarasa Mono SC", Consolas, monospace; }
+    .t3-desc { flex: 1; min-width: 0; font-size: 11px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ===== 设计注释 ===== */
+    .notes { max-width: 1080px; margin: 46px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .note-card { border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px; font-size: 12px; line-height: 1.8; color: var(--tx2); background: var(--sf); }
+    .note-card h3 { font-size: 12.5px; color: var(--tx); margin-bottom: 6px; }
+    .note-card code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--tx); background: var(--hover); border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <h1>设置 · 工具列表重设计</h1>
+    <div class="page-sub">现状：emoji 图标 + 无容器行式列表 + 「已启用/停用」文字与 toggle 双重表达，组间只有一条细分隔线。以下 3 方案沿用 D2 设置弹窗基因，能力集不变：toggle 切换写入 disabledTools 草稿、保存统一持久化、内置工具不可增删。</div>
+</div>
+
+<div class="ctrl-bar">
+    主题预览
+    <button class="ctrl-btn on" data-scheme="dark">夜间 GitHub Dark</button>
+    <button class="ctrl-btn" data-scheme="light">日间 GitHub Light</button>
+    <span>· 每版含：启用态 / 停用态（delete_file）/ 底部说明条</span>
+</div>
+
+<!-- ===================== T1 行式精修 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">T1</span><span class="ver-name">行式精修 · 组容器化 + mono 图标块</span></div>
+    <div class="ver-desc">保持单列行式，三处升级：组套上带圆角与组头（名称 + 数量徽章 + 停用计数）的容器；emoji 换成统一渲染的等宽双字母方块（RD / GP / WF…，与厂商 dot 同一语言）；去掉「已启用/停用」冗余文字，只留 toggle，停用行降透明。</div>
+    <div class="panel">
+        <div class="sec-head"><span class="sec-title">工具</span><span class="sec-sub">10 个内置工具 · 1 个停用</span></div>
+        <div class="t1-grp">
+            <div class="t1-head">文件 <span class="t1-cnt">6</span><span class="t1-offcnt">1 个停用</span></div>
+            <div class="t1-row">
+                <span class="t1-ic">RD</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">read</span><span class="t1-desc" style="display:block">读取文件内容，支持行范围</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">GP</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">grep</span><span class="t1-desc" style="display:block">正则内容搜索</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">GL</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">glob</span><span class="t1-desc" style="display:block">模式匹配查找文件</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">RW</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">replace</span><span class="t1-desc" style="display:block">精确替换文件片段</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">WR</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">write</span><span class="t1-desc" style="display:block">写入 / 新建文件</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row off">
+                <span class="t1-ic">DF</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">delete_file</span><span class="t1-desc" style="display:block">删除文件</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t1-grp">
+            <div class="t1-head">网络 <span class="t1-cnt">3</span></div>
+            <div class="t1-row">
+                <span class="t1-ic">WF</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">web_fetch</span><span class="t1-desc" style="display:block">抓取网页正文</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">BS</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">baidu_search</span><span class="t1-desc" style="display:block">百度搜索</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t1-row">
+                <span class="t1-ic">HT</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">http</span><span class="t1-desc" style="display:block">通用 HTTP 请求</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t1-grp">
+            <div class="t1-head">其他 <span class="t1-cnt">1</span></div>
+            <div class="t1-row">
+                <span class="t1-ic">SH</span>
+                <span class="t1-txt"><span class="t1-nm" style="display:block">bash</span><span class="t1-desc" style="display:block">执行 Shell 命令</span></span>
+                <span class="t1-st"></span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t1-info"><span class="ii">ⓘ</span><span><strong>关于工具</strong>停用的工具不对模型开放；内置工具随版本更新，不可增删。</span></div>
+    </div>
+</div>
+
+<!-- ===================== T2 双列卡片 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">T2</span><span class="ver-name">双列卡片 · 网格扫读</span></div>
+    <div class="ver-desc">工具改双列小卡（图标块 + 名称 + 单行描述 + 右侧 toggle），整卡可点切换；组标题保留区块头形式。工具数量增长到 15+ 时仍能两列扫完，卡片边界使停用态更醒目。</div>
+    <div class="panel">
+        <div class="sec-head"><span class="sec-title">工具</span><span class="sec-sub">10 个内置工具 · 1 个停用</span></div>
+        <div class="t2-cat">
+            <div class="t2-cat-head">文件 · 6</div>
+            <div class="t2-grid">
+                <div class="t2-card on">
+                    <span class="t2-ic">RD</span>
+                    <span class="t2-txt"><span class="t2-nm">read</span><span class="t2-desc" style="display:block">读取文件内容，支持行范围</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">GP</span>
+                    <span class="t2-txt"><span class="t2-nm">grep</span><span class="t2-desc" style="display:block">正则内容搜索</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">GL</span>
+                    <span class="t2-txt"><span class="t2-nm">glob</span><span class="t2-desc" style="display:block">模式匹配查找文件</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">RW</span>
+                    <span class="t2-txt"><span class="t2-nm">replace</span><span class="t2-desc" style="display:block">精确替换文件片段</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">WR</span>
+                    <span class="t2-txt"><span class="t2-nm">write</span><span class="t2-desc" style="display:block">写入 / 新建文件</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card off">
+                    <span class="t2-ic">DF</span>
+                    <span class="t2-txt"><span class="t2-nm">delete_file <span class="tag off">停用</span></span><span class="t2-desc" style="display:block">删除文件</span></span>
+                    <label class="tsw"><input type="checkbox" /><span class="sl"></span></label>
+                </div>
+            </div>
+        </div>
+        <div class="t2-cat">
+            <div class="t2-cat-head">网络 · 3</div>
+            <div class="t2-grid">
+                <div class="t2-card on">
+                    <span class="t2-ic">WF</span>
+                    <span class="t2-txt"><span class="t2-nm">web_fetch</span><span class="t2-desc" style="display:block">抓取网页正文</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">BS</span>
+                    <span class="t2-txt"><span class="t2-nm">baidu_search</span><span class="t2-desc" style="display:block">百度搜索</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+                <div class="t2-card on">
+                    <span class="t2-ic">HT</span>
+                    <span class="t2-txt"><span class="t2-nm">http</span><span class="t2-desc" style="display:block">通用 HTTP 请求</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+            </div>
+        </div>
+        <div class="t2-cat" style="margin-bottom:0">
+            <div class="t2-cat-head">其他 · 1</div>
+            <div class="t2-grid">
+                <div class="t2-card on">
+                    <span class="t2-ic">SH</span>
+                    <span class="t2-txt"><span class="t2-nm">bash</span><span class="t2-desc" style="display:block">执行 Shell 命令</span></span>
+                    <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== T3 权限清单 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">T3</span><span class="ver-name">权限清单 · 组级批量开关</span></div>
+    <div class="ver-desc">IDE 权限管理风：组头带「n/m 启用」汇总与「全部启用 / 全部停用」组级操作（能力增量，一次管一组）；行高压缩至 32px、去图标块，mono 名称 + 描述同行。信息密度最高，适合把工具清单当权限表管理。</div>
+    <div class="panel">
+        <div class="sec-head"><span class="sec-title">工具</span><span class="sec-sub">10 个内置工具 · 1 个停用</span></div>
+        <div class="t3-grp">
+            <div class="t3-head">文件 <span class="t3-sum">5/6 启用</span><span class="t3-ops"><button class="t3-lk">全部启用</button><button class="t3-lk">全部停用</button></span></div>
+            <div class="t3-row">
+                <span class="t3-nm">read</span><span class="t3-desc">读取文件内容，支持行范围</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">grep</span><span class="t3-desc">正则内容搜索</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">glob</span><span class="t3-desc">模式匹配查找文件</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">replace</span><span class="t3-desc">精确替换文件片段</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">write</span><span class="t3-desc">写入 / 新建文件</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row off">
+                <span class="t3-nm">delete_file</span><span class="t3-desc">删除文件</span>
+                <label class="tsw"><input type="checkbox" /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t3-grp">
+            <div class="t3-head">网络 <span class="t3-sum">3/3 启用</span><span class="t3-ops"><button class="t3-lk">全部启用</button><button class="t3-lk">全部停用</button></span></div>
+            <div class="t3-row">
+                <span class="t3-nm">web_fetch</span><span class="t3-desc">抓取网页正文</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">baidu_search</span><span class="t3-desc">百度搜索</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+            <div class="t3-row">
+                <span class="t3-nm">http</span><span class="t3-desc">通用 HTTP 请求</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t3-grp">
+            <div class="t3-head">其他 <span class="t3-sum">1/1 启用</span><span class="t3-ops"><button class="t3-lk">全部启用</button><button class="t3-lk">全部停用</button></span></div>
+            <div class="t3-row">
+                <span class="t3-nm">bash</span><span class="t3-desc">执行 Shell 命令</span>
+                <label class="tsw"><input type="checkbox" checked /><span class="sl"></span></label>
+            </div>
+        </div>
+        <div class="t1-info"><span class="ii">ⓘ</span><span><strong>关于工具</strong>停用的工具不对模型开放；内置工具随版本更新，不可增删。</span></div>
+    </div>
+</div>
+
+<!-- ===================== 设计注释 ===================== -->
+<div class="notes">
+    <div class="note-card">
+        <h3>T1 行式精修 · 稳</h3>
+        <span class="m">纯视觉升级，交互零变化：组容器化（与 M3/MCP 卡同语言）、</span>
+        <code>emoji → 双字母 mono 块</code>
+        <span class="m">（跨平台渲染一致，不再受系统 emoji 字体影响）、去状态冗余文字。改动集中在 models Tab 同级模板与 TOOL_ICONS 常量。</span>
+    </div>
+    <div class="note-card">
+        <h3>T2 双列卡片 · 扫读</h3>
+        <span class="m">整卡可点切换 + toggle 双通道；停用卡降透明 + 「停用」小徽章。双列在工具数 15+ 时优势明显；窄弹窗需降级单列（grid auto-fit 可平移）。</span>
+    </div>
+    <div class="note-card">
+        <h3>T3 权限清单 · 管理效率</h3>
+        <span class="m">组级「全部启用 / 停用」是唯一的能力增量（批量写 disabledTools 草稿，仍走统一保存）；行高压缩 1/3，去图标后 mono 名称即身份。视觉最素，操作最快。</span>
+    </div>
+    <div class="note-card">
+        <h3>通用约束</h3>
+        <span class="m">三方案均保留底部「关于工具」说明条（升级为卡片式 info 条）；toggle 开关、草稿式保存、导航数量徽章逻辑不动；双字母图标块需维护 </span>
+        <code>TOOL_ICONS</code>
+        <span class="m"> 映射（emoji → 双字母），后续新工具加映射即可。</span>
+    </div>
+    <div class="note-card">
+        <h3>选型建议</h3>
+        <span class="m">求稳选 T1（推荐：与已落地 D2/M3 基因最连贯，改动最小）；工具会持续增多选 T2；把工具当权限表频繁调整选 T3。T1 与 T3 可叠加（T1 容器 + T3 组级开关）。</span>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.ctrl-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.ctrl-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.dataset.scheme = btn.dataset.scheme;
+        });
+    });
+    /* mockup 内 toggle 可点（纯演示，无状态持久化） */
+    document.querySelectorAll('.tsw input').forEach(function (el) { /* 原生 checkbox 自带切换 */ });
+</script>
+</body>
+</html>

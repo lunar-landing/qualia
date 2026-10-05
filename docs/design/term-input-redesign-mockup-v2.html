@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>终端视图 · 输入区重构（去头栏） · 3 方案 · Qualia</title>
+<style>
+    /* ======================================================================
+       term-input 重构对比稿 V2：删除「会话 · 工作区」头栏（信息冗余）后的
+       三个差异化方向。视觉基因与 term-input-redesign-mockup.html 同源
+       （--t-* 变量、等宽字体栈、键帽语言）。纯静态，无后端。
+       ====================================================================== */
+
+    /* ===== 方案变量：默认「夜间」 ===== */
+    body {
+        --t-bg: #0d1117;
+        --t-bg-soft: #10161d;
+        --t-line: #21262d;
+        --t-text: #e6edf3;
+        --t-dim: #8b949e;
+        --t-faint: #4f566b;
+        --t-accent: #7ee787;
+        --t-red: #ff7b72;
+        --t-amber: #e3b341;
+        --t-blue: #79c0ff;
+        --t-sel: rgba(126, 231, 135, 0.10);
+        --page-bg: #080a10;
+    }
+    body[data-scheme="light"] {
+        --t-bg: #f6f8fa;
+        --t-bg-soft: #eef1f4;
+        --t-line: #d0d7de;
+        --t-text: #24292f;
+        --t-dim: #57606a;
+        --t-faint: #8c959f;
+        --t-accent: #0f7b4f;
+        --t-red: #cf222e;
+        --t-amber: #9a6700;
+        --t-blue: #0969da;
+        --t-sel: rgba(15, 123, 79, 0.08);
+        --page-bg: #d8dee4;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page-bg);
+        color: #e4e9f2;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 70px;
+        transition: background 0.25s;
+    }
+    body .page-head, body .ctrl-bar, body .notes { color: #e4e9f2; }
+    body[data-scheme="light"] .page-head,
+    body[data-scheme="light"] .ctrl-bar,
+    body[data-scheme="light"] .notes { color: #1f2328; }
+
+    .page-head { max-width: 880px; margin: 0 auto 6px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: #8f97ae; margin-top: 7px; line-height: 1.75; }
+    body[data-scheme="light"] .page-sub { color: #57606a; }
+
+    .ctrl-bar {
+        max-width: 880px; margin: 18px auto 8px;
+        display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+        font-size: 12px; color: #8f97ae;
+    }
+    body[data-scheme="light"] .ctrl-bar { color: #57606a; }
+    .ctrl-btn {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid #2c3442; background: rgba(255,255,255,0.03);
+        color: #8f97ae; font-size: 12px; transition: all 0.15s;
+        font-family: inherit;
+    }
+    body[data-scheme="light"] .ctrl-btn {
+        border-color: #d0d7de; background: #ffffff; color: #57606a;
+    }
+    .ctrl-btn:hover { color: #e4e9f2; border-color: #3d4759; }
+    body[data-scheme="light"] .ctrl-btn:hover { color: #1f2328; border-color: #8c959f; }
+    .ctrl-btn.on {
+        background: #e6edf3; border-color: #e6edf3;
+        color: #0d1117; font-weight: 600;
+    }
+    body[data-scheme="light"] .ctrl-btn.on {
+        background: #24292f; border-color: #24292f; color: #ffffff;
+    }
+
+    /* ===== 版本段落 ===== */
+    .ver-sec { max-width: 880px; margin: 30px auto 0; }
+    .ver-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+    .ver-badge {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+        color: var(--t-accent); border: 1px solid var(--t-line);
+        border-radius: 6px; padding: 2px 9px; background: rgba(255,255,255,0.02);
+    }
+    body[data-scheme="light"] .ver-badge { background: #ffffff; }
+    .ver-name { font-size: 15px; font-weight: 600; }
+    .ver-desc { font-size: 12px; color: #8f97ae; line-height: 1.7; margin-bottom: 14px; }
+    body[data-scheme="light"] .ver-desc { color: #57606a; }
+
+    .state-tag {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 10.5px; color: var(--t-faint); letter-spacing: 1px;
+        margin: 14px 2px 6px;
+    }
+
+    /* 通用窗口块：每个状态一个小窗口 */
+    .demo {
+        border: 1px solid var(--t-line); border-radius: 10px;
+        background: var(--t-bg); padding: 18px 22px 20px;
+        font-family: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas,
+                     "Sarasa Mono SC", "Noto Sans Mono CJK SC", "Microsoft YaHei", monospace;
+        font-size: 13px; line-height: 1.7; color: var(--t-text);
+        transition: background 0.25s, color 0.25s;
+    }
+
+    .key {
+        display: inline-block; border: 1px solid var(--t-line); border-bottom-width: 2px;
+        border-radius: 4px; padding: 0 6px; font-size: 11px; color: var(--t-dim);
+        margin-right: 4px; line-height: 1.6;
+    }
+    .cursor {
+        display: inline-block; width: 8px; height: 15px; vertical-align: -2px;
+        background: var(--t-accent); animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .spin { display: inline-block; animation: spinColor 0.9s linear infinite; }
+    @keyframes spinColor { to { filter: brightness(1.35); } }
+
+    .pfx { color: var(--t-accent); font-weight: 600; }
+    .ph { color: var(--t-faint); }
+
+    /* 附件 chips（三方案共用语言：边框 chip + 可删 ×） */
+    .atts { display: flex; gap: 8px; }
+    .att {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11.5px; color: var(--t-dim);
+        border: 1px solid var(--t-line); border-radius: 6px;
+        padding: 1px 8px; background: var(--t-bg);
+    }
+    .att .x { color: var(--t-faint); cursor: pointer; }
+    .att .x:hover { color: var(--t-red); }
+
+    /* ======================================================================
+       A 双行控制台：删头栏，保留「输入行 + soft 底栏」两段式（现状瘦身）
+       ====================================================================== */
+    .ta-console { border-top: 1px solid var(--t-line); }
+    .ta-body { padding: 11px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .ta-row { display: flex; align-items: baseline; gap: 10px; }
+    .ta-foot {
+        display: flex; align-items: center; gap: 12px;
+        padding: 6px 16px; background: var(--t-bg-soft);
+        border-top: 1px solid var(--t-line);
+        font-size: 11px; color: var(--t-faint);
+    }
+    .ta-spring { flex: 1; }
+    .ta-att-btn { color: var(--t-dim); cursor: pointer; }
+    .ta-att-btn:hover { color: var(--t-accent); }
+    .ta-model-wrap { position: relative; flex-shrink: 0; }
+    .ta-model { color: var(--t-accent); font-size: 11px; cursor: pointer; }
+    .ta-model:hover { text-decoration: underline; }
+    .ta-tri { font-size: 9px; opacity: 0.7; margin-left: 2px; }
+    .ta-menu {
+        position: absolute; right: 0; bottom: calc(100% + 10px);
+        min-width: 210px; padding: 4px;
+        background: var(--t-bg-soft); border: 1px solid var(--t-line);
+        border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+        font-size: 11.5px; z-index: 5;
+    }
+    body[data-scheme="light"] .ta-menu { box-shadow: 0 10px 28px rgba(31, 35, 40, 0.14); }
+    .ta-item {
+        display: block; text-align: left; width: 100%;
+        background: none; border: none; border-radius: 5px;
+        padding: 4px 9px; font-family: inherit; font-size: 11.5px;
+        color: var(--t-dim); cursor: pointer;
+    }
+    .ta-item:hover { background: rgba(255,255,255,0.05); color: var(--t-text); }
+    body[data-scheme="light"] .ta-item:hover { background: rgba(31,35,40,0.06); }
+    .ta-item.on { color: var(--t-accent); }
+    .ta-item.on::after { content: ' ✓'; }
+    .ta-btn {
+        font-family: inherit; font-size: 11.5px; cursor: pointer;
+        padding: 2px 13px; border-radius: 6px; border: none;
+        background: rgba(126, 231, 135, 0.14); color: var(--t-accent);
+        transition: background 0.15s; white-space: nowrap;
+    }
+    .ta-btn:hover { background: rgba(126, 231, 135, 0.24); }
+    body[data-scheme="light"] .ta-btn { background: rgba(15, 123, 79, 0.10); }
+    body[data-scheme="light"] .ta-btn:hover { background: rgba(15, 123, 79, 0.18); }
+    .ta-btn.stop { background: rgba(255, 123, 114, 0.14); color: var(--t-red); }
+    .ta-btn.stop:hover { background: rgba(255, 123, 114, 0.24); }
+    body[data-scheme="light"] .ta-btn.stop { background: rgba(207, 34, 46, 0.10); }
+    body[data-scheme="light"] .ta-btn.stop:hover { background: rgba(207, 34, 46, 0.18); }
+
+    /* ======================================================================
+       B 裸行轻量：去背景条，meta 全文本化（渐隐线 + ❯ 行 + faint meta 行）
+       ====================================================================== */
+    .tb-wrap {}
+    .tb-rule {
+        height: 1px; margin-bottom: 13px;
+        background: linear-gradient(to right, var(--t-line), transparent 70%);
+    }
+    .tb-atts { font-size: 12px; color: var(--t-dim); margin-bottom: 5px; }
+    .tb-atts b { color: var(--t-blue); font-weight: 500; }
+    .tb-atts .rm { color: var(--t-faint); font-size: 11px; }
+    .tb-row { display: flex; align-items: baseline; gap: 9px; }
+    .tb-meta {
+        margin-top: 8px; font-size: 11.5px; color: var(--t-faint);
+        display: flex; gap: 7px; align-items: center;
+    }
+    .tb-meta .sep { opacity: 0.55; }
+    .tb-meta .lk { cursor: pointer; transition: color 0.15s; }
+    .tb-meta .lk:hover { color: var(--t-accent); }
+    .tb-meta .model { color: var(--t-dim); }
+    .tb-meta .model:hover { color: var(--t-accent); }
+    .tb-meta .run { color: var(--t-amber); }
+    .tb-meta .stop { color: var(--t-red); cursor: pointer; }
+
+    /* ======================================================================
+       C 顶置工具行：meta 上移到输入行上方（IDE 工具条），底部零残留
+       ====================================================================== */
+    .tc-console { border-top: 1px solid var(--t-line); }
+    .tc-tools {
+        display: flex; align-items: center; gap: 14px;
+        padding: 6px 16px; font-size: 11px; color: var(--t-faint);
+        background: var(--t-bg-soft);
+        border-bottom: 1px solid var(--t-line);
+    }
+    .tc-spring { flex: 1; }
+    .tc-model { color: var(--t-accent); font-size: 11px; cursor: pointer; }
+    .tc-model:hover { text-decoration: underline; }
+    .tc-tri { font-size: 9px; opacity: 0.7; margin-left: 2px; }
+    .tc-att-btn { color: var(--t-dim); cursor: pointer; }
+    .tc-att-btn:hover { color: var(--t-accent); }
+    .tc-body { padding: 11px 16px 13px; display: flex; flex-direction: column; gap: 8px; }
+    .tc-row { display: flex; align-items: baseline; gap: 10px; }
+    .tc-run { color: var(--t-amber); font-size: 11px; }
+    .tc-run .stop { color: var(--t-red); cursor: pointer; margin-left: 8px; }
+    .tc-run .sep { color: var(--t-faint); margin: 0 6px; }
+
+    /* ===== 设计注释 ===== */
+    .notes {
+        max-width: 880px; margin: 44px auto 0;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    .note-card {
+        border: 1px solid #2c3442; border-radius: 10px; padding: 14px 16px;
+        font-size: 12px; line-height: 1.75;
+    }
+    body[data-scheme="light"] .note-card { border-color: #d0d7de; background: #ffffff; }
+    .note-card h3 { font-size: 12.5px; margin-bottom: 6px; }
+    .note-card .m { color: #8f97ae; }
+    body[data-scheme="light"] .note-card .m { color: #57606a; }
+    .note-card code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px;
+        color: var(--t-accent); background: rgba(126, 231, 135, 0.08);
+        padding: 0 5px; border-radius: 4px;
+    }
+</style>
+</head>
+<body data-scheme="dark">
+
+<div class="page-head">
+    <h1>终端视图 · 输入区重构（去头栏）</h1>
+    <div class="page-sub">
+        现状 V3 的头栏（会话号 · 工作区名）信息冗余，删除后重构信息架构。
+        能力集不变（附件 / 模型切换 / 发送 / 停止），差别在 meta 信息的位置与视觉重量。
+        切换主题查看两套配色；每版给出 空态 / 输入中 / 运行中 三种状态。
+    </div>
+</div>
+
+<div class="ctrl-bar">
+    <div class="ctrl-group">
+        <span class="ctrl-label">主题</span>
+        <button class="scheme-btn ctrl-btn on" data-scheme="dark">夜间</button>
+        <button class="scheme-btn ctrl-btn" data-scheme="light">日间</button>
+    </div>
+</div>
+
+<!-- ===================== A 双行控制台 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">A</span><span class="ver-name">双行控制台</span></div>
+    <div class="ver-desc">现状瘦身版：整条删除头栏，保留「输入行 + soft 底栏」两段。<code style="color:var(--t-accent)">--model</code> pill 固定在底栏右侧（现状位置），改动最小、高度立省 25px。</div>
+
+    <div class="state-tag">空态</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="ta-console">
+            <div class="ta-body">
+                <div class="ta-row"><span class="pfx">❯</span><span class="ph">输入指令，⏎ 发送…</span></div>
+            </div>
+            <div class="ta-foot">
+                <span class="ta-att-btn">+ 附件</span>
+                <span><span class="key">⏎</span>发送</span>
+                <span class="ta-spring"></span>
+                <span class="ta-model">--model sonnet-4.5 <span class="ta-tri">▾</span></span>
+                <button class="ta-btn">发送 ⏎</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">输入中 · 带附件 · 模型菜单展开</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="ta-console">
+            <div class="ta-body">
+                <div class="atts" style="margin-bottom:0;">
+                    <span class="att">⌗ login.png <span class="x">×</span></span>
+                    <span class="att">⌗ api.md <span class="x">×</span></span>
+                </div>
+                <div class="ta-row"><span class="pfx">❯</span><span>分析这个登录页的报错 <span class="cursor"></span></span></div>
+            </div>
+            <div class="ta-foot">
+                <span class="ta-att-btn">+ 附件 2</span>
+                <span><span class="key">⏎</span>发送</span>
+                <span class="ta-spring"></span>
+                <span class="ta-model-wrap">
+                    <span class="ta-menu">
+                        <button class="ta-item">默认模型</button>
+                        <button class="ta-item on">sonnet-4.5</button>
+                        <button class="ta-item">deepseek-v3</button>
+                    </span>
+                    <span class="ta-model">--model sonnet-4.5 <span class="ta-tri">▾</span></span>
+                </span>
+                <button class="ta-btn">发送 ⏎</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">运行中</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="ta-console">
+            <div class="ta-body">
+                <div class="ta-row"><span class="pfx">❯</span><span style="color:var(--t-dim)">分析这个登录页的报错</span></div>
+            </div>
+            <div class="ta-foot">
+                <span class="spin" style="color:var(--t-accent)">⠋</span>
+                <span>生成中…</span>
+                <span class="ta-spring"></span>
+                <button class="ta-btn stop">■ 停止 esc</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== B 裸行轻量 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">B</span><span class="ver-name">裸行轻量</span></div>
+    <div class="ver-desc">彻底去背景条：仅一条渐隐分隔线，之后是 <code style="color:var(--t-accent)">❯</code> 行与一行 faint 纯文本 meta（<code style="color:var(--t-accent)">+ 附件 · --model ▾ · ⏎ 发送</code>）。hover 变绿即点击。最像真 shell，视觉最轻。</div>
+
+    <div class="state-tag">空态</div>
+    <div class="demo">
+        <div class="tb-wrap">
+            <div class="tb-rule"></div>
+            <div class="tb-row"><span class="pfx">❯</span><span class="ph">输入指令，⏎ 发送…</span></div>
+            <div class="tb-meta">
+                <span class="lk">+ 附件</span>
+                <span class="sep">│</span>
+                <span class="model">--model sonnet-4.5 ▾</span>
+                <span class="sep">│</span>
+                <span><span class="key">⏎</span>发送</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">输入中 · 带附件</div>
+    <div class="demo">
+        <div class="tb-wrap">
+            <div class="tb-rule"></div>
+            <div class="tb-atts">[login.png ×] [api.md ×] <span class="rm">× 可移除</span></div>
+            <div class="tb-row"><span class="pfx">❯</span><span>分析这个登录页的报错 <span class="cursor"></span></span></div>
+            <div class="tb-meta">
+                <span class="lk">+ 附件</span>
+                <span class="sep">│</span>
+                <span class="model">--model sonnet-4.5 ▾</span>
+                <span class="sep">│</span>
+                <span><span class="key">⏎</span>发送</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">运行中</div>
+    <div class="demo">
+        <div class="tb-wrap">
+            <div class="tb-rule"></div>
+            <div class="tb-row"><span class="pfx">❯</span><span style="color:var(--t-dim)">分析这个登录页的报错</span></div>
+            <div class="tb-meta">
+                <span class="run"><span class="spin">⠋</span> 生成中</span>
+                <span class="sep">│</span>
+                <span><span class="key">esc</span><span class="stop">停止</span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== C 顶置工具行 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">C</span><span class="ver-name">顶置工具行</span></div>
+    <div class="ver-desc">信息架构反转：meta 上移为输入行上方的 IDE 风工具条（<code style="color:var(--t-accent)">--model ▾</code> 左、<code style="color:var(--t-accent)">+ 附件</code> 右），底部零残留。运行态 spinner 直接落在工具行，输入行永远保持纯粹。</div>
+
+    <div class="state-tag">空态</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="tc-console">
+            <div class="tc-tools">
+                <span class="tc-model">--model sonnet-4.5 <span class="tc-tri">▾</span></span>
+                <span class="tc-spring"></span>
+                <span class="tc-att-btn">+ 附件</span>
+            </div>
+            <div class="tc-body">
+                <div class="tc-row"><span class="pfx">❯</span><span class="ph">输入指令，⏎ 发送…</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">输入中 · 带附件</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="tc-console">
+            <div class="tc-tools">
+                <span class="tc-model">--model sonnet-4.5 <span class="tc-tri">▾</span></span>
+                <span class="tc-spring"></span>
+                <span class="tc-att-btn">+ 附件 2</span>
+            </div>
+            <div class="tc-body">
+                <div class="atts">
+                    <span class="att">⌗ login.png <span class="x">×</span></span>
+                    <span class="att">⌗ api.md <span class="x">×</span></span>
+                </div>
+                <div class="tc-row"><span class="pfx">❯</span><span>分析这个登录页的报错 <span class="cursor"></span></span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="state-tag">运行中</div>
+    <div class="demo" style="padding-bottom:0;">
+        <div class="tc-console">
+            <div class="tc-tools">
+                <span class="tc-run"><span class="spin">⠋</span> 生成中…</span>
+                <span class="tc-spring"></span>
+                <span class="tc-run"><span style="color:var(--t-red);cursor:pointer">■ 停止</span><span class="sep">·</span>esc</span>
+            </div>
+            <div class="tc-body">
+                <div class="tc-row"><span class="pfx">❯</span><span style="color:var(--t-dim)">分析这个登录页的报错</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 设计注释 ===================== -->
+<div class="notes">
+    <div class="note-card">
+        <h3>A 双行控制台 · 连续性优先</h3>
+        <span class="m">现状直接瘦身：删头栏，其余不动。soft 底栏保留结构感，模型 pill 仍在底栏右。
+        改动成本最低（删 </span><code>tc-head</code><span class="m"> 一个节点 + 微调间距）。</span>
+    </div>
+    <div class="note-card">
+        <h3>B 裸行轻量 · 极简优先</h3>
+        <span class="m">去 soft 背景与边线，meta 全部文本化为一行，</span>
+        <code>+ 附件 │ --model ▾ │ ⏎</code>
+        <span class="m">。输入区完全融入会话流，最像真终端；无实体按钮，纯文本 hover 点击。</span>
+    </div>
+    <div class="note-card">
+        <h3>C 顶置工具行 · 结构反转</h3>
+        <span class="m">meta 上移输入行上方（模型左 / 附件右），底部零残留；运行态占用工具行。
+        输入行上下无夹层，最干净；与 IDE 输入框心智一致。</span>
+    </div>
+    <div class="note-card">
+        <h3>通用约束</h3>
+        <span class="m">配色零新增（全部</span> <code>--t-*</code> <span class="m">映射）；能力集不变
+        （附件 / 模型切换 / 发送 / 停止）；运行中一律 spinner + 红色停止路径；
+        附件 chips 语言三案统一（</span><code>⌗ name ×</code><span class="m">）。</span>
+    </div>
+    <div class="note-card">
+        <h3>选型建议</h3>
+        <span class="m">保结构、低成本选 A；要极简终端感选 B；要输入行最干净、
+        接受 meta 在上方选 C。可组合：C 的工具行 + A 的 soft 背景条。</span>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.scheme-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.scheme-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.dataset.scheme = btn.dataset.scheme;
+        });
+    });
+
+    // ===== braille spinner（运行态） =====
+    var frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    var i = 0;
+    setInterval(function () {
+        document.querySelectorAll('.spin').forEach(function (el) {
+            el.textContent = frames[i = (i + 1) % frames.length];
+        });
+    }, 90);
+</script>
+</body>
+</html>

@@ -71,7 +71,7 @@ window.TokenHeatmap = (function () {
         container.classList.add('token-heatmap');
         container.style.display = 'none';
         container.innerHTML = `
-            <div class="th-title"><i class="fas fa-fire"></i> 近 30 日 Token 用量<i class="fas fa-chart-line th-more"></i></div>
+            <div class="th-title"><i class="fas fa-fire"></i> 近 30 日 Token 用量</div>
             <div class="th-grid"></div>
         `;
         // 点击整块矩阵打开统计详情面板
@@ -341,14 +341,8 @@ window.TokenHeatmap = (function () {
             height: 8px;
             aspect-ratio: auto;
         }
-        /* 整块可点击打开统计详情；标题右侧折线图标 hover 时点亮作为入口提示 */
+        /* 整块可点击打开统计详情 */
         .token-heatmap { cursor: pointer; }
-        .th-title .th-more {
-            margin-left: auto;
-            opacity: 0;
-            transition: opacity 0.15s;
-        }
-        .token-heatmap:hover .th-more { opacity: 1; }
 
         /* ===== 统计详情面板（遮罩 + 卡片 + 折线图，尺寸规格对齐设置弹窗）===== */
         .thd-overlay {

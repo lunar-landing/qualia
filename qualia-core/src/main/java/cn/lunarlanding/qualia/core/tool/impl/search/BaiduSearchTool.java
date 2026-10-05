@@ -252,4 +252,10 @@ public class BaiduSearchTool extends FunctionTool {
             this.snippet = snippet;
         }
     }
+
+    /** 只读工具：仅联网检索搜索结果，无本地副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

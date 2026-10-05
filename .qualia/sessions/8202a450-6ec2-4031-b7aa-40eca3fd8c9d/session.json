@@ -1,0 +1,93 @@
+{
+	"messages":[
+		{
+			"content":"你好能帮我解答一个问题吗，deepseek 4.1 是什么时候上线的",
+			"createdAt":1790733027941,
+			"id":"e256dd45-a77d-4ef7-b0b4-766166298423",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"8202a450-6ec2-4031-b7aa-40eca3fd8c9d"
+		},
+		{
+			"completionTokens":702,
+			"content":"根据搜索结果，**DeepSeek V4.1 Flash** 于 **2026年9月10日** 正式上线。\n\n以下是相关细节：\n*   **上线时间**：2026年9月10日中午12点。\n*   **主要版本**：目前公开信息主要提及的是 **DeepSeek V4.1 Flash** 版本。\n*   **特点**：该版本在文本与 Agent 性能上全面提升，兼具原生多模态视觉理解能力，同时大幅降低了成本（缓存命中价降至 0.02 元/百万 token）。\n*   **同步动作**：国家超算互联网也于同日同步上线了其 API 服务。\n\n如果您指的是非 Flash 版本的 V4.1 或其他变体，目前主流公开报道均聚焦于 9月10日发布的 V4.1 Flash。",
+			"createdAt":1790733048714,
+			"durationMs":20773,
+			"id":"6c3f3416-23a8-4ccd-a23f-f2f315b5cccb",
+			"promptTokens":12626,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"8202a450-6ec2-4031-b7aa-40eca3fd8c9d",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"action\",\n    \"thought\": \"用户询问DeepSeek 4.1的上线时间，这是一个事实性问题，需要通过搜索引擎获取最新信息。\",\n    \"actions\": [\n        {\n            \"name\": \"baidu_search\",\n            \"arguments\": {\"query\": \"DeepSeek 4.1 上线时间 发布日期\"}\n        }\n    ]\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				},
+				{
+					"content":"调用工具: baidu_search",
+					"stepType":"ACTION",
+					"timestamp":0,
+					"toolArgs":{
+						"query":"DeepSeek 4.1 上线时间 发布日期"
+					},
+					"toolName":"baidu_search"
+				},
+				{
+					"content":"搜索结果：\n\n1. DeepSeek | 研究与动态\n   链接: http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWpK2PodH7n16t4Nf7ePDvn0maS9PcpEqnF_aU6yU2iXQ\n   摘要: DeepSeek 研究与动态 — 最新研究论文、产品更新和动态\n\n2. DeepSeek-V4.1(DeepSeek-V... - 百度百科\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\n\n3. DeepSeek-V4.1 Flash - 百度百科\n   链接: http://www.baidu.com/link?url=q_gLllYNFHsg8090GbX_fpBLiohegfpHvnu8OjaInKqhqaz8ZrjwxDzsDbcJjUISWCUdiZY9_TnElZUFnotnwVK2XplzTYJvvlrnDjbJyYG\n\n4. DeepSeek V4.1 Flash 发布在即?V4 Pro 用户需要关注的一项重要...\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vj9wOGbHwb_XqP22wuXG0f6Xem3Q1b0y-tctYINWWoVn8tojW4ssSxM_nHuP4p80lK\n   摘要: 核查日期为 2026 年 9 月 9 日。我们尚未从 DeepSeek 公开页面独立获取到同一条通知;本次检查的 官方定价页 仍列出 V4 型号,未提供 V4.1 Flash 价格表。下图是发布时间和路由安排的来源,公开文档则用于后续核对正式变更。 收到的通知截图。画面没有显示网页地址,也没有给出具体上线时刻、V4.1 费率或 API 模...\n\n5. #WorkBuddy# DeepSeek V4.1 Flash 正式上线:降价生效了,但有人...\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vj9wOGbHwb_XqP22wuXG0f6Xem3Q1b0y-tctYINWWoVnB6ppz9HkTYZphoWk1fChF_\n   摘要: 9月 10 日中午 12 点,DeepSeek的「梁圣归来」大戏迎来第二幕:V4.1 Flash正式版上线,同时 Flash 系列全新低价生效。这事儿在开发者圈炸了锅——缓存命中价直接砍到0.02 元/百万 token,比之前降了 60%。 但实测下来有个反直觉的坑:单价降了,有人反而多花了钱。这篇文章把官方公告、第三方实测、和我自己在...\n\n6. DeepSeek 4.1 上线时间 发布日期——百度文心助手已接入DeepSeek V4\n   链接: https://chat.baidu.com/search?dyTabStr=MTIsMCwzLDEsMiwxMyw3LDYsNSw5&amp;pd=csaitab&amp;setype=csaitab&amp;extParamsJson=%7B%22apagelid%22%3A%2213682960481509878956%22%2C%22enter_type%22%3A%22a_61673__ENTERTYPE_%22%2C%22ori_lid%22%3A%2213682960481509878956%22%2C%22srcid%22%3A%2261673%22%2C%22order%22%3A%22undefined_8%22%2C%22tplname%22%3A%22ai_search_recommend%22%2C%22aPageWord%22%3A%22DeepSeek+4.1+%E4%B8%8A%E7%BA%BF%E6%97%B6%E9%97%B4+%E5%8F%91%E5%B8%83%E6%97%A5%E6%9C%9F%22%2C%22sa%22%3A%22re_dl_61673%22%7D&amp;word=DeepSeek+4.1+%E4%B8%8A%E7%BA%BF%E6%97%B6%E9%97%B4+%E5%8F%91%E5%B8%83%E6%97%A5%E6%9C%9F&amp;usedModel=%7B%22modelName%22%3A%22DeepSeek-V4%22%2C%22modelFunction%22%3A%7B%22internetSearch%22%3A%221%22%7D%7D&amp;pos=left\n\n7. DeepSeek V4.1 Flash上线国家超算互联网\n   链接: http://www.baidu.com/link?url=q_gLllYNFHsg8090GbX_fmQkO4Th20tAE4J4btkz6CesOzhTe6O6ZGfh0G7hD2CqqkSkYoVzRBlKlOfp34iav5zAien2ZL0OaaTtGN78_te\n   摘要: DeepSeek V4.1 Flash上线国家超算互联网 9月10日，DeepSeek正式发布V4.1 Flash，国家超算互联网同步上线其API服务。用户登录国家超算互联网即可一键调用其API服务。目前，国家超算互联网已接入30余家算力中心、近70种规格算力资源，AI社区汇集1800余款开源大模型，并接入GLM、Qwen、Kimi等国产大模型API。\n\n8. DeepSeek | 深度求索\n   链接: http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\n   摘要: 探索未至之境 DeepSeek-V4.1-Flash 发布,文本与 Agent 性能全面提升、兼具原生多模态视觉理解能力,能力更强、速度更快、且成本更低,欢迎测试和反馈 和DeepSeek 对话 API 开放平台 Harness 桌面端\n\n9. 帮助\n   链接: https://help.baidu.com/question?prod_id=1\n\n",
+					"stepType":"OBSERVATION",
+					"timestamp":0
+				},
+				{
+					"content":"{\n    \"type\": \"action\",\n    \"thought\": \"搜索结果显示DeepSeek V4.1 Flash于2026年9月10日上线。为了确认是否有其他V4.1版本或更准确的官方公告，我需要查看百度百科或官方链接以获取更详细信息。\",\n    \"actions\": [\n        {\n            \"name\": \"web_fetch\",\n            \"arguments\": {\"url\": \"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\", \"max_length\": 2000}\n        }\n    ]\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				},
+				{
+					"content":"调用工具: web_fetch",
+					"stepType":"ACTION",
+					"timestamp":0,
+					"toolArgs":{
+						"url":"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_",
+						"max_length":2000
+					},
+					"toolName":"web_fetch"
+				},
+				{
+					"content":"{\"original_length\":4416,\"content_type\":\"text/html; charset=utf-8\",\"title\":\"百度百科\",\"message\":\"该页面由 JavaScript 动态渲染（SPA），服务端 HTML 不含正文，仅能提取标题与元信息。建议改用搜索工具获取相关内容，或尝试该站点的文档子页/API 地址。\",\"url\":\"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\",\"content\":\"百度百科\",\"status\":200,\"extracted_length\":4}",
+					"stepType":"OBSERVATION",
+					"timestamp":0
+				},
+				{
+					"content":"{\n    \"type\": \"action\",\n    \"thought\": \"百度百科页面无法直接抓取内容。根据之前的搜索结果，多个来源（如文章5、7）明确提到DeepSeek V4.1 Flash于2026年9月10日上线。我将尝试访问DeepSeek官方链接以确认是否有更详细的公告。\",\n    \"actions\": [\n        {\n            \"name\": \"web_fetch\",\n            \"arguments\": {\"url\": \"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\", \"max_length\": 3000}\n        }\n    ]\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				},
+				{
+					"content":"调用工具: web_fetch",
+					"stepType":"ACTION",
+					"timestamp":0,
+					"toolArgs":{
+						"url":"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq",
+						"max_length":3000
+					},
+					"toolName":"web_fetch"
+				},
+				{
+					"content":"{\"original_length\":105802,\"content_type\":\"text/html\",\"title\":\"DeepSeek | 深度求索\",\"url\":\"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\",\"content\":\"DeepSeek-V4.1-Flash 发布，文本与 Agent 性能全面提升、兼具原生多模态视觉理解能力，能力更强、速度更快、且成本更低，欢迎测试和反馈 探索未至之境\\n\\n深度思考 智能搜索\\n\\n和 DeepSeek 对话 API 开放平台 Harness 桌面端\\n\\n浙ICP备2023025841号 浙B2-20250178 浙公网安备33010502011812号\\n\\n扫码关注公众号\\n\\n产品\\n\\nDeepSeek 应用下载 DeepSeek 网页版 DeepSeek Harness API 开放平台 API 文档 API 价格 服务状态\\n\\n研究\\n\\nDeepSeek V4.1 DeepSeek V4 DeepSeek V3.2 DeepSeek V3.1 DeepSeek R1 DeepSeek V3 更多\\n\\n法务 & 安全\\n\\n反馈安全漏洞 透明度\\n\\n加入我们\\n\\n岗位详情\\n\\n© 2026 杭州深度求索人工智能基础技术研究有限公司 版权所有\\n\\n中文 EN\",\"status\":200,\"extracted_length\":429}",
+					"stepType":"OBSERVATION",
+					"timestamp":0
+				},
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"根据搜索结果，DeepSeek V4.1 Flash 于 2026 年 9 月 10 日正式上线。多个来源确认了这一日期，并提到同时生效了新的低价策略。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"action\\\",\\n    \\\"thought\\\": \\\"用户询问DeepSeek 4.1的上线时间，这是一个事实性问题，需要通过搜索引擎获取最新信息。\\\",\\n    \\\"actions\\\": [\\n        {\\n            \\\"name\\\": \\\"baidu_search\\\",\\n            \\\"arguments\\\": {\\\"query\\\": \\\"DeepSeek 4.1 上线时间 发布日期\\\"}\\n        }\\n    ]\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0},{\"content\":\"调用工具: baidu_search\",\"stepType\":\"ACTION\",\"timestamp\":0,\"toolArgs\":{\"query\":\"DeepSeek 4.1 上线时间 发布日期\"},\"toolName\":\"baidu_search\"},{\"content\":\"搜索结果：\\n\\n1. DeepSeek | 研究与动态\\n   链接: http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWpK2PodH7n16t4Nf7ePDvn0maS9PcpEqnF_aU6yU2iXQ\\n   摘要: DeepSeek 研究与动态 — 最新研究论文、产品更新和动态\\n\\n2. DeepSeek-V4.1(DeepSeek-V... - 百度百科\\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\\n\\n3. DeepSeek-V4.1 Flash - 百度百科\\n   链接: http://www.baidu.com/link?url=q_gLllYNFHsg8090GbX_fpBLiohegfpHvnu8OjaInKqhqaz8ZrjwxDzsDbcJjUISWCUdiZY9_TnElZUFnotnwVK2XplzTYJvvlrnDjbJyYG\\n\\n4. DeepSeek V4.1 Flash 发布在即?V4 Pro 用户需要关注的一项重要...\\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vj9wOGbHwb_XqP22wuXG0f6Xem3Q1b0y-tctYINWWoVn8tojW4ssSxM_nHuP4p80lK\\n   摘要: 核查日期为 2026 年 9 月 9 日。我们尚未从 DeepSeek 公开页面独立获取到同一条通知;本次检查的 官方定价页 仍列出 V4 型号,未提供 V4.1 Flash 价格表。下图是发布时间和路由安排的来源,公开文档则用于后续核对正式变更。 收到的通知截图。画面没有显示网页地址,也没有给出具体上线时刻、V4.1 费率或 API 模...\\n\\n5. #WorkBuddy# DeepSeek V4.1 Flash 正式上线:降价生效了,但有人...\\n   链接: http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vj9wOGbHwb_XqP22wuXG0f6Xem3Q1b0y-tctYINWWoVnB6ppz9HkTYZphoWk1fChF_\\n   摘要: 9月 10 日中午 12 点,DeepSeek的「梁圣归来」大戏迎来第二幕:V4.1 Flash正式版上线,同时 Flash 系列全新低价生效。这事儿在开发者圈炸了锅——缓存命中价直接砍到0.02 元/百万 token,比之前降了 60%。 但实测下来有个反直觉的坑:单价降了,有人反而多花了钱。这篇文章把官方公告、第三方实测、和我自己在...\\n\\n6. DeepSeek 4.1 上线时间 发布日期——百度文心助手已接入DeepSeek V4\\n   链接: https://chat.baidu.com/search?dyTabStr=MTIsMCwzLDEsMiwxMyw3LDYsNSw5&amp;pd=csaitab&amp;setype=csaitab&amp;extParamsJson=%7B%22apagelid%22%3A%2213682960481509878956%22%2C%22enter_type%22%3A%22a_61673__ENTERTYPE_%22%2C%22ori_lid%22%3A%2213682960481509878956%22%2C%22srcid%22%3A%2261673%22%2C%22order%22%3A%22undefined_8%22%2C%22tplname%22%3A%22ai_search_recommend%22%2C%22aPageWord%22%3A%22DeepSeek+4.1+%E4%B8%8A%E7%BA%BF%E6%97%B6%E9%97%B4+%E5%8F%91%E5%B8%83%E6%97%A5%E6%9C%9F%22%2C%22sa%22%3A%22re_dl_61673%22%7D&amp;word=DeepSeek+4.1+%E4%B8%8A%E7%BA%BF%E6%97%B6%E9%97%B4+%E5%8F%91%E5%B8%83%E6%97%A5%E6%9C%9F&amp;usedModel=%7B%22modelName%22%3A%22DeepSeek-V4%22%2C%22modelFunction%22%3A%7B%22internetSearch%22%3A%221%22%7D%7D&amp;pos=left\\n\\n7. DeepSeek V4.1 Flash上线国家超算互联网\\n   链接: http://www.baidu.com/link?url=q_gLllYNFHsg8090GbX_fmQkO4Th20tAE4J4btkz6CesOzhTe6O6ZGfh0G7hD2CqqkSkYoVzRBlKlOfp34iav5zAien2ZL0OaaTtGN78_te\\n   摘要: DeepSeek V4.1 Flash上线国家超算互联网 9月10日，DeepSeek正式发布V4.1 Flash，国家超算互联网同步上线其API服务。用户登录国家超算互联网即可一键调用其API服务。目前，国家超算互联网已接入30余家算力中心、近70种规格算力资源，AI社区汇集1800余款开源大模型，并接入GLM、Qwen、Kimi等国产大模型API。\\n\\n8. DeepSeek | 深度求索\\n   链接: http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\\n   摘要: 探索未至之境 DeepSeek-V4.1-Flash 发布,文本与 Agent 性能全面提升、兼具原生多模态视觉理解能力,能力更强、速度更快、且成本更低,欢迎测试和反馈 和DeepSeek 对话 API 开放平台 Harness 桌面端\\n\\n9. 帮助\\n   链接: https://help.baidu.com/question?prod_id=1\\n\\n\",\"stepType\":\"OBSERVATION\",\"timestamp\":0},{\"content\":\"{\\n    \\\"type\\\": \\\"action\\\",\\n    \\\"thought\\\": \\\"搜索结果显示DeepSeek V4.1 Flash于2026年9月10日上线。为了确认是否有其他V4.1版本或更准确的官方公告，我需要查看百度百科或官方链接以获取更详细信息。\\\",\\n    \\\"actions\\\": [\\n        {\\n            \\\"name\\\": \\\"web_fetch\\\",\\n            \\\"arguments\\\": {\\\"url\\\": \\\"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\\\", \\\"max_length\\\": 2000}\\n        }\\n    ]\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0},{\"content\":\"调用工具: web_fetch\",\"stepType\":\"ACTION\",\"timestamp\":0,\"toolArgs\":{\"url\":\"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\",\"max_length\":2000},\"toolName\":\"web_fetch\"},{\"content\":\"{\\\"original_length\\\":4416,\\\"content_type\\\":\\\"text/html; charset=utf-8\\\",\\\"title\\\":\\\"百度百科\\\",\\\"message\\\":\\\"该页面由 JavaScript 动态渲染（SPA），服务端 HTML 不含正文，仅能提取标题与元信息。建议改用搜索工具获取相关内容，或尝试该站点的文档子页/API 地址。\\\",\\\"url\\\":\\\"http://www.baidu.com/link?url=dlrNZjaCYATDBlw7uG88Vd6bB-bL1gaFoJ4IPzoGg5cqGVrCsFK3xnXVTqfbbvqv3i_DMXCSe6Nv_HaJljnib_\\\",\\\"content\\\":\\\"百度百科\\\",\\\"status\\\":200,\\\"extracted_length\\\":4}\",\"stepType\":\"OBSERVATION\",\"timestamp\":0},{\"content\":\"{\\n    \\\"type\\\": \\\"action\\\",\\n    \\\"thought\\\": \\\"百度百科页面无法直接抓取内容。根据之前的搜索结果，多个来源（如文章5、7）明确提到DeepSeek V4.1 Flash于2026年9月10日上线。我将尝试访问DeepSeek官方链接以确认是否有更详细的公告。\\\",\\n    \\\"actions\\\": [\\n        {\\n            \\\"name\\\": \\\"web_fetch\\\",\\n            \\\"arguments\\\": {\\\"url\\\": \\\"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\\\", \\\"max_length\\\": 3000}\\n        }\\n    ]\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0},{\"content\":\"调用工具: web_fetch\",\"stepType\":\"ACTION\",\"timestamp\":0,\"toolArgs\":{\"url\":\"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\",\"max_length\":3000},\"toolName\":\"web_fetch\"},{\"content\":\"{\\\"original_length\\\":105802,\\\"content_type\\\":\\\"text/html\\\",\\\"title\\\":\\\"DeepSeek | 深度求索\\\",\\\"url\\\":\\\"http://www.baidu.com/link?url=E4IgbCPLhunxa0O2Yb3bWiCXCC9G7uE5nraT2IZjRfNSukEYHy_Gzv65wyfVsqQY1fUfonD_5yYitj5bubslTq\\\",\\\"content\\\":\\\"DeepSeek-V4.1-Flash 发布，文本与 Agent 性能全面提升、兼具原生多模态视觉理解能力，能力更强、速度更快、且成本更低，欢迎测试和反馈 探索未至之境\\\\n\\\\n深度思考 智能搜索\\\\n\\\\n和 DeepSeek 对话 API 开放平台 Harness 桌面端\\\\n\\\\n浙ICP备2023025841号 浙B2-20250178 浙公网安备33010502011812号\\\\n\\\\n扫码关注公众号\\\\n\\\\n产品\\\\n\\\\nDeepSeek 应用下载 DeepSeek 网页版 DeepSeek Harness API 开放平台 API 文档 API 价格 服务状态\\\\n\\\\n研究\\\\n\\\\nDeepSeek V4.1 DeepSeek V4 DeepSeek V3.2 DeepSeek V3.1 DeepSeek R1 DeepSeek V3 更多\\\\n\\\\n法务 & 安全\\\\n\\\\n反馈安全漏洞 透明度\\\\n\\\\n加入我们\\\\n\\\\n岗位详情\\\\n\\\\n© 2026 杭州深度求索人工智能基础技术研究有限公司 版权所有\\\\n\\\\n中文 EN\\\",\\\"status\\\":200,\\\"extracted_length\\\":429}\",\"stepType\":\"OBSERVATION\",\"timestamp\":0},{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"根据搜索结果，DeepSeek V4.1 Flash 于 2026 年 9 月 10 日正式上线。多个来源确认了这一日期，并提到同时生效了新的低价策略。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":13328
+		}
+	],
+	"sessionId":"8202a450-6ec2-4031-b7aa-40eca3fd8c9d"
+}

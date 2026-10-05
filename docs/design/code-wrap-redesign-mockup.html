@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代码块重设计 · 四版本 · Qualia</title>
+<style>
+    /* ===== 主题变量 ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.08);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #5c657e;
+        --icon-hover: rgba(255, 255, 255, 0.09);
+        --pill-bg: rgba(128, 144, 168, 0.15);
+        --v2-head: rgba(255, 255, 255, 0.025);
+        --v4-head: rgba(255, 255, 255, 0.035);
+        --float-bg: rgba(13, 17, 23, 0.78);
+        --copy-ok: #3fb950;
+        --dot-1: rgba(255, 95, 87, 0.75);
+        --dot-2: rgba(254, 188, 46, 0.75);
+        --dot-3: rgba(40, 200, 64, 0.75);
+        --kw: #ff7b72; --str: #a5d6ff; --fn: #d2a8ff; --cm: #8b949e; --num: #79c0ff;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #e4e8ee;
+        --code-bg: #eef1f4;
+        --line: rgba(31, 35, 40, 0.10);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --icon-hover: rgba(31, 35, 40, 0.08);
+        --pill-bg: rgba(31, 35, 40, 0.07);
+        --v2-head: rgba(31, 35, 40, 0.025);
+        --v4-head: #e4e8ed;
+        --float-bg: rgba(255, 255, 255, 0.85);
+        --copy-ok: #1a7f37;
+        --dot-1: rgba(229, 83, 75, 0.85);
+        --dot-2: rgba(210, 153, 34, 0.85);
+        --dot-3: rgba(63, 185, 80, 0.85);
+        --kw: #cf222e; --str: #0a3069; --fn: #8250df; --cm: #6e7781; --num: #0550ae;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 46px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: var(--pill-bg); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 代码块公共 ===== */
+    .cw {
+        position: relative;
+        background: var(--code-bg);
+        border-radius: 12px;
+        overflow: hidden;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    }
+    .cw pre {
+        margin: 0; padding: 15px 18px;
+        overflow-x: auto;
+        font-size: 12.5px; line-height: 1.75;
+        color: var(--text-1);
+    }
+    .kw { color: var(--kw); } .str { color: var(--str); } .fn { color: var(--fn); }
+    .cm { color: var(--cm); font-style: italic; } .num { color: var(--num); }
+
+    /* 语言名 / 复制按钮公共 */
+    .lang {
+        font-family: inherit; font-size: 11px; letter-spacing: 0.4px;
+        color: var(--text-2);
+    }
+    .cp {
+        width: 26px; height: 26px; flex: 0 0 26px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 7px; cursor: pointer;
+        background: transparent; color: var(--text-2);
+        transition: background 0.15s, color 0.15s;
+    }
+    .cp:hover { background: var(--icon-hover); color: var(--text-1); }
+    .cp svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .cp .tick { display: none; font-size: 12px; font-weight: 700; }
+    .cp.ok { color: var(--copy-ok); }
+    .cp.ok svg { display: none; }
+    .cp.ok .tick { display: block; }
+
+    /* ===== V1 线框式 ===== */
+    .v1 { border: 1px solid var(--line); border-radius: 9px; }
+    .v1 .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 10px 7px 15px;
+        border-bottom: 1px solid var(--line);
+    }
+    .v1 .cp { opacity: 0; }
+    .v1:hover .cp { opacity: 1; }
+
+    /* ===== V2 胶囊标签 ===== */
+    .v2 { border-radius: 10px; }
+    .v2 .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 10px 8px 12px;
+        background: var(--v2-head);
+        border-bottom: 1px solid var(--line);
+    }
+    .v2 .lang {
+        background: var(--pill-bg);
+        padding: 3px 11px; border-radius: 100px;
+        font-size: 10.5px;
+    }
+
+    /* ===== V3 悬浮无头 ===== */
+    .v3 { border-radius: 10px; }
+    .v3 .float {
+        position: absolute; top: 9px; right: 9px; z-index: 2;
+        display: flex; align-items: center; gap: 5px;
+        padding: 3px 5px 3px 11px; border-radius: 8px;
+        background: var(--float-bg);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid var(--line);
+        opacity: 0.6;
+        transition: opacity 0.18s;
+    }
+    .v3:hover .float { opacity: 1; }
+    .v3 pre { padding-top: 15px; }
+
+    /* ===== V4 降噪窗 ===== */
+    .v4 { border-radius: 14px; }
+    .v4 .head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 10px 8px 16px;
+        background: var(--v4-head);
+        border-bottom: 1px solid var(--line);
+    }
+    .v4 .dots { display: flex; gap: 5px; }
+    .v4 .dots i { width: 8px; height: 8px; border-radius: 50%; }
+    .v4 .dots i:nth-child(1) { background: var(--dot-1); }
+    .v4 .dots i:nth-child(2) { background: var(--dot-2); }
+    .v4 .dots i:nth-child(3) { background: var(--dot-3); }
+    .v4 .head .cp { margin-left: auto; }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+</style>
+</head>
+<body data-theme="dark">
+    <div class="bar">
+        <h1>代码块重设计<small>四个方向 · 深浅主题 · 复制按钮可点击</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- V1 -->
+        <section class="vblock">
+            <header><span class="no">V1</span><h2>线框式</h2></header>
+            <p class="desc">头部无色块，仅一条细分隔线；语言名纯文字，复制按钮 <b>hover 代码块才显现</b>。最安静、最像 GitHub README，装饰归零。</p>
+            <div class="cw v1">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- V2 -->
+        <section class="vblock">
+            <header><span class="no">V2</span><h2>胶囊标签</h2></header>
+            <p class="desc">骨架同 V1，但语言名做成<b>灰底胶囊标签</b>，头部加一层极淡底色。语言一眼可扫读，比 V1 多一档信息重量，日常耐看。</p>
+            <div class="cw v2">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- V3 -->
+        <section class="vblock">
+            <header><span class="no">V3</span><h2>悬浮无头</h2></header>
+            <p class="desc"><b>彻底去掉工具条</b>：语言名 + 复制按钮收进右上角毛玻璃浮层，平时半透明、hover 显现。<b>内容密度最高</b>，视觉最干净；代价是浮层会轻微压住首行代码右端。</p>
+            <div class="cw v3">
+                <div class="float">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- V4 -->
+        <section class="vblock">
+            <header><span class="no">V4</span><h2>降噪窗</h2></header>
+            <p class="desc">保留终端窗的窗体感但<b>全面减重</b>：头部从色块降为极淡底、圆点缩小降饱和、语言名从居中改<b>左置</b>、圆角放大到 14px。是现役终端窗的柔和版，延续性最好。</p>
+            <div class="cw v4">
+                <div class="head">
+                    <span class="dots"><i></i><i></i><i></i></span>
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        说明：四个版本均基于现行代码块底色体系（深 #161b22 / 日 #eef1f4），差异只在头部形态与控件排布；V1/V2 的复制按钮 hover 显现逻辑与 V3 悬浮毛玻璃，移动端无 hover 时将退化为常显。选定后按现行 DOM（.code-head / .dots / .code-lang / .head-slot）适配落地。
+    </footer>
+
+    <script>
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+        document.querySelectorAll('.cp').forEach(b => b.addEventListener('click', () => {
+            b.classList.add('ok');
+            setTimeout(() => b.classList.remove('ok'), 1200);
+        }));
+    </script>
+</body>
+</html>

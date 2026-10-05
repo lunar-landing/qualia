@@ -80,4 +80,10 @@ public class ReadTool extends FunctionTool {
             return "错误：读取文件失败 - " + e.getMessage();
         }
     }
+
+    /** 只读工具：仅读取文件内容，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

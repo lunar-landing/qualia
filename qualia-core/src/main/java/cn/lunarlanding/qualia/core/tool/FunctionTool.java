@@ -24,6 +24,17 @@ public abstract class FunctionTool extends Tool {
     }
 
     /**
+     * 是否只读工具（无副作用，如查询/检索类）。
+     *
+     * <p>默认 {@code false}：注解注册的自定义工具、MCP 远端工具等未知工具
+     * 一律视为可能有副作用，只读问答模式（CallOptions.readOnly）下不进入
+     * prompt 工具列表，执行前也会被拦截。无副作用的工具覆写返回 {@code true}。</p>
+     */
+    public boolean isReadOnly() {
+        return false;
+    }
+
+    /**
      * 生成该工具在系统 prompt 中的描述文本
      */
     public String toPrompt() {

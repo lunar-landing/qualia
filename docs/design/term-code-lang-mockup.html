@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>终端代码块语言标签设计选型 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（终端两套主题 + github 高亮色板） ===== */
+    :root {
+        --bg: #0d1117;      --text: #e6edf3;    --idle: #8b949e;
+        --line: #21262d;    --green: #7ee787;   --soft: #10161d;
+        --sel: rgba(126, 231, 135, 0.1);
+        --kw: #ff7b72; --fn: #d2a8ff; --st: #a5d6ff; --cm: #8b949e; --vr: #79c0ff; --nm: #79c0ff;
+    }
+    body.light-theme {
+        --bg: #f6f8fa;      --text: #24292f;    --idle: #8c959f;
+        --line: #d0d7de;    --green: #0f7b4f;   --soft: #eef1f4;
+        --sel: rgba(15, 123, 79, 0.08);
+        --kw: #cf222e; --fn: #8250df; --st: #0a3069; --cm: #6e7781; --vr: #0550ae; --nm: #0550ae;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Sarasa Mono SC', 'Microsoft YaHei', monospace;
+        background: var(--bg); color: var(--text);
+        padding: 32px 24px 64px;
+        transition: background .25s, color .25s;
+    }
+
+    .page-head {
+        max-width: 860px; margin: 0 auto 28px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 12.5px; color: var(--idle); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0; border: 1px solid var(--line);
+        background: transparent; color: var(--idle);
+        font: inherit; font-size: 12px; padding: 6px 14px; border-radius: 6px;
+        cursor: pointer; transition: all .15s;
+    }
+    .theme-toggle:hover { color: var(--green); border-color: var(--green); }
+
+    .variant { max-width: 860px; margin: 0 auto 44px; }
+    .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .variant-head .tag {
+        font-size: 12px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; border: 1px solid var(--line);
+        color: var(--idle); flex-shrink: 0;
+    }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12px; color: var(--idle); margin-bottom: 12px; line-height: 1.7; }
+    .variant-desc b { color: var(--text); font-weight: 600; }
+
+    /* ===== 代码块基座（对齐终端现状：soft 底 + 1px 线 + 圆角 6px） ===== */
+    .cw { position: relative; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; max-width: 640px; }
+    .cw pre { overflow-x: auto; }
+    .cw code {
+        display: block; padding: 13px 16px;
+        font: 500 12.5px/1.65 'JetBrains Mono', 'Fira Code', monospace;
+        color: var(--text); white-space: pre;
+    }
+    code .k { color: var(--kw); } code .f { color: var(--fn); }
+    code .s { color: var(--st); } code .c { color: var(--cm); font-style: italic; }
+    code .v { color: var(--vr); } code .n { color: var(--nm); }
+
+    /* 复制按钮（各方案通用：faint 常态，hover 绿） */
+    .copy {
+        display: inline-flex; align-items: center; gap: 5px;
+        font: inherit; font-size: 10.5px; color: var(--idle); opacity: .7;
+        background: none; border: none; cursor: pointer; transition: all .15s;
+    }
+    .copy:hover { color: var(--green); opacity: 1; }
+
+    /* =========================================================
+       CL1 角标 chip：右上角悬浮小标签，不占代码行
+       （边框 chip，hover 代码块时点亮为绿）
+       ========================================================= */
+    .cl1 .corner-tag {
+        position: absolute; top: 8px; right: 8px; z-index: 1;
+        font-size: 10.5px; color: var(--idle); opacity: .85;
+        background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+        padding: 1px 8px; transition: all .15s;
+    }
+    .cl1:hover .corner-tag { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+
+    /* =========================================================
+       CL2 头部条（绿点 + 语言名 + 复制）：pre 上方加一条头，
+       与气泡版 code-head 同构但终端化配色，块状轮廓最清晰
+       ========================================================= */
+    .cl2 { border-radius: 6px; }
+    .cl2 .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 12px; border-bottom: 1px solid var(--line);
+    }
+    .cl2 .lang { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--idle); }
+    .cl2 .lang .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .cl2 code { padding-top: 11px; }
+
+    /* =========================================================
+       CL3 命令前缀式：语言名当「命令」展示（$ python），
+       $ 用终端提示符绿，叙事与 REPL 完全同语言
+       ========================================================= */
+    .cl3 .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 12px; border-bottom: 1px solid var(--line);
+    }
+    .cl3 .cmd { font-size: 11px; color: var(--idle); }
+    .cl3 .cmd .p { color: var(--green); margin-right: 7px; font-weight: 600; }
+    .cl3 code { padding-top: 11px; }
+
+    /* =========================================================
+       CL4 ghost 角字：右上角无底大写 ghost 文字，
+       opacity 0.3，无框无底不遮代码，存在感最轻
+       ========================================================= */
+    .cl4 .ghost {
+        position: absolute; top: 7px; right: 11px; z-index: 1;
+        font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
+        color: var(--text); opacity: .3; pointer-events: none;
+    }
+
+    /* =========================================================
+       CL5 装饰线式：pre 上方独立一行「── python ──」，
+       与回答区 h1/h2 装饰线完全同语言，代码块本体零侵入
+       ========================================================= */
+    .cl5-wrap { max-width: 640px; }
+    .cl5-wrap .lang-line { font-size: 11px; color: var(--idle); margin: 0 0 6px 2px; }
+    .cl5-wrap .lang-line .dash { color: var(--green); margin-right: 8px; }
+    .cl5-wrap .lang-line .dash.r { margin: 0 0 0 8px; }
+    .cl5-wrap .cw { border-radius: 6px; }
+
+    /* =========================================================
+       CL6 左缘色条：左侧 2px 全高绿条标识「代码块」，
+       右上角纯文字语言名（无框无底），编辑器 accent 风
+       ========================================================= */
+    .cl6 { overflow: hidden; }
+    .cl6::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+        background: var(--green); opacity: .65;
+    }
+    .cl6 .lang {
+        position: absolute; top: 7px; right: 11px; z-index: 1;
+        font-size: 10.5px; color: var(--idle); opacity: .8; pointer-events: none;
+    }
+
+    /* =========================================================
+       CL7 实色标签块：右上角贴边绿底 + 深字大写标签，
+       视觉强度最高，像终端高亮反色块
+       ========================================================= */
+    .cl7 { overflow: hidden; }
+    .cl7 .solid-tag {
+        position: absolute; top: 0; right: 0; z-index: 1;
+        font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+        color: var(--bg); background: var(--green);
+        padding: 3px 10px; border-radius: 0 5px 0 6px;
+    }
+
+    /* =========================================================
+       CL8 状态灯头部：三颗熨灭灯 + 语言名 + copy，
+       macOS 终端窗口复刻（单色克制版），窗口隐喻最强
+       ========================================================= */
+    .cl8 .head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 7px 12px; border-bottom: 1px solid var(--line);
+    }
+    .cl8 .lights { display: flex; gap: 5px; }
+    .cl8 .lights i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--line); }
+    .cl8 .lang { font-size: 11px; color: var(--idle); flex: 1; }
+    .cl8 code { padding-top: 11px; }
+
+    /* =========================================================
+       CL9 vim 状态栏：代码块底部状态条「-- python --」+ copy，
+       vim statusline 隐喻，底部不遮代码首行
+       ========================================================= */
+    .cl9 .status {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 4px 12px; border-top: 1px solid var(--line);
+    }
+    .cl9 .mode { font-size: 10.5px; color: var(--green); letter-spacing: .5px; }
+
+    .foot-note {
+        max-width: 860px; margin: 40px auto 0;
+        font-size: 12px; color: var(--idle);
+        border-top: 1px solid var(--line);
+        padding-top: 14px; line-height: 1.7;
+    }
+    .foot-note code { color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <div>
+        <h1>终端代码块语言标签设计选型</h1>
+        <p>终端回答区 pre 代码块的语言标签 · 九个版本，右上角可切换深 / 浅主题</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== CL1 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL1</span><h2>角标 chip</h2></div>
+    <div class="variant-desc"><b>右上角悬浮小标签，不占代码行</b>：chip 式（bg 底 + 1px 线），hover 代码块时点亮为绿。信息清晰、零侵入；缺点是浮在代码上方，长行会从标签下穿过。</div>
+    <div class="cw cl1">
+        <span class="corner-tag">python</span>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL2 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL2</span><h2>头部条（绿点 + 语言名）</h2></div>
+    <div class="variant-desc"><b>pre 上方加一条头</b>：左侧绿色小圆点 + 语言名（faint），右侧复制按钮。与气泡版 code-head 同构但终端化配色（去三色点），语言信息最醒目、块状轮廓最清晰。</div>
+    <div class="cw cl2">
+        <div class="head">
+            <span class="lang"><i class="dot"></i>python</span>
+            <button class="copy">⧉ copy</button>
+        </div>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL3 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL3</span><h2>命令前缀式（$ python）</h2></div>
+    <div class="variant-desc"><b>语言名当「命令」展示</b>：`<span style="color:var(--green)">$</span> python`，$ 用终端提示符绿。与输入区 REPL prompt、消息区 `$ 命令行` 完全同一叙事——「这段代码是 python 写的」，终端感最强。</div>
+    <div class="cw cl3">
+        <div class="head">
+            <span class="cmd"><span class="p">$</span>python</span>
+            <button class="copy">⧉ copy</button>
+        </div>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL4 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL4</span><h2>ghost 角字</h2></div>
+    <div class="variant-desc"><b>右上角无底大写 ghost 文字</b>（opacity 0.3 + 宽字距）：无框无底不遮代码，存在感最轻，代码块外观完全不变；代价是可读性弱，不适合弱视力场景。</div>
+    <div class="cw cl4">
+        <span class="ghost">python</span>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL5 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL5</span><h2>装饰线式（── python ──）</h2></div>
+    <div class="variant-desc"><b>pre 上方独立装饰线行</b>：`── python ──`（绿 ── + faint 语言名），与回答区 h1/h2 的装饰线完全同语言；代码块本体零侵入，滚动/复制行为不受影响。</div>
+    <div class="cl5-wrap">
+        <div class="lang-line"><span class="dash">──</span>python<span class="dash r">──</span></div>
+        <div class="cw">
+            <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CL6 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL6</span><h2>左缘色条</h2></div>
+    <div class="variant-desc"><b>左侧 2px 全高绿条</b>标识「这是代码块」，右上角纯文字语言名（无框无底）。块识别交给色条、语言交给角字，各司其职；色条让代码块在长回答里一眼可辨。</div>
+    <div class="cw cl6">
+        <span class="lang">python</span>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL7 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL7</span><h2>实色标签块</h2></div>
+    <div class="variant-desc"><b>右上角贴边绿底 + 深字大写标签</b>：终端高亮反色块，视觉强度最高，品牌绿最浓；适合希望语言标签「一眼可见」的场景，代价是存在感最重。</div>
+    <div class="cw cl7">
+        <span class="solid-tag">python</span>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL8 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL8</span><h2>状态灯头部</h2></div>
+    <div class="variant-desc"><b>三颗熨灭灯 + 语言名 + copy</b>：macOS 终端窗口复刻（单色熨灭版，与气泡版三色点区分）。把代码块变成「终端窗口」，隐喻最强且配色最克制；带 copy 按钮。</div>
+    <div class="cw cl8">
+        <div class="head">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span class="lang">python</span>
+            <button class="copy">⧉ copy</button>
+        </div>
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+    </div>
+</div>
+
+<!-- ===== CL9 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">CL9</span><h2>vim 状态栏</h2></div>
+    <div class="variant-desc"><b>代码块底部状态条</b>：`<span style="color:var(--green)">-- python --</span>` + copy，vim statusline 隐喻。语言信息像模式行一样低调常驻，底部不遮代码首行，长代码滚动时始终可见。</div>
+    <div class="cw cl9">
+        <pre><code><span class="k">def</span> <span class="f">summarize</span>(<span class="v">rows</span>):
+    <span class="c"># 按得分倒序取前三</span>
+    <span class="v">top</span> = <span class="f">sorted</span>(<span class="v">rows</span>, key=<span class="k">lambda</span> <span class="v">r</span>: <span class="v">r</span>[<span class="s">"score"</span>], reverse=<span class="k">True</span>)[:<span class="n">3</span>]
+    <span class="v">lines</span> = [<span class="v">r</span>[<span class="s">"name"</span>] <span class="k">for</span> <span class="v">r</span> <span class="k">in</span> <span class="v">top</span>]
+    <span class="k">return</span> <span class="s">"\n"</span>.<span class="f">join</span>(<span class="v">lines</span>)</code></pre>
+        <div class="status">
+            <span class="mode">-- python --</span>
+            <button class="copy">⧉ copy</button>
+        </div>
+    </div>
+</div>
+
+<div class="foot-note">
+    通用行为：代码块基座保持终端现状（<code>--t-bg-soft</code> 底 + 1px <code>--t-line</code> + 圆角 6px + max-height 600 滚动）。带头部的方案：CL2 / CL3 / CL8 / CL9 可承载「复制」按钮（终端现缺此功能，可一并补上）；CL1 / CL4 / CL5 / CL6 / CL7 无头部则需另议复制入口（如右下角 hover 浮出）。落地位置为 <code>ChatTerminal.vue highlightCode()</code>（终端当前不带 code-wrap 包装，需按所选方案轻量注入）。
+</div>
+
+</body>
+</html>

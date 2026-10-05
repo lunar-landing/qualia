@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话模式切换操作样式 · 设计稿</title>
+<!--
+  会话模式（智能体 / 只读问答）切换操作样式对比稿
+  =====================================================
+  背景：双模式功能已实现（CallOptions.readOnly 三层拦截 + 工具行切换控件），
+        本稿聚焦「切换操作控件」的样式选型，给 4 个候选方案 + 推荐。
+  最终决策：采纳方案 B（模式按钮 + 上拉菜单）；当前选中恒为主题强调色
+        --accent（日间近黑 #24292f / 夜间近白 #e6edf3），未选中恒灰，不引入蓝色。
+  结构：
+    01 设计目标与约束
+    02 候选方案 A-D（每卡内嵌可交互 mock 输入区，可点击体验）
+    03 对比矩阵
+    04 推荐：A 定稿 + 键盘补充 + 输入卡状态描边，附落地 token 表
+  惯例：自包含零依赖 / GitHub Light+Dark 双主题 / 默认日间（石墨工程风）
+-->
+<style>
+/* ===== 主题 token（日间默认 = 石墨工程风，夜间 = GitHub Dark 对齐产品） ===== */
+:root {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --border: #d0d7de;
+  --border-soft: #e4e9ee;
+  --text: #1f2328;
+  --text2: #57606a;
+  --muted: #8c959f;
+  --accent: #0969da;
+  --info: #0969da;
+  --info-soft: rgba(9, 105, 218, 0.10);
+  /* 产品主题强调色（黑系）：定稿后问答态用色，日间近黑 */
+  --q-accent: #24292f;
+  --q-accent-soft: rgba(36, 41, 47, 0.08);
+  --warn: #9a6700;
+  --ok: #1a7f37;
+  --code-bg: #f0f3f6;
+  --shadow: 0 1px 3px rgba(31, 35, 40, 0.10);
+  --shadow-pop: 0 8px 24px rgba(31, 35, 40, 0.16);
+}
+body.light-theme {
+  /* 兼容旧类名入口（本稿默认即日间，此选择器为占位一致性） */
+}
+body.dark-theme {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --border-soft: #21262d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --muted: #6e7681;
+  --accent: #58a6ff;
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.16);
+  --q-accent: #e6edf3;
+  --q-accent-soft: rgba(230, 237, 243, 0.10);
+  --warn: #d29922;
+  --ok: #3fb950;
+  --code-bg: #161b22;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 48px 28px 80px; }
+
+/* ===== 头部 ===== */
+header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 40px; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: 0.2px; }
+.subtitle { color: var(--text2); margin-top: 6px; font-size: 14px; }
+.theme-btn {
+  flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--text2);
+  border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; box-shadow: var(--shadow);
+}
+.theme-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* ===== 章节骨架 ===== */
+section { margin-bottom: 48px; }
+h2 { font-size: 19px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+h2 .no {
+  font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1px 8px; font-family: ui-monospace, Consolas, monospace;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 22px; box-shadow: var(--shadow); margin-bottom: 16px;
+}
+
+/* ===== 01 设计目标 ===== */
+.goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.goal { border: 1px solid var(--border-soft); border-radius: 10px; padding: 14px 16px; background: var(--bg); }
+.goal b { display: block; font-size: 14px; margin-bottom: 4px; }
+.goal span { font-size: 13px; color: var(--text2); }
+
+/* ===== 02 方案卡 ===== */
+.plan-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+.plan-tag {
+  font-size: 12px; font-weight: 700; font-family: ui-monospace, Consolas, monospace;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 0 7px;
+}
+.plan-name { font-size: 16.5px; font-weight: 700; }
+.plan-sub { font-size: 12.5px; color: var(--muted); }
+.pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.pc { font-size: 13px; border-radius: 8px; padding: 10px 13px; border: 1px solid var(--border-soft); }
+.pc b { display: block; margin-bottom: 4px; font-size: 12.5px; }
+.pc.pros b { color: var(--ok); }
+.pc.cons b { color: var(--warn); }
+.pc ul { padding-left: 16px; color: var(--text2); }
+.pc li { margin: 2px 0; }
+.cost { font-size: 12px; color: var(--text2); margin-top: 10px; }
+.cost code { background: var(--code-bg); border-radius: 4px; padding: 1px 6px; font-size: 11.5px; }
+
+/* ===== Mock 输入区（每卡复用骨架，交互由 data-ask 驱动） ===== */
+.mock-shell { margin-top: 14px; outline: none; }
+.mock-shell:focus-visible { box-shadow: 0 0 0 2px var(--info-soft); border-radius: 14px; }
+.mock-input {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow); overflow: visible; position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+/* 推荐反馈（04）：问答态输入卡用产品强调色描边，模式状态在控件之外二次外显 */
+.mock-shell[data-ask="1"].show-ring .mock-input { border-color: var(--q-accent); box-shadow: 0 0 0 3px var(--q-accent-soft); }
+.mock-textarea { padding: 14px 16px 6px; font-size: 13.5px; color: var(--muted); min-height: 44px; }
+.mock-textarea .ph-ask { display: none; }
+.mock-shell[data-ask="1"] .ph-agent { display: none; }
+.mock-shell[data-ask="1"] .ph-ask { display: inline; }
+.mock-tools { display: flex; align-items: center; gap: 6px; padding: 4px 10px 10px 12px; }
+.mock-btn {
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13px; border: none; background: transparent; flex-shrink: 0;
+}
+.mock-model {
+  margin-left: auto; font-size: 12px; color: var(--muted); border: 1px solid var(--border-soft);
+  border-radius: 8px; padding: 4px 10px; display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.mock-send {
+  width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  background: var(--text); color: var(--bg); font-size: 13px; flex-shrink: 0; margin-left: 4px;
+}
+.mock-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.mock-hint kbd {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px; background: var(--code-bg);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px;
+}
+
+/* ----- 方案 A：双段分段控件 ----- */
+.seg {
+  display: flex; align-items: center; gap: 2px; padding: 2px; margin-left: 6px;
+  border-radius: 9px; background: var(--bg); border: 1px solid var(--border);
+}
+.seg button {
+  display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: none;
+  border-radius: 7px; font-size: 11.5px; background: transparent; color: var(--muted); cursor: pointer;
+  font-family: inherit;
+}
+.seg button:hover { color: var(--text2); }
+.seg button.on { background: var(--code-bg); color: var(--text); }
+.seg button.seg-ask.on { background: var(--info-soft); color: var(--info); }
+
+/* ----- 方案 B / C：触发按钮 + 上拉菜单 ----- */
+.mode-btn {
+  display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; margin-left: 6px;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--q-accent);
+  font-size: 11.5px; cursor: pointer; font-family: inherit; position: relative;
+}
+.mode-btn:hover { background: var(--code-bg); }
+.pop {
+  position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 224px; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-pop); padding: 5px; display: none;
+}
+.mode-btn.open + .pop, .pill-btn.open + .pop { display: block; }
+.pop-item {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left; border: none;
+  background: transparent; border-radius: 7px; padding: 8px 9px; cursor: pointer; font-family: inherit;
+}
+.pop-item:hover { background: var(--code-bg); }
+.pop-item .pi-icon { font-size: 13px; width: 16px; text-align: center; margin-top: 1px; }
+.pop-item .pi-body { flex: 1; }
+.pop-item .pi-name { font-size: 12.5px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+.pop-item .pi-desc { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.pop-item.sel .pi-name { color: var(--q-accent); font-weight: 600; }
+.pop-item .pi-check { visibility: hidden; font-size: 11px; }
+.pop-item.sel .pi-check { visibility: visible; }
+
+/* ----- 方案 C：输入框内嵌胶囊（贴 textarea 左下） ----- */
+.mock-shell.plan-c .mock-textarea { position: relative; padding-bottom: 34px; }
+.pill-btn {
+  position: absolute; left: 12px; bottom: 8px; display: flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px; border: 1px solid var(--border-soft); border-radius: 999px;
+  background: var(--bg); color: var(--q-accent); font-size: 11px; cursor: pointer; font-family: inherit;
+}
+.plan-c .pop { left: 12px; }
+
+/* ----- 方案 D：单按钮 toggle ----- */
+.tgl {
+  display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; margin-left: 6px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text2);
+  font-size: 11.5px; cursor: pointer; font-family: inherit;
+}
+.tgl:hover { border-color: var(--muted); }
+.tgl .t-ask { display: none; color: var(--info); }
+.mock-shell[data-ask="1"] .tgl .t-agent { display: none; }
+.mock-shell[data-ask="1"] .tgl .t-ask { display: inline-flex; align-items: center; gap: 5px; }
+.mock-shell[data-ask="1"] .tgl { border-color: var(--info); background: var(--info-soft); }
+
+/* ===== 03 对比矩阵 ===== */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border: 1px solid var(--border-soft); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); font-size: 12.5px; }
+td .star { color: var(--accent); letter-spacing: 1px; }
+td .dim { color: var(--muted); }
+tr.hl td { background: var(--info-soft); }
+
+/* ===== 04 推荐 ===== */
+.rec-banner {
+  border: 1px solid var(--info); background: var(--info-soft); border-radius: 12px;
+  padding: 16px 20px; margin-bottom: 16px; font-size: 14px;
+}
+.rec-banner b { color: var(--info); }
+.rec-list { padding-left: 18px; font-size: 13.5px; color: var(--text2); }
+.rec-list li { margin: 5px 0; }
+.rec-list b { color: var(--text); }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>会话模式切换操作样式</h1>
+    <div class="subtitle">智能体 / 只读问答 —— 4 个候选方案对比 · 可交互 mock · 点击控件体验联动</div>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">切换夜间</button>
+</header>
+
+<!-- ===== 01 设计目标 ===== -->
+<section>
+  <h2><span class="no">01</span>设计目标与约束</h2>
+  <div class="card">
+    <div class="goals">
+      <div class="goal"><b>状态常显</b><span>当前模式一眼可见，不能只靠记忆或悬停提示——只读模式误发写指令的代价是心智负担</span></div>
+      <div class="goal"><b>一步直达</b><span>两态场景下切换应为单击；不引入「循环切换」的绕路（Shift+Tab 心智是终端用户专属）</span></div>
+      <div class="goal"><b>低空间成本</b><span>工具行已有附件、模型选择、发送三组控件，模式控件需要克制，不与主操作（发送）抢视觉</span></div>
+      <div class="goal"><b>可扩展</b><span>二期若引入第三种模式（如「自动」按需执行），控件结构不需要推翻重来</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 02 候选方案 ===== -->
+<section>
+  <h2><span class="no">02</span>候选方案（每卡均可点击体验，切换后观察 placeholder 联动）</h2>
+
+  <!-- 方案 A -->
+  <div class="card">
+    <div class="plan-head">
+      <span class="plan-tag">方案 A</span><span class="plan-name">双段分段控件</span>
+      <span class="plan-sub">两组并列 · 点谁是谁 · 当前实现基线的精修版</span>
+    </div>
+    <div class="mock-shell show-ring" data-ask="0" tabindex="0">
+      <div class="mock-input">
+        <div class="mock-textarea">
+          <span class="ph-agent">向 Qualia Code 提问，或描述你想写的代码…</span>
+          <span class="ph-ask">只读问答模式：仅检索与回答，不修改文件、不执行命令…</span>
+        </div>
+        <div class="mock-tools">
+          <span class="mock-btn">📎</span>
+          <span class="mock-model">gpt-4o ▾</span>
+          <div class="seg" title="会话模式">
+            <button data-m="agent"><b>⚡</b>智能体</button>
+            <button data-m="ask" class="seg-ask"><b>💬</b>问答</button>
+          </div>
+          <span class="mock-send">↑</span>
+        </div>
+      </div>
+    </div>
+    <div class="mock-hint">mock 中图标以占位符渲染；实际项目用 FontAwesome（fa-bolt / fa-comment，已是现有依赖）。</div>
+    <div class="pros-cons">
+      <div class="pc pros"><b>优点</b><ul>
+        <li>常显性最强：当前模式与备选模式同时可见，无需悬停</li>
+        <li>一步直达，选中态语义清晰（「点谁是谁」）</li>
+        <li>扩展到三段（自动/智能体/问答）时结构不变</li>
+        <li>实现成本最低——即当前已落地控件，仅需按 token 微调</li>
+      </ul></div>
+      <div class="pc cons"><b>缺点</b><ul>
+        <li>工具行密度最高（四组控件并列）</li>
+        <li>控件本身无解释空间，新手需靠 tooltip 理解模式含义</li>
+      </ul></div>
+    </div>
+    <div class="cost">成本：<code>低</code>（已实现，样式收敛即可）</div>
+  </div>
+
+  <!-- 方案 B -->
+  <div class="card">
+    <div class="plan-head">
+      <span class="plan-tag">方案 B</span><span class="plan-name">模式按钮 + 上拉菜单</span>
+      <span class="plan-sub">收起时最轻 · 菜单承载模式说明 · 参考状态栏按钮模式</span>
+    </div>
+    <div class="mock-shell show-ring" data-ask="0">
+      <div class="mock-input">
+        <div class="mock-textarea">
+          <span class="ph-agent">向 Qualia Code 提问，或描述你想写的代码…</span>
+          <span class="ph-ask">只读问答模式：仅检索与回答，不修改文件、不执行命令…</span>
+        </div>
+        <div class="mock-tools">
+          <span class="mock-btn">📎</span>
+          <span class="mock-model">gpt-4o ▾</span>
+          <div style="position:relative">
+            <button class="mode-btn" onclick="togglePop(this)"><b>⚡</b><span class="mb-agent">智能体</span><span class="mb-ask" style="display:none">问答</span> ▾</button>
+            <div class="pop">
+              <button class="pop-item sel" data-m="agent" onclick="pickPop(this)">
+                <span class="pi-icon">⚡</span>
+                <span class="pi-body"><span class="pi-name">智能体 <span class="pi-check">✓</span></span><span class="pi-desc">可读写文件、执行命令，完整能力</span></span>
+              </button>
+              <button class="pop-item" data-m="ask" onclick="pickPop(this)">
+                <span class="pi-icon">💬</span>
+                <span class="pi-body"><span class="pi-name">问答 <span class="pi-check">✓</span></span><span class="pi-desc">仅检索与回答，写操作自动拦截</span></span>
+              </button>
+            </div>
+          </div>
+          <span class="mock-send">↑</span>
+        </div>
+      </div>
+    </div>
+    <div class="pros-cons">
+      <div class="pc pros"><b>优点</b><ul>
+        <li>收起时视觉最轻（一个 ghost 按钮）</li>
+        <li>菜单可承载一行模式说明，新手引导内建</li>
+        <li>模式数量增多时天然可扩展（菜单加行）</li>
+      </ul></div>
+      <div class="pc cons"><b>缺点</b><ul>
+        <li>切换需两步；当前态靠按钮文字/颜色弱常显</li>
+        <li>两态场景下「先开菜单再选」交互过重</li>
+      </ul></div>
+    </div>
+    <div class="cost">成本：<code>中</code>（弹出层定位、外点关闭、Esc 处理）</div>
+  </div>
+
+  <!-- 方案 C -->
+  <div class="card">
+    <div class="plan-head">
+      <span class="plan-tag">方案 C</span><span class="plan-name">输入框内嵌胶囊</span>
+      <span class="plan-sub">textarea 左下角 · 空间零占 · 模式语义贴近输入行为</span>
+    </div>
+    <div class="mock-shell plan-c show-ring" data-ask="0">
+      <div class="mock-input">
+        <div class="mock-textarea">
+          <span class="ph-agent">向 Qualia Code 提问，或描述你想写的代码…</span>
+          <span class="ph-ask">只读问答模式：仅检索与回答，不修改文件、不执行命令…</span>
+          <div style="position:relative">
+            <button class="pill-btn" onclick="togglePop(this)"><b>⚡</b>智能体 ▾</button>
+            <div class="pop">
+              <button class="pop-item sel" data-m="agent" onclick="pickPop(this)">
+                <span class="pi-icon">⚡</span>
+                <span class="pi-body"><span class="pi-name">智能体 <span class="pi-check">✓</span></span><span class="pi-desc">可读写文件、执行命令，完整能力</span></span>
+              </button>
+              <button class="pop-item" data-m="ask" onclick="pickPop(this)">
+                <span class="pi-icon">💬</span>
+                <span class="pi-body"><span class="pi-name">问答 <span class="pi-check">✓</span></span><span class="pi-desc">仅检索与回答，写操作自动拦截</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="mock-tools">
+          <span class="mock-btn">📎</span>
+          <span class="mock-model">gpt-4o ▾</span>
+          <span class="mock-send">↑</span>
+        </div>
+      </div>
+    </div>
+    <div class="pros-cons">
+      <div class="pc pros"><b>优点</b><ul>
+        <li>工具行完全不占空间，密度问题消失</li>
+        <li>模式与输入语义绑定（「我这条消息将以什么模式处理」）</li>
+      </ul></div>
+      <div class="pc cons"><b>缺点</b><ul>
+        <li>与 placeholder 视觉叠加，多行输入时定位细节多</li>
+        <li>可点区域小、与技能 chips / /技能菜单共存时易拥挤</li>
+        <li>移动端触控目标偏小（22px 高）</li>
+      </ul></div>
+    </div>
+    <div class="cost">成本：<code>中高</code>（textarea 内绝对定位需处理换行、滚动、chips 共存）</div>
+  </div>
+
+  <!-- 方案 D -->
+  <div class="card">
+    <div class="plan-head">
+      <span class="plan-tag">方案 D</span><span class="plan-name">单按钮直接切换 + 快捷键</span>
+      <span class="plan-sub">最快路径 · 无菜单 · 按钮即开关（点此卡内按钮或按 Ctrl+Shift+M）</span>
+    </div>
+    <div class="mock-shell show-ring" data-ask="0" tabindex="0" onkeydown="if(event.ctrlKey&&event.shiftKey&&event.code==='KeyM'){toggleShell(this);event.preventDefault()}">
+      <div class="mock-input">
+        <div class="mock-textarea">
+          <span class="ph-agent">向 Qualia Code 提问，或描述你想写的代码…</span>
+          <span class="ph-ask">只读问答模式：仅检索与回答，不修改文件、不执行命令…</span>
+        </div>
+        <div class="mock-tools">
+          <span class="mock-btn">📎</span>
+          <span class="mock-model">gpt-4o ▾</span>
+          <button class="tgl" onclick="toggleShell(this.closest('.mock-shell'))" title="切换会话模式">
+            <span class="t-agent"><b>⚡</b>智能体</span>
+            <span class="t-ask"><b>💬</b>问答</span>
+          </button>
+          <span class="mock-send">↑</span>
+        </div>
+      </div>
+    </div>
+    <div class="mock-hint">键盘：<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 与按钮状态双向同步（真实实现注册全局快捷键，焦点在输入区时生效）。</div>
+    <div class="pros-cons">
+      <div class="pc pros"><b>优点</b><ul>
+        <li>鼠标一键、键盘一键，操作路径最短</li>
+        <li>控件小巧，不挤压工具行</li>
+      </ul></div>
+      <div class="pc cons"><b>缺点</b><ul>
+        <li>目标模式不可见（toggle 语义），误触后才发现切错</li>
+        <li>扩展到三态时循环切换体验骤降</li>
+        <li>快捷键需文档/tooltip 引导，发现性差</li>
+      </ul></div>
+    </div>
+    <div class="cost">成本：<code>低</code></div>
+  </div>
+</section>
+
+<!-- ===== 03 对比矩阵 ===== -->
+<section>
+  <h2><span class="no">03</span>对比矩阵</h2>
+  <div class="card" style="padding:0; overflow-x:auto;">
+    <table>
+      <tr><th>维度</th><th>A 分段控件</th><th>B 按钮+菜单</th><th>C 内嵌胶囊</th><th>D toggle+快捷键</th></tr>
+      <tr class="hl"><td><b>常显性</b></td><td><span class="star">★★★★★</span> 双态同显</td><td><span class="star">★★★</span><span class="dim">☆☆</span> 靠文字色</td><td><span class="star">★★★★</span> 胶囊着色</td><td><span class="star">★★★★</span> 单态显示</td></tr>
+      <tr><td><b>操作步长</b></td><td>1 步</td><td>2 步</td><td>2 步</td><td>1 步（键盘 0 步）</td></tr>
+      <tr><td><b>工具行占用</b></td><td>约 132px</td><td>约 68px</td><td>0（占输入区）</td><td>约 72px</td></tr>
+      <tr><td><b>模式说明承载</b></td><td>仅 tooltip</td><td><b>菜单内建说明</b></td><td>菜单内建说明</td><td>仅 tooltip</td></tr>
+      <tr><td><b>扩展三模式</b></td><td>加一段，自然</td><td>加一行，自然</td><td>加一行，自然</td><td><span style="color:var(--warn)">循环切换，体验差</span></td></tr>
+      <tr><td><b>实现成本</b></td><td>低（已实现）</td><td>中</td><td>中高</td><td>低</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== 04 推荐 ===== -->
+<section>
+  <h2><span class="no">04</span>推荐与落地样式</h2>
+  <div class="rec-banner">
+    <b>最终决策</b>：采用<b>方案 B（模式按钮 + 上拉菜单）</b>；着色规则：当前选中恒为主题强调色（黑/白，不用蓝），未选中恒灰。原推荐 A 供追溯：
+  </div>
+  <div class="card">
+    <ul class="rec-list">
+      <li><b>选中态语义（按最终决策修订）</b>：当前选中恒为主题强调色（--accent，日间近黑/夜间近白，与发送按钮同体系），不区分具体模式；未选中恒灰（hover 仅底色反馈，不提亮文字）。</li>
+      <li><b>输入卡状态描边（全局反馈）</b>：问答态给整个输入卡加强调色描边 + 光晕，模式状态在控件之外二次外显，视线扫到输入区即可确认。上方各方案 mock 已演示此效果。</li>
+      <li><b>键盘补充（吸收 D 的优点）</b>：注册 <kbd style="font-size:11px">Ctrl</kbd>+<kbd style="font-size:11px">Shift</kbd>+<kbd style="font-size:11px">M</kbd> 循环切换，状态与分段控件同步；tooltip 标注快捷键。不做唯一入口。</li>
+      <li><b>二期衔接</b>：若引入「自动」等第三模式，分段控件扩为三段；闭环按钮（问答态答毕后「切换到智能体模式执行」）沿用同一强调色，色彩语义一致。</li>
+    </ul>
+    <div class="note">决策修订：原推荐 A，经审查采纳 B（菜单内建说明的引导价值 > 两步操作成本）；若评估变化可复评 A。</div>
+  </div>
+
+  <div class="card">
+    <b style="font-size:14px">落地 token（与产品主题变量对齐）</b>
+    <table style="margin-top:10px;">
+      <tr><th>Token / 项</th><th>日间</th><th>夜间</th><th>用途</th></tr>
+      <tr><td>seg 容器底</td><td>var(--bg-input) ≈ #f6f8fa</td><td>rgba(255,255,255,0.03)</td><td>分段容器背景</td></tr>
+      <tr><td>seg 容器描边</td><td>var(--border)</td><td>rgba(255,255,255,0.05)</td><td>分段容器边框</td></tr>
+      <tr><td>选中·智能体</td><td>var(--bg-active) + text-primary</td><td>同左（变量随主题）</td><td>中性高亮，默认态克制</td></tr>
+      <tr><td>选中·当前项（chip 与菜单）</td><td>--accent: #24292f</td><td>--accent: #e6edf3</td><td>主题强调色（黑/白，与发送按钮同体系，不区分模式）</td></tr>
+      <tr><td>未选中段</td><td>var(--text-muted)</td><td>#4f566b</td><td>弱化备选项</td></tr>
+      <tr><td>输入卡描边（问答态）</td><td>--accent @35% + 3px 光晕</td><td>同左</td><td>全局状态反馈（可选增强，未落地）</td></tr>
+      <tr><td>尺寸</td><td colspan="2">高 24px · 内圆角 7px · 外圆角 9px · 字号 11.5px · 图标 fa-bolt / fa-comment</td><td>与工具行 30px 按钮协调</td></tr>
+    </table>
+    <div class="note">当前实现 = 方案 B + 主题强调色；本表「输入卡描边」「快捷键」两项为可选增强，未落地。</div>
+  </div>
+</section>
+
+<footer>
+  docs/design/chat-mode-switch-style-mockup.html · 自包含零依赖 · 上方方案 A-D 的 mock 均可点击交互 · 切换夜间观察双主题 token
+</footer>
+</div>
+
+<script>
+/* 主题切换（默认日间，与项目 mockup 惯例一致） */
+function toggleTheme() {
+  const dark = document.body.classList.toggle('dark-theme')
+  document.querySelector('.theme-btn').textContent = dark ? '切换日间' : '切换夜间'
+}
+
+/* mock 状态切换：data-ask 驱动 placeholder / 控件选中态 / 输入卡描边（真实实现为 config store 单一状态源） */
+function setShellMode(shell, ask) {
+  shell.dataset.ask = ask ? '1' : '0'
+  const seg = shell.querySelector('.seg')
+  if (seg) {
+    seg.querySelector('[data-m="agent"]').classList.toggle('on', !ask)
+    seg.querySelector('[data-m="ask"]').classList.toggle('on', ask)
+  }
+  shell.querySelectorAll('.pop-item').forEach((it) => {
+    it.classList.toggle('sel', (it.dataset.m === 'ask') === ask)
+  })
+  shell.querySelectorAll('.mode-btn').forEach((b) => {
+    b.querySelector('.mb-agent').style.display = ask ? 'none' : 'inline'
+    b.querySelector('.mb-ask').style.display = ask ? 'inline' : 'none'
+    b.querySelector('b').innerHTML = ask ? '💬' : '⚡'
+  })
+  shell.querySelectorAll('.pill-btn').forEach((b) => {
+    b.innerHTML = (ask ? '💬 问答' : '⚡ 智能体') + ' ▾'
+  })
+}
+function toggleShell(shell) { setShellMode(shell, shell.dataset.ask !== '1') }
+
+/* B/C 菜单：开合 + 选中即切换并收起 */
+function togglePop(btn) {
+  const open = btn.classList.toggle('open')
+  document.querySelectorAll('.mode-btn.open, .pill-btn.open').forEach((b) => { if (b !== btn) b.classList.remove('open') })
+  if (open) {
+    const closer = (e) => {
+      if (!btn.parentElement.contains(e.target)) { btn.classList.remove('open'); document.removeEventListener('mousedown', closer) }
+    }
+    setTimeout(() => document.addEventListener('mousedown', closer), 0)
+  }
+}
+function pickPop(item) {
+  setShellMode(item.closest('.mock-shell'), item.dataset.m === 'ask')
+  item.closest('.pop').previousElementSibling.classList.remove('open')
+}
+
+/* 方案 A 分段按钮：点谁是谁（含重复点击同段 = 保持，符合分段控件惯例） */
+document.querySelectorAll('.seg button').forEach((btn) => {
+  btn.addEventListener('click', () => setShellMode(btn.closest('.mock-shell'), btn.dataset.m === 'ask'))
+})
+</script>
+</body>
+</html>

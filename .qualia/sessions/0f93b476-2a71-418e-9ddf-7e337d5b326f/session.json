@@ -1,0 +1,34 @@
+{
+	"messages":[
+		{
+			"content":"使用 Java 编写一个 HelloWord 代码",
+			"createdAt":1790733107652,
+			"id":"33aaf9ae-4987-47d4-a15c-513100be17e1",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"0f93b476-2a71-418e-9ddf-7e337d5b326f"
+		},
+		{
+			"completionTokens":306,
+			"content":"这是一个标准的 Java \"Hello World\" 程序代码：\n\n```java\npublic class HelloWorld {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}\n```\n\n### 如何运行：\n\n1.  **保存文件**：将上述代码保存为 `HelloWorld.java`（文件名必须与类名 `HelloWorld` 完全一致，包括大小写）。\n2.  **编译代码**：打开终端或命令提示符，进入文件所在目录，运行以下命令：\n    ```bash\n    javac HelloWorld.java\n    ```\n    这会生成一个 `HelloWorld.class` 字节码文件。\n3.  **运行程序**：运行以下命令：\n    ```bash\n    java HelloWorld\n    ```\n4.  **输出结果**：\n    ```text\n    Hello, World!\n    ```\n\n### 代码简要说明：\n- `public class HelloWorld`：定义一个名为 `HelloWorld` 的公共类。\n- `public static void main(String[] args)`：这是 Java 程序的入口点（主方法）。JVM 从这里开始执行代码。\n- `System.out.println(...)`：用于在控制台打印一行文本并换行。",
+			"createdAt":1790733115462,
+			"durationMs":7810,
+			"id":"598055c8-67d1-4e72-9c51-8075e9a7a7ee",
+			"promptTokens":1027,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"0f93b476-2a71-418e-9ddf-7e337d5b326f",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"用户请求编写Java HelloWord代码，这是一个基础编程问题，无需调用工具，直接提供代码即可。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"用户请求编写Java HelloWord代码，这是一个基础编程问题，无需调用工具，直接提供代码即可。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":1333
+		}
+	],
+	"sessionId":"0f93b476-2a71-418e-9ddf-7e337d5b326f"
+}

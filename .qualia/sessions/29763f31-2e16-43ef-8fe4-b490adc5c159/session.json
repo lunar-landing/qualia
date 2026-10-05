@@ -1,0 +1,34 @@
+{
+	"messages":[
+		{
+			"content":"输出一个用户列表，模拟数据，通过表格展示",
+			"createdAt":1790686504563,
+			"id":"ae9459ca-7e4e-4c13-b5b5-8e809103bce4",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"29763f31-2e16-43ef-8fe4-b490adc5c159"
+		},
+		{
+			"completionTokens":642,
+			"content":"以下是为您生成的模拟用户列表数据：\n\n| 用户ID | 姓名 | 性别 | 年龄 | 电子邮箱 | 手机号码 | 注册时间 | 状态 |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| U1001 | 张伟 | 男 | 28 | zhangwei@example.com | 13800138001 | 2023-05-12 | 活跃 |\n| U1002 | 李娜 | 女 | 34 | lina@example.com | 13900139002 | 2022-11-08 | 活跃 |\n| U1003 | 王强 | 男 | 45 | wangqiang@example.com | 13700137003 | 2021-03-22 | 休眠 |\n| U1004 | 刘洋 | 女 | 23 | liuyang@example.com | 13600136004 | 2024-01-15 | 活跃 |\n| U1005 | 陈静 | 女 | 31 | chenjing@example.com | 13500135005 | 2023-09-30 | 锁定 |\n| U1006 | 杨明 | 男 | 29 | yangming@example.com | 13400134006 | 2022-07-19 | 活跃 |\n| U1007 | 赵敏 | 女 | 26 | zhaomin@example.com | 13300133007 | 2024-06-05 | 活跃 |\n| U1008 | 孙杰 | 男 | 38 | sunjie@example.com | 13200132008 | 2020-12-11 | 注销 |\n| U1009 | 周婷 | 女 | 32 | zhouting@example.com | 13100131009 | 2023-02-28 | 活跃 |\n| U1010 | 吴刚 | 男 | 41 | wugang@example.com | 13000130010 | 2021-08-14 | 休眠 |\n\n*注：以上数据均为随机生成的模拟数据，仅供测试或演示使用。*",
+			"createdAt":1790686518770,
+			"durationMs":14207,
+			"id":"ead0e491-5a73-414c-bbac-ad863f3ab50a",
+			"promptTokens":1031,
+			"reasoningContent":"",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"29763f31-2e16-43ef-8fe4-b490adc5c159",
+			"steps":[
+				{
+					"content":"{\n    \"type\": \"answer\",\n    \"thought\": \"用户请求生成模拟用户列表并以表格展示，无需调用工具，直接生成Markdown表格即可。\"\n}",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"用户请求生成模拟用户列表并以表格展示，无需调用工具，直接生成Markdown表格即可。\\\"\\n}\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":1673
+		}
+	],
+	"sessionId":"29763f31-2e16-43ef-8fe4-b490adc5c159"
+}

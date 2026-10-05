@@ -8,9 +8,12 @@ import cn.lunarlanding.qualia.code.CodeAgentModelConfig;
 import cn.lunarlanding.qualia.code.CodeAgentMcpServerConfig;
 import cn.lunarlanding.qualia.code.WebApplication;
 import cn.lunarlanding.qualia.code.service.ChatService;
+import cn.lunarlanding.qualia.code.service.SkillMarketService;
 import cn.lunarlanding.qualia.core.skill.Skill;
 import cn.lunarlanding.qualia.core.skill.SkillScript;
 import cn.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,9 +31,70 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/config")
 public class ConfigController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ConfigController.class);
+
     /** 技能等资源随产品目录隔离，配置与技能读写都在 ~/.qualia/code/ 下 */
     private static final Path GLOBAL_CONFIG_DIR = CodeAgentConfig.GLOBAL_CONFIG_DIR;
     private static final Path GLOBAL_CONFIG_FILE = CodeAgentConfig.GLOBAL_CONFIG_FILE;
+
+    private final SkillMarketService skillMarketService;
+
+    public ConfigController(SkillMarketService skillMarketService) {
+        this.skillMarketService = skillMarketService;
+    }
+
+    /** 内置默认系统提示词（与 core ReActAgent 的初始值保持对齐） */
+    private static final String DEFAULT_AGENT_PROMPT = "你是一个智能助手。";
+
+    /**
+     * 读取全局系统提示词（~/.qualia/code/AGENT.md）；文件不存在时 exists=false、content 为空
+     */
+    @GetMapping("/agent-md")
+    public Map<String, Object> getAgentMd() {
+        Map<String, Object> res = new HashMap<>();
+        res.put("defaultPrompt", DEFAULT_AGENT_PROMPT);
+        Path file = GLOBAL_CONFIG_DIR.resolve("AGENT.md");
+        if (!Files.exists(file)) {
+            res.put("exists", false);
+            res.put("content", "");
+            return res;
+        }
+        try {
+            res.put("exists", true);
+            res.put("content", Files.readString(file));
+        } catch (IOException e) {
+            logger.error("读取 AGENT.md 失败", e);
+            res.put("exists", false);
+            res.put("content", "");
+        }
+        return res;
+    }
+
+    /**
+     * 保存全局系统提示词并对当前 Agent 热生效；空内容 = 删除文件回退默认提示词
+     */
+    @PutMapping("/agent-md")
+    public Map<String, Object> saveAgentMd(@RequestBody Map<String, String> body) {
+        String content = body.getOrDefault("content", "");
+        Path file = GLOBAL_CONFIG_DIR.resolve("AGENT.md");
+        try {
+            if (content.isBlank()) {
+                Files.deleteIfExists(file);
+            } else {
+                Files.createDirectories(file.getParent());
+                Files.writeString(file, content);
+            }
+            // 当前工作区有活跃 Agent 时热更新提示词；未初始化时下次 initialize 自动读文件
+            Path ws = WebApplication.getCurrentWorkspace();
+            if (ws != null) {
+                ChatService.getInstance(ws).applySystemPrompt(content.isBlank() ? DEFAULT_AGENT_PROMPT : content);
+            }
+            return Map.of("success", true);
+        } catch (IOException e) {
+            logger.error("保存 AGENT.md 失败", e);
+            return Map.of("success", false, "message", e.getMessage());
+        }
+    }
 
     /**
      * 获取当前配置
@@ -372,11 +436,119 @@ public class ConfigController {
     }
 
     /**
+     * 在系统文件管理器中定位 workspace 文件（工作区浏览器「在文件夹中打开」动作）
+     */
+    @PostMapping("/file/reveal")
+    public ResponseEntity<Map<String, Object>> revealWorkspaceFile(@RequestParam String path) {
+        try {
+            Path workspacePath = WebApplication.getCurrentWorkspace();
+            if (workspacePath == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "尚未选择工作区"));
+            }
+            Path target = workspacePath.resolve(path).normalize();
+            // 安全检查：确保路径在 workspace 内（与 file/raw 接口同款）
+            if (!target.startsWith(workspacePath.normalize())) {
+                return ResponseEntity.badRequest().body(Map.of("error", "路径越界"));
+            }
+            if (!Files.isRegularFile(target)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "文件不存在"));
+            }
+
+            String os = System.getProperty("os.name", "").toLowerCase();
+            List<String> cmd;
+            if (os.contains("win")) {
+                // /select, 直接跟绝对路径：资源管理器打开父目录并选中该文件
+                cmd = List.of("explorer.exe", "/select," + target.toAbsolutePath());
+            } else if (os.contains("mac")) {
+                cmd = List.of("open", "-R", target.toAbsolutePath().toString());
+            } else {
+                // Linux 无统一 reveal 语义，退化为打开父目录
+                cmd = List.of("xdg-open", target.toAbsolutePath().getParent().toString());
+            }
+            new ProcessBuilder(cmd).start();
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "打开文件夹失败: " + e.getMessage()));
+        }
+    }
+
+    /**
      * 获取全局技能列表（直接读 ~/.qualia/code/skills，不依赖 agent，未配置模型时也可展示）
      */
     @GetMapping("/skills")
     public ResponseEntity<List<Map<String, Object>>> getGlobalSkills() {
         return ResponseEntity.ok(loadGlobalSkillsList());
+    }
+
+    /**
+     * 搜索技能市场（代理 skills.sh 免认证 API，返回条目含本地已安装标记）
+     */
+    @GetMapping("/skills/market/search")
+    public ResponseEntity<List<Map<String, Object>>> searchSkillMarket(@RequestParam("q") String query) {
+        try {
+            return ResponseEntity.ok(skillMarketService.search(query));
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            List<Map<String, Object>> body = new ArrayList<>();
+            body.add(error);
+            return ResponseEntity.internalServerError().body(body);
+        }
+    }
+
+    /**
+     * 从技能市场安装技能（GitHub 技能包 → ~/.qualia/code/skills/{skillId}/）
+     */
+    @PostMapping("/skills/market/install")
+    public ResponseEntity<Map<String, Object>> installMarketSkill(@RequestBody Map<String, Object> body) {
+        try {
+            String id = String.valueOf(body.get("id"));
+            String name = skillMarketService.install(id);
+            reloadAgentSkills();
+            return ResponseEntity.ok(Map.of("success", true, "name", name, "message", "技能 " + name + " 安装成功"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "安装失败: " + e.getMessage()));
+        }
+    }
+
+    /** 技能落盘后热重载到运行中的 Agent（未初始化/未绑定工作区时安全跳过） */
+    private void reloadAgentSkills() {
+        Path ws = WebApplication.getCurrentWorkspace();
+        if (ws != null) {
+            ChatService.getInstance(ws).reloadGlobalSkills();
+        }
+    }
+
+    /**
+     * 在系统文件管理器中打开技能目录
+     */
+    @PostMapping("/skills/{name}/reveal")
+    public ResponseEntity<Map<String, Object>> revealSkillFolder(@PathVariable String name) {
+        try {
+            Path skillDir = GLOBAL_CONFIG_DIR.resolve("skills").resolve(name);
+            if (!Files.isDirectory(skillDir)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "技能不存在: " + name));
+            }
+            // 安全检查：确保打开的是技能目录内的内容（与删除接口同款）
+            Path globalSkillsDir = GLOBAL_CONFIG_DIR.resolve("skills");
+            if (!skillDir.normalize().startsWith(globalSkillsDir.normalize())) {
+                return ResponseEntity.badRequest().body(Map.of("error", "路径越界"));
+            }
+
+            String os = System.getProperty("os.name", "").toLowerCase();
+            List<String> cmd;
+            if (os.contains("win")) {
+                cmd = List.of("explorer.exe", skillDir.toAbsolutePath().toString());
+            } else if (os.contains("mac")) {
+                cmd = List.of("open", skillDir.toAbsolutePath().toString());
+            } else {
+                cmd = List.of("xdg-open", skillDir.toAbsolutePath().toString());
+            }
+            new ProcessBuilder(cmd).start();
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "打开文件夹失败: " + e.getMessage()));
+        }
     }
 
     /**
@@ -399,19 +571,28 @@ public class ConfigController {
             // 删除技能目录
             deleteDirectory(skillDir);
 
-            // 清理 disabledSkills 配置
+            // 清理禁用列表（disabledSkills 存的是 SKILL.md frontmatter 的显示名，非目录名，需重新解析）
+            String skillName = name;
+            try {
+                Skill skill = new DirectorySkillLoader(GLOBAL_CONFIG_DIR.resolve("skills")).loadByName(name);
+                if (skill != null) {
+                    skillName = skill.getName();
+                }
+            } catch (Exception ignored) {
+            }
             if (Files.exists(GLOBAL_CONFIG_FILE)) {
                 String content = Files.readString(GLOBAL_CONFIG_FILE, StandardCharsets.UTF_8);
                 JSONObject config = JSON.parseObject(content);
                 JSONArray disabled = config.getJSONArray("disabledSkills");
                 if (disabled != null) {
                     List<String> list = new ArrayList<>(disabled.toJavaList(String.class));
-                    list.remove(name);
+                    list.remove(skillName);
                     config.put("disabledSkills", list);
                     Files.writeString(GLOBAL_CONFIG_FILE, JSON.toJSONString(config, true), StandardCharsets.UTF_8);
                 }
             }
 
+            reloadAgentSkills();
             return ResponseEntity.ok(Map.of("success", true, "message", "技能 " + name + " 已删除"));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "删除失败: " + e.getMessage()));
@@ -452,17 +633,29 @@ public class ConfigController {
         List<Map<String, Object>> result = new ArrayList<>();
         Path globalSkillsDir = GLOBAL_CONFIG_DIR.resolve("skills");
         if (Files.exists(globalSkillsDir)) {
-            for (Skill skill : new DirectorySkillLoader(globalSkillsDir).loadAll()) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("name", skill.getName());
-                item.put("description", skill.getDescription());
-                item.put("source", "global");
-                item.put("enabled", !disabledSkills.contains(skill.getName()));
-                item.put("scripts", skill.getScripts().stream()
-                        .map(SkillScript::getDescription)
-                        .collect(Collectors.toList()));
-                item.put("references", skill.getReferenceNames());
-                result.add(item);
+            // 技能显示名（SKILL.md frontmatter）与磁盘目录名可能不同：dir 为目录名，供 reveal/delete 定位
+            DirectorySkillLoader loader = new DirectorySkillLoader(globalSkillsDir);
+            try (var dirs = Files.list(globalSkillsDir)) {
+                for (Path dir : dirs.filter(Files::isDirectory).sorted().collect(Collectors.toList())) {
+                    String dirName = dir.getFileName().toString();
+                    Skill skill = loader.loadByName(dirName);
+                    if (skill == null) {
+                        continue;
+                    }
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("name", skill.getName());
+                    item.put("dir", dirName);
+                    item.put("description", skill.getDescription());
+                    item.put("source", "global");
+                    item.put("enabled", !disabledSkills.contains(skill.getName()));
+                    item.put("scripts", skill.getScripts().stream()
+                            .map(SkillScript::getDescription)
+                            .collect(Collectors.toList()));
+                    item.put("references", skill.getReferenceNames());
+                    result.add(item);
+                }
+            } catch (IOException e) {
+                logger.error("读取技能目录失败: {}", globalSkillsDir, e);
             }
         }
         return result;

@@ -90,4 +90,10 @@ public class KnowbaseToolAdapter extends FunctionTool {
     public KnowledgeBase getKnowledgeBase() {
         return knowledgeBase;
     }
+
+    /** 只读工具：仅检索知识库，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

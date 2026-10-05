@@ -3,6 +3,7 @@ package cn.lunarlanding.qualia.code.service;
 import cn.lunarlanding.qualia.code.CodeAgentConfig;
 import cn.lunarlanding.qualia.code.CodeAgentMcpServerConfig;
 import cn.lunarlanding.qualia.code.CodeAgentModelConfig;
+import cn.lunarlanding.qualia.core.agent.CallOptions;
 import cn.lunarlanding.qualia.core.agent.HarnessAgent;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
 import cn.lunarlanding.qualia.core.mcp.client.McpClient;
@@ -58,6 +59,9 @@ public class ChatService {
     private CodeAgentConfig config;
     /** 已建立的 MCP 连接（随 Agent 生命周期管理，reloadConfig 时关闭） */
     private final List<McpClient> mcpClients = new ArrayList<>();
+
+    /** 上次加载到 Agent 的全局技能名（热重载时据此精准移除） */
+    private final Set<String> loadedGlobalSkillNames = new HashSet<>();
     
     /** 缓存ChatModel实例，key为模型名称 */
     private final Map<String, ChatModel> modelCache = new HashMap<>();
@@ -127,6 +131,15 @@ public class ChatService {
         
         // 创建Agent实例（只初始化一次工具、技能、MCP连接等）
         agent = new HarnessAgent(chatModel, new LocalWorkspace(workspacePath));
+        // 全局系统提示词（设置「应用」Tab 保存的 ~/.qualia/code/AGENT.md）优先于工作区文件/默认值
+        Path globalAgentMd = CodeAgentConfig.GLOBAL_CONFIG_DIR.resolve("AGENT.md");
+        if (Files.exists(globalAgentMd)) {
+            try {
+                agent.setSystemPrompt(Files.readString(globalAgentMd));
+            } catch (IOException e) {
+                logger.warn("读取全局 AGENT.md 失败，保持工作区/默认提示词", e);
+            }
+        }
         disableTools();
         loadGlobalSkills();
         connectMcpServers();
@@ -265,6 +278,34 @@ public class ChatService {
                 continue;
             }
             agent.addSkill(skill);
+            loadedGlobalSkillNames.add(skill.getName());
+        }
+    }
+
+    /**
+     * 热重载全局技能（技能市场安装/卸载后调用）：移除上次加载的全局技能后按当前配置重新加载，
+     * 无需重建 Agent（模型/MCP/会话上下文均不受影响）；Agent 未初始化时无需处理（initialize 时自然加载）
+     */
+    public synchronized void reloadGlobalSkills() {
+        if (agent == null) {
+            return;
+        }
+        for (String name : loadedGlobalSkillNames) {
+            agent.removeSkill(name);
+        }
+        loadedGlobalSkillNames.clear();
+        loadGlobalSkills();
+        logger.info("全局技能已热重载，当前 {} 个", loadedGlobalSkillNames.size());
+    }
+
+    /**
+     * 运行时更新系统提示词（AGENT.md 在线编辑保存后即时生效，无需重建 Agent）。
+     * Agent 未初始化时跳过——下次 initialize 时会自动读取 AGENT.md 文件。
+     */
+    public void applySystemPrompt(String prompt) {
+        if (agent != null) {
+            agent.setSystemPrompt(prompt);
+            logger.info("系统提示词已热更新（{} 字符）", prompt.length());
         }
     }
 
@@ -539,6 +580,16 @@ public class ChatService {
     public Flux<AgentResponse> sendMessageFlux(String sessionId, String message, List<Attachment> attachments) {
         initialize();
         return agent.callStream(sessionId, message, attachments);
+    }
+
+    /**
+     * 发送带附件与会话选项的消息并获取Flux流式响应
+     *
+     * @param options 会话选项（只读问答等），null = 全部默认值
+     */
+    public Flux<AgentResponse> sendMessageFlux(String sessionId, String message, List<Attachment> attachments, CallOptions options) {
+        initialize();
+        return agent.callStream(sessionId, message, attachments, options);
     }
 
     /**

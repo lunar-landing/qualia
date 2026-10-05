@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统设置弹窗 · 重设计 · 3 方案 · Qualia</title>
+<style>
+    /* ======================================================================
+       系统设置弹窗重设计：现状 800px 左导航密排 → 加宽至 1040px 的三个方向。
+       视觉基因取自 app 实际变量（--bg-surface / --border-color / 毛玻璃 /
+       厂商渐变 dot）。纯静态，无后端。
+       ====================================================================== */
+
+    body {
+        --bg-app: #080a10;
+        --sf: #131820;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --tx: #e4e9f2;
+        --tx2: #8f97ae;
+        --tx3: #4f566b;
+        --hover: rgba(255, 255, 255, 0.045);
+        --input: rgba(255, 255, 255, 0.03);
+        --accent: #e6edf3;
+        --accent-ink: #0d1117;
+        --amber: #f59e0b;
+        --green: #34d399;
+        --red: #f87171;
+        --page-bg: #05070b;
+    }
+    body[data-scheme="light"] {
+        --bg-app: #ffffff;
+        --sf: #ffffff;
+        --line: #d0d7de;
+        --line-soft: #e4e9ee;
+        --tx: #1f2328;
+        --tx2: #57657a;
+        --tx3: #8c959f;
+        --hover: #e9edf1;
+        --input: #ffffff;
+        --accent: #24292f;
+        --accent-ink: #ffffff;
+        --amber: #9a6700;
+        --green: #1a7f37;
+        --red: #cf222e;
+        --page-bg: #dfe3e8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page-bg);
+        color: var(--tx);
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        padding: 34px 40px 70px;
+        transition: background 0.25s;
+    }
+
+    .page-head { max-width: 1080px; margin: 0 auto 6px; }
+    h1 { font-size: 21px; letter-spacing: -0.4px; }
+    .page-sub { font-size: 12.5px; color: var(--tx2); margin-top: 7px; line-height: 1.75; }
+
+    .ctrl-bar {
+        max-width: 1080px; margin: 18px auto 8px;
+        display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+        font-size: 12px; color: var(--tx2);
+    }
+    .ctrl-btn {
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent;
+        color: var(--tx2); font-size: 12px; transition: all 0.15s; font-family: inherit;
+    }
+    .ctrl-btn:hover { color: var(--tx); border-color: var(--tx3); }
+    .ctrl-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+    .ver-sec { max-width: 1080px; margin: 34px auto 0; }
+    .ver-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+    .ver-badge {
+        font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+        color: var(--tx); border: 1px solid var(--line);
+        border-radius: 6px; padding: 2px 9px;
+    }
+    .ver-name { font-size: 15px; font-weight: 600; }
+    .ver-desc { font-size: 12px; color: var(--tx2); line-height: 1.7; margin-bottom: 14px; }
+
+    .cap {
+        font-size: 10.5px; color: var(--tx3); letter-spacing: 1px; margin: 16px 2px 7px;
+    }
+
+    /* ===== 弹窗公共壳：1040 真实宽度 ===== */
+    .dlg {
+        width: 1040px; max-width: 100%;
+        background: var(--sf); border: 1px solid var(--line);
+        border-radius: 16px; overflow: hidden;
+        box-shadow: 0 32px 64px rgba(0, 0, 0, 0.55), 0 12px 24px rgba(0, 0, 0, 0.4);
+        display: flex; flex-direction: column;
+    }
+    body[data-scheme="light"] .dlg { box-shadow: 0 24px 60px rgba(31, 35, 40, 0.18); }
+
+    /* 厂商 dot（与现实现同款渐变） */
+    .dot { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .dot.dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
+    .dot.deepseek { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
+    .dot.xiaomi { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+    .dot.openai { background: linear-gradient(145deg, #30333e, #5a5f70); }
+
+    /* ======================================================================
+       D1 宽幅精修：现有骨架升级（左导航加描述 + 内容区标题行 + 底部保存栏）
+       ====================================================================== */
+    .d1-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 16px 20px 14px; border-bottom: 1px solid var(--line-soft);
+    }
+    .d1-head .ic { color: var(--tx3); font-size: 13px; }
+    .d1-head .tt { font-size: 14.5px; font-weight: 650; letter-spacing: 0.2px; }
+    .d1-head .sub { font-size: 11.5px; color: var(--tx3); margin-left: 2px; }
+    .d1-head .x {
+        margin-left: auto; width: 26px; height: 26px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--tx3); cursor: pointer; font-size: 12px;
+    }
+    .d1-head .x:hover { background: var(--hover); color: var(--tx); }
+    .d1-main { display: flex; min-height: 0; }
+    .d1-nav {
+        width: 224px; flex-shrink: 0; padding: 14px 12px;
+        border-right: 1px solid var(--line-soft);
+        display: flex; flex-direction: column; gap: 3px;
+    }
+    .d1-nv {
+        position: relative; display: flex; gap: 11px; align-items: center;
+        padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    }
+    .d1-nv:hover { background: var(--hover); }
+    .d1-nv .ni { font-size: 14px; color: var(--tx3); width: 18px; text-align: center; }
+    .d1-nv .nt { font-size: 13px; font-weight: 550; color: var(--tx2); }
+    .d1-nv .nd { font-size: 10.5px; color: var(--tx3); margin-top: 1px; }
+    .d1-nv.on { background: var(--hover); }
+    .d1-nv.on::before {
+        content: ''; position: absolute; left: 0; top: 10px; bottom: 10px;
+        width: 3px; border-radius: 3px; background: var(--accent);
+    }
+    .d1-nv.on .nt { color: var(--tx); font-weight: 620; }
+    .d1-nv.on .ni { color: var(--tx); }
+    .d1-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .d1-sec { padding: 18px 22px 4px; }
+    .d1-sec .st { font-size: 15px; font-weight: 650; }
+    .d1-sec .sd { font-size: 12px; color: var(--tx2); margin-top: 3px; }
+    .d1-cnt { flex: 1; padding: 16px 22px; }
+    .md-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .md-card {
+        position: relative; border: 1px solid var(--line); border-radius: 12px;
+        background: var(--input); padding: 15px 15px 13px; cursor: pointer;
+        transition: border-color 0.15s, transform 0.15s;
+    }
+    .md-card:hover { border-color: var(--tx3); transform: translateY(-2px); }
+    .md-card.def { border-color: var(--accent); }
+    .md-top { display: flex; align-items: center; gap: 8px; }
+    .md-top .pv { font-size: 11.5px; color: var(--tx2); font-weight: 550; }
+    .md-badge {
+        margin-left: auto; font-size: 10px; font-weight: 600;
+        color: var(--accent-ink); background: var(--accent);
+        border-radius: 999px; padding: 2px 8px;
+    }
+    .md-id { font-size: 13.5px; font-weight: 620; margin-top: 10px; }
+    .md-nm { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+    .md-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; padding-top: 11px; border-top: 1px dashed var(--line); }
+    .tag {
+        font-size: 10px; color: var(--tx2); background: var(--hover);
+        border: 1px solid var(--line-soft); border-radius: 999px; padding: 2px 8px;
+    }
+    .tag.warn { color: var(--amber); }
+    .md-add {
+        border: 1px dashed var(--line); border-radius: 12px; background: transparent;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 6px; min-height: 148px; color: var(--tx3); cursor: pointer; font-size: 12px;
+    }
+    .md-add:hover { border-color: var(--tx3); color: var(--tx); }
+    .md-add .pl { font-size: 19px; line-height: 1; }
+    .md-card.hov { border-color: var(--tx3); }
+    .md-hov {
+        position: absolute; inset: 0; border-radius: inherit;
+        background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px);
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    body[data-scheme="light"] .md-hov { background: rgba(246, 248, 250, 0.7); }
+    .btn {
+        font-family: inherit; font-size: 11.5px; font-weight: 500;
+        padding: 5px 12px; border-radius: 8px; cursor: pointer;
+        border: 1px solid var(--line); background: var(--sf); color: var(--tx);
+    }
+    .btn:hover { border-color: var(--tx3); }
+    .btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .btn.gh { background: transparent; color: var(--tx2); }
+    .btn.gh:hover { color: var(--tx); }
+    .btn.dgr { background: transparent; color: var(--red); }
+    .btn.dgr:hover { border-color: var(--red); }
+    .d1-foot {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 22px; border-top: 1px solid var(--line-soft);
+    }
+    .d1-foot .dirty { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--tx2); }
+    .d1-foot .dirty .pt { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+    .d1-foot .spring { flex: 1; }
+    .d1-foot .btn { padding: 7px 16px; font-size: 12px; border-radius: 9px; }
+
+    /* ======================================================================
+       D2 IDE 设置风：搜索 + 导航分组 + 横向表单行
+       ====================================================================== */
+    .d2-head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 20px; border-bottom: 1px solid var(--line-soft);
+    }
+    .d2-head .tt { font-size: 14.5px; font-weight: 650; }
+    .d2-search {
+        margin-left: auto; width: 280px; display: flex; align-items: center; gap: 8px;
+        background: var(--input); border: 1px solid var(--line); border-radius: 9px;
+        padding: 6px 11px; font-size: 12px; color: var(--tx3);
+    }
+    .d2-search .kb {
+        margin-left: auto; font-size: 10px; color: var(--tx3);
+        border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px;
+    }
+    .d2-nav { width: 236px; padding: 12px 12px 14px; }
+    .d2-grp { font-size: 10px; font-weight: 650; letter-spacing: 1.2px; color: var(--tx3); padding: 10px 12px 5px; text-transform: uppercase; }
+    .d2-nv {
+        display: flex; align-items: center; gap: 11px;
+        padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    }
+    .d2-nv:hover { background: var(--hover); }
+    .d2-nv .ni { font-size: 14px; color: var(--tx3); width: 18px; text-align: center; }
+    .d2-nv .nt { font-size: 13px; color: var(--tx2); }
+    .d2-nv.on { background: var(--hover); }
+    .d2-nv.on .nt { color: var(--tx); font-weight: 620; }
+    .d2-nv .cnt {
+        margin-left: auto; font-size: 10px; color: var(--tx3);
+        background: var(--hover); border-radius: 999px; padding: 1px 7px;
+    }
+    .d2-form { border: 1px solid var(--line); border-radius: 12px; background: var(--input); padding: 16px 18px; margin-bottom: 12px; }
+    .d2-form.dis { opacity: 0.55; }
+    .d2-fm-head { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+    .d2-fm-head .nm { font-size: 13px; font-weight: 620; }
+    .d2-fm-head .tp { font-size: 10.5px; color: var(--tx3); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+    .fr { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .fr label { width: 88px; flex-shrink: 0; font-size: 11.5px; color: var(--tx2); }
+    .fr .inp {
+        flex: 1; background: var(--sf); border: 1px solid var(--line); border-radius: 8px;
+        padding: 6px 11px; font-size: 12px; color: var(--tx);
+    }
+    .fr .inp.ph { color: var(--tx3); }
+    .fr .sel { display: flex; justify-content: space-between; }
+    .fr .sel::after { content: '▾'; color: var(--tx3); }
+    .kv-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .kv-row .inp { flex: 1; }
+    .kv-row .del { color: var(--tx3); cursor: pointer; font-size: 12px; padding: 0 4px; }
+    .kv-row .del:hover { color: var(--red); }
+    .d2-fm-foot { display: flex; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+    .d2-fm-foot .rm { font-size: 11px; color: var(--tx3); cursor: pointer; }
+    .d2-fm-foot .rm:hover { color: var(--red); }
+    .tgl { margin-left: auto; width: 34px; height: 19px; border-radius: 999px; background: var(--accent); position: relative; }
+    .tgl::after { content: ''; position: absolute; top: 2px; right: 2px; width: 15px; height: 15px; border-radius: 50%; background: var(--accent-ink); }
+    .tgl.off { background: var(--line); }
+    .tgl.off::after { right: auto; left: 2px; }
+    .d2-add {
+        width: 100%; font-family: inherit; font-size: 12px; color: var(--tx2);
+        border: 1px dashed var(--line); background: transparent; border-radius: 10px;
+        padding: 9px; cursor: pointer;
+    }
+    .d2-add:hover { color: var(--tx); border-color: var(--tx3); }
+
+    /* ======================================================================
+       D3 现代卡片风：顶部分段控件 + 横排模型行 + 浮动保存胶囊
+       ====================================================================== */
+    .d3-head {
+        display: flex; align-items: center; gap: 16px;
+        padding: 18px 24px 16px; border-bottom: 1px solid var(--line-soft);
+    }
+    .d3-head .tt { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+    .d3-seg {
+        display: inline-flex; gap: 2px; background: var(--input);
+        border: 1px solid var(--line); border-radius: 11px; padding: 3px;
+    }
+    .d3-seg span { font-size: 12px; color: var(--tx2); padding: 5px 16px; border-radius: 8px; cursor: pointer; }
+    .d3-seg span:hover { color: var(--tx); }
+    .d3-seg span.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .d3-head .x {
+        margin-left: auto; width: 28px; height: 28px; border-radius: 9px;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--tx3); cursor: pointer; font-size: 13px;
+    }
+    .d3-head .x:hover { background: var(--hover); color: var(--tx); }
+    .d3-body { padding: 18px 24px 66px; display: flex; flex-direction: column; gap: 10px; }
+    .d3-row {
+        position: relative; display: flex; align-items: center; gap: 14px;
+        border: 1px solid var(--line); border-radius: 13px; background: var(--input);
+        padding: 13px 16px; cursor: pointer;
+    }
+    .d3-row:hover { border-color: var(--tx3); }
+    .d3-row.def { border-color: var(--accent); }
+    .d3-row .info { min-width: 0; }
+    .d3-row .id { font-size: 13.5px; font-weight: 620; }
+    .d3-row .nm { font-size: 11px; color: var(--tx3); margin-top: 1px; }
+    .d3-row .tags { display: flex; gap: 6px; margin-left: auto; }
+    .d3-row .badge { font-size: 10px; font-weight: 600; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 2px 9px; }
+    .d3-row .ops { display: flex; gap: 7px; opacity: 1; }
+    .d3-row .ops .btn { padding: 4px 11px; font-size: 11px; }
+    .d3-row.hov .ops { opacity: 1; }
+    .d3-row:not(.hov) .ops { opacity: 0; }
+    .d3-row:not(.hov):hover .ops { opacity: 1; }
+    .d3-addrow {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        border: 1px dashed var(--line); border-radius: 13px; padding: 12px;
+        color: var(--tx3); font-size: 12px; cursor: pointer;
+    }
+    .d3-addrow:hover { color: var(--tx); border-color: var(--tx3); }
+    .d3-save {
+        position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 12px;
+        background: var(--sf); border: 1px solid var(--line); border-radius: 999px;
+        padding: 8px 10px 8px 16px; font-size: 11.5px; color: var(--tx2);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    body[data-scheme="light"] .d3-save { box-shadow: 0 12px 32px rgba(31, 35, 40, 0.16); }
+    .d3-save .pt { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+    .d3-wrap { position: relative; }
+
+    /* ===== 设计注释 ===== */
+    .notes {
+        max-width: 1080px; margin: 44px auto 0;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    .note-card {
+        border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+        font-size: 12px; line-height: 1.75;
+    }
+    .note-card h3 { font-size: 12.5px; margin-bottom: 6px; }
+    .note-card .m { color: var(--tx2); }
+    .note-card code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px;
+        color: var(--tx); background: var(--hover); padding: 0 5px; border-radius: 4px;
+    }
+</style>
+</head>
+<body data-scheme="dark">
+
+<div class="page-head">
+    <h1>系统设置弹窗 · 重设计（宽度 800 → 1040）</h1>
+    <div class="page-sub">
+        现状：左导航 180px 密排、800px 宽、11.5px 小字，宽屏下卡片过小、留白不足。
+        三个方向均为 1040px 宽：D1 现有骨架精修（连续性最强）；D2 IDE 设置风（搜索 + 导航分组 + 横向表单）；
+        D3 现代卡片风（分段控件 + 行式列表 + 浮动保存）。切换主题查看两套配色。
+    </div>
+</div>
+
+<div class="ctrl-bar">
+    <span>主题</span>
+    <button class="scheme-btn ctrl-btn on" data-scheme="dark">夜间</button>
+    <button class="scheme-btn ctrl-btn" data-scheme="light">日间</button>
+</div>
+
+<!-- ===================== D1 宽幅精修 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">D1</span><span class="ver-name">宽幅精修</span></div>
+    <div class="ver-desc">保持「左导航 + 右内容」骨架：导航项升为双行（标题 + 描述）带 accent 指示条；内容区加节标题行；底部新增保存栏（未保存更改点 + 主操作右置）。改动最小，气质升级。</div>
+
+    <div class="cap">模型 Tab（第 2 卡为 hover 态）</div>
+    <div class="dlg">
+        <div class="d1-head">
+            <span class="ic">⚙</span>
+            <span class="tt">系统设置</span>
+            <span class="sub">全局配置 · ~/.qualia/qualia-code.json</span>
+            <span class="x">✕</span>
+        </div>
+        <div class="d1-main">
+            <div class="d1-nav">
+                <div class="d1-nv on">
+                    <span class="ni">◉</span>
+                    <span><span class="nt" style="display:block">模型服务</span><span class="nd" style="display:block">厂商 · 密钥 · 默认模型</span></span>
+                </div>
+                <div class="d1-nv">
+                    <span class="ni">⇄</span>
+                    <span><span class="nt" style="display:block">MCP 服务</span><span class="nd" style="display:block">外部工具接入</span></span>
+                </div>
+                <div class="d1-nv">
+                    <span class="ni">◇</span>
+                    <span><span class="nt" style="display:block">技能</span><span class="nd" style="display:block">SKILL.md 扩展能力</span></span>
+                </div>
+                <div class="d1-nv">
+                    <span class="ni">⚒</span>
+                    <span><span class="nt" style="display:block">工具</span><span class="nd" style="display:block">内置工具启停</span></span>
+                </div>
+            </div>
+            <div class="d1-body">
+                <div class="d1-sec">
+                    <div class="st">模型服务</div>
+                    <div class="sd">配置接入的模型厂商与 API 密钥，标记默认模型；保存后写入全局配置文件</div>
+                </div>
+                <div class="d1-cnt">
+                    <div class="md-grid">
+                        <div class="md-card def">
+                            <div class="md-top"><span class="dot dashscope">阿</span><span class="pv">阿里云百炼</span><span class="md-badge">默认</span></div>
+                            <div class="md-id">qwen3.7-plus</div>
+                            <div class="md-nm">主力编码</div>
+                            <div class="md-tags"><span class="tag">按量付费</span><span class="tag">API Key sk-4a****x2</span></div>
+                        </div>
+                        <div class="md-card hov">
+                            <div class="md-hov">
+                                <button class="btn pri">编辑</button>
+                                <button class="btn gh">设为默认</button>
+                                <button class="btn dgr">删除</button>
+                            </div>
+                            <div class="md-top"><span class="dot deepseek">D</span><span class="pv">DeepSeek</span></div>
+                            <div class="md-id">deepseek-chat</div>
+                            <div class="md-nm">推理备选</div>
+                            <div class="md-tags"><span class="tag">按量付费</span><span class="tag">API Key sk-9f****3c</span></div>
+                        </div>
+                        <div class="md-card">
+                            <div class="md-top"><span class="dot xiaomi">小</span><span class="pv">小米</span></div>
+                            <div class="md-id">MiMo</div>
+                            <div class="md-nm">未命名配置</div>
+                            <div class="md-tags"><span class="tag warn">缺少 API Key</span></div>
+                        </div>
+                        <div class="md-add"><span class="pl">＋</span><span>添加模型</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d1-foot">
+            <span class="dirty"><span class="pt"></span>有未保存的更改</span>
+            <span class="spring"></span>
+            <button class="btn gh">取消</button>
+            <button class="btn pri">保存配置</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== D2 IDE 设置风 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">D2</span><span class="ver-name">IDE 设置风</span></div>
+    <div class="ver-desc">在 D1 基础上加强工程感：头部加搜索框（设置项过滤，<span style="font-family:monospace">⌘K</span> 唤起）；导航按「服务 / 扩展」分组并带数量徽章；MCP 表单改横向行式（label 左、输入右），宽幅下密度合理。</div>
+
+    <div class="cap">模型 Tab</div>
+    <div class="dlg">
+        <div class="d2-head">
+            <span class="tt">设置</span>
+            <span class="d2-search">⌕ 搜索设置…<span class="kb">⌘K</span></span>
+        </div>
+        <div class="d1-main">
+            <div class="d1-nav d2-nav">
+                <div class="d2-grp">服务</div>
+                <div class="d2-nv on"><span class="ni">◉</span><span class="nt">模型</span><span class="cnt">3</span></div>
+                <div class="d2-nv"><span class="ni">⇄</span><span class="nt">MCP</span><span class="cnt">1</span></div>
+                <div class="d2-grp">扩展</div>
+                <div class="d2-nv"><span class="ni">◇</span><span class="nt">技能</span><span class="cnt">6</span></div>
+                <div class="d2-nv"><span class="ni">⚒</span><span class="nt">工具</span><span class="cnt">10</span></div>
+            </div>
+            <div class="d1-body">
+                <div class="d1-sec">
+                    <div class="st">模型</div>
+                    <div class="sd">3 个模型 · 默认 qwen3.7-plus</div>
+                </div>
+                <div class="d1-cnt">
+                    <div class="md-grid">
+                        <div class="md-card def">
+                            <div class="md-top"><span class="dot dashscope">阿</span><span class="pv">阿里云百炼</span><span class="md-badge">默认</span></div>
+                            <div class="md-id">qwen3.7-plus</div>
+                            <div class="md-nm">主力编码</div>
+                            <div class="md-tags"><span class="tag">按量付费</span><span class="tag">API Key sk-4a****x2</span></div>
+                        </div>
+                        <div class="md-card">
+                            <div class="md-top"><span class="dot deepseek">D</span><span class="pv">DeepSeek</span></div>
+                            <div class="md-id">deepseek-chat</div>
+                            <div class="md-nm">推理备选</div>
+                            <div class="md-tags"><span class="tag">按量付费</span><span class="tag">API Key sk-9f****3c</span></div>
+                        </div>
+                        <div class="md-card">
+                            <div class="md-top"><span class="dot openai">O</span><span class="pv">OpenAI</span></div>
+                            <div class="md-id">gpt-4o</div>
+                            <div class="md-nm">未命名配置</div>
+                            <div class="md-tags"><span class="tag warn">缺少 API Key</span></div>
+                        </div>
+                        <div class="md-add"><span class="pl">＋</span><span>添加模型</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d1-foot">
+            <span class="dirty"><span class="pt"></span>有未保存的更改</span>
+            <span class="spring"></span>
+            <button class="btn gh">取消</button>
+            <button class="btn pri">保存配置</button>
+        </div>
+    </div>
+
+    <div class="cap">MCP Tab（横向表单行）</div>
+    <div class="dlg">
+        <div class="d2-head">
+            <span class="tt">设置</span>
+            <span class="d2-search">⌕ 搜索设置…<span class="kb">⌘K</span></span>
+        </div>
+        <div class="d1-main">
+            <div class="d1-nav d2-nav">
+                <div class="d2-grp">服务</div>
+                <div class="d2-nv"><span class="ni">◉</span><span class="nt">模型</span><span class="cnt">3</span></div>
+                <div class="d2-nv on"><span class="ni">⇄</span><span class="nt">MCP</span><span class="cnt">1</span></div>
+                <div class="d2-grp">扩展</div>
+                <div class="d2-nv"><span class="ni">◇</span><span class="nt">技能</span><span class="cnt">6</span></div>
+                <div class="d2-nv"><span class="ni">⚒</span><span class="nt">工具</span><span class="cnt">10</span></div>
+            </div>
+            <div class="d1-body">
+                <div class="d1-sec">
+                    <div class="st">MCP 服务</div>
+                    <div class="sd">streamable-http / http-sse / stdio 三种传输；headers 逐行编辑</div>
+                </div>
+                <div class="d1-cnt">
+                    <div class="d2-form">
+                        <div class="d2-fm-head"><span class="nm">context7</span><span class="tp">streamable-http</span></div>
+                        <div class="fr"><label>名称</label><span class="inp">context7</span></div>
+                        <div class="fr"><label>传输</label><span class="inp sel">streamable-http</span></div>
+                        <div class="fr"><label>URL</label><span class="inp">https://mcp.context7.com/mcp</span></div>
+                        <div class="fr" style="align-items:flex-start"><label style="padding-top:7px">Headers</label>
+                            <div style="flex:1">
+                                <div class="kv-row"><span class="inp">Authorization</span><span class="inp">Bearer ••••••••</span><span class="del">✕</span></div>
+                                <div class="kv-row"><span class="inp ph">键</span><span class="inp ph">值</span><span class="del">✕</span></div>
+                            </div>
+                        </div>
+                        <div class="d2-fm-foot"><span class="rm">🗑 删除此服务</span><span class="tgl"></span></div>
+                    </div>
+                    <button class="d2-add">＋ 添加 MCP 服务</button>
+                </div>
+            </div>
+        </div>
+        <div class="d1-foot">
+            <span class="spring"></span>
+            <button class="btn gh">取消</button>
+            <button class="btn pri">保存配置</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== D3 现代卡片风 ===================== -->
+<div class="ver-sec">
+    <div class="ver-head"><span class="ver-badge">D3</span><span class="ver-name">现代卡片风</span></div>
+    <div class="ver-desc">去左导航：顶部分段控件横切四个 Tab，内容全宽铺开；模型列表改横排行式（一行一模型，hover 浮现操作）；保存动作沉为底部居中浮动胶囊。视觉最现代，需重写导航与编辑交互。</div>
+
+    <div class="cap">模型 Tab（第 2 行为 hover 态）</div>
+    <div class="d3-wrap" style="max-width:1080px">
+        <div class="dlg">
+            <div class="d3-head">
+                <span class="tt">设置</span>
+                <span class="d3-seg"><span class="on">模型</span><span>MCP</span><span>技能</span><span>工具</span></span>
+                <span class="x">✕</span>
+            </div>
+            <div class="d3-body">
+                <div class="d3-row def">
+                    <span class="dot dashscope">阿</span>
+                    <span class="info"><span class="id" style="display:block">qwen3.7-plus</span><span class="nm" style="display:block">阿里云百炼 · 主力编码</span></span>
+                    <span class="tags"><span class="tag">按量付费</span><span class="tag">API Key sk-4a****x2</span></span>
+                    <span class="badge">默认</span>
+                </div>
+                <div class="d3-row hov">
+                    <span class="dot deepseek">D</span>
+                    <span class="info"><span class="id" style="display:block">deepseek-chat</span><span class="nm" style="display:block">DeepSeek · 推理备选</span></span>
+                    <span class="tags"><span class="tag">按量付费</span></span>
+                    <span class="ops"><button class="btn pri">编辑</button><button class="btn gh">设为默认</button><button class="btn dgr">删除</button></span>
+                </div>
+                <div class="d3-row">
+                    <span class="dot xiaomi">小</span>
+                    <span class="info"><span class="id" style="display:block">MiMo</span><span class="nm" style="display:block">小米 · 未命名配置</span></span>
+                    <span class="tags"><span class="tag warn">缺少 API Key</span></span>
+                </div>
+                <div class="d3-addrow">＋ 添加模型</div>
+            </div>
+        </div>
+        <div class="d3-save"><span class="pt"></span>2 项修改<button class="btn pri">保存</button></div>
+    </div>
+</div>
+
+<!-- ===================== 设计注释 ===================== -->
+<div class="notes">
+    <div class="note-card">
+        <h3>D1 宽幅精修 · 连续性优先</h3>
+        <span class="m">现有骨架逐项升级：导航双行化（描述辅助识别）、节标题行、</span>
+        <code>1040px</code>
+        <span class="m"> 三列卡片、底部保存栏（未保存更改琥珀点 + 主按钮右置）。
+        现有交互（点击卡片弹编辑、hover 操作浮层）全部保留，迁移成本最低。</span>
+    </div>
+    <div class="note-card">
+        <h3>D2 IDE 设置风 · 工程感优先</h3>
+        <span class="m">D1 全部能力 + 头部搜索（设置项过滤 + </span><code>⌘K</code>
+        <span class="m">）、导航分组（服务 / 扩展）与数量徽章、表单横向行式。
+        设置项继续增多时导航可再分组，扩展性最好。</span>
+    </div>
+    <div class="note-card">
+        <h3>D3 现代卡片风 · 视觉优先</h3>
+        <span class="m">去左导航改顶部分段控件，全宽内容、横排行式列表、
+        底部浮动保存胶囊。最现代，但导航重写、编辑子弹窗建议改行内展开，改动最大。</span>
+    </div>
+    <div class="note-card">
+        <h3>通用约束</h3>
+        <span class="m">宽度统一 </span><code>min(1040px, 100vw − 48px)</code>
+        <span class="m">（代码已生效）；配色零新增（全部映射现有 app 变量）；
+        厂商渐变 dot、毛玻璃、默认徽标语言延续现状；能力集不变
+        （模型 / MCP / 技能 / 工具 + 草稿式保存）。</span>
+    </div>
+    <div class="note-card">
+        <h3>选型建议</h3>
+        <span class="m">求稳选 D1；预判设置项增长（如后续加外观 / 会话设置）选 D2；
+        追求观感焕新且接受较大改动选 D3。D1 → D2 可渐进演进（先 D1 后加搜索与分组）。</span>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.scheme-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.scheme-btn').forEach(function (b) { b.classList.remove('on') });
+            btn.classList.add('on');
+            document.body.dataset.scheme = btn.dataset.scheme;
+        });
+    });
+</script>
+</body>
+</html>

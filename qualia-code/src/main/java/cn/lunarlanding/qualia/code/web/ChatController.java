@@ -1,6 +1,7 @@
 package cn.lunarlanding.qualia.code.web;
 
 import com.alibaba.fastjson.JSON;
+import cn.lunarlanding.qualia.core.agent.CallOptions;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
 import cn.lunarlanding.qualia.core.model.chat.Attachment;
@@ -126,10 +127,12 @@ public class ChatController {
     public SseEmitter streamChat(
             @RequestParam String sessionId,
             @RequestParam String message,
-            @RequestParam(required = false) String model) {
+            @RequestParam(required = false) String model,
+            @RequestParam(required = false, defaultValue = "false") boolean readOnly) {
 
-        System.out.println("[SSE] New connection: sessionId=" + sessionId + ", message=" + message + ", model=" + model);
-        return startStream(sessionId, message, model, null);
+        System.out.println("[SSE] New connection: sessionId=" + sessionId + ", message=" + message
+                + ", model=" + model + ", readOnly=" + readOnly);
+        return startStream(sessionId, message, model, null, readOnly);
     }
 
     /** 单次消息最多携带附件数 */
@@ -139,15 +142,18 @@ public class ChatController {
      * 发送消息（SSE 流式响应）- POST方式，支持携带附件（图片直传视觉模型，文档解析注入）
      *
      * <p>上传与发送解耦：前端先调 POST /api/attachments 拿回执 ID，发送时只携带 attachmentIds。
-     * body: {@code {sessionId, message, model?, attachmentIds?: [uuid]}}。</p>
+     * body: {@code {sessionId, message, model?, attachmentIds?: [uuid], readOnly?: boolean}}。</p>
      */
     @PostMapping(value = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChatPost(@RequestBody Map<String, Object> body) {
         String sessionId = body.get("sessionId") == null ? null : body.get("sessionId").toString();
         String message = body.get("message") == null ? "" : body.get("message").toString().trim();
         String model = body.get("model") == null ? null : body.get("model").toString();
+        // 只读问答模式：仅查询类工具可用（Boolean / 字符串 "true" 均识别）
+        boolean readOnly = "true".equalsIgnoreCase(String.valueOf(body.get("readOnly")));
 
-        System.out.println("[SSE] New POST connection: sessionId=" + sessionId + ", message=" + message + ", model=" + model);
+        System.out.println("[SSE] New POST connection: sessionId=" + sessionId + ", message=" + message
+                + ", model=" + model + ", readOnly=" + readOnly);
 
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         if (sessionId == null || sessionId.isEmpty()) {
@@ -162,7 +168,8 @@ public class ChatController {
         if (hasIds && (attachments == null || attachments.isEmpty())) {
             return failFast(emitter, "附件数量超出限制（最多4个）或加载失败，请重新上传");
         }
-        return startStream(sessionId, message, model, attachments == null || attachments.isEmpty() ? null : attachments);
+        return startStream(sessionId, message, model,
+                attachments == null || attachments.isEmpty() ? null : attachments, readOnly);
     }
 
     /**
@@ -196,7 +203,7 @@ public class ChatController {
      *
      * @param attachments 随消息直传的附件列表，可为 null
      */
-    private SseEmitter startStream(String sessionId, String message, String model, List<Attachment> attachments) {
+    private SseEmitter startStream(String sessionId, String message, String model, List<Attachment> attachments, boolean readOnly) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
         // 未选择工作区时直接回错（正常流程下前端强制弹窗拦截，此处为直接访问接口的兜底）
@@ -223,10 +230,11 @@ public class ChatController {
                     chatService().switchModel(model);
                 }
 
-                // 使用流式方式获取AI响应（带附件时走附件重载）
+                // 使用流式方式获取AI响应（带附件时走附件重载；readOnly 组装为会话选项透传）
+                CallOptions options = readOnly ? CallOptions.readOnly() : null;
                 Flux<AgentResponse> responseFlux = attachments != null && !attachments.isEmpty()
-                        ? chatService().sendMessageFlux(sessionId, message, attachments)
-                        : chatService().sendMessageFlux(sessionId, message);
+                        ? chatService().sendMessageFlux(sessionId, message, attachments, options)
+                        : chatService().sendMessageFlux(sessionId, message, null, options);
 
                 // 订阅流式响应并实时发送
                 responseFlux.subscribe(

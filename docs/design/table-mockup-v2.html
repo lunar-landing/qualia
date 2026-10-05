@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table 设计选型 v2 · 气泡模式 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（与生产 qualia-code-ui/src/styles/index.css 同步） ===== */
+    :root {
+        --bg-app: #080a10;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-inline-code: rgba(255, 255, 255, 0.07);
+        --text-code-hl: #79c0ff;
+        --zebra: rgba(128, 144, 168, 0.06);
+        --term-green: #7ee787;
+    }
+    body.light-theme {
+        --bg-app: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --border-strong: #c4cdd6;
+        --bg-hover: #e9edf1;
+        --bg-inline-code: #eff1f3;
+        --text-code-hl: #24292f;
+        --zebra: rgba(31, 35, 40, 0.032);
+        --term-green: #1a7f37;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-app);
+        color: var(--text-primary);
+        padding: 32px 24px 64px;
+        transition: background 0.25s, color 0.25s;
+    }
+
+    .page-head {
+        max-width: 860px; margin: 0 auto 28px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0; border: 1px solid var(--border-strong);
+        background: transparent; color: var(--text-primary);
+        font-size: 13px; padding: 8px 16px; border-radius: 8px;
+        cursor: pointer; transition: opacity 0.15s;
+    }
+    .theme-toggle:hover { opacity: 0.75; }
+
+    .variant { max-width: 860px; margin: 0 auto 40px; }
+    .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .variant-head .tag {
+        font-size: 12px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; border: 1px solid var(--border-strong);
+        color: var(--text-secondary); flex-shrink: 0;
+    }
+    .variant-head .tag.now { color: var(--text-primary); background: var(--bg-hover); }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.6; }
+    .variant-desc b { color: var(--text-secondary); font-weight: 600; }
+
+    /* 模拟生产上下文：AI 回答为去气泡化平铺，内容列宽 690px（对齐 .msg max-width） */
+    .chat {
+        max-width: 690px;
+        border-left: 2px solid var(--border-color);
+        padding: 2px 0 2px 16px;
+    }
+    .chat p { margin: 6px 0; font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+    .cap { font-size: 11px; color: var(--text-muted); margin: 14px 0 2px; letter-spacing: 0.4px; }
+    .cap:first-child { margin-top: 0; }
+
+    /* 表格内行内 code（沿用生产 .msg .bubble code） */
+    .chat code {
+        background: var(--bg-inline-code);
+        padding: 2px 5px; border-radius: 4px;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 11.5px; color: var(--text-code-hl);
+    }
+
+    /* =========================================================
+       V0 现状（线上还原，作对照基准）
+       圆角卡壳 + fit-content + 浅底大写表头 + 斑马，无 hover
+       ========================================================= */
+    .v0 {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+    }
+    .v0 th, .v0 td {
+        border-bottom: 1px solid var(--border-color);
+        padding: 7px 11px; text-align: left;
+        font-size: 13px;
+    }
+    .v0 th {
+        background: var(--bg-hover);
+        font-weight: 600; font-size: 12px;
+        letter-spacing: 0.3px; text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+    .v0 tbody tr:nth-child(even) td { background: var(--zebra); }
+    .v0 tr:last-child td { border-bottom: none; }
+    body.light-theme .v0 { border-color: #c4cdd6; }
+    body.light-theme .v0 th { background: #eef1f4; }
+
+    /* =========================================================
+       A 现状精修：保留圆角卡壳与斑马，其余做减法——
+       表头去大写去浅底、改加重下线；边框提亮一档；
+       斑马减淡；补 hover 行反馈；字号统一 12.5px。
+       ========================================================= */
+    .va {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+    }
+    .va th, .va td {
+        padding: 6px 12px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .va th {
+        font-weight: 600; font-size: 11.5px; letter-spacing: 0.2px;
+        color: var(--text-secondary);
+        border-bottom: 2px solid var(--border-strong);
+    }
+    .va tbody tr:nth-child(even) td { background: var(--zebra); }
+    .va tbody tr:hover td { background: var(--bg-hover); }
+    .va tr:last-child td { border-bottom: none; }
+    .va tr:last-child td:first-child { border-bottom-left-radius: 9px; }
+    .va tr:last-child td:last-child { border-bottom-right-radius: 9px; }
+
+    /* =========================================================
+       B 墨线极简：去壳去底，只留横线语言（Notion / Typora 风），
+       表头重下线 + 行间细线 + hover，视觉最轻、最贴正文。
+       ========================================================= */
+    .vb {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+    }
+    .vb th, .vb td {
+        padding: 6px 13px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vb th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px solid var(--border-strong);
+    }
+    .vb tbody tr:hover td { background: var(--bg-hover); }
+    .vb tr:last-child td { border-bottom: none; }
+
+    /* =========================================================
+       C 浮层卡片：圆角壳 + 投影，行 hover 反馈替代斑马，
+       表头无底、主色文字 + 重下线。整体更"浮"，层级感最强。
+       ========================================================= */
+    .vc {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+    }
+    body.light-theme .vc { box-shadow: 0 1px 4px rgba(31, 35, 40, 0.08); }
+    .vc th, .vc td {
+        padding: 7px 13px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vc th {
+        font-weight: 600; font-size: 12px;
+        color: var(--text-primary);
+        border-bottom: 2px solid var(--border-strong);
+    }
+    .vc tbody tr:hover td { background: var(--bg-hover); }
+    .vc tr:last-child td { border-bottom: none; }
+    .vc tr:last-child td:first-child { border-bottom-left-radius: 11px; }
+    .vc tr:last-child td:last-child { border-bottom-right-radius: 11px; }
+    .vc thead th:first-child { border-top-left-radius: 11px; }
+    .vc thead th:last-child { border-top-right-radius: 11px; }
+
+    /* =========================================================
+       D 绿轴表头：对齐终端视图表格语言（TE3）——
+       满宽、无壳、表头绿字 + 半透明绿重下线 + hover 行浅绿，
+       让气泡 / 终端两种视图的表格语义统一。
+       ========================================================= */
+    .vd {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: 100%; margin: 9px 0;
+    }
+    .vd th, .vd td {
+        padding: 5px 12px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vd th {
+        font-weight: 600; font-size: 12px;
+        color: var(--term-green);
+        border-bottom: 2px solid color-mix(in srgb, var(--term-green) 45%, transparent);
+    }
+    .vd tbody tr:hover td { background: color-mix(in srgb, var(--term-green) 6%, transparent); }
+    .vd tr:last-child td { border-bottom: none; }
+
+    /* =========================================================
+       E 斑马满宽：撑满 + 斑马主导，无壳无 hover 依赖，
+       多行密集数据扫读最省力（上轮 T4 的改良版）。
+       ========================================================= */
+    .ve {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: 100%; margin: 9px 0;
+    }
+    .ve th, .ve td {
+        padding: 6px 12px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .ve th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px solid var(--border-strong);
+    }
+    .ve tbody tr:nth-child(even) td { background: var(--zebra); }
+    .ve tbody tr:hover td { background: var(--bg-hover); }
+    .ve tr:last-child td { border-bottom: none; }
+
+    /* ===== 新增变量（第二轮 F-J 用） ===== */
+    :root { --bg-active: rgba(230, 237, 243, 0.10); --dash: rgba(255, 255, 255, 0.13); }
+    body.light-theme { --bg-active: #e4e9ee; --dash: #c4cdd6; }
+
+    /* =========================================================
+       F 行卡片式：每行一张独立圆角小卡（行间 5px 空隙），
+       表头退化为纯文字小标签，hover 整行提亮（Linear / Vercel 风）。
+       ========================================================= */
+    .vf {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0 5px;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+    }
+    .vf th {
+        padding: 2px 13px; text-align: left;
+        font-weight: 600; font-size: 11.5px; letter-spacing: 0.2px;
+        color: var(--text-secondary);
+    }
+    .vf td {
+        padding: 7px 13px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        background: var(--bg-hover);
+        border-top: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vf td:first-child { border-left: 1px solid var(--border-color); border-radius: 8px 0 0 8px; }
+    .vf td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8px 8px 0; }
+    .vf tbody tr:hover td { background: var(--bg-active); }
+
+    /* =========================================================
+       G 玻璃拟态：半透明浅底 + backdrop-blur + 内高光"玻璃壳"，
+       与输入框 / 面板玻璃质感同语言；hover 行反馈。
+       ========================================================= */
+    .vg {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.025);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    body.light-theme .vg {
+        border-color: rgba(31, 35, 40, 0.10);
+        background: rgba(255, 255, 255, 0.60);
+        box-shadow: 0 4px 16px rgba(31, 35, 40, 0.06);
+    }
+    .vg th, .vg td {
+        padding: 7px 13px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vg th { font-weight: 600; font-size: 11.5px; letter-spacing: 0.2px; color: var(--text-secondary); }
+    .vg tbody tr:hover td { background: rgba(255, 255, 255, 0.045); }
+    body.light-theme .vg tbody tr:hover td { background: rgba(31, 35, 40, 0.030); }
+    .vg tr:last-child td { border-bottom: none; }
+    .vg tr:last-child td:first-child { border-bottom-left-radius: 11px; }
+    .vg tr:last-child td:last-child { border-bottom-right-radius: 11px; }
+
+    /* =========================================================
+       H 无线留白：全部去线，只靠列对齐与留白分隔，
+       表头为弱化小字，hover 微提示。视觉零负担，适合小表。
+       ========================================================= */
+    .vh {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+    }
+    .vh th {
+        padding: 4px 18px 4px 0; text-align: left;
+        font-weight: 600; font-size: 11.5px; letter-spacing: 0.3px;
+        color: var(--text-muted);
+    }
+    .vh td {
+        padding: 7px 18px 7px 0; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+    }
+    .vh tbody tr:hover td { background: var(--bg-hover); }
+
+    /* =========================================================
+       I 强调首列：保留卡壳，第一列升级为"行表头"
+       （加粗 + 浅底 + 竖分隔），键 → 值 映射结构，宽表定位首列最快。
+       ========================================================= */
+    .vi {
+        display: block; overflow-x: auto;
+        border-collapse: separate; border-spacing: 0;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+    }
+    .vi th, .vi td {
+        padding: 6px 12px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .vi th {
+        font-weight: 600; font-size: 11.5px; letter-spacing: 0.2px;
+        color: var(--text-secondary);
+        border-bottom: 2px solid var(--border-strong);
+    }
+    .vi td:first-child {
+        font-weight: 600; color: var(--text-primary);
+        background: var(--bg-hover);
+        border-right: 1px solid var(--border-color);
+    }
+    .vi tbody tr:hover td { background: var(--bg-hover); }
+    .vi tbody tr:hover td:first-child { background: var(--bg-active); }
+    .vi tr:last-child td { border-bottom: none; }
+    .vi tr:last-child td:first-child { border-bottom-left-radius: 9px; }
+    .vi tr:last-child td:last-child { border-bottom-right-radius: 9px; }
+
+    /* =========================================================
+       J 虚线墨点：行线 / 表头线改虚线，呼应终端视图 hr 虚线语言，
+       比实线轻盈，带"工程图纸"味；hover 行反馈。
+       ========================================================= */
+    .vj {
+        display: block; overflow-x: auto;
+        border-collapse: collapse;
+        width: fit-content; max-width: 100%;
+        margin: 9px 0;
+    }
+    .vj th, .vj td {
+        padding: 6px 13px; text-align: left;
+        white-space: nowrap; font-size: 12.5px;
+        border-bottom: 1px dashed var(--dash);
+    }
+    .vj th {
+        font-weight: 600; color: var(--text-primary);
+        border-bottom: 2px dashed var(--dash);
+    }
+    .vj tbody tr:hover td { background: var(--bg-hover); }
+    .vj tr:last-child td { border-bottom: none; }
+
+    .foot-note {
+        max-width: 860px; margin: 40px auto 0;
+        font-size: 12px; color: var(--text-muted);
+        border-top: 1px solid var(--border-color);
+        padding-top: 14px; line-height: 1.8;
+    }
+    .foot-note b { color: var(--text-secondary); }
+    .foot-note code {
+        background: var(--bg-inline-code); padding: 1px 5px;
+        border-radius: 4px; font-size: 11px;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        color: var(--text-code-hl);
+    }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <div>
+        <h1>Table 设计选型 v2 · 气泡模式</h1>
+        <p>Markdown 表格优化 · 现状对照 + 十个方向 · 宽窄双表实测 · 右上角切换深 / 浅主题</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== V0 现状 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag now">现状</span><h2>线上样式（对照基准）</h2></div>
+    <div class="variant-desc">圆角卡壳 + fit-content + 浅底大写表头 + 斑马纹。问题：<b>表头 uppercase 对中文无效且英文观感偏"后台系统"</b>；表头浅底 + 斑马 + 卡壳三层装饰叠加偏重；暗色下外框 0.05 透明度几乎不可见；无 hover 反馈。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="v0">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（窄列挤压换行 → 现状的行高失衡问题）</div>
+        <table class="v0">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== A 现状精修 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">A</span><h2>现状精修</h2></div>
+    <div class="variant-desc">保留圆角卡壳与斑马的整体骨架，其余做减法：<b>表头去大写、去浅底，改加重下线</b>；卡壳边框提亮一档（暗色下可见）；斑马减淡、补 hover 行反馈；单元格统一 12.5px 与代码块同字号。改动最小、风险最低。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="va">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（nowrap + 横向滚动，不再挤压换行）</div>
+        <table class="va">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== B 墨线极简 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">B</span><h2>墨线极简</h2></div>
+    <div class="variant-desc">彻底去壳去底，只留横线语言（Notion / Typora 风）：<b>表头主色文字 + 2px 重下线</b>，行间 1px 细线，hover 行反馈，fit-content 按内容收缩。视觉最轻、与正文融合度最高，长回答里多表连排也不显压迫。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vb">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="vb">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== C 浮层卡片 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">C</span><h2>浮层卡片</h2></div>
+    <div class="variant-desc">圆角壳 + 投影的"浮起"处理：<b>层级感最强</b>，表格像一张独立卡片放在回答流上。表头无浅底、主色文字 + 重下线；hover 行反馈替代斑马。适合表格是回答主体（如对比评测类）的场景，但多表连排时存在感偏强。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vc">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="vc">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== D 绿轴表头 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">D</span><h2>绿轴表头（对齐终端视图）</h2></div>
+    <div class="variant-desc">直接复用终端视图已定稿的表格语言（TE3）：<b>满宽、无壳、表头绿字 + 半透明绿重下线 + hover 行浅绿</b>。气泡 / 终端两种视图的表格语义完全统一，绿色轴也与项目 token 热力图体系呼应；代价是表格带色彩倾向，日间石墨风下绿色仅作语义点缀。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vd">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="vd">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== E 斑马满宽 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">E</span><h2>斑马满宽</h2></div>
+    <div class="variant-desc">撑满内容列 + 斑马纹主导，无壳、无 hover 依赖：<b>多行密集数据横向扫读最省力</b>（上轮 T4 改良版：表头去大写、斑马减淡、补 hover）。适合"表格即答案"的数据型回答；窄表撑满会显得空，是唯一强制满宽的方案。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="ve">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="ve">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== F 行卡片式 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">F</span><h2>行卡片式</h2></div>
+    <div class="variant-desc">每行是一张独立的圆角小卡（行间 5px 空隙），表头退化为纯文字小标签，hover 整行提亮。<b>「逐条」的阅读感最强</b>（Linear / Vercel 风），行边界清晰不串行；代价是纵向密度低于传统表格，长表更占高度。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vf">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动，行卡片随内容收缩）</div>
+        <table class="vf">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== G 玻璃拟态 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">G</span><h2>玻璃拟态</h2></div>
+    <div class="variant-desc">半透明浅底 + backdrop-blur + 内高光组成的「玻璃壳」，与输入框 / 面板的玻璃质感同一语言；hover 行反馈。<b>暗色下浮起质感最细腻</b>，浅色下退化为极浅灰卡。代价：backdrop-filter 有渲染成本，且与代码块同为「容器」时层级区分偏弱。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vg">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="vg">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== H 无线留白 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">H</span><h2>无线留白</h2></div>
+    <div class="variant-desc">全部去线，只靠列对齐与留白分隔，表头是弱化小字，hover 仅微弱提示。<b>视觉零负担</b>，最接近「排过版的文字」；代价是无参考线，列多或行多时容易扫串行，适合 3~5 列的小表。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vh">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动，无线风格下列对齐是唯一参照）</div>
+        <table class="vh">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== I 强调首列 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">I</span><h2>强调首列</h2></div>
+    <div class="variant-desc">保留卡壳，把第一列升级为「行表头」：加粗 + 浅底 + 竖分隔线，形成 键 → 值 的映射结构。<b>首列实体（模型名 / 接口名）在宽表横向滚动时定位最快</b>，适合参数、配置、对比类键值表；纯数据罗列的表格则显得第一列过重。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vi">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动，首列加粗便于定位行）</div>
+        <table class="vi">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== J 虚线墨点 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">J</span><h2>虚线墨点</h2></div>
+    <div class="variant-desc">行线与表头线全部改虚线，呼应终端视图 hr 的虚线语言，比实线更轻盈，带一点「工程图纸」味；hover 行反馈。代价：<b>密集行下虚线略显琐碎</b>，正式感略低于实线方案。</div>
+    <div class="chat">
+        <p>主流模型定价对比如下：</p>
+        <table class="vj">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价 / 1K</th><th>输出价 / 1K</th><th>流式</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02</td><td>¥0.06</td><td><code>stream</code></td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001</td><td>¥0.002</td><td><code>stream</code></td></tr>
+                <tr><td>claude-sonnet-4</td><td>200K</td><td>¥0.024</td><td>¥0.12</td><td><code>stream</code></td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（横向滚动）</div>
+        <table class="vj">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>关键参数</th><th>返回</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>Session</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+                <tr><td>上传附件</td><td>POST</td><td>/api/attachments</td><td>file</td><td>Attachment</td><td>Bearer</td><td>10 / min</td><td>赵强</td></tr>
+                <tr><td>删除会话</td><td>DELETE</td><td>/api/sessions/:id</td><td>-</td><td>204</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="foot-note">
+    <b>通用优化点（A-J 全部包含）：</b>① 表头去 <code>uppercase</code> 与浅底（中文表头下 uppercase 无意义，浅底是现状观感偏重的主因）；② 单元格字号统一 12.5px，与代码块一致，避免表格比正文抢眼；③ 单元格 <code>white-space: nowrap</code> + 表级 <code>overflow-x: auto</code>——宽表横向滚动而非挤压换行（修掉现状行高失衡问题）；④ 保留 <code>width: fit-content</code>（D / E 为满宽除外）；⑤ 行内 <code>code</code> 沿用气泡现有内联代码样式。<br>
+    <b>可混搭：</b>例如「A 的卡壳 + D 的绿表头」「B 的墨线 + I 的强调首列」「F 的行卡片 + J 的虚线」都可以说明，选定后我再出终稿并落地到 <code>index.css</code>。
+</div>
+
+</body>
+</html>

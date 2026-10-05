@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代码块重设计 v3 · 字体与色板 · Qualia</title>
+<style>
+    /* ===== 主题变量（对齐 qualia-code 前端石墨工程体系） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.05);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --icon-hover: rgba(255, 255, 255, 0.09);
+        --copy-ok: #3fb950;
+
+        /* CUR：atom-one-dark 色板（现役，偏灰紫） */
+        --c-kw: #c678dd; --c-str: #98c379; --c-fn: #61afef; --c-cm: #5c6370; --c-num: #d19a66; --c-base: #abb2bf;
+        /* A/B：GitHub Dark 官方语法色（函数去紫化 → 项目绿轴 #7ee787） */
+        --a-kw: #ff7b72; --a-str: #a5d6ff; --a-fn: #7ee787; --a-cm: #8b949e; --a-num: #79c0ff; --a-base: #e6edf3;
+        --b-base: #f0f6fc; --b-cm: #9ea7b3;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #d0d7de;
+        --code-bg: #eef1f4;
+        --line: #d0d7de;
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --icon-hover: rgba(31, 35, 40, 0.08);
+        --copy-ok: #1a7f37;
+
+        /* CUR：atom-one-light 色板（现役） */
+        --c-kw: #a626a4; --c-str: #50a14f; --c-fn: #4078f2; --c-cm: #a0a1a7; --c-num: #b76b01; --c-base: #383a42;
+        /* A/B：GitHub Light 官方语法色（函数去紫化 → #116329） */
+        --a-kw: #cf222e; --a-str: #0a3069; --a-fn: #116329; --a-cm: #6e7781; --a-num: #0550ae; --a-base: #1f2328;
+        --b-base: #1f2328; --b-cm: #57606a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+
+    /* ===== 版本区块 ===== */
+    .vblock { margin-bottom: 46px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: rgba(128, 144, 168, 0.15); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    body[data-theme="light"] .vblock > header .no { background: rgba(31, 35, 40, 0.07); }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 12px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+
+    /* token 色卡 */
+    .swatches { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px; }
+    .swatches span {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-3);
+    }
+    .swatches i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+    /* ===== 代码块公共（线框式容器，与现役 V4 定稿同构，本稿不动结构） ===== */
+    .cw {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    }
+    .cw .head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 10px 7px 14px;
+        border-bottom: 1px solid var(--line);
+    }
+    .cw .lang {
+        font-family: inherit; font-size: 11px; letter-spacing: 0.4px;
+        color: var(--text-2);
+    }
+    .cw pre {
+        margin: 0; padding: 13px 16px;
+        overflow-x: auto;
+        line-height: 1.7;
+    }
+    .kw { color: var(--c-kw); } .str { color: var(--c-str); } .fn { color: var(--c-fn); }
+    .cm { color: var(--c-cm); font-style: italic; } .num { color: var(--c-num); }
+    .cw pre { color: var(--c-base); }
+
+    /* 复制按钮 */
+    .cp {
+        width: 24px; height: 24px; flex: 0 0 24px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 6px; cursor: pointer;
+        background: transparent; color: var(--text-2);
+        transition: background 0.15s, color 0.15s, opacity 0.15s;
+        opacity: 0;
+    }
+    .cw:hover .cp { opacity: 1; }
+    .cp:hover { background: var(--icon-hover); color: var(--text-1); }
+    .cp svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .cp .tick { display: none; font-size: 12px; font-weight: 700; }
+    .cp.ok { color: var(--copy-ok); }
+    .cp.ok svg { display: none; }
+    .cp.ok .tick { display: block; }
+
+    /* ===== CUR 现役排版参数：11.5px / 400 ===== */
+    .cur pre { font-size: 11.5px; font-weight: 400; }
+
+    /* ===== A 墨线加重：12.5px / 500 + GitHub 色板 ===== */
+    .va .lang { font-weight: 500; }
+    .va pre { font-size: 12.5px; font-weight: 500; color: var(--a-base); }
+    .va .kw { color: var(--a-kw); } .va .str { color: var(--a-str); } .va .fn { color: var(--a-fn); }
+    .va .cm { color: var(--a-cm); } .va .num { color: var(--a-num); }
+
+    /* ===== B 高亮顶格：13px / 500 + 基础色再提亮一档 ===== */
+    .vb .lang { font-weight: 600; font-size: 11.5px; }
+    .vb pre { font-size: 13px; font-weight: 500; line-height: 1.75; color: var(--b-base); }
+    .vb .kw { color: var(--a-kw); } .vb .str { color: var(--a-str); } .vb .fn { color: var(--a-fn); }
+    .vb .cm { color: var(--b-cm); } .vb .num { color: var(--a-num); }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+</style>
+</head>
+<body data-theme="dark">
+    <div class="bar">
+        <h1>代码块重设计 v3<small>字体加重 · GitHub 色板去紫化 · 深浅主题</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- 现役对照 -->
+        <section class="vblock">
+            <header><span class="no">CUR</span><h2>现役排版（对照）</h2></header>
+            <p class="desc">11.5px / 400 常规字重，atom-one 色板：基础色 <b>#abb2bf 灰紫</b>、关键字紫、函数蓝。<b>字号小、字重轻、色板淡</b>，即本次要解决的「太细、不鲜艳」。</p>
+            <div class="swatches">
+                <span><i style="background:#c678dd"></i>kw #c678dd</span>
+                <span><i style="background:#98c379"></i>str #98c379</span>
+                <span><i style="background:#61afef"></i>fn #61afef</span>
+                <span><i style="background:#5c6370"></i>cm #5c6370</span>
+                <span><i style="background:#d19a66"></i>num #d19a66</span>
+                <span><i style="background:#abb2bf"></i>base #abb2bf</span>
+            </div>
+            <div class="cw cur">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- A 墨线加重 -->
+        <section class="vblock">
+            <header><span class="no">A</span><h2>墨线加重（推荐）</h2></header>
+            <p class="desc">字号 <b>11.5 → 12.5px</b>、字重 <b>400 → 500</b>；色板换 <b>GitHub 官方语法色</b>，基础色提亮到 #e6edf3，关键字红、字符串亮蓝、数字天蓝。<b>函数色去紫化</b>，取项目绿轴 #7ee787。结构零改动，只换排版与色值。</p>
+            <div class="swatches">
+                <span><i style="background:#ff7b72"></i>kw #ff7b72</span>
+                <span><i style="background:#a5d6ff"></i>str #a5d6ff</span>
+                <span><i style="background:#7ee787"></i>fn #7ee787</span>
+                <span><i style="background:#8b949e"></i>cm #8b949e</span>
+                <span><i style="background:#79c0ff"></i>num #79c0ff</span>
+                <span><i style="background:#e6edf3"></i>base #e6edf3</span>
+            </div>
+            <div class="cw va">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+
+        <!-- B 高亮顶格 -->
+        <section class="vblock">
+            <header><span class="no">B</span><h2>高亮顶格</h2></header>
+            <p class="desc">A 的色板基础上再进一步：字号 <b>13px</b>、基础色提到 <b>#f0f6fc</b>（正文白），注释同步提亮，语言名加重。可读性顶格，但代码块在消息流里的视觉权重最大。</p>
+            <div class="swatches">
+                <span><i style="background:#ff7b72"></i>kw #ff7b72</span>
+                <span><i style="background:#a5d6ff"></i>str #a5d6ff</span>
+                <span><i style="background:#7ee787"></i>fn #7ee787</span>
+                <span><i style="background:#9ea7b3"></i>cm #9ea7b3</span>
+                <span><i style="background:#79c0ff"></i>num #79c0ff</span>
+                <span><i style="background:#f0f6fc"></i>base #f0f6fc</span>
+            </div>
+            <div class="cw vb">
+                <div class="head">
+                    <span class="lang">typescript</span>
+                    <button class="cp" title="复制代码"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span class="tick">✓</span></button>
+                </div>
+                <pre><span class="cm">// 计算 token 用量的日聚合统计</span>
+<span class="kw">export function</span> <span class="fn">aggregateDaily</span>(stats: <span class="fn">TokenStat</span>[]): <span class="fn">DailyUsage</span> {
+  <span class="kw">const</span> map = <span class="kw">new</span> <span class="fn">Map</span>&lt;<span class="fn">string</span>, <span class="fn">number</span>&gt;();
+  <span class="kw">for</span> (<span class="kw">const</span> s <span class="kw">of</span> stats) {
+    <span class="kw">const</span> day = s.timestamp.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+    map.<span class="fn">set</span>(day, (map.<span class="fn">get</span>(day) ?? <span class="num">0</span>) + s.totalTokens);
+  }
+  <span class="kw">return</span> [...map.<span class="fn">entries</span>()]
+    .<span class="fn">sort</span>(([a], [b]) =&gt; a.<span class="fn">localeCompare</span>(b))
+    .<span class="fn">map</span>(([date, tokens]) =&gt; ({ date, tokens }));
+}</pre>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        说明：容器沿用 V4 线框式定稿（细边框 + 无底色头部 + 10px 圆角），本稿不动结构，仅调字号 / 字重 / 色值。日间色板为 GitHub Light 官方色（fn 去紫化 → #116329），基础色 #1f2328 不变。落地时 hljs 主题由 atom-one 换为 github-dark / github-light 并叠加函数色覆盖，DOM 不动。
+    </footer>
+
+    <script>
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+        document.querySelectorAll('.cp').forEach(b => b.addEventListener('click', () => {
+            b.classList.add('ok');
+            setTimeout(() => b.classList.remove('ok'), 1200);
+        }));
+    </script>
+</body>
+</html>

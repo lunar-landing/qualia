@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更清单极简版 Vol.2</title>
+<!--
+  ============================================================
+  设计稿：变更清单 · 极简版 第二批
+  三要素不变（文件名 + 新建/修改 + 预览按钮），变化只在表达方式：
+
+    V4 · 左色条行    —— op 色收敛为 3px 刻度条，op 文字转灰（去彩化向）
+    V5 · 微染底色行  —— 整行铺 6~8% 透明度 op 色底，扫读分类最快
+    V6 · 空心徽标行  —— op 为描边小胶囊，比纯文字更「标签化」
+    V7 · 分组标题式  —— 按 op 分组，组头声明类型，行内只剩文件名+按钮
+    V8 · 图标按钮行  —— 预览按钮收为圆形 icon-only，行宽最窄
+
+  可交互：右上角切换日/夜间
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 主题变量（默认日间） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-stage: #eff2f5;
+        --bg-elev: #ffffff;
+        --bg-hover: #e9edf1;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #1a7f37;
+        --add-tint: rgba(26, 127, 55, 0.07);
+        --add-line: rgba(26, 127, 55, 0.42);
+        --mod: #0969da;
+        --mod-tint: rgba(9, 105, 218, 0.06);
+        --mod-line: rgba(9, 105, 218, 0.40);
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-stage: rgba(255, 255, 255, 0.02);
+        --bg-elev: #141922;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #3fb950;
+        --add-tint: rgba(63, 185, 80, 0.09);
+        --add-line: rgba(63, 185, 80, 0.48);
+        --mod: #4493f8;
+        --mod-tint: rgba(68, 147, 248, 0.08);
+        --mod-line: rgba(68, 147, 248, 0.46);
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 860px; margin: 0 auto 42px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-stage); border: 1px solid var(--border); border-radius: 18px;
+        padding: 26px 24px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ===== 消息语境 ===== */
+    .chat { width: 100%; max-width: 560px; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; margin-bottom: 12px; }
+
+    /* ===== 共用行骨架：文件名 · op · 预览按钮 ===== */
+    .fx-label {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+        font-size: 11px; color: var(--text-muted);
+    }
+    .fx-label .ln { flex: 1; height: 1px; background: var(--border-soft); }
+    .frow { display: flex; align-items: center; gap: 12px; }
+    .frow .fn { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
+    .frow .op { font-size: 11px; flex-shrink: 0; }
+    .frow .op.c { color: var(--add); }
+    .frow .op.m { color: var(--mod); }
+    .pv {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+        border: 1px solid var(--border); border-radius: 7px; background: transparent;
+        color: var(--text-secondary); font-size: 11px; padding: 3px 10px; flex-shrink: 0;
+        transition: border-color .12s, color .12s;
+    }
+    .pv:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+    /* ============================================================
+       V4 · 左色条行：op 色收敛为 3px 刻度，op 文字转灰
+       ============================================================ */
+    .v4 .frow {
+        position: relative; padding: 8px 10px 8px 14px; margin-left: -2px;
+        border-radius: 0 8px 8px 0;
+    }
+    .v4 .frow::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; }
+    .v4 .frow.c::before { background: var(--add); }
+    .v4 .frow.m::before { background: var(--mod); }
+    .v4 .frow:hover { background: var(--bg-hover); }
+    .v4 .op { color: var(--text-muted) !important; width: 30px; }
+
+    /* ============================================================
+       V5 · 微染底色行：整行铺超低透明度 op 色底
+       ============================================================ */
+    .v5 .frow { padding: 8px 12px; border-radius: 9px; margin-bottom: 6px; }
+    .v5 .frow.c { background: var(--add-tint); }
+    .v5 .frow.m { background: var(--mod-tint); }
+    .v5 .frow:hover { box-shadow: inset 0 0 0 1px var(--border-soft); }
+
+    /* ============================================================
+       V6 · 空心徽标行：op 为描边小胶囊
+       ============================================================ */
+    .v6 .op {
+        font-size: 10px; font-weight: 600; border-radius: 999px; padding: 1.5px 9px;
+        border: 1px solid transparent; background: transparent;
+    }
+    .v6 .op.c { color: var(--add); border-color: var(--add-line); }
+    .v6 .op.m { color: var(--mod); border-color: var(--mod-line); }
+    .v6 .frow { padding: 7px 2px; border-bottom: 1px solid var(--border-soft); }
+    .v6 .frow:last-child { border-bottom: none; }
+
+    /* ============================================================
+       V7 · 分组标题式：按 op 分组，行内不再重复 op
+       ============================================================ */
+    .gr-h {
+        display: flex; align-items: center; gap: 7px; margin: 10px 0 2px;
+        font-size: 10.5px; color: var(--text-muted);
+    }
+    .gr-h:first-child { margin-top: 0; }
+    .gr-h .oc { font-weight: 600; }
+    .gr-h .oc.c { color: var(--add); }
+    .gr-h .oc.m { color: var(--mod); }
+    .gr-h .ln { flex: 1; height: 1px; background: var(--border-soft); }
+    .v7 .frow { padding: 7px 2px; }
+    .v7 .frow .fn { margin-left: 12px; }
+
+    /* ============================================================
+       V8 · 图标按钮行：预览按钮收为圆形 icon-only
+       ============================================================ */
+    .v8 .frow { padding: 8px 2px; border-bottom: 1px solid var(--border-soft); }
+    .v8 .frow:last-child { border-bottom: none; }
+    .v8 .op { width: 30px; }
+    .pv-ic {
+        margin-left: auto; width: 26px; height: 26px; cursor: pointer; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--border); border-radius: 50%; background: transparent;
+        color: var(--text-secondary); transition: border-color .12s, color .12s;
+    }
+    .pv-ic:hover { border-color: var(--border-active); color: var(--text-primary); }
+    .pv-ic .ic { width: 13px; height: 13px; }
+
+    /* ===== 底部说明 ===== */
+    .notes {
+        max-width: 860px; margin: 4px auto 0; background: var(--bg-stage);
+        border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px;
+    }
+    .notes h2 { font-size: 15px; margin-bottom: 14px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .notes td { padding: 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更清单 · 极简版 Vol.2</h1>
+<p class="sub">
+    三要素不变：<em>文件名 · 新建/修改 · 预览按钮</em><br>
+    变化只在表达方式：<em>色条 · 染底 · 空心徽标 · 分组 · 图标按钮</em>
+</p>
+
+<!-- ==================== V4 · 左色条行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V4</span>
+        <span class="name">左色条行</span>
+    </div>
+    <p class="demo-desc">
+        op 色收敛为左侧 <em>3px 刻度条</em>，op 文字转灰。色彩面积比 Vol.1 的着色文字更小（去彩化向），
+        分类靠左缘扫读，垂直方向自然对齐成一条色带。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="fx-label">变更文件 · 2 <span class="ln"></span></div>
+                    <div class="v4">
+                        <div class="frow c">
+                            <span class="fn">login.html</span>
+                            <span class="op">新建</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow m">
+                            <span class="fn">main.ts</span>
+                            <span class="op">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">刻度条上下内缩 7px，不顶满行高 · 多行时左缘形成对齐色带 · 色弱场景建议保留灰色 op 文字兜底</p>
+</div>
+
+<!-- ==================== V5 · 微染底色行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V5</span>
+        <span class="name">微染底色行</span>
+    </div>
+    <p class="demo-desc">
+        整行铺 <em>6~8% 透明度的 op 色底</em>（新建淡绿 / 修改淡蓝），文字 op 同色。
+        分类一眼可辨、扫读最快；hover 时以 1px 内描边提示可交互，不加深底色。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="v5">
+                        <div class="frow c">
+                            <span class="fn">login.html</span>
+                            <span class="op c">新建</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow m">
+                            <span class="fn">main.ts</span>
+                            <span class="op m">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">透明度刻意压在 <code>10%</code> 以下，避免 Accent 面积超标 · 是 8 版中色彩面积最大的，其余均更克制</p>
+</div>
+
+<!-- ==================== V6 · 空心徽标行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V6</span>
+        <span class="name">空心徽标行</span>
+    </div>
+    <p class="demo-desc">
+        op 从纯文字升级为<em>描边小胶囊</em>（同色描边 + 同色文字，无填充底）。比 V1 更「标签化」，
+        又比实底徽标轻得多；hairline 分隔行与 Vol.1 V1 一致。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="fx-label">变更文件 · 2 <span class="ln"></span></div>
+                    <div class="v6">
+                        <div class="frow">
+                            <span class="fn">login.html</span>
+                            <span class="op c">新建</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow">
+                            <span class="fn">main.ts</span>
+                            <span class="op m">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">描边用 40% 左右透明度同色，避免生硬 · 胶囊宽度不固定，中英文 op 均适配</p>
+</div>
+
+<!-- ==================== V7 · 分组标题式 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V7</span>
+        <span class="name">分组标题式</span>
+    </div>
+    <p class="demo-desc">
+        换结构不换要素：按 op <em>分组</em>，组头声明「新建 · 1」「修改 · 1」（op 词着色 + hairline），
+        行内只剩文件名 + 预览按钮。文件多时免逐行辨认 op，是唯一随数量增益的形态。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="v7">
+                        <div class="gr-h"><span class="oc c">新建</span> · 1 <span class="ln"></span></div>
+                        <div class="frow">
+                            <span class="fn">login.html</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="gr-h"><span class="oc m">修改</span> · 1 <span class="ln"></span></div>
+                        <div class="frow">
+                            <span class="fn">main.ts</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">组头即图例 · 某组为空则整组省略 · 行内省掉 op 后行高更矮，文件名缩进 12px 与组头对齐</p>
+</div>
+
+<!-- ==================== V8 · 图标按钮行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V8</span>
+        <span class="name">图标按钮行</span>
+    </div>
+    <p class="demo-desc">
+        预览按钮收为 <em>26px 圆形 icon-only</em>（眼睛图标，hover 提示「预览」），行内水平空间最省，
+        视觉焦点完全让给文件名。牺牲一点可发现性，换最干净的排版。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">已完成登录页编写，可直接预览。</p>
+                    <div class="fx-label">变更文件 · 2 <span class="ln"></span></div>
+                    <div class="v8">
+                        <div class="frow">
+                            <span class="fn">login.html</span>
+                            <span class="op c">新建</span>
+                            <button class="pv-ic" title="预览">
+                                <svg class="ic" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div class="frow">
+                            <span class="fn">main.ts</span>
+                            <span class="op m">修改</span>
+                            <button class="pv-ic" title="预览">
+                                <svg class="ic" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec"><code>title</code> 提供 hover 提示 · 圆形 26px 与行高协调 · 可发现性弱于文字按钮，适合老用户熟练后</p>
+</div>
+
+<!-- ==================== 选型说明 ==================== -->
+<div class="notes">
+    <h2>选型说明（极简版 8 形态汇总）</h2>
+    <table>
+        <tr><th>形态</th><th>op 表达</th><th>容器</th><th>适合</th></tr>
+        <tr><td>V1 极简行</td><td>着色文字</td><td>hairline 行</td><td>默认形态，均衡</td></tr>
+        <tr><td>V2 胶囊行</td><td>着色文字</td><td>浅底圆角</td><td>暗色主题、行数多</td></tr>
+        <tr><td>V3 单行内联</td><td>着色文字（·分隔）</td><td>无</td><td>单文件微改动</td></tr>
+        <tr><td>V4 左色条</td><td>3px 刻度 + 灰字</td><td>hairline 行</td><td>去彩化偏好、多行色带扫读</td></tr>
+        <tr><td>V5 微染底色</td><td>着色文字 + 淡底</td><td>染色圆角行</td><td>需要最快分类扫读</td></tr>
+        <tr><td>V6 空心徽标</td><td>描边胶囊</td><td>hairline 行</td><td>想要标签感但保持轻</td></tr>
+        <tr><td>V7 分组标题</td><td>组头声明</td><td>分组 hairline</td><td>文件数多（≥4）时最优</td></tr>
+        <tr><td>V8 图标按钮</td><td>着色文字</td><td>hairline 行</td><td>极窄空间、熟练用户</td></tr>
+    </table>
+    <p style="margin-top:12px; font-size:11.5px; color:var(--text-secondary); line-height:1.8">
+        建议基座：<em>V1</em>（均衡耐看）；文件 ≥4 自动切 <em>V7</em> 分组；1 个文件回落 <em>V3</em>。
+        V4 / V5 是「去彩化 vs 快扫读」的两个极端，看你的取舍。
+    </p>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 会话存储键控化设计</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        padding: 36px 20px 90px;
+        font-size: 13px;
+    }
+
+    /* ===== 双主题变量：默认日间（石墨工程 GitHub 风），.dark 切换 ===== */
+    body {
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-code: #f6f8fa; --bg-code-head: #eff2f5;
+        --bg-table-head: #f6f8fa; --bg-table-row-alt: #fbfcfd;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --code-k: #cf222e; --code-s: #0a3069; --code-c: #6e7781;
+        --code-f: #8250df; --code-a: #953800; --code-n: #0550ae;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-code: #1d2230; --bg-code-head: #232a3a;
+        --bg-table-head: #1d2230; --bg-table-row-alt: #1a1f2b;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --danger: #f85149; --danger-bg: rgba(248,81,73,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --code-k: #ff7b72; --code-s: #a5d6ff; --code-c: #8b949e;
+        --code-f: #d2a8ff; --code-a: #ffa657; --code-n: #79c0ff;
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 960px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 30px; line-height: 1.7; }
+    .sub code, p code, td code, li code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ===== 卡片 ===== */
+    .card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 20px; box-shadow: var(--card-shadow);
+    }
+    .card > h2 {
+        font-size: 13.5px; font-weight: 700; margin-bottom: 4px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card > h2 .no {
+        width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+        background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 700;
+    }
+    .card > .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.7; }
+
+    /* ===== 表格 ===== */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+        text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700;
+        color: var(--text-secondary); background: var(--bg-table-head);
+        border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-table-row-alt); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 徽章 / 标签 ===== */
+    .tag { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 7px; letter-spacing: 0.3px; vertical-align: 1px; white-space: nowrap; }
+    .tag.new { background: var(--success-bg); color: var(--success); }
+    .tag.mod { background: var(--warning-bg); color: var(--warning); }
+    .tag.del { background: var(--danger-bg); color: var(--danger); }
+    .tag.keep { background: var(--bg-chip); color: var(--text-secondary); }
+    .tag.opt { background: var(--bg-chip); color: var(--text-muted); }
+
+    /* ===== 结论条 ===== */
+    .verdict {
+        display: flex; gap: 10px; align-items: flex-start;
+        background: var(--bg-inset); border: 1px solid var(--border);
+        border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.75; color: var(--text-secondary);
+    }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict.warn .dot { background: var(--warning); }
+    .verdict b { color: var(--text-primary); }
+
+    /* ===== 代码块 ===== */
+    .codeblock { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-code); }
+    .cb-head {
+        display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+        background: var(--bg-code-head); border-bottom: 1px solid var(--border);
+        font-size: 10.5px; font-weight: 600; color: var(--text-secondary);
+    }
+    .cb-head .dots { display: flex; gap: 4px; }
+    .cb-head .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .cb-head .file { font-family: Consolas, monospace; }
+    .cb-head .note { margin-left: auto; font-weight: 400; color: var(--text-muted); }
+    .cb-body { padding: 10px 14px; overflow: auto; max-height: 340px; }
+    .cb-body pre { font-family: Consolas, "JetBrains Mono", monospace; font-size: 11px; line-height: 1.75; color: var(--text-primary); }
+    .k { color: var(--code-k); } .s { color: var(--code-s); } .c { color: var(--code-c); }
+    .f { color: var(--code-f); } .a { color: var(--code-a); } .n { color: var(--code-n); }
+    .add { display: inline-block; width: 100%; background: var(--success-bg); }
+    .add::before { content: "+ "; color: var(--success); font-weight: 700; }
+    .rem { display: inline-block; width: 100%; background: var(--danger-bg); opacity: 0.85; }
+    .rem::before { content: "- "; color: var(--danger); font-weight: 700; }
+
+    /* ===== 双栏对比 / 栅格 ===== */
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .pane { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .pane h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+    .pane p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.75; }
+    .flow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10.5px; }
+    .flow .step { background: var(--bg-chip); border-radius: 6px; padding: 3px 8px; font-weight: 600; color: var(--text-primary); }
+    .flow .step.hot { background: var(--info-bg); color: var(--info); }
+    .flow .step.bad { background: var(--danger-bg); color: var(--danger); text-decoration: line-through; }
+    .flow .arr { color: var(--text-muted); }
+
+    /* ===== 列表 ===== */
+    ul.plain { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    ul.plain li { display: flex; gap: 9px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+    ul.plain li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    ul.plain b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 落地路线 ===== */
+    .rm-item { display: flex; gap: 12px; }
+    .rm-rail { display: flex; flex-direction: column; align-items: center; }
+    .rm-node {
+        width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+        border: 2px solid var(--accent); background: var(--bg-card);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9.5px; font-weight: 700; color: var(--text-primary);
+    }
+    .rm-line { width: 2px; flex: 1; background: var(--border); min-height: 22px; }
+    .rm-item:last-child .rm-line { display: none; }
+    .rm-body { padding: 1px 0 16px; }
+    .rm-body h4 { font-size: 12px; font-weight: 700; margin-bottom: 3px; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+    .rm-body p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; }
+    .rm-body code { font-family: Consolas, monospace; font-size: 10.5px; background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1>会话存储双轨化设计（qualia-code）</h1>
+<p class="sub">问答默认不绑定工作区（自由问答），也可主动绑定工作区；会话按归属双轨存储<br>qualia-core 零修改 · 存量数据惰性幂等迁移 · 详细修改逻辑说明</p>
+
+<div class="wrap">
+
+    <!-- 01 现状问题 -->
+    <div class="card">
+        <h2><span class="no">01</span>现状问题：路径硬编码在工作区目录内</h2>
+        <p class="desc">会话数据存于 <code>{workspace}/.qualia/sessions/{id}/</code>，同一条路径规则在产品层被独立拼装了三次，且启动允许 null 工作区。</p>
+        <table>
+            <tr><th style="width:250px">位置</th><th>现状逻辑</th><th style="width:230px">问题</th></tr>
+            <tr><td><b>ChatService.initialize()</b> L146</td><td><code>memoryDir = workspacePath.resolve(".qualia").resolve("sessions")</code></td><td rowspan="3" style="vertical-align:middle">口径分裂：改一处漏两处；会话数据（含最大 20MB 附件）落进项目目录，需 gitignore、有误提交风险，删项目即丢历史</td></tr>
+            <tr><td><b>ChatService.ensureMemory()</b> L359</td><td>同上（与上重复拼装）</td></tr>
+            <tr><td><b>AttachmentService.repositoryDir()</b></td><td><code>getCurrentWorkspace().resolve(".qualia").resolve("sessions")...</code> 第三处硬编码</td></tr>
+            <tr><td><b>WebApplication.startAsync()</b></td><td><code>currentWorkspace</code> 允许为 <code>null</code>（无历史时）</td><td>null 形态需要前端强制弹窗 + 后端空读/拒写拦截兜底</td></tr>
+            <tr><td><b>CodeAgentConfig.initWorkspace()</b></td><td>打开工作区即预建 <code>.qualia/memory</code>、<code>.qualia/skills</code></td><td>预建目录已无消费方（loader 容错），纯污染</td></tr>
+        </table>
+        <div class="verdict" style="margin-top:14px">
+            <span class="dot"></span>
+            <span>先例：<b>qualia-claw 已完成同类迁移</b>（<code>ClawWorkspace.getMemoryDir()</code> → <code>~/.qualia/claw/agents/{id}/memory</code>），动机记录在案——归属错位、面板污染、清空工作区丢历史。业界惯例一致（Claude Code / Cursor 均为全局存储按项目路径键控）。</span>
+        </div>
+    </div>
+
+    <!-- 02 改造前后对比 -->
+    <div class="card">
+        <h2><span class="no">02</span>改造前后总览：会话双轨存储</h2>
+        <p class="desc">问答默认不绑定工作区（自由问答），也可主动绑定；两种会话分轨存储，归属由目录位置表达。</p>
+        <div class="cols2">
+            <div class="pane">
+                <h3>改造前 <span class="tag del">现状</span></h3>
+                <p>会话一律跟随工作区目录；启动可 null，null 时强制弹窗锁死整个应用，选完才能聊——不存在「不绑定工作区的问答」。</p>
+                <div class="flow">
+                    <span class="step bad">null 启动</span><span class="arr">→</span>
+                    <span class="step bad">强制弹窗</span><span class="arr">→</span>
+                    <span class="step">选工作区</span><span class="arr">→</span>
+                    <span class="step bad">{ws}/.qualia/sessions</span>
+                </div>
+            </div>
+            <div class="pane">
+                <h3>改造后 <span class="tag new">目标</span></h3>
+                <p>新建会话默认自由问答（无需选工作区）；在项目下新建则绑定该项目。两条轨都存全局，工作区只留项目级配置。</p>
+                <div class="flow">
+                    <span class="step hot">默认：不绑定</span><span class="arr">→</span>
+                    <span class="step">~/.qualia/code/sessions/</span>
+                </div>
+                <div class="flow">
+                    <span class="step">主动绑定 workspace</span><span class="arr">→</span>
+                    <span class="step">workspaces/{key}/sessions/</span>
+                </div>
+            </div>
+        </div>
+        <div class="verdict" style="margin-top:14px">
+            <span class="dot"></span>
+            <span>核心原则：<b>归属由接口参数显式表达</b>——创建与发消息接口带可选 <code>workspace</code> 参数：null = 自由问答域，非 null = 按工作区键控域。后端不猜测归属，目录位置即归属。</span>
+        </div>
+    </div>
+
+    <!-- 03 目标布局 -->
+    <div class="card">
+        <h2><span class="no">03</span>目标目录布局：双轨</h2>
+        <p class="desc">单会话目录内部布局完全不变（记录、摘要、附件同域聚合，删会话即删目录），变的只是 sessions 根的位置与轨数（自由域 + 键控域）。</p>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">~/.qualia/code/ 目标布局</span><span class="note">v2 会话域聚合布局保持不变</span></div>
+            <div class="cb-body"><pre>~/.qualia/code/
+├── config.json                     <span class="c"># 不变：模型 / MCP 配置</span>
+├── workspaces.json                 <span class="c"># 不变：最近工作区历史（UI 展示，可清空，不联动数据）</span>
+├── sessions/                       <span class="c"># 新增：域 A —— 自由问答会话（默认，产品级，不键控）</span>
+│   └── {sessionId}/
+│       ├── session.json / summaries.json / files/   <span class="c"># 单会话布局与现状完全一致</span>
+└── workspaces/                     <span class="c"># 新增：域 B —— 按工作区键控的数据根（主动绑定的会话）</span>
+    └── {wsKey}/
+        ├── meta.json               <span class="c"># {"path": "D:\\Projects\\qualia", "lastOpened": ...}</span>
+        └── sessions/
+            └── {sessionId}/        <span class="c"># 单会话目录 —— 布局与现状完全一致</span>
+                ├── session.json    <span class="c"># 聊天记录</span>
+                ├── summaries.json  <span class="c"># 压缩摘要</span>
+                └── files/{附件id}/ <span class="c"># 附件（meta.json + payload）</span>
+
+<span class="c"># 工作区内保留（项目级配置，语义属于项目）：</span>
+{workspace}/.qualia/
+├── AGENT.md                        <span class="c"># 工作区级提示词（保留）</span>
+└── skills/                         <span class="c"># 工作区级技能（保留）</span>
+<span class="c"># sessions/ 迁出后不再出现；.qualia 迁空则删除</span></pre></div>
+        </div>
+        <div class="verdict" style="margin-top:14px">
+            <span class="dot"></span>
+            <span><code>workspaces.json</code>（历史）与 <code>workspaces/</code>（数据归属）职责分离、<b>不做合并</b>——历史可被用户清空，数据目录不能跟着删。归属由落盘目录表达，session 数据内不新增工作区字段。</span>
+        </div>
+    </div>
+
+    <!-- 04 工作区键 -->
+    <div class="card">
+        <h2><span class="no">04</span>工作区键（wsKey）派生规则</h2>
+        <p class="desc">路径 → 目录名的唯一映射，是键控存储的核心。编码保可读，哈希保唯一。</p>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">WorkspaceDataStore.wsKey()</span></div>
+            <div class="cb-body"><pre><span class="c">/** 工作区键：归一化 → Windows 小写 → 非法字符编码 → sha256 前 8 位防碰撞 */</span>
+<span class="k">static</span> <span class="n">String</span> <span class="f">wsKey</span>(<span class="n">Path</span> workspace) {
+    <span class="n">String</span> normalized = workspace.<span class="f">toAbsolutePath</span>().<span class="f">normalize</span>().<span class="f">toString</span>();
+    <span class="k">if</span> (<span class="n">IS_WINDOWS</span>) {
+        normalized = normalized.<span class="f">toLowerCase</span>();  <span class="c">// 与 WorkspaceHistory 大小写不敏感去重对齐</span>
+    }
+    <span class="n">String</span> encoded = normalized.<span class="f">replaceAll</span>(<span class="s">"[^A-Za-z0-9-]"</span>, <span class="s">"-"</span>);
+    <span class="n">String</span> hash8   = <span class="f">sha256Hex</span>(normalized).<span class="f">substring</span>(<span class="a">0</span>, <span class="a">8</span>);
+    <span class="k">return</span> encoded + <span class="s">"-"</span> + hash8;
+}</pre></div>
+        </div>
+        <table style="margin-top:14px">
+            <tr><th style="width:180px">方案</th><th>示例 / 问题</th><th style="width:90px">结论</th></tr>
+            <tr><td><b>纯路径编码</b></td><td><code>D:\Projects\qualia</code> → <code>D--Projects-qualia</code>；但 <code>D:\a b</code> 与 <code>D:\a-b</code> 编码同串（碰撞），超长路径受 MAX_PATH 限制</td><td><span class="tag opt">否决</span></td></tr>
+            <tr><td><b>纯哈希</b></td><td><code>3fa1b2c4d5...</code>；不可读，排查 / 手工清理困难</td><td><span class="tag opt">否决</span></td></tr>
+            <tr><td><b>编码 + 短哈希</b></td><td><code>d--projects-qualia-3fa1b2c4</code>；人眼可识别项目，哈希保证唯一，超长时可安全截断编码段</td><td><span class="tag new">采用</span></td></tr>
+        </table>
+        <div class="verdict warn" style="margin-top:14px">
+            <span class="dot"></span>
+            <span><code>meta.json</code> 落盘原始路径：键反查、聚合视图展示名称、孤儿目录识别（path 已失效可提示清理）三用途。</span>
+        </div>
+    </div>
+
+    <!-- 05 双轨路由与运行时 -->
+    <div class="card">
+        <h2><span class="no">05</span>双轨路由：默认不绑定，主动可绑定</h2>
+        <p class="desc">归属由接口参数显式表达，创建与发消息两处保持一致；后端按参数路由，不猜测归属。</p>
+        <table>
+            <tr><th style="width:120px">域</th><th style="width:210px">何时产生</th><th>存储路径</th><th style="width:250px">运行时</th></tr>
+            <tr>
+                <td><b>A 自由问答</b><br><span class="tag new">默认</span></td>
+                <td>新建会话<b>不指定</b> workspace</td>
+                <td><code>~/.qualia/code/sessions/{id}/</code></td>
+                <td>惰性创建<b>自由 Agent</b>：禁用全部文件类工具（无工作区根，读写无意义且有风险），保留全局技能 + 全局 AGENT.md</td>
+            </tr>
+            <tr>
+                <td><b>B 绑定工作区</b><br><span class="tag keep">可选</span></td>
+                <td>新建会话<b>显式指定</b> workspace</td>
+                <td><code>workspaces/{wsKey}/sessions/{id}/</code></td>
+                <td>按工作区实例化 Agent：文件工具 + 工作区技能/AGENT.md + 全局技能（对齐共存 P2 按项目多实例方向）</td>
+            </tr>
+        </table>
+        <div class="codeblock" style="margin-top:14px">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">接口与路由</span><span class="note">workspace 参数可选，两处一致</span></div>
+            <div class="cb-body"><pre><span class="c">// 创建会话：workspace 缺省 = 自由问答（域 A）</span>
+<span class="a">@PostMapping</span>(<span class="s">"/sessions"</span>)
+<span class="k">public</span> SessionInfo <span class="f">createSession</span>(<span class="a">@RequestParam</span>(required = <span class="k">false</span>) String workspace) { ... }
+
+<span class="c">// 发消息：workspace 与创建时保持一致，按域路由</span>
+<span class="a">@GetMapping</span>(<span class="s">"/stream"</span>)
+<span class="k">public</span> SseEmitter <span class="f">stream</span>(..., <span class="a">@RequestParam</span>(required = <span class="k">false</span>) String workspace) { ... }
+
+<span class="c">// 唯一路由入口：workspace == null → 域 A，非 null → 域 B 键控目录</span>
+<span class="k">static</span> <span class="n">Path</span> <span class="f">sessionDir</span>(<span class="n">Path</span> workspace, <span class="n">String</span> sessionId) {
+    <span class="k">return</span> workspace == <span class="k">null</span>
+            ? <span class="n">WorkspaceDataStore</span>.<span class="f">freeSessionsDir</span>().<span class="f">resolve</span>(sessionId)
+            : <span class="n">WorkspaceDataStore</span>.<span class="f">sessionsDir</span>(workspace).<span class="f">resolve</span>(sessionId);
+}</pre></div>
+        </div>
+        <ul class="plain" style="margin-top:14px">
+            <li><b>归属表达</b>：目录位置即归属，session 数据不加工作区字段；<code>getSessions</code> 合并两域返回——自由会话打 <code>free</code> 标，绑定会话带 <code>workspacePath</code>（前端按组展示，自由问答组置顶）。</li>
+            <li><b>启动语义简化</b>：不再需要默认工作区解析与强制弹窗——<b>null 焦点是正常稳态</b>（自由问答不需要工作区）；<code>currentWorkspace</code> 退化为纯「文件浏览焦点」，按需选择。</li>
+            <li><b>拦截重构</b>：<code>ChatController.noWorkspace()</code> 不再是「拒绝聊天」，chat 接口无工作区时走自由域；文件树 / 工作区技能等焦点类接口维持「需先选工作区」。</li>
+            <li><b>前端</b>：删除 <code>__qualiaNoWorkspace</code> 强制流，picker 降级普通入口；新建会话默认自由，在项目组内新建则自动带上该项目 workspace。</li>
+            <li><b>CLI 保持</b>：<code>--cli</code> 模式回退 <code>user.dir</code> 的现有行为不变（<code>-w</code> &gt; <code>user.dir</code>）。</li>
+        </ul>
+    </div>
+
+    <!-- 06 修改点总览 -->
+    <div class="card">
+        <h2><span class="no">06</span>修改点总览（文件级）</h2>
+        <p class="desc">全部改动落在 qualia-code 产品层与前端；qualia-core 零修改。</p>
+        <table>
+            <tr><th style="width:250px">文件</th><th style="width:70px">变更</th><th>内容</th></tr>
+            <tr><td><code>service/WorkspaceDataStore.java</code></td><td><span class="tag new">新增</span></td><td>唯一路径权威：<code>wsKey()</code> 键派生、<code>freeSessionsDir()</code>（域 A）、<code>sessionsDir()</code>（域 B）、<code>sessionDir()</code> 按域路由、<code>migrateIfLegacy()</code> 幂等迁移——三处硬编码的唯一替代口径</td></tr>
+            <tr><td><code>service/CodeWorkspace.java</code></td><td><span class="tag new">新增</span></td><td><code>extends LocalWorkspace</code>，覆写 <code>getMemoryDir()</code> 返回键控目录（对齐 claw 的 ClawWorkspace 模式）</td></tr>
+            <tr><td><code>service/ChatService.java</code></td><td><span class="tag mod">修改</span></td><td><code>initialize()</code>：建 Agent 改用 <code>CodeWorkspace</code>，删除 L146 手工拼装；<code>ensureMemory()</code>：删除 L359 拼装；新增惰性 <code>freeAgent</code>（禁文件类工具，memory 指向自由域目录）</td></tr>
+            <tr><td><code>service/AttachmentService.java</code></td><td><span class="tag mod">修改</span></td><td><code>repositoryDir()</code> 改调 <code>WorkspaceDataStore.sessionDir(workspace, sid)</code>（workspace 随请求透传，null = 自由域），删除硬编码</td></tr>
+            <tr><td><code>CodeAgentConfig.java</code></td><td><span class="tag del">删除</span></td><td><code>initWorkspace()</code> 整体删除（含调用点 L155）——停止预建 <code>.qualia/memory</code>、<code>.qualia/skills</code></td></tr>
+            <tr><td><code>WebApplication.java</code></td><td><span class="tag mod">修改</span></td><td><code>currentWorkspace</code> 保持可空语义但含义变化：null = 自由问答稳态（不再强制弹窗），非 null = 文件浏览焦点；无启动默认解析</td></tr>
+            <tr><td><code>web/ChatController.java</code></td><td><span class="tag mod">修改</span></td><td><code>noWorkspace()</code> 拦截重构：createSession / stream 增加可选 <code>workspace</code> 参数按域路由，getSessions 合并两域打标，chat 接口无工作区不再拒绝；文件类焦点接口维持「需先选工作区」</td></tr>
+            <tr><td><code>web/AttachmentController.java</code></td><td><span class="tag mod">修改</span></td><td>null 守卫改为按会话域路由：附件目录随请求的 workspace 走 <code>sessionDir()</code>（自由会话附件落域 A 的 <code>files/</code>）</td></tr>
+            <tr><td><code>static/index.html</code> + <code>project-panel.js</code></td><td><span class="tag mod">修改</span></td><td>删除 <code>__qualiaNoWorkspace</code> 启动检查与 forcedOpen 强制模式，picker 降级普通切换入口；会话列表新增「自由问答」组（置顶），项目组内新建自动携带 workspace</td></tr>
+            <tr><td><code>web/WorkspaceController.java</code></td><td><span class="tag keep">保持</span></td><td><code>/switch</code> 语义不变（切焦点 + 记历史）；迁移由 <code>sessionsDir()</code> 首次访问惰性触发，切换零成本</td></tr>
+            <tr><td><code>qualia-core/**</code></td><td><span class="tag keep">不改</span></td><td><code>Workspace</code> / <code>HarnessAgent</code> / <code>JsonMemory</code> 全部不动（见 08）</td></tr>
+        </table>
+    </div>
+
+    <!-- 07 迁移时序 -->
+    <div class="card">
+        <h2><span class="no">07</span>存量数据迁移（惰性 · 幂等）</h2>
+        <p class="desc">时机：<code>sessionsDir()</code> 首次访问时触发——打开即迁，未打开的工作区不动。与 claw <code>migrateLegacyMemory</code> 同款模式。</p>
+        <div class="flow" style="margin-bottom:14px">
+            <span class="step">sessionsDir(ws) 首次调用</span><span class="arr">→</span>
+            <span class="step">旧旧版 memory/ 并入</span><span class="arr">→</span>
+            <span class="step">旧版 sessions/ 逐会话搬移</span><span class="arr">→</span>
+            <span class="step">空目录清理</span><span class="arr">→</span>
+            <span class="step hot">返回全局键控目录</span>
+        </div>
+        <div class="codeblock">
+            <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">WorkspaceDataStore.migrateIfLegacy()</span><span class="note">四步，逐项搬移不覆盖</span></div>
+            <div class="cb-body"><pre><span class="c">/** 幂等迁移：工作区三代旧布局 → 全局键控目录（首次访问触发） */</span>
+<span class="k">static void</span> <span class="f">migrateIfLegacy</span>(<span class="n">Path</span> workspace, <span class="n">Path</span> targetSessions) {
+    <span class="n">Path</span> qualia = workspace.<span class="f">resolve</span>(<span class="s">".qualia"</span>);
+
+    <span class="c">// 1) 旧旧版 {ws}/.qualia/memory/* → 先并入 {ws}/.qualia/sessions/</span>
+    <span class="c">//    必须在产品层提前做：JsonMemory.migrateLegacyMemoryDir 依赖「父目录下有 memory/」，</span>
+    <span class="c">//    记忆目录迁到全局后 parent 变了，该逻辑会天然 no-op，失去迁移能力</span>
+
+    <span class="c">// 2) 旧版 {ws}/.qualia/sessions/{sid}/ 逐会话目录搬入 targetSessions/{sid}/</span>
+    <span class="c">//    目标已存在 = 已迁移过，跳过（中断重入安全，搬移不覆盖）</span>
+
+    <span class="c">// 3) 搬空删源目录；.qualia 只剩 AGENT.md / skills 则保留（项目级配置），全空则删</span>
+
+    <span class="c">// 4) 任一步 IOException → log.warn，本次直接使用 targetSessions 运行</span>
+    <span class="c">//    数据不销毁、留在原地，下次打开重试（与 claw 行为一致）</span>
+}</pre></div>
+        </div>
+        <div class="verdict warn" style="margin-top:14px">
+            <span class="dot"></span>
+            <span>迁移完成后旧路径<b>不再回读</b>；不做双写——两份真值必然漂移。删除会话 / 附件清理语义不变（仍删单会话目录）。</span>
+        </div>
+    </div>
+
+    <!-- 08 核心代码示意 -->
+    <div class="card">
+        <h2><span class="no">08</span>核心代码示意与 core 零修改依据</h2>
+        <p class="desc">新增两个类 + 三处收口；core 的覆写机制已存在且被 claw 验证。</p>
+        <div class="cols2">
+            <div class="codeblock">
+                <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">CodeWorkspace.java</span><span class="tag new" style="margin-left:auto">新增</span></div>
+                <div class="cb-body"><pre><span class="c">/** 会话记忆不落工作区内，跟随工作区键存全局 */</span>
+<span class="k">public class</span> <span class="n">CodeWorkspace</span> <span class="k">extends</span> <span class="n">LocalWorkspace</span> {
+    <span class="k">private final</span> <span class="n">Path</span> memoryDir;
+
+    <span class="k">public</span> <span class="f">CodeWorkspace</span>(<span class="n">Path</span> rootPath) {
+        <span class="f">super</span>(rootPath);
+        <span class="k">this</span>.memoryDir = <span class="n">WorkspaceDataStore</span>.<span class="f">sessionsDir</span>(rootPath);
+    }
+
+    <span class="a">@Override</span>
+    <span class="k">public</span> <span class="n">Path</span> <span class="f">getMemoryDir</span>() { <span class="k">return</span> memoryDir; }
+
+    <span class="c">// getSkillsDir() / getAgentFile() 不覆写：</span>
+    <span class="c">// 工作区级技能与 AGENT.md 保留（项目级配置语义）</span>
+}</pre></div>
+            </div>
+            <div class="codeblock">
+                <div class="cb-head"><span class="dots"><i></i><i></i><i></i></span><span class="file">ChatService.java</span><span class="tag mod" style="margin-left:auto">收口</span></div>
+                <div class="cb-body"><pre><span class="c">// initialize()：</span>
+<span class="rem">agent = <span class="k">new</span> <span class="n">HarnessAgent</span>(chatModel, <span class="k">new</span> <span class="n">LocalWorkspace</span>(workspacePath));</span>
+<span class="rem">memoryDir = workspacePath.<span class="f">resolve</span>(<span class="s">".qualia"</span>).<span class="f">resolve</span>(<span class="s">"sessions"</span>);</span>
+<span class="add">agent = <span class="k">new</span> <span class="n">HarnessAgent</span>(chatModel, <span class="k">new</span> <span class="n">CodeWorkspace</span>(workspacePath));</span>
+<span class="add">memoryDir = agent.<span class="f">getWorkspace</span>().<span class="f">getMemoryDir</span>();</span>
+
+<span class="c">// ensureMemory()：</span>
+<span class="rem">memoryDir = workspacePath.<span class="f">resolve</span>(<span class="s">".qualia"</span>).<span class="f">resolve</span>(<span class="s">"sessions"</span>);</span>
+<span class="add">memoryDir = <span class="k">new</span> <span class="n">CodeWorkspace</span>(workspacePath).<span class="f">getMemoryDir</span>();</span>
+memory = <span class="k">new</span> <span class="n">JsonMemory</span>(memoryDir);  <span class="c">// 构造不变，JsonMemory 无感知</span></pre></div>
+            </div>
+        </div>
+        <table style="margin-top:14px">
+            <tr><th style="width:230px">core 关注点</th><th style="width:70px">影响</th><th>依据</th></tr>
+            <tr><td><code>Workspace.getMemoryDir()</code> 默认实现</td><td><span class="tag keep">不改</span></td><td>默认值面向「core 当库直接嵌入」的调用方，会话随目录走是合理默认；覆写机制已存在（claw 先例）</td></tr>
+            <tr><td><code>HarnessAgent</code></td><td><span class="tag keep">不改</span></td><td>仅经 <code>workspace.getMemoryDir()</code> 取路径建 JsonMemory，对存储位置无感知</td></tr>
+            <tr><td><code>JsonMemory</code></td><td><span class="tag keep">不改</span></td><td>只认构造入参 memoryDir，天然支持任意位置；内部两级旧迁移在新位置天然 no-op</td></tr>
+            <tr><td><code>getSkillsDir()/getAgentFile()</code></td><td><span class="tag keep">不改</span></td><td>工作区级技能与 AGENT.md 保留在工作区，默认路径继续有效</td></tr>
+            <tr><td>null 语义</td><td><span class="tag keep">不引入</span></td><td>记忆目录是必需品（必建 JsonMemory），不像 skills/agentFile 有「返回 null 表示禁用」语义；未绑定由自由域兜底（独立 freeAgent + 产品级 <code>sessions/</code> 目录），core 不感知</td></tr>
+        </table>
+        <div class="verdict" style="margin-top:14px">
+            <span class="dot"></span>
+            <span><b>qualia-core 源码零修改</b>：本次全部代码在 qualia-code 产品层，符合既有分层惯例——claw 的记忆迁移同样只靠产品层 <code>ClawWorkspace</code> 覆写完成，core 保持通用默认。可选微调仅注释级（javadoc 补「记忆目录可与根分离」说明）。</span>
+        </div>
+    </div>
+
+    <!-- 09 连带影响 -->
+    <div class="card">
+        <h2><span class="no">09</span>连带影响：会话共存与文档同步</h2>
+        <p class="desc">键控化与「项目会话共存」设计正交且互相简化。</p>
+        <table>
+            <tr><th style="width:190px">项</th><th>原设计（共存文档）</th><th>键控化后</th></tr>
+            <tr><td><b>P1 <code>/sessions/all</code></b></td><td>遍历 <code>WorkspaceHistory.list()</code> + 逐项目探测 <code>{ws}/.qualia/sessions</code> 存在性</td><td><span class="tag mod">简化</span> 扫描 <code>workspaces/*/meta.json</code> 单树 + 合并自由域 <code>sessions/</code>；项目盘未挂载也能列出（组灰态不可续聊）</td></tr>
+            <tr><td><b>分组依据</b></td><td>工作区路径探测</td><td><span class="tag new">更稳</span> <code>meta.json.path</code></td></tr>
+            <tr><td><b>P2 <code>ChatServiceRegistry</code></b></td><td>按 <code>Path</code> 键控多实例</td><td><span class="tag keep">不冲突</span> 注册表键 = 工作区 Path，存储目录 = 同源派生 {key}</td></tr>
+            <tr><td><b>「存量零迁移」表述</b></td><td>依赖会话留在工作区</td><td><span class="tag mod">更新</span> 改为「惰性幂等迁移」</td></tr>
+        </table>
+        <ul class="plain" style="margin-top:14px">
+            <li><b>config-storage-paths.md</b>：目录全景树 + Qualia Code 布局表需加入 <code>workspaces/{key}/</code> 与托管默认目录 <code>workspace/</code>。</li>
+            <li><b>project-session-coexistence-design.md</b>：第 1 节「会话存储」现状、第 6 节「存量数据零迁移」两处表述同步更新。</li>
+        </ul>
+    </div>
+
+    <!-- 10 边界权衡 -->
+    <div class="card">
+        <h2><span class="no">10</span>边界与权衡（明示接受的代价）</h2>
+        <table>
+            <tr><th style="width:170px">场景</th><th>影响</th><th style="width:250px">评估</th></tr>
+            <tr><td><b>项目移动 / 改名</b></td><td>键失配产生孤儿会话目录</td><td>非回归：现状 <code>WorkspaceHistory</code> 同样按路径失配（移动即视作新工作区）；后续可加「meta.json.path 失效 → 提示重新关联」维护项</td></tr>
+            <tr><td><b>subst / symlink</b></td><td>不同归一化路径 = 不同键，会话分叉</td><td>与现状一致，接受</td></tr>
+            <tr><td><b>多设备同步</b></td><td>会话不随项目目录走</td><td>非回归：现状实际使用亦如此（无人把 .qualia 提交进 git）</td></tr>
+            <tr><td><b>Windows 大小写</b></td><td>键派生统一小写</td><td>与 WorkspaceHistory 去重规则对齐，不会因打开时大小写不同产生双目录</td></tr>
+            <tr><td><b>迁移失败</b></td><td>权限 / 文件占用导致搬移中断</td><td>warn 后用新目录继续，数据留原地下次重试；逐项搬移保证中断重入安全</td></tr>
+        </table>
+    </div>
+
+    <!-- 11 落地顺序 -->
+    <div class="card">
+        <h2><span class="no">11</span>落地顺序</h2>
+        <div class="roadmap">
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">1</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>路径权威与工作区类 <span class="tag new">新增</span></h4>
+                    <p><code>WorkspaceDataStore</code>（键派生 + sessionsDir + sessionDir + migrateIfLegacy）+ <code>CodeWorkspace</code>。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">2</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>三处收口 + 预建删除 <span class="tag mod">修改</span></h4>
+                    <p><code>ChatService</code> 两处赋值、<code>AttachmentService.repositoryDir</code>、删除 <code>CodeAgentConfig.initWorkspace()</code>。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">3</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>双轨接口与自由 Agent <span class="tag mod">修改</span></h4>
+                    <p><code>createSession</code>/<code>stream</code> 可选 <code>workspace</code> 参数按域路由；自由 Agent（禁文件工具）惰性创建；删除前端强制弹窗，picker 降级普通入口，侧边栏新增「自由问答」组。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">4</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>共存 P1 单树扫描 <span class="tag opt">可并入共存 P1</span></h4>
+                    <p><code>/sessions/all</code> 改为扫描 <code>workspaces/*/meta.json</code>，分组展示按 <code>meta.json.path</code>。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">5</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>文档同步 <span class="tag mod">修改</span></h4>
+                    <p><code>config-storage-paths.md</code>（布局表 + 全景树）、<code>project-session-coexistence-design.md</code>（第 1、6 节）。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">6</div></div>
+                <div class="rm-body">
+                    <h4>验证 <span class="tag keep">回归</span></h4>
+                    <p><code>mvn -pl qualia-code -am compile</code>；手工链路：无工作区直接自由问答（落域 A）→ 项目内新建绑定会话（落键控目录）→ 旧项目首次打开触发迁移 → 切换工作区 → 附件上传回读（两域）→ 删除会话（两域）。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

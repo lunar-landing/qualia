@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>t-banner 设计稿 C — ASCII 方块字符 QUALIA CODE</title>
+<style>
+  body {
+    --bg: #0d1117;
+    --text: #e6edf3;
+    --line: #21262d;
+    --faint: #8b949e;
+    --green: #7ee787;
+  }
+  body.light {
+    --bg: #f6f8fa;
+    --text: #24292f;
+    --line: #d0d7de;
+    --faint: #8c959f;
+    --green: #0f7b4f;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Sarasa Mono SC', 'Microsoft YaHei', monospace;
+    transition: background .25s, color .25s;
+    padding: 84px 24px 60px;
+  }
+
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    font-size: 12px; color: var(--faint);
+  }
+  .toolbar b { color: var(--text); font-size: 13px; }
+  .toolbar .sp { flex: 1; }
+  .toolbar button {
+    font: inherit; color: var(--faint);
+    background: none; border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 12px; cursor: pointer; transition: all .15s;
+  }
+  .toolbar button:hover { color: var(--green); border-color: var(--green); }
+  .toolbar button.on { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+
+  .sec-head { max-width: 700px; margin: 34px auto 14px; font-size: 12px; color: var(--faint); }
+  .sec-head b { color: var(--text); font-size: 13px; margin-right: 8px; }
+
+  .t-banner {
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 26px 20px 20px;
+    text-align: center;
+    max-width: 580px;
+    margin: 0 auto;
+  }
+
+  /* ===== ASCII 方块字（半块字符本身连体，笔画粗；缩小整体尺寸） ===== */
+  .logo-ascii { margin: 4px 0 0; }
+  .logo-ascii pre {
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.05;
+    letter-spacing: 0;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .ascii-w { color: var(--text); }   /* "白色"字符 */
+  .ascii-g { color: var(--green); }  /* 绿色字符 */
+  .cursor {
+    display: inline-block;
+    color: var(--green);
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  /* tagline：主句 + 能力点两行式 */
+  .t-banner .tag { margin-top: 16px; }
+  .t-banner .tag-main { font-size: 12.5px; color: var(--text); opacity: .85; letter-spacing: 1px; }
+  .t-banner .tag-sub { margin-top: 5px; font-size: 11px; color: var(--faint); }
+  .t-banner .tag-sub i { font-style: normal; color: var(--green); margin: 0 6px; }
+
+  .t-banner .hints {
+    margin-top: 18px;
+    display: inline-flex; flex-direction: column; align-items: stretch; gap: 1px;
+  }
+  .t-banner .hints-title {
+    font-size: 10.5px; color: var(--faint); opacity: .65;
+    letter-spacing: 2px; margin-bottom: 6px; text-align: center;
+  }
+  .t-banner .hint {
+    display: flex; align-items: center; gap: 12px;
+    color: var(--faint);
+    padding: 3px 12px; border-radius: 6px;
+    font: inherit; font-size: 12px;
+    background: none; border: none; cursor: pointer;
+    text-align: left; transition: all .15s;
+  }
+  .t-banner .hint:hover { background: color-mix(in srgb, var(--green) 10%, transparent); color: var(--text); }
+  .t-banner .hint .no {
+    font-size: 10px; color: var(--faint); opacity: .5;
+    transition: color .15s, opacity .15s;
+  }
+  .t-banner .hint:hover .no { color: var(--green); opacity: 1; }
+
+  .foot-note { max-width: 700px; margin: 14px auto 0; font-size: 11.5px; line-height: 1.8; color: var(--faint); }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <b>t-banner 设计稿 C</b><span>ASCII 半块字符 · █▀▄ 拼字 · 3 行文本 + 闪烁光标</span>
+    <span class="sp"></span>
+    <button id="btnDark" class="on">暗色</button>
+    <button id="btnLight">亮色</button>
+  </div>
+
+  <div class="sec-head"><b>C1</b>QUALIA 白色字符 + CODE 绿色字符，行尾终端光标</div>
+  <div class="t-banner">
+    <div class="logo-ascii"><pre data-q="w" data-c="g"></pre></div>
+    <div class="tag">
+      <div class="tag-main">工作区内的对话式编程终端</div>
+      <div class="tag-sub">对话 <i>·</i> 读写代码 <i>·</i> 运行命令</div>
+    </div>
+    <div class="hints">
+      <div class="hints-title">── 试试 ──</div>
+      <button class="hint"><span class="no">01</span>解释当前工作区的模块结构与依赖关系</button>
+      <button class="hint"><span class="no">02</span>修复一个已知缺陷，并补充回归测试</button>
+      <button class="hint"><span class="no">03</span>审查最近的改动，给出风险清单</button>
+    </div>
+  </div>
+
+  <div class="sec-head"><b>C2</b>QUALIA 绿色字符 + CODE 白色字符（反转变体）</div>
+  <div class="t-banner">
+    <div class="logo-ascii"><pre data-q="g" data-c="w"></pre></div>
+    <div class="tag">
+      <div class="tag-main">Conversational coding terminal inside your workspace</div>
+      <div class="tag-sub">chat <i>·</i> read/write code <i>·</i> run commands</div>
+    </div>
+    <div class="hints">
+      <div class="hints-title">── TRY ──</div>
+      <button class="hint"><span class="no">01</span>Explain the module structure and dependencies of this workspace</button>
+      <button class="hint"><span class="no">02</span>Fix a known defect and add regression tests</button>
+    </div>
+  </div>
+
+  <div class="foot-note">
+    说明：与前两稿共用同一套 5×5 像素字模，用半块字符（▀▄█）每行文本承载 2 行像素，5 行像素 → 3 行文本，字符 11px、61 列 ≈ 403px。<br>
+    纯文本实现：真实终端里可直接以 echo/figlet 输出，也方便 CLI 启动横幅复用；行尾闪烁方块光标保留终端气质。
+  </div>
+
+<script>
+const FONT = {
+  Q: ['11111','10001','10001','10011','11101'],
+  U: ['10001','10001','10001','10001','11111'],
+  A: ['11111','10001','11111','10001','10001'],
+  L: ['10000','10000','10000','10000','11111'],
+  I: ['11111','00100','00100','00100','11111'],
+  C: ['11111','10000','10000','10000','11111'],
+  O: ['11111','10001','10001','10001','11111'],
+  D: ['11110','10001','10001','10001','11110'],
+  E: ['11111','10000','11110','10000','11111'],
+};
+
+function wordRows(word) {
+  const rows = [];
+  for (let r = 0; r < 5; r++) {
+    let row = '';
+    for (const ch of word) row += FONT[ch][r] + '0';
+    rows.push(row.slice(0, -1));
+  }
+  return rows;
+}
+
+/* 上/下两行像素合成半块字符：█=上下均亮 ▀=仅上 ▄=仅下 空格=均暗 */
+function halfBlock(top, bottom) {
+  if (top === '1' && bottom === '1') return '█';
+  if (top === '1') return '▀';
+  if (bottom === '1') return '▄';
+  return ' ';
+}
+
+/* QUALIA 段 + 3 空格 + CODE 段，同一像素行内水平拼接后再按行对合成 3 行文本 */
+function renderAscii(pre) {
+  const w1 = wordRows('QUALIA');
+  const w2 = wordRows('CODE');
+  const gap = ' '.repeat(3);
+  const pixel = [0, 1, 2, 3, 4].map(r => w1[r] + gap + w2[r]);
+
+  /* 3 行文本：像素行 (0,1) (2,3) (4,空) */
+  const lines = [];
+  for (let p = 0; p < 5; p += 2) {
+    const bottom = pixel[p + 1] || ' '.repeat(pixel[p].length);
+    lines.push([...pixel[p]].map((t, i) => halfBlock(t, bottom[i])).join(''));
+  }
+
+  /* 输出：QUALIA 段与 CODE 段分 span 上色，行尾补闪烁光标 */
+  const w1Width = w1[0].length;
+  pre.innerHTML = lines.map(line => {
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return '<span class="ascii-' + pre.dataset.q + '">' + esc(line.slice(0, w1Width)) + '</span>'
+      + '<span class="ascii-' + pre.dataset.c + '">' + esc(line.slice(w1Width)) + '</span>'
+      + '<span class="cursor">█</span>';
+  }).join('\n');
+}
+
+document.querySelectorAll('.logo-ascii pre').forEach(renderAscii);
+
+const btnDark = document.getElementById('btnDark');
+const btnLight = document.getElementById('btnLight');
+function setTheme(light) {
+  document.body.classList.toggle('light', light);
+  btnDark.classList.toggle('on', !light);
+  btnLight.classList.toggle('on', light);
+}
+btnDark.onclick = () => setTheme(false);
+btnLight.onclick = () => setTheme(true);
+</script>
+</body>
+</html>

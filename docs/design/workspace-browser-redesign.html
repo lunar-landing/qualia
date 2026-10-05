@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 工作区浏览器重设计</title>
+<!--
+  ============================================================
+  设计稿：工作区面板「浏览器」Tab 重设计
+  现状问题：裸 iframe 无工具栏 —— 不显示文件路径、无刷新、
+  无法在文件夹中打开、无系统浏览器出口、空态无引导。
+
+  新版结构：工具栏（地址栏 + 动作钮） + 渲染区 + 空态引导
+    地址栏   ：mono 路径面包屑（工作区 › 目录 › 文件）或 URL
+    动作钮   ：刷新 / 在文件夹中打开 / 系统浏览器打开 / 复制路径
+    模式     ：文件（html 渲染）与网页（url）共用一套栏
+
+  后端依赖盘点（均为低成本）：
+    在文件夹中打开 → 平移 skills/{name}/reveal 的 explorer.exe 逻辑，
+                     新增 /api/config/file/reveal（/select 定位到文件）
+    系统浏览器打开 → window.open(rawFileUrl(path))，零后端
+    刷新          → 前端重挂 srcdoc / iframe reload，零后端
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== token 1:1 取自 index.css（默认日间） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --bg-codeblock: #eef1f4;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --link: #0969da;
+        --ok: #059669;
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --bg-codeblock: #0b0e14;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --link: #58a6ff;
+        --ok: #34d399;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.25s;
+        -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+    .ic { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border-color); background: var(--bg-app); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 34px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 900px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: #ffffff;
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin: 6px 0 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .spec { margin-top: 10px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+
+    /* ===== ws-panel 壳还原（工作区面板：header + tabs + pane） ===== */
+    .wsp {
+        border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden;
+        display: flex; flex-direction: column; height: 480px; background: var(--bg-app);
+    }
+    .wsp-head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-bottom: 1px solid var(--border-color); }
+    .wsp-head h4 { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+    .wsp-head .acts { margin-left: auto; display: flex; gap: 4px; }
+    .wsp-head .acts button {
+        width: 24px; height: 24px; border: none; background: transparent; border-radius: 6px;
+        color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .wsp-head .acts button:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .wsp-tabs { display: flex; gap: 2px; padding: 7px 11px 0; border-bottom: 1px solid var(--border-color); }
+    .wsp-tab {
+        display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+        border: none; background: transparent; color: var(--text-muted);
+        font-size: 11.5px; padding: 6px 11px; border-radius: 7px 7px 0 0;
+        border-bottom: 1.5px solid transparent; margin-bottom: -1px;
+    }
+    .wsp-tab.on { color: var(--text-primary); border-bottom-color: var(--text-primary); }
+    .wsp-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+    /* ============================================================
+       浏览器工具栏：地址栏 + 动作钮（新版核心）
+       ============================================================ */
+    .brw-bar {
+        display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+        padding: 7px 9px; border-bottom: 1px solid var(--border-color);
+    }
+    .brw-addr {
+        flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
+        background: var(--bg-hover); border: 1px solid transparent; border-radius: 7px;
+        padding: 5px 10px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        color: var(--text-secondary); overflow: hidden; white-space: nowrap;
+    }
+    .brw-addr:hover { border-color: var(--border-active); }
+    .brw-addr .aico { display: inline-flex; color: var(--text-muted); flex-shrink: 0; }
+    .brw-addr .aico.file { color: var(--accent-light); }
+    .crumb { display: inline-flex; align-items: center; gap: 6px; overflow: hidden; }
+    .crumb .seg { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+    .crumb .seg:hover { color: var(--text-primary); cursor: pointer; }
+    .crumb .cur { color: var(--text-primary); font-weight: 600; }
+    .crumb .sep { color: var(--text-muted); opacity: 0.55; flex-shrink: 0; }
+    .brw-addr .url { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; }
+
+    .brw-acts { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+    .bact {
+        width: 26px; height: 26px; cursor: pointer; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid transparent; border-radius: 7px; background: transparent;
+        color: var(--text-muted); transition: all 0.15s;
+    }
+    .bact:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-color); }
+    .bact.spin svg { animation: bspin 0.7s linear; }
+    @keyframes bspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+    /* 渲染区 + 沙箱脚注 */
+    .brw-view { flex: 1; min-height: 0; position: relative; background: var(--bg-codeblock); }
+    .brw-note {
+        flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+        padding: 5px 11px; border-top: 1px solid var(--border-color);
+        font-size: 10px; color: var(--text-muted);
+    }
+
+    /* 渲染区内的示意页面（login.html 效果） */
+    .fake-page { position: absolute; inset: 0; overflow: auto; display: flex; align-items: center; justify-content: center; }
+    .mini-login {
+        width: 230px; background: var(--bg-app); border: 1px solid var(--border-color);
+        border-radius: 12px; padding: 20px 20px 18px; box-shadow: 0 8px 26px rgba(0,0,0,0.10);
+    }
+    .mini-login h5 { font-size: 13.5px; margin-bottom: 3px; }
+    .mini-login .hint { font-size: 10px; color: var(--text-muted); margin-bottom: 13px; }
+    .mini-login input {
+        width: 100%; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-hover);
+        padding: 7px 10px; font-size: 11px; color: var(--text-primary); margin-bottom: 9px; outline: none;
+    }
+    .mini-login button {
+        width: 100%; border: none; border-radius: 8px; cursor: pointer;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 11.5px; font-weight: 600; padding: 8px 0;
+    }
+
+    /* 空态 */
+    .brw-empty {
+        position: absolute; inset: 0; display: flex; flex-direction: column; gap: 9px;
+        align-items: center; justify-content: center; color: var(--text-muted); font-size: 11.5px;
+    }
+    .brw-empty .big { font-size: 22px; opacity: 0.55; display: inline-flex; }
+    .brw-empty .subt { font-size: 10.5px; opacity: 0.75; }
+
+    /* ===== 方案 B：收纳式工具栏 ===== */
+    .more-btn {
+        width: 26px; height: 26px; cursor: pointer; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--border-color); border-radius: 7px; background: transparent;
+        color: var(--text-secondary); font-size: 12px; letter-spacing: 1px;
+    }
+    .more-btn:hover { border-color: var(--border-active); color: var(--text-primary); }
+    .menu {
+        position: absolute; right: 9px; top: 40px; z-index: 30; width: 168px;
+        background: var(--bg-app); border: 1px solid var(--border-color); border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.14); padding: 4px; display: none;
+    }
+    .menu.open { display: block; }
+    .menu button {
+        width: 100%; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left;
+        border: none; background: transparent; color: var(--text-secondary);
+        font-size: 11.5px; padding: 6px 9px; border-radius: 7px;
+    }
+    .menu button:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .menu .kbd { margin-left: auto; font-size: 9.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .wsp-pane { position: relative; }
+
+    /* toast */
+    .toast {
+        position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 11.5px; padding: 6px 14px; border-radius: 8px; opacity: 0; transition: opacity 0.2s;
+        pointer-events: none; z-index: 200;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ===== 设计说明 ===== */
+    .notes { max-width: 900px; margin: 4px auto 0; border: 1px solid var(--border-color); border-radius: 14px; padding: 20px 24px; }
+    .notes h2 { font-size: 15px; margin-bottom: 12px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--border-color); }
+    .notes td { padding: 7px 8px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>工作区浏览器 · 重设计</h1>
+<p class="sub">
+    裸 iframe 升级为<em>「地址栏 + 动作钮」工具栏</em>：路径可见 · 可刷新 · 可在文件夹中打开 · 可出系统浏览器<br>
+    文件（html 渲染）与网页（url）两种模式共用一套栏
+</p>
+
+<!-- ==================== 主方案 · 文件模式 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">主方案</span>
+        <span class="name">文件模式 · html 预览</span>
+    </div>
+    <p class="demo-desc">
+        地址栏为 <em>mono 路径面包屑</em>（工作区名 › 目录 › 文件，末段加粗），右侧四个动作钮：
+        <em>刷新 · 在文件夹中打开 · 系统浏览器打开 · 复制路径</em>。底部一条 10px 沙箱脚注，说明相对路径资源不加载。
+        <em>可交互：试试刷新旋转与复制 toast。</em>
+    </p>
+    <div class="wsp">
+        <div class="wsp-head">
+            <h4>◈ 工作区</h4>
+            <div class="acts">
+                <button title="放大"><svg class="ic" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+                <button title="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+        </div>
+        <div class="wsp-tabs">
+            <span class="wsp-tab">审查</span>
+            <span class="wsp-tab">终端</span>
+            <span class="wsp-tab on">浏览器</span>
+        </div>
+        <div class="wsp-pane">
+            <div class="brw-bar">
+                <div class="brw-addr" title="D:\Projects\qualia\docs\design\login.html">
+                    <span class="aico file"><svg class="ic" viewBox="0 0 24 24"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9Z"/><path d="M13 3v6h6"/></svg></span>
+                    <span class="crumb">
+                        <span class="seg">qualia</span><span class="sep">›</span>
+                        <span class="seg">docs</span><span class="sep">›</span>
+                        <span class="seg">design</span><span class="sep">›</span>
+                        <span class="cur">login.html</span>
+                    </span>
+                </div>
+                <div class="brw-acts">
+                    <button class="bact" id="btnReload" title="刷新" onclick="spin(this)"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+                    <button class="bact" title="在文件夹中打开" onclick="toast('已定位到文件（explorer /select）')"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14l1.5-4.5A2 2 0 0 1 9.4 8H20a1 1 0 0 1 1 1.3L19.5 14M6 14h13.5M6 14l-1.6 4.8A1 1 0 0 0 5.3 20H19a1 1 0 0 0 1-.7"/><path d="M3 5h5l2 3"/></svg></button>
+                    <button class="bact" title="在系统浏览器打开" onclick="toast('window.open(rawFileUrl)')"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    <button class="bact" title="复制路径" onclick="toast('路径已复制')"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+                </div>
+            </div>
+            <div class="brw-view">
+                <div class="fake-page">
+                    <div class="mini-login">
+                        <h5>欢迎回来</h5>
+                        <p class="hint">登录你的 Qualia 账号</p>
+                        <input placeholder="用户名">
+                        <input placeholder="密码" type="password">
+                        <button>登 录</button>
+                    </div>
+                </div>
+            </div>
+            <div class="brw-note">
+                <svg class="ic" style="width:10px;height:10px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11v5"/></svg>
+                沙箱预览 · 相对路径引用的本地资源不加载
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        地址栏 pill = <code>bg-hover + mono 10.5px</code>（同 tool-chip 语言）· 动作钮 26px ghost，hover 出边框 ·
+        长路径中间段省略（<code>… › design › login.html</code>）
+    </p>
+</div>
+
+<!-- ==================== 网页模式 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">状态 2</span>
+        <span class="name">网页模式 · Agent 打开的外部页面</span>
+    </div>
+    <p class="demo-desc">
+        url 模式：地址栏左侧图标换 <em>globe</em>，内容显示来源 URL（省略号截断）；「在文件夹中打开」隐藏，
+        其余动作保留（刷新 = iframe reload）。
+    </p>
+    <div class="wsp" style="height:300px">
+        <div class="wsp-head">
+            <h4>◈ 工作区</h4>
+            <div class="acts">
+                <button title="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+        </div>
+        <div class="wsp-tabs">
+            <span class="wsp-tab">审查</span>
+            <span class="wsp-tab">终端</span>
+            <span class="wsp-tab on">浏览器</span>
+        </div>
+        <div class="wsp-pane">
+            <div class="brw-bar">
+                <div class="brw-addr">
+                    <span class="aico"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 5.6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-5.6-4-9s1.5-6.4 4-9Z"/></svg></span>
+                    <span class="url">https://docs.qualia.dev/guide/workspace.html</span>
+                </div>
+                <div class="brw-acts">
+                    <button class="bact" title="刷新"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+                    <button class="bact" title="在系统浏览器打开"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                    <button class="bact" title="复制链接"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+                </div>
+            </div>
+            <div class="brw-view">
+                <div class="brw-empty">
+                    <span class="big"><svg class="ic" style="width:24px;height:24px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 5.6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-5.6-4-9s1.5-6.4 4-9Z"/></svg></span>
+                    （此处为外部网页 iframe）
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">url 模式无「文件夹」钮与沙箱脚注 · 部分站点 X-Frame-Options 禁嵌时维持现有「阅读模式」兜底</p>
+</div>
+
+<!-- ==================== 空态 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">状态 3</span>
+        <span class="name">空态 · 引导</span>
+    </div>
+    <div class="wsp" style="height:240px">
+        <div class="wsp-head">
+            <h4>◈ 工作区</h4>
+            <div class="acts">
+                <button title="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+        </div>
+        <div class="wsp-tabs">
+            <span class="wsp-tab">审查</span>
+            <span class="wsp-tab">终端</span>
+            <span class="wsp-tab on">浏览器</span>
+        </div>
+        <div class="wsp-pane">
+            <div class="brw-view" style="flex:1">
+                <div class="brw-empty">
+                    <span class="big"><svg class="ic" style="width:24px;height:24px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 5.6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-5.6-4-9s1.5-6.4 4-9Z"/></svg></span>
+                    暂无浏览内容
+                    <span class="subt">点击消息中的「预览」，或让 Agent 打开网页</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 方案 B · 收纳式工具栏 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">方案 B</span>
+        <span class="name">收纳式工具栏（窄面板友好）</span>
+    </div>
+    <p class="demo-desc">
+        面板拖窄时动作收进 <em>「⋯」溢出菜单</em>，地址栏保持完整。桌面端面板常态 420px 下主方案即可放下；
+        B 作为响应式兜底（<em>可点击 ⋯ 查看菜单</em>）。
+    </p>
+    <div class="wsp" style="height:230px">
+        <div class="wsp-head"><h4>◈ 工作区</h4></div>
+        <div class="wsp-pane" style="flex:1">
+            <div class="brw-bar" style="position:relative">
+                <div class="brw-addr">
+                    <span class="aico file"><svg class="ic" viewBox="0 0 24 24"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9Z"/><path d="M13 3v6h6"/></svg></span>
+                    <span class="crumb">
+                        <span class="seg">…</span><span class="sep">›</span>
+                        <span class="cur">login.html</span>
+                    </span>
+                </div>
+                <button class="bact" title="刷新"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+                <button class="more-btn" id="moreBtn" onclick="toggleMenu()">⋯</button>
+                <div class="menu" id="moreMenu">
+                    <button onclick="toast('已定位到文件（explorer /select）')"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14l1.5-4.5A2 2 0 0 1 9.4 8H20a1 1 0 0 1 1 1.3L19.5 14M6 14h13.5M6 14l-1.6 4.8A1 1 0 0 0 5.3 20H19a1 1 0 0 0 1-.7"/><path d="M3 5h5l2 3"/></svg>在文件夹中打开</button>
+                    <button onclick="toast('window.open(rawFileUrl)')"><svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>系统浏览器打开</button>
+                    <button onclick="toast('路径已复制')"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>复制路径<span class="kbd">⌘C</span></button>
+                </div>
+            </div>
+            <div class="brw-view">
+                <div class="brw-empty"><span>（渲染区）</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 设计说明 ==================== -->
+<div class="notes">
+    <h2>设计说明</h2>
+    <table>
+        <tr><th>元素</th><th>行为</th><th>实现路径</th></tr>
+        <tr><td>地址栏</td><td>文件模式 = mono 路径面包屑（工作区 › 目录 › 文件，末段加粗、长路径中段省略）；网页模式 = URL 截断显示</td><td>纯前端，路径来自 preview 打开时携带的 path</td></tr>
+        <tr><td>刷新</td><td>文件模式重新拉取内容重挂 srcdoc；网页模式 iframe reload</td><td>零后端（preview store 内容重设 + seq 联动已有）</td></tr>
+        <tr><td>在文件夹中打开</td><td>系统文件管理器打开并选中该文件</td><td>新增 <em>/api/config/file/reveal</em>，平移现有 skills/{name}/reveal 的 explorer.exe 逻辑（/select 定位）</td></tr>
+        <tr><td>系统浏览器打开</td><td>新窗口打开原始文件</td><td>window.open(rawFileUrl(path))，零后端</td></tr>
+        <tr><td>复制路径</td><td>剪贴板写入完整路径 + toast 轻提示</td><td>纯前端</td></tr>
+        <tr><td>沙箱脚注</td><td>10px 提示「相对路径引用的本地资源不加载」</td><td>纯前端，仅文件模式显示</td></tr>
+    </table>
+    <p style="margin-top:11px; font-size:11.5px; color:var(--text-secondary); line-height:1.8">
+        落地注意：preview store 需从「只存 html/url」扩展为携带 <em>{ kind: 'file' | 'url', path?, url }</em>，
+        地址栏与按钮可见性由 kind 驱动；现有代码块预览（openHtml 无文件语义）地址栏显示「内联预览」占位或隐藏工具栏。
+    </p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+    /* 刷新按钮旋转反馈 */
+    function spin(btn) {
+        btn.classList.remove('spin');
+        void btn.offsetWidth;
+        btn.classList.add('spin');
+        toast('已重新加载');
+    }
+    /* toast 轻提示 */
+    let toastTimer = null;
+    function toast(text) {
+        const el = document.getElementById('toast');
+        el.textContent = text;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 1500);
+    }
+    /* 方案 B 溢出菜单 */
+    function toggleMenu() {
+        document.getElementById('moreMenu').classList.toggle('open');
+    }
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#moreBtn') && !e.target.closest('#moreMenu')) {
+            document.getElementById('moreMenu').classList.remove('open');
+        }
+    });
+</script>
+</body>
+</html>

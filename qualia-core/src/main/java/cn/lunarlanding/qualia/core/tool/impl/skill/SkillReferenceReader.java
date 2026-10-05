@@ -42,4 +42,10 @@ public class SkillReferenceReader extends FunctionTool {
 
         return content;
     }
+
+    /** 只读工具：仅读取技能附属文档，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

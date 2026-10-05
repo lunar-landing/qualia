@@ -95,4 +95,10 @@ public class GlobTool extends FunctionTool {
             return "错误：搜索失败 - " + e.getMessage();
         }
     }
+
+    /** 只读工具：仅按模式匹配文件路径，无副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

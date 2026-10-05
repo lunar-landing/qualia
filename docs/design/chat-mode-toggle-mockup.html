@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 会话双模式设计定稿（只读问答 / 智能体）</title>
+<style>
+    /* ============================================================
+       会话双模式设计稿 · 定稿版
+       路线：prompt 层工具过滤 + 执行兜底 + 提示词声明（请求级参数贯穿）。
+       对标：Claude Code plan mode（prompt+闸门）与 Codex sandbox（OS 隔离）
+       的取舍见 02 节；二期闭环（问答→执行一键切换）见 03 节标注。
+       ============================================================ */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+        /* 日间 · GitHub Light 近白基底 */
+        --bg-app: #f6f8fa;
+        --bg-card: #ffffff;
+        --bg-sub: #f6f8fa;
+        --bg-hover: #eff2f5;
+        --bg-code: #f6f8fa;
+        --line: #d0d7de;
+        --line-soft: #e4e8ec;
+        --tx: #1f2328;
+        --tx2: #59636e;
+        --tx3: #8c959f;
+        --accent: #0969da;
+        --accent-soft: rgba(9, 105, 218, 0.08);
+        --ok: #1a7f37;
+        --ok-soft: rgba(26, 127, 55, 0.09);
+        --no: #cf222e;
+        --no-soft: rgba(207, 34, 46, 0.08);
+        --warn: #9a6700;
+        --warn-soft: rgba(154, 103, 0, 0.09);
+        --shadow: 0 1px 3px rgba(31, 35, 40, 0.06), 0 8px 24px rgba(31, 35, 40, 0.05);
+        --mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+    }
+    body.dark {
+        --bg-app: #0d1117;
+        --bg-card: #161b22;
+        --bg-sub: #11161d;
+        --bg-hover: #1f2630;
+        --bg-code: #11161d;
+        --line: #30363d;
+        --line-soft: #21262d;
+        --tx: #e6edf3;
+        --tx2: #9198a1;
+        --tx3: #6e7681;
+        --accent: #4493f8;
+        --accent-soft: rgba(68, 147, 248, 0.12);
+        --ok: #3fb950;
+        --ok-soft: rgba(63, 185, 80, 0.12);
+        --no: #f85149;
+        --no-soft: rgba(248, 81, 73, 0.12);
+        --warn: #d29922;
+        --warn-soft: rgba(210, 153, 34, 0.12);
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app);
+        color: var(--tx);
+        line-height: 1.7;
+        padding: 48px 24px 96px;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .page-head { max-width: 1060px; margin: 0 auto 18px; }
+    .page-head h1 { font-size: 22px; font-weight: 650; letter-spacing: 0.2px; }
+    .page-head .sub { margin-top: 6px; font-size: 13px; color: var(--tx2); }
+    .page-head .sub code { font: 11.5px var(--mono); background: var(--bg-code); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+
+    .ctrl-bar { max-width: 1060px; margin: 0 auto 30px; display: flex; gap: 8px; align-items: center; }
+    .ctrl-btn {
+        font: 12px/1 inherit; padding: 6px 13px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line); background: var(--bg-card); color: var(--tx2);
+    }
+    .ctrl-btn.on { background: var(--tx); color: var(--bg-app); border-color: var(--tx); }
+
+    section { max-width: 1060px; margin: 0 auto 40px; }
+    .sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+    .sec-no { font: 600 12px/1 var(--mono); color: var(--accent); }
+    .sec-head h2 { font-size: 15.5px; font-weight: 650; }
+    .sec-head .hint { font-size: 12px; color: var(--tx3); }
+
+    .card {
+        background: var(--bg-card); border: 1px solid var(--line);
+        border-radius: 12px; box-shadow: var(--shadow);
+    }
+
+    /* ===== 01 模式定义 ===== */
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mode-card { padding: 18px 20px; }
+    .mode-card .m-head { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
+    .m-ico {
+        width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex: none;
+    }
+    .m-ico svg { width: 15px; height: 15px; }
+    .mode-card.agent .m-ico { background: var(--accent-soft); color: var(--accent); }
+    .mode-card.ask .m-ico { background: var(--ok-soft); color: var(--ok); }
+    .m-name { font-size: 14px; font-weight: 650; }
+    .m-badge {
+        margin-left: auto; font: 600 10.5px/1 var(--mono); padding: 4px 8px; border-radius: 5px;
+        background: var(--bg-sub); border: 1px solid var(--line-soft); color: var(--tx2);
+    }
+    .m-desc { font-size: 12.5px; color: var(--tx2); margin-bottom: 12px; }
+    .m-label { font-size: 11px; font-weight: 600; color: var(--tx3); margin: 10px 0 6px; letter-spacing: 0.4px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+        font: 11.5px/1 var(--mono); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line-soft);
+        background: var(--bg-sub); color: var(--tx2);
+    }
+    .chip.on { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
+    .chip.off { color: var(--no); border-color: transparent; background: var(--no-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
+    .chip.note { color: var(--warn); border-color: transparent; background: var(--warn-soft); }
+
+    /* ===== 02 对标分析 ===== */
+    .vs-card { overflow-x: auto; }
+    .vs-card table { min-width: 760px; }
+    .vs-card th:first-child { width: 130px; }
+    .vs-card td b { color: var(--tx); font-weight: 600; }
+    .takeaways { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .take { padding: 14px 16px; }
+    .take h3 { font-size: 12.5px; font-weight: 650; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .take h3 .v { font: 700 10px/1 var(--mono); border-radius: 4px; padding: 3px 6px; }
+    .take h3 .v.keep { color: var(--ok); background: var(--ok-soft); }
+    .take h3 .v.drop { color: var(--no); background: var(--no-soft); }
+    .take p { font-size: 12px; color: var(--tx2); }
+
+    /* ===== 03 交互演示 ===== */
+    .demo-wrap { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; align-items: start; }
+    .chatwin { overflow: hidden; }
+    .chat-head {
+        display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+        border-bottom: 1px solid var(--line-soft); background: var(--bg-sub);
+        font: 12px var(--mono); color: var(--tx3);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+    .chat-body { padding: 16px 18px 6px; min-height: 208px; }
+    .msg-user { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+    .msg-user .b {
+        max-width: 82%; background: var(--accent-soft); color: var(--tx);
+        border: 1px solid var(--line-soft); border-radius: 12px 12px 3px 12px;
+        padding: 8px 12px; font-size: 12.5px;
+    }
+    .msg-ai { margin-bottom: 8px; }
+    .steps { font: 11.5px/2 var(--mono); color: var(--tx2); margin-bottom: 8px; }
+    .steps .ln { display: flex; gap: 8px; }
+    .steps .pfx { color: var(--tx3); width: 14px; flex: none; }
+    .steps .t-ok { color: var(--ok); }
+    .steps .t-skip { color: var(--warn); }
+    .ans {
+        border-left: 2px solid var(--line); padding: 2px 0 2px 12px;
+        font-size: 12.5px; color: var(--tx);
+    }
+    .ans .ask-tag {
+        display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px/1 var(--mono);
+        color: var(--ok); background: var(--ok-soft); border-radius: 4px; padding: 3px 7px; margin-bottom: 6px;
+    }
+    .ans code { font: 11px var(--mono); background: var(--bg-code); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+    /* 二期闭环按钮示意 */
+    .exec-cta {
+        margin: 10px 0 4px 14px; display: inline-flex; align-items: center; gap: 7px;
+        border: 1px dashed var(--ok); color: var(--ok); background: transparent;
+        font: 600 11.5px/1 inherit; border-radius: 8px; padding: 7px 12px; opacity: 0.85;
+    }
+    .exec-cta .ph2 {
+        font: 700 9.5px/1 var(--mono); color: var(--warn); background: var(--warn-soft);
+        border-radius: 4px; padding: 2px 5px;
+    }
+    .cta-note { margin: 2px 0 0 14px; font-size: 11px; color: var(--tx3); }
+    /* 输入区 */
+    .composer { border-top: 1px solid var(--line-soft); padding: 12px 14px 14px; }
+    .composer textarea {
+        width: 100%; resize: none; border: 1px solid var(--line); border-radius: 10px;
+        background: var(--bg-sub); color: var(--tx); font: 13px/1.5 inherit;
+        padding: 10px 12px; outline: none; min-height: 46px;
+    }
+    .composer textarea:focus { border-color: var(--accent); }
+    .composer textarea::placeholder { color: var(--tx3); }
+    .tools { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+    .tool-ghost {
+        width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line-soft);
+        background: transparent; color: var(--tx3); display: grid; place-items: center;
+        font-size: 12px; cursor: default;
+    }
+    .seg {
+        display: flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px;
+        background: var(--bg-sub);
+    }
+    .seg button {
+        display: inline-flex; align-items: center; gap: 5px;
+        font: 600 11.5px/1 inherit; color: var(--tx2); background: transparent;
+        border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    }
+    .seg button svg { width: 11px; height: 11px; }
+    .seg button.on { background: var(--tx); color: var(--bg-app); }
+    .seg button.on.ask-on { background: var(--ok); color: #fff; }
+    .model-pill {
+        margin-left: auto; font: 11.5px/1 var(--mono); color: var(--tx3);
+        border: 1px solid var(--line-soft); border-radius: 999px; padding: 6px 11px;
+    }
+    .send {
+        width: 30px; height: 30px; border-radius: 50%; border: 0; cursor: default;
+        background: var(--tx); color: var(--bg-app); display: grid; place-items: center; font-size: 12px;
+    }
+    /* 右侧状态观察 */
+    .observe { padding: 16px 18px; }
+    .observe h3 { font-size: 12.5px; font-weight: 650; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+    .observe h3 .live {
+        font: 600 10px/1 var(--mono); color: var(--accent); background: var(--accent-soft);
+        padding: 3px 7px; border-radius: 4px;
+    }
+    .req {
+        font: 11.5px/1.8 var(--mono); background: var(--bg-code); border: 1px solid var(--line-soft);
+        border-radius: 8px; padding: 10px 12px; color: var(--tx2); white-space: pre; overflow-x: auto;
+        margin-bottom: 12px;
+    }
+    .req .k { color: var(--accent); }
+    .req .v { color: var(--tx2); }
+    .req .hl-on { color: var(--ok); font-weight: 700; }
+    .req .hl-off { color: var(--tx3); }
+    .fx { display: grid; gap: 7px; }
+    .fx .row { display: flex; gap: 8px; font-size: 12px; color: var(--tx2); align-items: baseline; }
+    .fx .tick { font: 700 11px/1 var(--mono); color: var(--ok); flex: none; }
+    .fx .tick.mute { color: var(--tx3); }
+
+    /* ===== 04 架构链路 ===== */
+    .flow-card { padding: 20px 22px; }
+    .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap; }
+    .fnode {
+        flex: 1; min-width: 0; border: 1px solid var(--line-soft); border-radius: 9px;
+        padding: 10px 11px; background: var(--bg-sub);
+    }
+    .fnode .fn-t { font: 600 11.5px/1.4 var(--mono); color: var(--tx); word-break: break-all; }
+    .fnode .fn-d { font-size: 11px; color: var(--tx2); margin-top: 4px; line-height: 1.55; }
+    .fnode.core { border-color: var(--accent); background: var(--accent-soft); }
+    .farr { display: grid; place-items: center; color: var(--tx3); padding: 0 6px; flex: none; font-size: 13px; }
+    .carry {
+        margin-top: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        font: 11.5px/1.6 var(--mono);
+    }
+    .carry .tag {
+        border: 1px dashed var(--accent); color: var(--accent); border-radius: 6px; padding: 3px 8px;
+        background: var(--bg-card);
+    }
+    .carry .why { font: 12px/1.6 inherit; color: var(--tx2); }
+
+    /* ===== 05 清单 ===== */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .tbl-card { overflow: hidden; }
+    .tbl-card + .tbl-card { margin-top: 12px; }
+    .tbl-cap {
+        font: 600 12px/1 var(--mono); color: var(--tx2); background: var(--bg-sub);
+        border-bottom: 1px solid var(--line-soft); padding: 10px 16px; display: flex; justify-content: space-between;
+    }
+    th { text-align: left; font-weight: 600; color: var(--tx3); font-size: 11.5px; padding: 9px 16px; border-bottom: 1px solid var(--line-soft); background: var(--bg-card); }
+    td { padding: 9px 16px; border-bottom: 1px solid var(--line-soft); color: var(--tx2); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    td code, .m-desc code { font: 11px/1.5 var(--mono); background: var(--bg-code); border: 1px solid var(--line-soft); border-radius: 4px; padding: 1px 5px; color: var(--tx); }
+    td .f { font: 11.5px var(--mono); color: var(--tx); }
+    td .new { font: 700 10px/1 var(--mono); color: var(--ok); background: var(--ok-soft); border-radius: 4px; padding: 2px 5px; margin-left: 6px; }
+    td .p2 { font: 700 10px/1 var(--mono); color: var(--warn); background: var(--warn-soft); border-radius: 4px; padding: 2px 5px; margin-left: 6px; }
+
+    /* ===== 06 决策 ===== */
+    .dec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dec { padding: 15px 17px; }
+    .dec h3 { font-size: 12.5px; font-weight: 650; margin-bottom: 5px; display: flex; gap: 7px; align-items: center; }
+    .dec h3 .n { font: 700 10.5px/1 var(--mono); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 3px 6px; }
+    .dec p { font-size: 12px; color: var(--tx2); }
+    .dec p code { font: 11px var(--mono); background: var(--bg-code); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+
+    @media (max-width: 900px) {
+        .mode-grid, .demo-wrap, .dec-grid, .takeaways { grid-template-columns: 1fr; }
+        .flow { flex-direction: column; }
+        .farr { transform: rotate(90deg); padding: 4px 0; }
+    }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <h1>会话双模式 · 只读问答 / 智能体（定稿）</h1>
+    <div class="sub">同一条消息链路按 <code>readOnly</code> 请求级参数分流。路线定稿：<b>prompt 层工具过滤 + 执行兜底 + 提示词声明</b>；对标 Claude Code / Codex 的取舍见 02，二期闭环预留见 03。</div>
+</div>
+
+<div class="ctrl-bar">
+    <button class="ctrl-btn on" id="btnLight">日间</button>
+    <button class="ctrl-btn" id="btnDark">夜间</button>
+</div>
+
+<!-- ===== 01 模式定义 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">01</span><h2>模式定义</h2><span class="hint">命名用「问答」而非 plan mode —— 定位是只读问答，不承载「计划→批准→执行」工作流</span></div>
+    <div class="mode-grid">
+        <div class="card mode-card agent">
+            <div class="m-head">
+                <div class="m-ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.8 12.6c-.3.4 0 .9.5.9H11l-1.8 7.9c-.1.5.6.8.9.4l8.2-10.6c.3-.4 0-.9-.5-.9H13l1.9-7.9c.1-.5-.6-.8-.9-.4Z"/></svg></div>
+                <div class="m-name">智能体模式</div>
+                <div class="m-badge">readOnly = false</div>
+            </div>
+            <div class="m-desc">默认模式，行为与现状完全一致：读写文件、执行命令、联网检索。</div>
+            <div class="m-label">可用工具 · 全部</div>
+            <div class="chips">
+                <span class="chip on">read</span><span class="chip on">grep</span><span class="chip on">glob</span>
+                <span class="chip on">write</span><span class="chip on">replace</span><span class="chip on">delete</span>
+                <span class="chip on">bash</span><span class="chip on">web-fetch</span><span class="chip on">baidu-search</span>
+                <span class="chip on">http</span><span class="chip on">plan</span><span class="chip on">skill-*</span>
+            </div>
+        </div>
+        <div class="card mode-card ask">
+            <div class="m-head">
+                <div class="m-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3c-1.2 0-2.4-.2-3.4-.7L4 20l1-4.7a8 8 0 0 1-1-3.8A8.4 8.4 0 0 1 12.5 3.2 8.4 8.4 0 0 1 21 11.5Z"/><path d="M9.6 9.2a2.6 2.6 0 0 1 5.1.7c0 1.6-2.3 2-2.3 3.2"/><circle cx="12.4" cy="16.2" r="0.4" fill="currentColor"/></svg></div>
+                <div class="m-name">只读问答模式</div>
+                <div class="m-badge">readOnly = true</div>
+            </div>
+            <div class="m-desc">仅检索与回答：不修改文件、不执行命令。适合「先问清楚再动手」与代码讲解场景。</div>
+            <div class="m-label">保留 · 查询类</div>
+            <div class="chips">
+                <span class="chip on">read</span><span class="chip on">grep</span><span class="chip on">glob</span>
+                <span class="chip on">web-fetch</span><span class="chip on">baidu-search</span><span class="chip on">http</span>
+                <span class="chip on">plan</span><span class="chip on">skill-selector / loader / ref-reader</span>
+            </div>
+            <div class="m-label">禁用 · 写 / 执行类（prompt 不出现 + 执行兜底拦截）</div>
+            <div class="chips">
+                <span class="chip off">write</span><span class="chip off">replace</span><span class="chip off">delete</span>
+                <span class="chip off">bash</span><span class="chip off">skill-script-runner</span>
+                <span class="chip note">脚本可执行任意命令，随写类一并禁</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 02 对标分析 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">02</span><h2>对标分析</h2><span class="hint">Claude Code（官方文档 + plan mode 内部实现逆向）与 OpenAI Codex（官方仓库）</span></div>
+    <div class="card vs-card">
+        <table>
+            <tr><th></th><th>Claude Code · Plan Mode</th><th>Codex · Read-Only Sandbox</th><th>qualia · 本方案</th></tr>
+            <tr>
+                <td><b>强制层</b></td>
+                <td>prompt 注入 + harness 权限闸门拦截</td>
+                <td>OS 级沙箱（Seatbelt / Landlock+seccomp / Windows 受限 token）</td>
+                <td><b>prompt 层工具过滤</b> + 执行兜底</td>
+            </tr>
+            <tr>
+                <td><b>写工具可见性</b></td>
+                <td>可见，靠提示词约束（"it is just prompt reinforcement"）</td>
+                <td>可见，越界由沙箱拒绝</td>
+                <td><b>不可见</b>（从工具列表移除，零幻觉调用）</td>
+            </tr>
+            <tr>
+                <td><b>模式作用域</b></td>
+                <td>会话级（CLI 进程持有，Shift+Tab 切换）</td>
+                <td>会话级（/approvals 切换）</td>
+                <td><b>消息级</b>（每条消息携带，localStorage 记偏好）</td>
+            </tr>
+            <tr>
+                <td><b>正交维度</b></td>
+                <td>permission rules 叠加</td>
+                <td>approval policy 叠加</td>
+                <td><b>disabledTools 配置叠加</b>，一致</td>
+            </tr>
+            <tr>
+                <td><b>闭环 UX</b></td>
+                <td>计划 → 批准 → 自动切执行</td>
+                <td>—</td>
+                <td>二期预留（见 03 标注）</td>
+            </tr>
+        </table>
+    </div>
+    <div class="takeaways">
+        <div class="card take">
+            <h3><span class="v drop">不学</span>工具可见靠约束</h3>
+            <p>Claude Code 保留写工具是因为有权限闸门兜底；我们没有该基建，可见会引发「尝试→失败→重试」循环。直接移除：零幻觉、省 token。</p>
+        </div>
+        <div class="card take">
+            <h3><span class="v drop">不学</span>OS 沙箱硬隔离</h3>
+            <p>Codex 方案最彻底但成本与场景不成比例；吸收其「维度正交」分层思想即可，模式与 disabledTools 互不侵犯。</p>
+        </div>
+        <div class="card take">
+            <h3><span class="v keep">坚持</span>消息级参数</h3>
+            <p>两家是单会话 CLI，进程持有状态无并发问题；我们是 Web 多会话 + ChatService 单实例，消息级是唯一不互相污染的做法。</p>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 03 交互演示 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">03</span><h2>交互演示</h2><span class="hint">点击输入区模式切换，观察对话行为、请求参数与后端过滤动作；虚线按钮为二期闭环预留</span></div>
+    <div class="demo-wrap">
+        <div class="card chatwin">
+            <div class="chat-head"><span class="dot"></span>qualia-code · 工作区 ~/Projects/qualia · main</div>
+            <!-- 智能体模式对话 -->
+            <div class="chat-body" id="cvAgent">
+                <div class="msg-user"><div class="b">修复 parser 里嵌套块引用的边界条件，跑一下测试</div></div>
+                <div class="msg-ai">
+                    <div class="steps">
+                        <div class="ln"><span class="pfx">$</span><span>read parser/Parser.java <span class="t-ok">[ok]</span></span></div>
+                        <div class="ln"><span class="pfx">$</span><span>replace Parser.java (+12 −3) <span class="t-ok">[ok]</span></span></div>
+                        <div class="ln"><span class="pfx">$</span><span>bash mvn test -pl qualia-core <span class="t-ok">[ok]</span></span></div>
+                    </div>
+                    <div class="ans">已修复嵌套块引用的边界条件并通过全部测试：解析器在遇到未闭合的嵌套块时提前返回，而非抛出越界异常。</div>
+                </div>
+            </div>
+            <!-- 只读模式对话 -->
+            <div class="chat-body" id="cvAsk" style="display:none">
+                <div class="msg-user"><div class="b">修复 parser 里嵌套块引用的边界条件，跑一下测试</div></div>
+                <div class="msg-ai">
+                    <div class="steps">
+                        <div class="ln"><span class="pfx">$</span><span>read parser/Parser.java <span class="t-ok">[ok]</span></span></div>
+                        <div class="ln"><span class="pfx">$</span><span>replace … <span class="t-skip">[只读模式下不可用]</span></span></div>
+                    </div>
+                    <div class="ans">
+                        <span class="ask-tag">只读问答</span><br>
+                        问题定位在 <code>Parser.java#L142</code>：嵌套块未闭合时应提前返回。建议改法如下——
+                        <code>depth-- 后校验 depth &lt; 0 即 return error</code>。当前为只读模式，未改动任何文件。
+                    </div>
+                    <!-- 二期闭环预留：一键切换执行 -->
+                    <button class="exec-cta">⚡ 切换到智能体模式执行 <span class="ph2">二期</span></button>
+                    <div class="cta-note">一期先由回答文案引导（提示词已含「切回智能体模式可执行」），按钮随二期落地。</div>
+                </div>
+            </div>
+            <!-- 输入区 -->
+            <div class="composer">
+                <textarea rows="1" id="ta" placeholder="向 Qualia Code 提问，或描述你想写的代码…"></textarea>
+                <div class="tools">
+                    <div class="tool-ghost">📎</div>
+                    <div class="seg">
+                        <button id="segAgent" class="on">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.8 12.6c-.3.4 0 .9.5.9H11l-1.8 7.9c-.1.5.6.8.9.4l8.2-10.6c.3-.4 0-.9-.5-.9H13l1.9-7.9c.1-.5-.6-.8-.9-.4Z"/></svg>
+                            智能体
+                        </button>
+                        <button id="segAsk">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3c-1.2 0-2.4-.2-3.4-.7L4 20l1-4.7a8 8 0 0 1-1-3.8A8.4 8.4 0 0 1 12.5 3.2 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+                            问答
+                        </button>
+                    </div>
+                    <div class="model-pill">DeepSeek-V3 ▾</div>
+                    <div class="send">↑</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态观察 -->
+        <div class="card observe">
+            <h3>请求观察 <span class="live">LIVE</span></h3>
+            <div class="req">POST /api/chat/stream
+{
+  <span class="k">"sessionId"</span>: <span class="v">"…"</span>,
+  <span class="k">"message"</span>: <span class="v">"…"</span>,
+  <span class="k">"readOnly"</span>: <span id="reqReadOnly" class="hl-off">false</span>
+}</div>
+            <div class="fx">
+                <div class="row"><span class="tick" id="fx1t">✓</span><span id="fx1">全部工具进入 prompt 工具列表</span></div>
+                <div class="row"><span class="tick" id="fx2t">✓</span><span id="fx2">系统提示词：标准 ReAct 提示</span></div>
+                <div class="row"><span class="tick" id="fx3t">✓</span><span id="fx3">执行层：无附加校验</span></div>
+                <div class="row"><span class="tick mute">—</span><span>偏好存 localStorage，随每条消息携带（不入会话存储）</span></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 04 架构链路 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">04</span><h2>架构链路</h2><span class="hint">机制沉淀在 qualia-core，qualia-code 仅透传</span></div>
+    <div class="card flow-card">
+        <div class="flow">
+            <div class="fnode">
+                <div class="fn-t">InputArea.vue</div>
+                <div class="fn-d">模式 pill（双段选择），选中态存 localStorage</div>
+            </div>
+            <div class="farr">→</div>
+            <div class="fnode">
+                <div class="fn-t">api/stream.ts</div>
+                <div class="fn-d">GET query / POST body 携带 readOnly</div>
+            </div>
+            <div class="farr">→</div>
+            <div class="fnode">
+                <div class="fn-t">ChatController · ChatService</div>
+                <div class="fn-d">透传参数，不改服务状态</div>
+            </div>
+            <div class="farr">→</div>
+            <div class="fnode core">
+                <div class="fn-t">ReActAgent.callStream(…, readOnly)</div>
+                <div class="fn-d">三处生效点：工具过滤 / 提示词注入 / 执行兜底</div>
+            </div>
+        </div>
+        <div class="carry">
+            <span class="tag">readOnly</span>
+            <span class="tag">callStream → initializeMessages → buildSystemPrompt → runIteration</span>
+            <span class="why">参数贯穿而非实例字段——单实例多会话并行时互不污染（对齐 detectedLanguage 先例，代码内已有同类注释）。</span>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 05 改动清单 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">05</span><h2>改动清单</h2><span class="hint">一期约 7 个文件，无存储结构变更</span></div>
+
+    <div class="card tbl-card">
+        <div class="tbl-cap"><span>qualia-core · 机制层</span><span>1 文件</span></div>
+        <table>
+            <tr><th style="width:220px">文件</th><th>改动</th></tr>
+            <tr><td><span class="f">ReActAgent.java</span></td>
+                <td><code>callStream</code> 新增 readOnly 重载（旧签名委托 false）；<code>isDestructiveTool()</code> instanceof 黑名单；<code>getAvailableTools(readOnly)</code> 过滤；<code>runIteration</code> 执行前兜底校验（幻觉调用返回错误观察，模型自行纠正）；<code>buildSystemPrompt</code> 注入只读声明</td></tr>
+        </table>
+    </div>
+
+    <div class="card tbl-card">
+        <div class="tbl-cap"><span>qualia-code · 服务层</span><span>2 文件</span></div>
+        <table>
+            <tr><th style="width:220px">文件</th><th>改动</th></tr>
+            <tr><td><span class="f">ChatService.java</span></td><td><code>sendMessageFlux</code> 加 readOnly 重载并透传</td></tr>
+            <tr><td><span class="f">ChatController.java</span></td><td>GET /stream 加 query 参数；POST body 读 readOnly；<code>startStream</code> 透传</td></tr>
+        </table>
+    </div>
+
+    <div class="card tbl-card">
+        <div class="tbl-cap"><span>qualia-code-ui · 前端</span><span>4 文件</span></div>
+        <table>
+            <tr><th style="width:220px">文件</th><th>改动</th></tr>
+            <tr><td><span class="f">api/stream.ts</span></td><td><code>OpenStreamOptions</code> 加 <code>readOnly?: boolean</code>，GET / POST 双通道携带</td></tr>
+            <tr><td><span class="f">useChatStream.ts</span></td><td>send 读取偏好透传</td></tr>
+            <tr><td><span class="f">InputArea.vue</span><span class="new">UI</span></td><td>工具行（ModelSelector 旁）双段 pill「智能体 / 问答」，localStorage 记忆</td></tr>
+            <tr><td><span class="f">MessageItem.vue</span><span class="p2">二期</span></td><td>只读回答卡片「切换到智能体模式执行」快捷按钮（一期不实施，仅预留）</td></tr>
+            <tr><td><span class="f">i18n ×3</span></td><td>input.modeAgent / input.modeAsk 等少量 key</td></tr>
+        </table>
+    </div>
+</section>
+
+<!-- ===== 06 设计决策 ===== -->
+<section>
+    <div class="sec-head"><span class="sec-no">06</span><h2>设计决策（定稿）</h2></div>
+    <div class="dec-grid">
+        <div class="card dec">
+            <h3><span class="n">D1</span>请求级参数，非 Agent 实例状态</h3>
+            <p>ChatService 单实例多会话并行，实例字段会互相污染（<code>detectedLanguage</code> 同款教训）；模式随消息走，天然隔离。</p>
+        </div>
+        <div class="card dec">
+            <h3><span class="n">D2</span>工具移除，而非「可见靠约束」</h3>
+            <p>对标结论：Claude Code 依赖权限闸门兜底才敢让工具可见；我们无此基建，从列表移除是最硬的等价实现，且省轮次与 token。</p>
+        </div>
+        <div class="card dec">
+            <h3><span class="n">D3</span>instanceof 黑名单 + 执行兜底</h3>
+            <p>写 / 执行类集中一个方法维护，不改 FunctionTool 接口；执行层兜底防模型幻觉调用，反馈后自行纠正。</p>
+        </div>
+        <div class="card dec">
+            <h3><span class="n">D4</span>模式不入会话存储</h3>
+            <p>前端 localStorage 记偏好、每条消息携带；与 disabledTools 配置正交叠加，历史回读与存储结构零改动。</p>
+        </div>
+        <div class="card dec">
+            <h3><span class="n">D5</span>命名「问答」而非 plan mode</h3>
+            <p>定位是只读问答，不承载「计划→批准→执行」工作流；语义诚实，不给一期背工作流复杂度。</p>
+        </div>
+        <div class="card dec">
+            <h3><span class="n">D6</span>闭环 UX 二期落地</h3>
+            <p>借鉴 Claude Code「批准→执行」流：只读回答卡片加「切换到智能体模式执行」按钮；一期由提示词文案引导衔接。</p>
+        </div>
+    </div>
+</section>
+
+<script>
+    // 主题切换（默认日间）
+    const btnLight = document.getElementById('btnLight'), btnDark = document.getElementById('btnDark');
+    function setTheme(dark) {
+        document.body.classList.toggle('dark', dark);
+        btnLight.classList.toggle('on', !dark);
+        btnDark.classList.toggle('on', dark);
+    }
+    btnLight.onclick = () => setTheme(false);
+    btnDark.onclick = () => setTheme(true);
+
+    // 模式切换演示
+    const segAgent = document.getElementById('segAgent'), segAsk = document.getElementById('segAsk');
+    const cvAgent = document.getElementById('cvAgent'), cvAsk = document.getElementById('cvAsk');
+    const ta = document.getElementById('ta');
+    const req = document.getElementById('reqReadOnly');
+    const fx = {
+        1: [document.getElementById('fx1t'), document.getElementById('fx1')],
+        2: [document.getElementById('fx2t'), document.getElementById('fx2')],
+        3: [document.getElementById('fx3t'), document.getElementById('fx3')],
+    };
+    const PH = {
+        agent: '向 Qualia Code 提问，或描述你想写的代码…',
+        ask: '向 Qualia Code 提问（只读模式：仅检索与回答，不改动文件）…',
+    };
+    const STATE = {
+        agent: {
+            req: '<span class="hl-off">false</span>',
+            rows: [
+                ['✓', '全部工具进入 prompt 工具列表'],
+                ['✓', '系统提示词：标准 ReAct 提示'],
+                ['✓', '执行层：无附加校验'],
+            ],
+        },
+        ask: {
+            req: '<span class="hl-on">true</span>',
+            rows: [
+                ['✓', 'write / replace / delete / bash / skill-script-runner 已移出 prompt'],
+                ['✓', '系统提示词注入：「只读问答模式，仅检索与回答」'],
+                ['✓', '执行兜底：幻觉调用写工具 → 返回错误观察，模型自行纠正'],
+            ],
+        },
+    };
+    function setMode(m) {
+        const isAsk = m === 'ask';
+        segAgent.classList.toggle('on', !isAsk);
+        segAsk.classList.toggle('on', isAsk);
+        segAsk.classList.toggle('ask-on', isAsk);
+        cvAgent.style.display = isAsk ? 'none' : '';
+        cvAsk.style.display = isAsk ? '' : 'none';
+        ta.placeholder = PH[m];
+        req.innerHTML = STATE[m].req;
+        Object.keys(fx).forEach((k, i) => {
+            const [t, d] = fx[k];
+            t.textContent = STATE[m].rows[i][0];
+            d.textContent = STATE[m].rows[i][1];
+        });
+    }
+    segAgent.onclick = () => setMode('agent');
+    segAsk.onclick = () => setMode('ask');
+</script>
+</body>
+</html>

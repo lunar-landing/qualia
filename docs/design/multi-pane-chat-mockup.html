@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多栏问答窗口 · 可行性与设计稿</title>
+<!--
+  多栏问答窗口（Multi-Pane Chat）设计稿
+  =====================================================
+  结论先行：能支持，后端 0 改动。
+  证据：数据层全按 sid 存取（messagesOf/streamOf）、流注册表 Map<sid> 且流事件
+        不依赖 currentSessionId、模式参数请求级传递（CallOptions.readOnly）。
+  结构：
+    01 可行性结论与架构证据
+    02 布局设计（可交互 mock：1↔2 栏切换、栏聚焦、关闭）
+    03 交互设计（打开/关闭/去重/删除联动/未读提示）
+    04 状态与数据流（pane store + 组件参数化，代码示意）
+    05 模式与模型的作用域（v1 全局 / 二期栏级）
+    06 边界与降级
+    07 改动清单与工作量
+  惯例：自包含零依赖 / 双主题 / 默认日间
+-->
+<style>
+/* ===== 主题 token（日间默认 = 石墨工程风，夜间 = GitHub Dark 对齐产品） ===== */
+:root {
+  --bg: #f6f8fa; --surface: #ffffff; --border: #d0d7de; --border-soft: #e4e9ee;
+  --text: #1f2328; --text2: #57606a; --muted: #8c959f;
+  --accent: #24292f; --accent-soft: rgba(36, 41, 47, 0.06);
+  --ok: #1a7f37; --warn: #9a6700;
+  --code-bg: #f0f3f6; --shadow: 0 1px 3px rgba(31, 35, 40, 0.10); --shadow-pop: 0 8px 24px rgba(31,35,40,0.16);
+}
+body.dark-theme {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d; --border-soft: #21262d;
+  --text: #e6edf3; --text2: #8b949e; --muted: #6e7681;
+  --accent: #e6edf3; --accent-soft: rgba(230, 237, 243, 0.08);
+  --ok: #3fb950; --warn: #d29922;
+  --code-bg: #161b22; --shadow: 0 1px 3px rgba(0,0,0,0.5); --shadow-pop: 0 8px 24px rgba(0,0,0,0.55);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; transition: background 0.2s ease, color 0.2s ease; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 48px 28px 80px; }
+header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 40px; }
+h1 { font-size: 26px; font-weight: 700; }
+.subtitle { color: var(--text2); margin-top: 6px; font-size: 14px; }
+.theme-btn { flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--text2); border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; box-shadow: var(--shadow); }
+.theme-btn:hover { color: var(--text); border-color: var(--muted); }
+section { margin-bottom: 48px; }
+h2 { font-size: 19px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+h2 .no { font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 8px; font-family: ui-monospace, Consolas, monospace; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+code { background: var(--code-bg); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+pre { background: var(--code-bg); border: 1px solid var(--border-soft); border-radius: 10px; padding: 14px 16px; font-size: 12px; line-height: 1.6; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; margin-top: 12px; }
+pre .c { color: var(--muted); }
+pre .k { color: var(--warn); font-weight: 600; }
+
+/* ===== 01 证据卡 ===== */
+.evidence { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.ev { border: 1px solid var(--border-soft); border-radius: 10px; padding: 14px 16px; background: var(--bg); }
+.ev b { display: block; font-size: 13.5px; margin-bottom: 5px; }
+.ev span { font-size: 12.5px; color: var(--text2); }
+.ev code { font-size: 11px; }
+.verdict { border-left: 3px solid var(--ok); padding: 10px 16px; background: var(--accent-soft); border-radius: 0 10px 10px 0; font-size: 14px; margin-bottom: 14px; }
+.verdict b { color: var(--ok); }
+
+/* ===== 02 可交互 mock：应用窗口 ===== */
+.demo-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.demo-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text2); border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; }
+.demo-btn:hover { color: var(--text); border-color: var(--muted); }
+.demo-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.app-mock { display: flex; height: 420px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+.side { width: 148px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 10px 8px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.side .brand { font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 8px 10px; letter-spacing: 1px; }
+.s-item { font-size: 12px; color: var(--text2); border-radius: 7px; padding: 7px 9px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 6px; position: relative; }
+.s-item:hover { background: var(--accent-soft); }
+.s-item.cur { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.s-item .open-pane { opacity: 0; font-size: 10px; border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; color: var(--muted); }
+.s-item:hover .open-pane { opacity: 1; }
+.panes { flex: 1; display: flex; min-width: 0; }
+.pane { flex: 1; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); transition: box-shadow 0.15s ease; }
+.pane:last-child { border-right: none; }
+.pane.focused { box-shadow: inset 0 2px 0 var(--accent); }
+.pane-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); font-size: 12px; color: var(--text2); background: var(--surface); }
+.pane-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.pane-head .dot.live { background: var(--ok); animation: pulse 1.2s infinite; }
+.pane-head .ph-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-head .ph-close { cursor: pointer; color: var(--muted); font-size: 11px; border: none; background: transparent; padding: 2px 4px; border-radius: 5px; }
+.pane-head .ph-close:hover { color: var(--text); background: var(--accent-soft); }
+.pane-head .unread { font-size: 9px; background: var(--accent); color: var(--bg); border-radius: 8px; padding: 0 5px; line-height: 14px; }
+@keyframes pulse { 50% { opacity: 0.4; } }
+.pane-body { flex: 1; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; }
+.bubble { max-width: 82%; font-size: 12px; border-radius: 12px; padding: 8px 11px; line-height: 1.5; }
+.bubble.user { align-self: flex-end; background: var(--accent-soft); color: var(--text); }
+.bubble.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--border-soft); color: var(--text2); }
+.bubble.ai.streaming::after { content: "▍"; animation: pulse 0.8s infinite; color: var(--muted); }
+.pane-input { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 11.5px; color: var(--muted); padding: 9px 12px; }
+.pane-input .tools { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.pane-input .chip { border: 1px solid var(--border-soft); border-radius: 7px; padding: 2px 7px; font-size: 10px; color: var(--text2); }
+.pane-input .chip.on { color: var(--q-accent, var(--accent)); border-color: var(--muted); }
+.pane-input .send { margin-left: auto; width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 10px; }
+
+/* ===== 03 交互规则 ===== */
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rule { border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 15px; font-size: 13px; background: var(--bg); }
+.rule b { display: block; margin-bottom: 3px; font-size: 13px; }
+.rule span { color: var(--text2); font-size: 12.5px; }
+
+/* ===== 07 改动清单 ===== */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border: 1px solid var(--border-soft); padding: 9px 12px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); font-size: 12.5px; }
+tr.hl td { background: var(--accent-soft); }
+footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>多栏问答窗口</h1>
+    <div class="subtitle">可行性与设计 —— 同时并排查看多个会话 · 流式互不干扰 · 后端 0 改动</div>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">切换夜间</button>
+</header>
+
+<!-- ===== 01 可行性 ===== -->
+<section>
+  <h2><span class="no">01</span>可行性结论</h2>
+  <div class="card">
+    <div class="verdict"><b>结论：能支持，且后端 0 改动。</b>这是现有架构"无 currentSessionId 判断"重构（流事件只写 store、后台会话并行流天然支持）的直接红利——多栏只是把已经并行的数据流，从"切换呈现"升级为"并排呈现"。</div>
+    <div class="evidence">
+      <div class="ev"><b>消息/流状态按 sid 存取</b><span><code>chat.messagesOf(sid)</code> / <code>chat.streamOf(sid)</code>，多会话消息已在同一 store 内并行维护</span></div>
+      <div class="ev"><b>流连接按 sid 管理</b><span><code>connections: Map&lt;sid, StreamConnection&gt;</code>；流事件处理无 currentSessionId 判断，后台流天然支持</span></div>
+      <div class="ev"><b>后端单实例多会话并行</b><span>ReActAgent 请求级参数贯穿（detectedLanguage / readOnly 先例），每栏独立提问互不污染</span></div>
+      <div class="ev"><b>唯一的全局耦合是"呈现层"</b><span>ChatArea/InputArea 读取 <code>sessionStore.currentSessionId</code> 单值——多栏改造就集中在这两处参数化</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 02 布局 mock ===== -->
+<section>
+  <h2><span class="no">02</span>布局设计（点击体验：开栏 / 聚焦 / 关闭 / 发送）</h2>
+  <div class="card">
+    <div class="demo-bar">
+      <button class="demo-btn primary" onclick="openPane()">⧉ 在分栏打开会话「对比实验」</button>
+      <button class="demo-btn" onclick="sendInPane2()">给右栏发一条消息（演示后台流）</button>
+      <button class="demo-btn" onclick="resetPanes()">重置</button>
+    </div>
+    <div class="app-mock">
+      <div class="side">
+        <div class="brand">QUALIA CODE</div>
+        <div class="s-item cur" onclick="focusPane(0)">重构 ChatService<span class="open-pane" onclick="event.stopPropagation();openPane()" title="在分栏中打开">⧉</span></div>
+        <div class="s-item" id="side-b" onclick="openPane()">对比实验<span class="open-pane" onclick="event.stopPropagation();openPane()">⧉</span></div>
+        <div class="s-item" onclick="alert('演示：普通切换为主栏会话')">性能调优记录</div>
+        <div class="s-item" onclick="alert('演示：普通切换为主栏会话')">只读模式测试</div>
+      </div>
+      <div class="panes" id="panes">
+        <div class="pane focused" id="pane-0" onclick="focusPane(0)">
+          <div class="pane-head"><span class="dot live" id="dot-0"></span><span class="ph-title">重构 ChatService</span><span class="unread" id="unread-0" style="display:none">1</span><button class="ph-close" onclick="closePane(event, 0)">✕</button></div>
+          <div class="pane-body">
+            <div class="bubble user">sendMessageFlux 的两个重载能合并吗？</div>
+            <div class="bubble ai" id="bubble-0">可以：让双参重载委托四参重载，options 传 null……</div>
+          </div>
+          <div class="pane-input">向 Qualia Code 提问，或描述你想写的代码…
+            <div class="tools"><span class="chip">📎</span><span class="chip">gpt-4o ▾</span><span class="chip on">⚡ 智能体</span><span class="send">↑</span></div>
+          </div>
+        </div>
+        <div class="pane" id="pane-1" style="display:none" onclick="focusPane(1)">
+          <div class="pane-head"><span class="dot" id="dot-1"></span><span class="ph-title">对比实验</span><span class="unread" id="unread-1" style="display:none">1</span><button class="ph-close" onclick="closePane(event, 1)">✕</button></div>
+          <div class="pane-body">
+            <div class="bubble user">用只读模式检查这个方案有没有副作用</div>
+            <div class="bubble ai" id="bubble-1">已检查：方案只涉及查询类工具调用，无写操作……</div>
+          </div>
+          <div class="pane-input">只读问答模式：仅检索与回答，不修改文件…
+            <div class="tools"><span class="chip">📎</span><span class="chip">gpt-4o ▾</span><span class="chip on">💬 问答</span><span class="send">↑</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">布局规则：主栏（第 1 栏）常驻，最多 <b>3 栏</b>；栏间 1px 分隔线，活动栏顶部 2px 强调色条；每栏独立输入区、独立滚动跟随、独立流状态。宽 ≥1600px 允许 3 栏，1200-1600px 允许 2 栏，&lt;1200px 自动收拢为单栏 + 栏标签（见 06）。</div>
+  </div>
+</section>
+
+<!-- ===== 03 交互设计 ===== -->
+<section>
+  <h2><span class="no">03</span>交互设计</h2>
+  <div class="card">
+    <div class="rules">
+      <div class="rule"><b>打开分栏</b><span>会话列表项 hover 出现 ⧉ 按钮（或右键菜单「在分栏中打开」）；点击后右移新栏并聚焦，原主栏内容保持不动</span></div>
+      <div class="rule"><b>去重</b><span>同一会话不允许在两栏同时打开——已在某栏时，再次打开操作改为聚焦该栏</span></div>
+      <div class="rule"><b>关闭分栏</b><span>栏头 ✕ 关闭；正在流式的栏关闭需二次确认（流继续在后端跑，与"停止生成仅断开前端"语义一致）</span></div>
+      <div class="rule"><b>聚焦</b><span>点击任意栏即为聚焦栏；聚焦栏承接新建会话、侧栏普通点击切换等"默认目标"行为</span></div>
+      <div class="rule"><b>未读提示</b><span>非聚焦栏收到新 step/answer 时，栏头出现小圆点/计数；流结束转为常驻提示，点击栏即清除</span></div>
+      <div class="rule"><b>删除联动</b><span>删除已在某栏打开的会话：该栏自动关闭；主栏会话被删除回到欢迎态（现有行为不变）</span></div>
+    </div>
+    <div class="note">栏内消息全部复用现有 MessageItem/工具 chips 渲染；文件预览层保持全局覆盖（v1 不分栏预览）。</div>
+  </div>
+</section>
+
+<!-- ===== 04 状态与数据流 ===== -->
+<section>
+  <h2><span class="no">04</span>状态与数据流（代码示意）</h2>
+  <div class="card">
+    <pre>
+<span class="c">// stores/panes.ts（新增，~50 行）</span>
+<span class="k">state:</span> {
+  panes: [{ id: 'main', sessionId: <span class="k">null</span> }],   <span class="c">// 栏序即布局序，main 常驻不可关</span>
+  activePaneId: 'main',
+  nextId: 1,
+}
+<span class="k">getters:</span> {
+  <span class="c">// 兼容层：现有代码读 currentSessionId 的语义 = "活动栏的会话"</span>
+  activePane: (s) =&gt; s.panes.find(p =&gt; p.id === s.activePaneId),
+}
+<span class="k">actions:</span> {
+  openInPane(sessionId)   <span class="c">// 去重：已开则聚焦；上限受宽度约束</span>
+  closePane(id)           <span class="c">// main 不可关；关活动栏则焦点左移</span>
+  focusPane(id)
+  bindPane(id, sessionId) <span class="c">// 栏内新建会话时回填 sid</span>
+}
+
+<span class="c">// sessionStore.currentSessionId 改为 computed 别名：</span>
+<span class="c">//   get = panes.activePane.sessionId</span>
+<span class="c">//   set = 写回 activePane.sessionId</span>
+<span class="c">// → ConversationList 高亮、删除联动等现有逻辑零改动</span>
+
+<span class="c">// ChatArea.vue：computed(sid) → props.sid（watch 随 props 即可，滚动跟随逻辑不变）</span>
+<span class="c">// InputArea.vue：currentSessionId → props.sid（发送/上传/processing 全部按栏）</span>
+<span class="c">// App.vue：&lt;ChatArea v-for="p in panes" :sid="p.sessionId" /&gt; 外包 .chat-panes 容器</span>
+    </pre>
+    <div class="note">数据流不变：每栏发送仍走 <code>useChatStream.send(sid)</code> → openStream(sid) → 后端；流事件按 sid 写 store，各栏 computed 自动呈现——这正是"后台流"已验证的通路，多栏只是把消费端从 1 个变 N 个。</div>
+  </div>
+</section>
+
+<!-- ===== 05 模式与模型作用域 ===== -->
+<section>
+  <h2><span class="no">05</span>模式与模型的作用域</h2>
+  <div class="card">
+    <table>
+      <tr><th>维度</th><th>v1（首版）</th><th>二期（可选）</th></tr>
+      <tr><td><b>只读/智能体模式</b></td><td>全局偏好（现状）：所有栏同模式，chip 全局一处</td><td>栏级模式：ModeSelector 移入栏头，读写 pane.mode；发送时按栏组装 CallOptions——后端请求级参数已就绪，仅改前端</td></tr>
+      <tr><td><b>模型选择</b></td><td>全局 selectedModel（现状）</td><td>栏级模型：同理 pane.model，对比实验场景（左右栏不同模型）是天然用例</td></tr>
+      <tr><td><b>输入草稿</b></td><td colspan="2">栏级天然隔离（InputArea 实例随栏，v-show 保活不丢草稿，与现有双视图保活同机制）</td></tr>
+    </table>
+    <div class="note">mock 中右栏展示栏级模式 chip（💬 问答）仅为二期形态预演；v1 两栏 chip 相同。</div>
+  </div>
+</section>
+
+<!-- ===== 06 边界与降级 ===== -->
+<section>
+  <h2><span class="no">06</span>边界与降级</h2>
+  <div class="card">
+    <div class="rules">
+      <div class="rule"><b>窄窗口（&lt;1200px）</b><span>分栏容器折叠为"栏标签 + 单视图"（标签即栏），数据结构不变，仅呈现切换——保底可用性</span></div>
+      <div class="rule"><b>终端视图 / 工作区面板</b><span>不受影响：终端视图仍整区切换；WorkspacePanel 依旧挂在分栏容器右侧</span></div>
+      <div class="rule"><b>空会话栏</b><span>显示欢迎 Hero + 输入框（ChatArea 现有 welcome 分支按栏工作，Teleport 锚点为组件内 ref，天然隔离）</span></div>
+      <div class="rule"><b>会话数不足</b><span>新开栏支持"空白栏 + 新会话"：发送时按栏创建（InputArea 已有 createSession 分支，改为绑定到所在栏）</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 07 改动清单 ===== -->
+<section>
+  <h2><span class="no">07</span>改动清单与工作量</h2>
+  <div class="card">
+    <table>
+      <tr><th>文件</th><th>改动</th><th>量级</th></tr>
+      <tr class="hl"><td>stores/panes.ts</td><td><b>新增</b>：栏状态（panes/activePaneId）+ open/close/focus/bind 动作 + currentSessionId 兼容别名</td><td>~50 行</td></tr>
+      <tr><td>App.vue</td><td>ChatArea 外包 <code>.chat-panes</code> 容器 v-for 渲染；宽度档位监听</td><td>~40 行</td></tr>
+      <tr><td>ChatArea.vue</td><td><code>currentSessionId</code> → <code>props.sid</code>；根节点结构微调</td><td>~15 行 diff</td></tr>
+      <tr><td>InputArea.vue</td><td>会话读写改 props.sid（发送/上传/processing/新建会话回填所在栏）</td><td>~20 行 diff</td></tr>
+      <tr><td>ConversationList.vue</td><td>列表项 ⧉「在分栏打开」入口；删除联动关栏</td><td>~20 行</td></tr>
+      <tr><td>index.css</td><td>.chat-panes / .pane 头部、分隔线、聚焦条、未读点样式</td><td>~80 行</td></tr>
+      <tr><td>i18n 两语</td><td>「在分栏中打开」「关闭前确认」等 4-5 个 key</td><td>~10 行</td></tr>
+      <tr><td>后端 / useChatStream / chat store</td><td><b>0 改动</b>（已按 sid 并行）</td><td>—</td></tr>
+    </table>
+    <div class="note">预估：纯前端一日内完成 v1（2 栏 + 上述交互）；栏级模式/模型、拖拽调宽、栏标签降级为二期。v1 不做拖拽排序（栏序 = 打开序）。</div>
+  </div>
+</section>
+
+<footer>
+  docs/design/multi-pane-chat-mockup.html · 自包含零依赖 · 02 节 mock 可交互 · 默认日间
+</footer>
+</div>
+
+<script>
+function toggleTheme() {
+  const dark = document.body.classList.toggle('dark-theme')
+  document.querySelector('.theme-btn').textContent = dark ? '切换日间' : '切换夜间'
+}
+
+/* ===== 02 mock 交互：1↔2 栏、聚焦、关闭、右栏模拟流 ===== */
+function focusPane(i) {
+  document.querySelectorAll('.pane').forEach((p, idx) => p.classList.toggle('focused', idx === i))
+}
+function openPane() {
+  document.getElementById('pane-1').style.display = 'flex'
+  focusPane(1)
+}
+function closePane(e, i) {
+  e.stopPropagation()
+  document.getElementById('pane-' + i).style.display = 'none'
+  focusPane(0)
+}
+function sendInPane2() {
+  const pane = document.getElementById('pane-1')
+  if (pane.style.display === 'none') openPane()
+  const body = pane.querySelector('.pane-body')
+  const dot = document.getElementById('dot-1')
+  const unread = document.getElementById('unread-1')
+  body.appendChild(Object.assign(document.createElement('div'), { className: 'bubble user', textContent: '再对比一下方案 B 的风险点' }))
+  const ai = Object.assign(document.createElement('div'), { className: 'bubble ai streaming', textContent: '' })
+  body.appendChild(ai)
+  dot.classList.add('live')
+  unread.style.display = ''
+  let n = 0
+  const timer = setInterval(() => {
+    n++
+    ai.textContent = '正在检索方案 B 的依赖面…（' + n + '）'
+    if (n >= 3) {
+      clearInterval(timer)
+      ai.classList.remove('streaming')
+      ai.textContent = '方案 B 风险点：浮层 z-index 与既有弹层冲突……'
+      dot.classList.remove('live')
+    }
+    body.scrollTop = body.scrollHeight
+  }, 600)
+}
+function resetPanes() {
+  document.getElementById('pane-1').style.display = 'none'
+  focusPane(0)
+}
+</script>
+</body>
+</html>

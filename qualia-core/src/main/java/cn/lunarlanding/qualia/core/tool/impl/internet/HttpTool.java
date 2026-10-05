@@ -158,4 +158,10 @@ public class HttpTool extends FunctionTool {
             return errorResult.toJSONString();
         }
     }
+
+    /** 只读工具：仅发送 HTTP 请求并返回响应，无本地副作用 */
+    @Override
+    public boolean isReadOnly() {
+        return true;
+    }
 }

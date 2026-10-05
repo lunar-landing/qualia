@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>终端 Table 设计选型 · Qualia Code</title>
+<style>
+    /* ===== 主题变量（与终端两套主题同步） ===== */
+    :root {
+        --bg: #0d1117;          /* terminal-bg */
+        --text: #e6edf3;        /* terminal-text */
+        --idle: #8b949e;        /* terminal-idle */
+        --line: #21262d;        /* t-line */
+        --green: #7ee787;       /* terminal-success */
+        --soft: #10161d;        /* t-bg-soft（代码块底） */
+        --sel: rgba(126, 231, 135, 0.1);   /* t-sel */
+        --zebra: rgba(128, 144, 168, 0.08);
+    }
+    body.light-theme {
+        --bg: #f6f8fa;
+        --text: #24292f;
+        --idle: #8c959f;
+        --line: #d0d7de;
+        --green: #0f7b4f;
+        --soft: #eef1f4;
+        --sel: rgba(15, 123, 79, 0.08);
+        --zebra: rgba(31, 35, 40, 0.035);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Sarasa Mono SC', 'Microsoft YaHei', monospace;
+        background: var(--bg);
+        color: var(--text);
+        padding: 32px 24px 64px;
+        transition: background .25s, color .25s;
+    }
+
+    .page-head {
+        max-width: 860px; margin: 0 auto 28px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .page-head h1 { font-size: 20px; letter-spacing: -0.3px; }
+    .page-head p { font-size: 12.5px; color: var(--idle); margin-top: 4px; }
+    .theme-toggle {
+        flex-shrink: 0; border: 1px solid var(--line);
+        background: transparent; color: var(--idle);
+        font: inherit; font-size: 12px; padding: 6px 14px; border-radius: 6px;
+        cursor: pointer; transition: all .15s;
+    }
+    .theme-toggle:hover { color: var(--green); border-color: var(--green); }
+
+    .variant { max-width: 860px; margin: 0 auto 44px; }
+    .variant-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .variant-head .tag {
+        font-size: 12px; font-weight: 700; padding: 2px 9px;
+        border-radius: 20px; border: 1px solid var(--line);
+        color: var(--idle); flex-shrink: 0;
+    }
+    .variant-head h2 { font-size: 15px; }
+    .variant-desc { font-size: 12px; color: var(--idle); margin-bottom: 12px; line-height: 1.7; }
+    .variant-desc b { color: var(--text); font-weight: 600; }
+
+    /* 模拟终端回答区（对齐 .term-chat .t-answer 的排版语境） */
+    .term {
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        padding: 16px 18px;
+        font-size: 13px; line-height: 1.7;
+        max-width: 760px;
+    }
+    .term .lead { color: var(--idle); }
+    .term .lead::before { content: '── '; color: var(--green); }
+    .term .lead::after { content: ' ──'; color: var(--green); }
+    .cap { font-size: 11px; color: var(--idle); opacity: .75; margin: 14px 0 4px; }
+    .cap:first-of-type { margin-top: 10px; }
+
+    /* 通用：全部版本保留横向滚动兜底 */
+    .term table { max-width: 100%; }
+
+    /* =========================================================
+       TE1 极简横线：无竖线无外框，只有横线语言
+       （表头重线 + 行间细线 + hover 行高亮）。
+       等宽字体天然纵向对齐，无竖线最接近终端排版。
+       ========================================================= */
+    .te1 { display: block; overflow-x: auto; border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+    .te1 th, .te1 td { padding: 5px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+    .te1 th { font-weight: 600; color: var(--idle); font-size: 11.5px; border-bottom: 2px solid var(--line); }
+    .te1 tr:last-child td { border-bottom: none; }
+    .te1 tbody tr:hover td { background: var(--sel); }
+
+    /* =========================================================
+       TE2 ASCII 全网格：模拟 box-drawing（┌─┬┐）的细网格，
+       直角 + 全边框 + 表头浅底，像 cat 出来的 ASCII 表。
+       ========================================================= */
+    .te2 { display: block; overflow-x: auto; border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; border: 1px solid var(--line); }
+    .te2 th, .te2 td { padding: 5px 12px; text-align: left; border: 1px solid var(--line); }
+    .te2 th { font-weight: 600; color: var(--idle); font-size: 11.5px; background: var(--soft); }
+    .te2 tbody tr:hover td { background: var(--sel); }
+
+    /* =========================================================
+       TE3 绿表头强调：把终端 success 色织入表格——
+       表头绿字 + 半透明绿重底线，无竖线，行间极淡细线。
+       ========================================================= */
+    .te3 { display: block; overflow-x: auto; border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+    .te3 th, .te3 td { padding: 5px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+    .te3 th {
+        font-weight: 600; color: var(--green); font-size: 11.5px;
+        border-bottom: 2px solid color-mix(in srgb, var(--green) 45%, transparent);
+    }
+    .te3 tr:last-child td { border-bottom: none; }
+    .te3 tbody tr:hover td { background: var(--sel); }
+
+    /* =========================================================
+       TE4 斑马纹：隔行浅底主导，无外框无竖线，
+       多行数据扫读最省力，报表感最强。
+       ========================================================= */
+    .te4 { display: block; overflow-x: auto; border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+    .te4 th, .te4 td { padding: 5px 12px; text-align: left; }
+    .te4 th { font-weight: 600; color: var(--idle); font-size: 11.5px; border-bottom: 2px solid var(--line); }
+    .te4 tbody tr:nth-child(even) td { background: var(--zebra); }
+
+    /* =========================================================
+       TE5 代码块同语言（圆角卡片壳）：与终端里已有的
+       pre 代码块（圆角 + t-bg-soft 底 + 1px 线）完全同一语言，
+       表格即「结构化代码块」，块状轮廓最统一。
+       ========================================================= */
+    .te5 { display: block; overflow-x: auto; border-collapse: separate; border-spacing: 0; width: 100%; margin: 8px 0; font-size: 12px; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; }
+    .te5 th, .te5 td { padding: 5px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+    .te5 th { font-weight: 600; color: var(--idle); font-size: 11.5px; letter-spacing: .3px; }
+    .te5 tr:last-child td { border-bottom: none; }
+    .te5 tbody tr:hover td { background: var(--sel); }
+
+    .foot-note {
+        max-width: 860px; margin: 40px auto 0;
+        font-size: 12px; color: var(--idle);
+        border-top: 1px solid var(--line);
+        padding-top: 14px; line-height: 1.7;
+    }
+    .variant-desc code { color: var(--green); }
+    .foot-note code { color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <div>
+        <h1>终端 Table 设计选型</h1>
+        <p>终端回答区的 Markdown 表格 · 五个版本，宽窄双表实测，右上角可切换深 / 浅主题</p>
+    </div>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('light-theme')">切换主题</button>
+</div>
+
+<!-- ===== TE1 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">TE1</span><h2>极简横线</h2></div>
+    <div class="variant-desc"><b>无竖线无外框，只有横线语言</b>（表头重线 + 行间细线 + hover 行高亮）。等宽字体天然纵向对齐，去掉竖线后最接近终端原生排版，正文一体感最强。</div>
+    <div class="term">
+        <div class="lead">模型对比</div>
+        <div class="cap">窄表</div>
+        <table class="te1">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出宽度 → 横向滚动）</div>
+        <table class="te1">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== TE2 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">TE2</span><h2>ASCII 全网格</h2></div>
+    <div class="variant-desc"><b>模拟 box-drawing 字符网格</b>（┌─┬┐）：直角 + 全边框 + 表头浅底，像 <code>cat</code> 出来的 ASCII 表。终端隐喻最直白，但线条最重，大表略显密。</div>
+    <div class="term">
+        <div class="lead">模型对比</div>
+        <div class="cap">窄表</div>
+        <table class="te2">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出宽度 → 横向滚动）</div>
+        <table class="te2">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== TE3 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">TE3</span><h2>绿表头强调</h2></div>
+    <div class="variant-desc"><b>把终端 success 色织入表格</b>：表头绿字 + 半透明绿重底线，无竖线、行间细线。与 ❯ 提示符、── 装饰线同一色彩语言，品牌感最强。</div>
+    <div class="term">
+        <div class="lead">模型对比</div>
+        <div class="cap">窄表</div>
+        <table class="te3">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出宽度 → 横向滚动）</div>
+        <table class="te3">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== TE4 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">TE4</span><h2>斑马纹</h2></div>
+    <div class="variant-desc"><b>隔行浅底主导</b>：无外框无竖线，斑马底直接圈出行轨迹，无 hover 依赖。多行数据扫读最省力、报表感最强；行数少时略重。</div>
+    <div class="term">
+        <div class="lead">模型对比</div>
+        <div class="cap">窄表</div>
+        <table class="te4">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出宽度 → 横向滚动）</div>
+        <table class="te4">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== TE5 ===== -->
+<div class="variant">
+    <div class="variant-head"><span class="tag">TE5</span><h2>代码块同语言（圆角卡片壳）</h2></div>
+    <div class="variant-desc"><b>与终端 pre 代码块同一语言</b>（圆角 6px + soft 底 + 1px 线），表格即「结构化代码块」。与回答区已有的块（代码块、引用）轮廓最统一，一眼识别为独立块。</div>
+    <div class="term">
+        <div class="lead">模型对比</div>
+        <div class="cap">窄表</div>
+        <table class="te5">
+            <thead><tr><th>模型</th><th>上下文</th><th>输入价</th><th>输出价</th></tr></thead>
+            <tbody>
+                <tr><td>qwen-max</td><td>32K</td><td>¥0.02 / 1K</td><td>¥0.06 / 1K</td></tr>
+                <tr><td>deepseek-v3</td><td>64K</td><td>¥0.001 / 1K</td><td>¥0.002 / 1K</td></tr>
+            </tbody>
+        </table>
+        <div class="cap">宽表（超出宽度 → 横向滚动）</div>
+        <table class="te5">
+            <thead><tr><th>接口</th><th>方法</th><th>路径</th><th>参数</th><th>返回码</th><th>鉴权</th><th>限流</th><th>负责人</th></tr></thead>
+            <tbody>
+                <tr><td>创建会话</td><td>POST</td><td>/api/sessions</td><td>title</td><td>200</td><td>Bearer</td><td>60 / min</td><td>李明</td></tr>
+                <tr><td>发送消息</td><td>POST</td><td>/api/chat/stream</td><td>sessionId, message</td><td>SSE 200</td><td>Bearer</td><td>30 / min</td><td>王芳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="foot-note">
+    通用行为：全部版本保留 <code>overflow-x: auto</code> 横向滚动兜底（超宽表格在回答区内滚动，不撑破布局）；hover 高亮用终端选中色 <code>--t-sel</code>。落地时替换 <code>.term-chat .t-answer .md table / th / td</code> 的现有全边框样式即可；如需混搭（如 TE3 绿表头 + TE5 圆角壳）也可以说明。
+</div>
+
+</body>
+</html>

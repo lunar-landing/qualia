@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 多项目会话共存 · 五个方向</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        padding: 36px 20px 90px;
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        --stream-glow: 0 0 0 1px rgba(26,127,55,0.35), 0 0 10px rgba(26,127,55,0.18);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --danger: #f85149; --danger-bg: rgba(248,81,73,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        --stream-glow: 0 0 0 1px rgba(63,185,80,0.4), 0 0 12px rgba(63,185,80,0.22);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 1000px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 22px; line-height: 1.7; }
+    code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    /* ===== 方案导航 ===== */
+    .nav { max-width: 1000px; margin: 0 auto 26px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .nav a {
+        text-decoration: none; font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+        border: 1px solid var(--border); background: var(--bg-card); border-radius: 20px; padding: 6px 14px;
+        display: inline-flex; align-items: center; gap: 7px;
+    }
+    .nav a:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav .v { font-size: 9.5px; border-radius: 4px; padding: 1px 5px; color: #fff; font-weight: 700; }
+
+    .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+
+    /* ===== 方案区块 ===== */
+    .concept { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); scroll-margin-top: 20px; }
+    .c-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+    .c-badge { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-radius: 6px; padding: 3px 8px; color: #fff; }
+    .c-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+    .c-head .en { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.6px; }
+    .c-locate { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.7; }
+    .c-body { display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: start; }
+
+    .c-notes { display: flex; flex-direction: column; gap: 12px; }
+    .note h4 { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.6px; margin-bottom: 5px; }
+    .note p, .note li { font-size: 12px; color: var(--text-secondary); line-height: 1.75; }
+    .note ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .note li { display: flex; gap: 8px; }
+    .note li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    .note b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 通用小窗口（mockup 舞台） ===== */
+    .stage {
+        border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+        background: var(--bg-inset); box-shadow: var(--card-shadow);
+    }
+    .s-titlebar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-card); border-bottom: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); }
+    .s-titlebar .dots { display: flex; gap: 4px; }
+    .s-titlebar .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+
+    .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; border-radius: 5px; padding: 2px 7px; }
+    .chip.run { background: var(--success-bg); color: var(--success); }
+    .chip.idle { background: var(--bg-chip); color: var(--text-muted); }
+
+    .dot-live { width: 5px; height: 5px; border-radius: 50%; background: var(--success); animation: pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
+    @keyframes pulse { 50% { opacity: 0.25; } }
+    .spin {
+        width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        border: 1.5px solid var(--border); border-top-color: var(--success);
+        animation: rot 0.9s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* ===== V1 并行窗格 ===== */
+    .pp-tabs { display: flex; align-items: stretch; gap: 2px; padding: 6px 8px 0; background: var(--bg-card); border-bottom: 1px solid var(--border); }
+    .pp-tab {
+        display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600;
+        color: var(--text-secondary); padding: 6px 12px; border-radius: 8px 8px 0 0; cursor: pointer;
+        border: 1px solid transparent; border-bottom: none;
+    }
+    .pp-tab.on { background: var(--bg-inset); border-color: var(--border); color: var(--text-primary); margin-bottom: -1px; }
+    .pp-tab .x { color: var(--text-muted); font-weight: 400; }
+    .pp-split { display: grid; grid-template-columns: 1.35fr 1fr; }
+    .pp-pane { padding: 12px; display: flex; flex-direction: column; gap: 7px; min-height: 232px; }
+    .pp-pane + .pp-pane { border-left: 1px dashed var(--border); }
+    .pp-pane-h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 700; color: var(--text-primary); }
+    .pp-pane-h .pth { font-weight: 400; color: var(--text-muted); font-size: 9.5px; }
+    .msg-line { font-size: 10.5px; line-height: 1.6; padding: 6px 9px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-soft); color: var(--text-secondary); }
+    .msg-line.u { margin-left: 22px; background: var(--bg-active); color: var(--text-primary); }
+    .msg-line.typing::after { content: "▌"; animation: caret 0.9s steps(1) infinite; color: var(--success); }
+    @keyframes caret { 50% { opacity: 0; } }
+    .pp-in { margin-top: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); padding: 7px 10px; font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+    .pp-in .send { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); color: var(--bg-page); display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
+
+    /* ===== V2 驾驶舱 ===== */
+    .mc-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; padding: 14px; }
+    .mc-card {
+        background: var(--bg-card); border: 1px solid var(--border); border-radius: 11px; padding: 11px 12px;
+        display: flex; flex-direction: column; gap: 7px; cursor: pointer; position: relative; overflow: hidden;
+    }
+    .mc-card:hover { border-color: var(--text-muted); }
+    .mc-card .nm { font-size: 11.5px; font-weight: 700; color: var(--text-primary); }
+    .mc-card .last { font-size: 9.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mc-card .meta { display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: var(--text-muted); }
+    .mc-card .st { display: flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; }
+    .mc-card .st.run { color: var(--success); }
+    .mc-card.wide { grid-column: span 3; min-height: 108px; }
+    .mc-card.tall { grid-column: span 3; grid-row: span 2; min-height: 190px; }
+    .mc-card.slim { grid-column: span 2; min-height: 88px; }
+    .mc-card .bar-track { height: 3px; border-radius: 2px; background: var(--bg-chip); overflow: hidden; }
+    .mc-card .bar-fill { height: 100%; width: 62%; background: var(--success); border-radius: 2px; animation: grow 3s ease-in-out infinite alternate; }
+    @keyframes grow { from { width: 34%; } to { width: 71%; } }
+    .mc-card .spark { display: flex; align-items: flex-end; gap: 2px; height: 26px; margin-top: auto; }
+    .mc-card .spark i { flex: 1; border-radius: 2px 2px 0 0; background: var(--bg-chip); }
+    .mc-card .spark i.hi { background: var(--info); opacity: 0.75; }
+
+    /* ===== V3 统一脉搏流 ===== */
+    .up-filter { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex-wrap: wrap; align-items: center; }
+    .up-chip {
+        font-size: 10px; font-weight: 700; border-radius: 20px; padding: 3px 10px; cursor: pointer;
+        border: 1px solid var(--border); color: var(--text-secondary); background: var(--bg-card);
+        display: inline-flex; align-items: center; gap: 5px;
+    }
+    .up-chip .sw { width: 7px; height: 7px; border-radius: 2px; }
+    .up-chip.on { background: var(--bg-active); color: var(--text-primary); border-color: var(--text-muted); }
+    .up-feed { padding: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow: hidden; position: relative; }
+    .up-card {
+        display: flex; gap: 10px; background: var(--bg-card); border: 1px solid var(--border-soft);
+        border-radius: 10px; padding: 9px 11px; font-size: 10.5px; color: var(--text-secondary);
+    }
+    .up-card .rail { width: 3px; border-radius: 2px; flex-shrink: 0; }
+    .up-card .hd { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; flex-wrap: wrap; }
+    .up-card .proj { font-weight: 700; color: var(--text-primary); font-size: 10px; }
+    .up-card .time { margin-left: auto; color: var(--text-muted); font-size: 9px; }
+    .up-card.live { box-shadow: var(--stream-glow); }
+    .up-card .txt { line-height: 1.6; }
+    .up-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(transparent, var(--bg-inset)); pointer-events: none; }
+    .up-hidden { display: none !important; }
+
+    /* ===== V4 星图 ===== */
+    .gx-canvas { position: relative; height: 320px; overflow: hidden; background: var(--bg-inset); }
+    .gx-hint { position: absolute; left: 12px; top: 10px; font-size: 9.5px; color: var(--text-muted); display: flex; gap: 12px; }
+    .gx-sys { position: absolute; }
+    .gx-orbit { position: absolute; border: 1px dashed var(--border); border-radius: 50%; }
+    .gx-sat {
+        position: absolute; width: 7px; height: 7px; border-radius: 50%;
+        background: var(--text-muted); top: -3.5px; left: 50%; margin-left: -3.5px;
+    }
+    .gx-sat.live { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .o-a1 { animation: orb 14s linear infinite; } .o-a2 { animation: orb 22s linear infinite reverse; }
+    .o-b1 { animation: orb 17s linear infinite; } .o-b2 { animation: orb 26s linear infinite reverse; } .o-b3 { animation: orb 34s linear infinite; }
+    .o-c1 { animation: orb 19s linear infinite; } .o-c2 { animation: orb 29s linear infinite reverse; }
+    @keyframes orb { to { transform: rotate(360deg); } }
+    .gx-star { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; z-index: 3; }
+    .gx-core {
+        width: 30px; height: 30px; border-radius: 10px; background: var(--accent); color: var(--bg-page);
+        display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;
+    }
+    .gx-sys.live .gx-core { box-shadow: 0 0 0 4px var(--success-bg), 0 0 16px rgba(26,127,55,0.35); }
+    body.dark .gx-sys.live .gx-core { box-shadow: 0 0 0 4px var(--success-bg), 0 0 18px rgba(63,185,80,0.45); }
+    .gx-name { font-size: 9.5px; font-weight: 700; color: var(--text-primary); }
+    .gx-count { font-size: 8.5px; color: var(--text-muted); }
+
+    /* ===== V5 调度台 ===== */
+    .dp-body { padding: 26px 22px 18px; display: flex; flex-direction: column; gap: 14px; min-height: 300px; }
+    .dp-hero { text-align: center; }
+    .dp-hero .ask { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; }
+    .dp-input {
+        max-width: 420px; margin: 0 auto; border: 1px solid var(--border); border-radius: 12px;
+        background: var(--bg-card); padding: 10px 13px; font-size: 11px; color: var(--text-secondary);
+        display: flex; justify-content: space-between; align-items: center;
+        box-shadow: 0 0 0 3px var(--bg-chip);
+    }
+    .dp-input .send { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: var(--bg-page); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+    .dp-route { max-width: 460px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 6px; }
+    .dp-line { font-size: 10.5px; color: var(--text-secondary); line-height: 1.65; display: flex; gap: 7px; align-items: baseline; opacity: 0; animation: rise 0.5s ease forwards; }
+    .dp-line:nth-child(1) { animation-delay: 0.15s; } .dp-line:nth-child(2) { animation-delay: 0.55s; } .dp-line:nth-child(3) { animation-delay: 0.95s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .dp-line .who { color: var(--text-muted); font-size: 9.5px; flex-shrink: 0; width: 34px; }
+    .dp-tray { margin-top: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); overflow: hidden; }
+    .dp-tray-h { display: flex; align-items: center; gap: 7px; padding: 7px 11px; font-size: 10px; font-weight: 700; color: var(--text-secondary); border-bottom: 1px solid var(--border-soft); }
+    .dp-task { display: flex; align-items: center; gap: 9px; padding: 8px 11px; font-size: 10.5px; color: var(--text-secondary); }
+    .dp-task + .dp-task { border-top: 1px dashed var(--border-soft); }
+    .dp-task .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--bg-chip); overflow: hidden; }
+    .dp-task .bar i { display: block; height: 100%; background: var(--success); border-radius: 2px; animation: grow 2.6s ease-in-out infinite alternate; }
+    .dp-task .pct { font-size: 9px; color: var(--text-muted); width: 26px; text-align: right; }
+
+    /* ===== 对比表 ===== */
+    .cmp { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); }
+    .cmp h2 { font-size: 15px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    th {
+        text-align: left; padding: 8px 10px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary);
+        background: var(--bg-inset); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-inset); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); }
+    .rate { color: var(--warning); letter-spacing: 1px; }
+
+    .verdict {
+        display: flex; gap: 10px; align-items: flex-start; margin-top: 16px;
+        background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px;
+        padding: 13px 15px; font-size: 12px; line-height: 1.8; color: var(--text-secondary);
+    }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict b { color: var(--text-primary); }
+
+    @media (max-width: 860px) {
+        .c-body { grid-template-columns: 1fr; }
+        .mc-grid { grid-template-columns: repeat(2, 1fr); }
+        .mc-card.wide, .mc-card.tall, .mc-card.slim { grid-column: span 2; }
+    }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1>多项目会话共存 · 五个方向</h1>
+<p class="sub">同一底层能力（会话按项目物理隔离 + 多 ChatService 实例并行）之上的五种交互范式，从务实到激进<br>分组列表仅是其中一种答案——以下方案重新回答「项目与会话如何相遇」</p>
+
+<div class="nav">
+    <a href="#v1"><span class="v" style="background:#0969da">V1</span>并行窗格</a>
+    <a href="#v2"><span class="v" style="background:#8250df">V2</span>项目驾驶舱</a>
+    <a href="#v3"><span class="v" style="background:#1a7f37">V3</span>统一脉搏流</a>
+    <a href="#v4"><span class="v" style="background:#9a6700">V4</span>会话星图</a>
+    <a href="#v5"><span class="v" style="background:#cf222e">V5</span>意图调度台</a>
+</div>
+
+<div class="wrap">
+
+    <!-- ============ V1 并行窗格 ============ -->
+    <div class="concept" id="v1">
+        <div class="c-head">
+            <span class="c-badge" style="background:#0969da">V1</span>
+            <h2>并行窗格</h2><span class="en">PARALLEL PANES</span>
+            <span class="chip idle">务实演进</span><span class="chip run">风险最低</span>
+        </div>
+        <p class="c-locate">把「切项目」从销毁式跳转改成浏览器多标签：每个项目一个标签页常驻，后台流永远在线；支持分屏同览两个项目。tmux / IDE 编辑器标签的心智模型。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 标签式工作区</div>
+                <div class="pp-tabs">
+                    <div class="pp-tab"><span class="dot-live"></span>qualia <span class="x">✕</span></div>
+                    <div class="pp-tab on">qualia-claw <span class="x">✕</span></div>
+                    <div class="pp-tab"><span class="dot-live"></span>blog <span class="x">✕</span></div>
+                    <div class="pp-tab" style="color:var(--text-muted)">＋</div>
+                    <div style="margin-left:auto;align-self:center;font-size:9.5px;color:var(--text-muted)">⿴ 分屏</div>
+                </div>
+                <div class="pp-split">
+                    <div class="pp-pane">
+                        <div class="pp-pane-h"><span class="dot-live"></span>qualia-claw <span class="pth">· 模型面板抽取</span></div>
+                        <div class="msg-line">把模型管理面板从设置抽到智能体级</div>
+                        <div class="msg-line u">保留单卡预览，先出方案</div>
+                        <div class="msg-line typing">方案 B：Tab 切换式全宽网格，卡片悬停…</div>
+                        <div class="pp-in">继续调整间距…<span class="send">↑</span></div>
+                    </div>
+                    <div class="pp-pane">
+                        <div class="pp-pane-h">qualia <span class="pth">· 共存设计</span><span class="chip idle" style="margin-left:auto">等待中</span></div>
+                        <div class="msg-line">聚合列表接口已就绪</div>
+                        <div class="msg-line u">看看右侧 claw 的方案再定</div>
+                        <div class="pp-in">对照 V1 截两版对比图…<span class="send">↑</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>交互机制</h4>
+                    <ul>
+                        <li>顶部标签 = 打开过的项目，常驻不销毁；标签上的绿点 = 该项目有流在跑</li>
+                        <li>分屏模式下两个窗格各自独立会话流，可同时观察两个项目的执行</li>
+                        <li>关闭标签只是「收起视图」，后台流仍由多实例承载，可随时重开</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>共存如何实现</h4>
+                    <p>直接对应后端 <b>ChatServiceRegistry 多实例</b>：一个标签绑定一个实例，互斥天然消失，是最贴合现有架构的映射。</p>
+                </div>
+                <div class="note">
+                    <h4>优势 / 代价</h4>
+                    <ul>
+                        <li><b>优势</b>：心智零学习成本；与 IDE 用户习惯完全一致；改造路径最短</li>
+                        <li><b>代价</b>：跨项目「总览」弱——不切标签就看不见全貌；标签多了需要溢出折叠</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ V2 项目驾驶舱 ============ -->
+    <div class="concept" id="v2">
+        <div class="c-head">
+            <span class="c-badge" style="background:#8250df">V2</span>
+            <h2>项目驾驶舱</h2><span class="en">MISSION CONTROL</span>
+            <span class="chip idle">启动台心智</span><span class="chip run">总览最强</span>
+        </div>
+        <p class="c-locate">欢迎态升级为 Bento 卡片墙：每张卡片是一个项目的「仪表盘」——最近会话、运行状态、进度、7 日 token 迷你图。项目不再是列表里的一行，而是一块有生命体征的面板。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 驾驶舱</div>
+                <div class="mc-grid">
+                    <div class="mc-card tall">
+                        <div class="nm">qualia</div>
+                        <div class="last">项目会话共存设计 · 24 条</div>
+                        <div class="st run"><span class="dot-live"></span>生成中 · 步骤 12/24</div>
+                        <div class="bar-track"><div class="bar-fill"></div></div>
+                        <div class="meta"><span>7 日 token</span><span>482k</span></div>
+                        <div class="spark"><i style="height:30%"></i><i style="height:55%"></i><i style="height:40%"></i><i class="hi" style="height:90%"></i><i style="height:62%"></i><i style="height:48%"></i><i style="height:70%"></i></div>
+                    </div>
+                    <div class="mc-card wide">
+                        <div class="nm">qualia-claw</div>
+                        <div class="st run"><span class="dot-live"></span>模型面板抽取 · 运行中</div>
+                        <div class="last">正在生成方案 B 网格布局…</div>
+                        <div class="bar-track"><div class="bar-fill" style="animation-duration:4.2s"></div></div>
+                    </div>
+                    <div class="mc-card slim">
+                        <div class="nm">blog</div>
+                        <div class="st"><span class="spin"></span>部署脚本迁移 · 2 分钟前</div>
+                        <div class="last">上次会话：hexo 迁移 astro</div>
+                    </div>
+                    <div class="mc-card slim">
+                        <div class="nm">docs-site</div>
+                        <div class="st" style="color:var(--text-muted)">空闲 · 昨天</div>
+                        <div class="last">上次会话：搜索防抖优化</div>
+                        <div class="spark"><i style="height:20%"></i><i style="height:35%"></i><i class="hi" style="height:75%"></i><i style="height:30%"></i><i style="height:15%"></i><i style="height:22%"></i><i style="height:10%"></i></div>
+                    </div>
+                    <div class="mc-card slim" style="border-style:dashed;align-items:center;justify-content:center;color:var(--text-muted)">
+                        <div class="nm" style="font-size:20px;font-weight:400">＋</div>
+                        <div class="last">打开新项目</div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>交互机制</h4>
+                    <ul>
+                        <li>卡片 = 项目的实时投影：状态、进度条、迷你 sparkline 全部由 SSE 活动事件驱动</li>
+                        <li>点击卡片进入该项目（标签式或单视图均可叠加）；运行中的卡片持续呼吸</li>
+                        <li>驾驶舱本身可做首页，也可做成 <code>Esc</code> 随手唤起的覆盖层</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>共存如何实现</h4>
+                    <p>多实例照旧；新增一个 <b>轻量聚合状态接口</b>（每项目：最近会话 + 运行标志 + token 统计），卡片轮询或事件推送刷新。</p>
+                </div>
+                <div class="note">
+                    <h4>优势 / 代价</h4>
+                    <ul>
+                        <li><b>优势</b>：一屏尽收所有项目的「现在」；把 token 统计等既有能力自然收编</li>
+                        <li><b>代价</b>：深会话操作仍要进项目二层；卡片信息时效性依赖事件通道质量</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ V3 统一脉搏流 ============ -->
+    <div class="concept" id="v3">
+        <div class="c-head">
+            <span class="c-badge" style="background:#1a7f37">V3</span>
+            <h2>统一脉搏流</h2><span class="en">UNIFIED PULSE</span>
+            <span class="chip idle">Feed 心智</span><span class="chip run">最反直觉也最诱人</span>
+        </div>
+        <p class="c-locate">干脆取消「进入某个项目」的主叙事：所有项目的活动汇成一条按时间倒序的脉搏流。项目降级为过滤器（色标 chips），你关注的不是「在哪个项目里」，而是「此刻什么在发生」。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 全部活动</div>
+                <div class="up-filter">
+                    <span style="font-size:10px;color:var(--text-muted);font-weight:700;margin-right:2px">筛选</span>
+                    <span class="up-chip on" data-p="all" onclick="upFilter(this)">全部</span>
+                    <span class="up-chip" data-p="qualia" onclick="upFilter(this)"><span class="sw" style="background:#0969da"></span>qualia</span>
+                    <span class="up-chip" data-p="claw" onclick="upFilter(this)"><span class="sw" style="background:#8250df"></span>qualia-claw</span>
+                    <span class="up-chip" data-p="blog" onclick="upFilter(this)"><span class="sw" style="background:#9a6700"></span>blog</span>
+                </div>
+                <div class="up-feed">
+                    <div class="up-card live" data-p="claw">
+                        <div class="rail" style="background:#8250df"></div>
+                        <div style="flex:1;min-width:0">
+                            <div class="hd"><span class="proj">qualia-claw</span><span>模型面板抽取</span><span class="chip run">流式生成</span><span class="time">刚刚</span></div>
+                            <div class="txt">写入 ModelCard.vue，进度 12/24 步 · 已改 3 个文件</div>
+                        </div>
+                    </div>
+                    <div class="up-card" data-p="qualia">
+                        <div class="rail" style="background:#0969da"></div>
+                        <div style="flex:1;min-width:0">
+                            <div class="hd"><span class="proj">qualia</span><span>项目会话共存设计</span><span class="time">2 分钟前</span></div>
+                            <div class="txt">完成 P1 聚合接口设计，等你确认后再动 Registry</div>
+                        </div>
+                    </div>
+                    <div class="up-card" data-p="blog">
+                        <div class="rail" style="background:#9a6700"></div>
+                        <div style="flex:1;min-width:0">
+                            <div class="hd"><span class="proj">blog</span><span>hexo 迁移 astro</span><span class="time">1 小时前</span></div>
+                            <div class="txt">生成部署脚本，产物已落 docs/dist，待人工 review</div>
+                        </div>
+                    </div>
+                    <div class="up-card" data-p="qualia">
+                        <div class="rail" style="background:#0969da"></div>
+                        <div style="flex:1;min-width:0">
+                            <div class="hd"><span class="proj">qualia</span><span>侧边栏宽度拖拽</span><span class="time">3 小时前</span></div>
+                            <div class="txt">Geometry 计算与边界钳制定稿，已合入</div>
+                        </div>
+                    </div>
+                    <div class="up-fade"></div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>交互机制</h4>
+                    <ul>
+                        <li>流内卡片 = 会话级活动事件（消息完成 / 工具执行 / 文件落盘 / 等待确认）</li>
+                        <li>项目色标 + chips 过滤；点击卡片展开会话或直接接管（跳入该项目上下文）</li>
+                        <li>确认闸门类事件在流内置顶钉住——跨项目的人机协同排队一目了然</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>共存如何实现</h4>
+                    <p>后端把各实例的事件统一汇入<b>全局活动总线</b>（单条 SSE 下发，事件带 projectId）——前端只维护一条流，天然多项目。</p>
+                </div>
+                <div class="note">
+                    <h4>优势 / 代价</h4>
+                    <ul>
+                        <li><b>优势</b>：单人多项目并行的终极形态；与既有 ReAct 交错时间线一脉相承</li>
+                        <li><b>代价</b>：放弃「项目为容器」的确定性，依赖高质量的过滤与召回；事件协议需重设计</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ V4 会话星图 ============ -->
+    <div class="concept" id="v4">
+        <div class="c-head">
+            <span class="c-badge" style="background:#9a6700">V4</span>
+            <h2>会话星图</h2><span class="en">CONSTELLATION</span>
+            <span class="chip idle">空间记忆</span><span class="chip run">实验性</span>
+        </div>
+        <p class="c-locate">项目是恒星，会话是绕行卫星，运行中的会话拖着光点沿轨道公转。整个工作历史变成一张可缩放平移的星图——用空间位置承载记忆：项目放在哪，你就记得在哪。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 星图视图</div>
+                <div class="gx-canvas">
+                    <div class="gx-hint"><span>● 运行中</span><span>○ 空闲会话</span><span>滚轮缩放 · 拖拽平移 · 点击恒星进入项目</span></div>
+
+                    <div class="gx-sys live" style="left:26%;top:44%">
+                        <div class="gx-orbit" style="width:150px;height:150px;left:-75px;top:-75px" ><div class="gx-sat live o-a1"></div></div>
+                        <div class="gx-orbit" style="width:92px;height:92px;left:-46px;top:-46px"><div class="gx-sat o-a2"></div></div>
+                        <div class="gx-star" style="position:relative">
+                            <div class="gx-core">Q</div>
+                            <div class="gx-name">qualia</div><div class="gx-count">12 会话 · 2 活跃</div>
+                        </div>
+                    </div>
+
+                    <div class="gx-sys live" style="left:64%;top:30%">
+                        <div class="gx-orbit" style="width:110px;height:110px;left:-55px;top:-55px"><div class="gx-sat live o-b1"></div></div>
+                        <div class="gx-orbit" style="width:66px;height:66px;left:-33px;top:-33px"><div class="gx-sat o-b2"></div></div>
+                        <div class="gx-star" style="position:relative">
+                            <div class="gx-core">C</div>
+                            <div class="gx-name">qualia-claw</div><div class="gx-count">7 会话 · 1 活跃</div>
+                        </div>
+                    </div>
+
+                    <div class="gx-sys" style="left:72%;top:72%">
+                        <div class="gx-orbit" style="width:84px;height:84px;left:-42px;top:-42px"><div class="gx-sat o-c1"></div></div>
+                        <div class="gx-orbit" style="width:52px;height:52px;left:-26px;top:-26px"><div class="gx-sat o-c2"></div></div>
+                        <div class="gx-star" style="position:relative">
+                            <div class="gx-core">B</div>
+                            <div class="gx-name">blog</div><div class="gx-count">3 会话 · 空闲</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>交互机制</h4>
+                    <ul>
+                        <li>卫星半径 = 会话消息量，轨道速度 = 活跃度；运行中的卫星变绿并加速</li>
+                        <li>悬停恒星展开卫星标签；点击卫星直接续聊（自动切换焦点项目）</li>
+                        <li>双星距离可表达「项目相关性」—— AI 主动把相关项目拉成星座（联动推荐）</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>共存如何实现</h4>
+                    <p>纯展示层创新：数据完全来自多实例状态聚合（V2 的聚合接口即可驱动），星图只是其中一种「投影」。</p>
+                </div>
+                <div class="note">
+                    <h4>优势 / 代价</h4>
+                    <ul>
+                        <li><b>优势</b>：辨识度极高，情绪价值拉满；空间记忆对「项目很多」的用户真实有效</li>
+                        <li><b>代价</b>：效率存疑，信息密度低；适合作为<b>欢迎态 / 回顾态</b>的可选皮肤而非主界面</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ V5 意图调度台 ============ -->
+    <div class="concept" id="v5">
+        <div class="c-head">
+            <span class="c-badge" style="background:#cf222e">V5</span>
+            <h2>意图调度台</h2><span class="en">DISPATCHER</span>
+            <span class="chip idle">最激进</span><span class="chip run">一个入口统治一切</span>
+        </div>
+        <p class="c-locate">取消「先选项目再说话」：你只面对一个全局输入框，说出意图，调度 AI 判断该去哪个项目的哪个会话——自动路由、自动续聊、自动汇总。项目与会话的全部复杂性沉入后台任务抽屉。</p>
+        <div class="c-body">
+            <div class="stage">
+                <div class="s-titlebar"><span class="dots"><i></i><i></i><i></i></span>qualia-code · 调度台</div>
+                <div class="dp-body">
+                    <div class="dp-hero">
+                        <div class="ask">今天想推进什么？</div>
+                        <div class="dp-input">把 claw 的模型面板方案截两版对比图发我<span class="send">↑</span></div>
+                    </div>
+                    <div class="dp-route">
+                        <div class="dp-line"><span class="who">路由</span><span>命中项目 <b>qualia-claw</b> · 会话「模型面板抽取」（运行中，追加提问）</span></div>
+                        <div class="dp-line"><span class="who">执行</span><span>生成方案 A / B 截图 → 完成后回执到这里</span></div>
+                        <div class="dp-line"><span class="who">提示</span><span>qualia 的共存设计还在等你确认 P1 接口，需要现在处理吗？</span></div>
+                    </div>
+                    <div class="dp-tray">
+                        <div class="dp-tray-h"><span class="dot-live"></span>后台任务 · 2 运行中<span style="margin-left:auto;font-weight:400;color:var(--text-muted)">全部收起 ▾</span></div>
+                        <div class="dp-task"><span class="chip idle" style="min-width:74px;justify-content:center">qualia-claw</span><span>模型面板 · 截图生成</span><span class="bar"><i></i></span><span class="pct">62%</span></div>
+                        <div class="dp-task"><span class="chip idle" style="min-width:74px;justify-content:center">blog</span><span>部署脚本 · astro build</span><span class="bar"><i style="animation-duration:4s;width:88%"></i></span><span class="pct">88%</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>交互机制</h4>
+                    <ul>
+                        <li>全局对话 = 调度层：轻量 LLM 做意图 → (项目, 会话, 动作) 的路由决策</li>
+                        <li>路由决策透明可见（三行小字），可一键纠正——错误路由点一下即改投</li>
+                        <li>后台任务抽屉统一呈现所有项目的运行体；完成后以回执卡片回流到主对话</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>共存如何实现</h4>
+                    <p>多实例 + 全局活动总线（V3 的底座）之上，再加一层<b>路由器</b>：多项目共存从「用户管理」变成「AI 托管」。</p>
+                </div>
+                <div class="note">
+                    <h4>优势 / 代价</h4>
+                    <ul>
+                        <li><b>优势</b>：交互面积趋近于零；对「多项目随手指派」的场景是降维打击</li>
+                        <li><b>代价</b>：多一次路由 LLM 调用与延迟；路由错误伤信任；与现有「强项目上下文」（文件树、技能、Agent）冲突最大，只宜做增量入口</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ 对比与建议 ============ -->
+    <div class="cmp">
+        <h2>横向对比</h2>
+        <table>
+            <tr>
+                <th>方案</th><th>核心范式</th><th>后台流表达</th><th>跨项目总览</th><th>切换成本</th><th>实现风险</th><th>定位建议</th>
+            </tr>
+            <tr>
+                <td><b>V1 并行窗格</b></td><td>标签 + 分屏</td><td>标签绿点 / 窗格实时流</td><td><span class="rate">●●○</span></td><td>点标签，零成本</td><td>低（纯映射多实例）</td><td><b>主力视图，P1/P2 即可落地</b></td>
+            </tr>
+            <tr>
+                <td><b>V2 项目驾驶舱</b></td><td>Bento 卡片墙</td><td>卡片进度 + 呼吸态</td><td><span class="rate">●●●</span></td><td>点卡片进项目</td><td>中（需聚合状态接口）</td><td>欢迎态升级，与 V1 叠加</td>
+            </tr>
+            <tr>
+                <td><b>V3 统一脉搏流</b></td><td>活动 Feed + 过滤器</td><td>流内实时卡片</td><td><span class="rate">●●●</span></td><td>点卡片接管</td><td>中高（事件总线重设计）</td><td>中期演进；复用 ReAct 时间线底座</td>
+            </tr>
+            <tr>
+                <td><b>V4 会话星图</b></td><td>空间星图</td><td>卫星公转 + 光晕</td><td><span class="rate">●●○</span></td><td>点卫星续聊</td><td>低（纯展示层）</td><td>欢迎态可选皮肤 / 回顾页</td>
+            </tr>
+            <tr>
+                <td><b>V5 意图调度台</b></td><td>AI 路由 + 任务抽屉</td><td>后台任务条 + 回执</td><td><span class="rate">●●●</span></td><td>无感（AI 代驾）</td><td>高（路由器 + 信任设计）</td><td>长期实验；先做「回执提示」级增量</td>
+            </tr>
+        </table>
+        <div class="verdict">
+            <span class="dot"></span>
+            <span><b>推荐组合拳</b>：V1（标签窗格）做主视图直接映射 <code>ChatServiceRegistry</code> 多实例；V2（驾驶舱）吃掉现有欢迎页与 token 统计，做打开项目的首屏；V4 作为驾驶舱的皮肤彩蛋。V3 / V5 共享「全局活动总线」底座，等 V1/V2 站稳后按需演进。五个方案共享同一后端事实：<b>会话按项目物理隔离 + 多实例并行 + 焦点项目语义</b>，选哪个都不用推翻重来。</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function upFilter(el) {
+    document.querySelectorAll('.up-chip').forEach(function (c) { c.classList.remove('on'); });
+    el.classList.add('on');
+    var p = el.dataset.p;
+    document.querySelectorAll('.up-card').forEach(function (card) {
+        card.classList.toggle('up-hidden', p !== 'all' && card.dataset.p !== p);
+    });
+}
+</script>
+</body>
+</html>

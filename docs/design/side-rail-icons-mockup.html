@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · side-rail 双图标替换方案（6 组）</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 与 qualia-code-ui 线上主题一致的设计变量 ===== */
+    :root {
+        --bg-app: #080a10;
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(230, 237, 243, 0.10);
+        --ms-card: #141824;
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
+        --accent-ink: #0d1117;
+    }
+    body.light-theme {
+        --bg-app: #ffffff;
+        --bg-sidebar: #eff2f5;
+        --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee;
+        --ms-card: #ffffff;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-gradient: linear-gradient(145deg, #32383f, #24292f);
+        --accent-ink: #ffffff;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    i { line-height: 1; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--ms-card); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 34px; line-height: 1.8; }
+    .sub em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+
+    /* ===== 总览卡片 ===== */
+    .pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(252px, 1fr)); gap: 14px; max-width: 1000px; margin: 0 auto 50px; }
+    .pcard {
+        background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 14px;
+        padding: 14px 12px 13px; display: flex; flex-direction: column; align-items: center; gap: 13px;
+        cursor: pointer; transition: border-color 0.2s;
+    }
+    .pcard:hover { border-color: var(--border-active); }
+    .pc-head { display: flex; align-items: center; gap: 8px; align-self: stretch; padding-left: 2px; }
+    .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-gradient); border-radius: 7px; padding: 2px 9px; flex-shrink: 0;
+    }
+    .pc-name { font-size: 12.5px; font-weight: 600; flex: 1; min-width: 0; }
+    .rec {
+        font-size: 9.5px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-gradient); border-radius: 5px; padding: 1.5px 7px; flex-shrink: 0;
+    }
+    .pc-views { display: flex; gap: 22px; }
+    .pc-view { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+    .pc-view > span { font-size: 10px; color: var(--text-muted); }
+    .pc-icons { display: flex; align-items: center; gap: 9px; }
+    .pc-ic { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .pc-ic i { font-size: 17px; color: var(--text-primary); }
+    .pc-ic code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 9px;
+        color: var(--text-secondary); background: var(--bg-hover);
+        border-radius: 4px; padding: 1px 5px; white-space: nowrap;
+    }
+    .pc-x { color: var(--text-muted); font-size: 12px; padding-bottom: 15px; }
+
+    /* ===== 逐款详解 ===== */
+    .demo { max-width: 640px; margin: 0 auto 34px; scroll-margin-top: 30px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--accent-light); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 18px;
+        padding: 22px 0; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; color: var(--text-secondary);
+    }
+
+    /* ===== 迷你侧栏（234px 真实语境） ===== */
+    .mside {
+        width: 234px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 14px;
+        padding: 12px 9px 9px; display: flex; flex-direction: column;
+    }
+    .ms-brand { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; padding: 0 4px 11px; }
+    .ms-brand i { font-size: 13px; }
+    .ms-ws {
+        display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 11px;
+        background: var(--bg-hover); border: 1px solid var(--border); border-radius: 10px;
+        font-size: 11.5px; color: var(--text-secondary);
+    }
+    .ms-ws > i { font-size: 11px; color: var(--text-muted); }
+    .ms-ws .ws-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+    .ms-ws .ws-t b { font-weight: 600; color: var(--text-primary); font-size: 11px; }
+    .ms-ws .ws-t i { font-style: normal; font-size: 9.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ms-ws .cv { font-size: 10px; color: var(--text-muted); }
+    .ms-hdr {
+        display: flex; align-items: center; justify-content: space-between; gap: 6px;
+        padding: 0 2px 9px; border-bottom: 1px solid var(--border); min-height: 32px;
+    }
+    .ms-list { margin-top: 9px; min-height: 118px; display: flex; flex-direction: column; }
+    .ms-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 6px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+    .ms-row i { font-size: 11px; color: var(--text-muted); width: 12px; text-align: center; }
+    .ms-row span { overflow: hidden; text-overflow: ellipsis; }
+    .ms-row.on { background: var(--bg-active); color: var(--accent-light); font-weight: 500; }
+    .ms-row.i1 { padding-left: 20px; }
+    .ms-row.i2 { padding-left: 33px; }
+    .ms-foot { margin-top: auto; padding: 7px 4px 0; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-secondary); }
+    .ms-foot i { font-size: 11px; color: var(--text-muted); }
+
+    /* 列表内容随视图切换（与真实侧栏行为一致） */
+    .p-f, .act-f { display: none !important; }
+    .mside[data-view="s"] .act-s { display: inline-flex !important; }
+    .mside[data-view="f"] .p-s, .mside[data-view="f"] .act-s { display: none !important; }
+    .mside[data-view="f"] .p-f { display: flex !important; }
+    .mside[data-view="f"] .act-f { display: inline-flex !important; }
+    .act {
+        display: none; align-items: center; justify-content: center; width: 24px; height: 24px;
+        background: transparent; border: none; border-radius: 6px; color: var(--text-muted); transition: 0.2s;
+    }
+    .act i { font-size: 11px; }
+    .act:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* ===== 滑轨骨架：几何与现行实现一致（64×26 / 滑块 28×20 / 行程 30px，交叉淡入） ===== */
+    .rail {
+        position: relative; width: 64px; height: 26px; border-radius: 100px; flex-shrink: 0;
+        background: var(--bg-hover); border: 1px solid var(--border); cursor: pointer;
+        transition: background 0.2s;
+    }
+    .rail:hover { background: var(--bg-active); }
+    .rail .end {
+        position: absolute; top: 0; bottom: 0; display: flex; align-items: center;
+        color: var(--text-muted); transition: opacity 0.2s;
+    }
+    .rail .end i { font-size: 12px; }
+    .rail .end-l { left: 8px; }
+    .rail .end-r { right: 8px; }
+    .rail .thumb {
+        position: absolute; top: 2px; left: 2px; width: 28px; height: 20px;
+        display: flex; align-items: center; justify-content: center; border-radius: 100px;
+        background: rgba(255, 255, 255, 0.02); color: var(--text-primary);
+        transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.5, 1);
+    }
+    body.light-theme .rail .thumb { background: #d0d7de; }
+    .rail .ti {
+        position: absolute; left: 50%; top: 50%; display: flex; align-items: center; justify-content: center;
+        opacity: 0; transform: translate(-50%, -50%) scale(0.5);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    .rail .ti i { font-size: 11px; }
+
+    /* 二态切换：端点淡出防重影；滑块位移 + 图标交叉淡入（rail 自带状态 / mside 驱动 demo 内滑轨） */
+    .rail[data-view="s"] .end-l, .rail[data-view="f"] .end-r,
+    .mside[data-view="s"] .rail .end-l, .mside[data-view="f"] .rail .end-r { opacity: 0; }
+    .rail[data-view="f"] .thumb, .mside[data-view="f"] .rail .thumb { transform: translateX(30px); }
+    .rail[data-view="s"] .ti-s, .rail[data-view="f"] .ti-f,
+    .mside[data-view="s"] .rail .ti-s, .mside[data-view="f"] .rail .ti-f {
+        opacity: 1; transform: translate(-50%, -50%);
+    }
+
+    /* ===== 对比总表 ===== */
+    .cmp { max-width: 640px; margin: 46px auto 0; }
+    .cmp h2 { font-size: 14px; margin-bottom: 12px; padding-left: 4px; }
+    .cmp table { width: 100%; border-collapse: collapse; font-size: 11.5px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .cmp th, .cmp td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .cmp th { color: var(--text-muted); font-size: 10.5px; letter-spacing: 0.5px; font-weight: 600; }
+    .cmp tr:last-child td { border-bottom: none; }
+    .cmp td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed"><button id="themeBtn">切换日间 / 夜间</button></div>
+
+<h1>side-rail 双图标替换方案（6 组）</h1>
+<p class="sub">滑轨几何与动效<em>完全不动</em>，只换会话侧 / 文件侧这对图标；现状是<em>线性气泡 + 实心开盖</em>的混排字重，下方方案按「语义、隐喻、极简、字重统一」四个取向给出。<em>详解区的滑轨均可点击</em>，右上角可切日间主题。</p>
+
+<!-- 总览卡片（静态双态，点击跳转详解） -->
+<div class="pgrid" id="pgrid"></div>
+
+<!-- 逐款详解（由 JS 按同一份 VARIANTS 渲染） -->
+<div id="demos"></div>
+
+<!-- 对比总表 -->
+<div class="cmp">
+    <h2>横向对比</h2>
+    <table>
+        <tr><th>方案</th><th>会话侧</th><th>文件侧</th><th>取向</th><th>亮点</th><th>取舍</th></tr>
+        <tr><td>A 现状基线</td><td>comment-dots (线性)</td><td>folder-open (实心)</td><td>参照系</td><td>现行定稿原样</td><td>两端字重混排</td></tr>
+        <tr><td>B 时光 · 树语 ★</td><td>clock-rotate-left</td><td>folder-tree</td><td>语义直给</td><td>「历史 / 目录树」零歧义，双实心统一</td><td>folder-tree 与工作区钮撞形</td></tr>
+        <tr><td>C 对话 · 文档</td><td>comments (线性)</td><td>file-lines (线性)</td><td>内容隐喻</td><td>「对话流 vs 文档流」，全线性统一</td><td>双气泡 11px 下略密</td></tr>
+        <tr><td>D 气泡 · 抽屉</td><td>message (线性)</td><td>folder (线性)</td><td>极简线性</td><td>笔画最少，与 GitHub 线性血缘最近</td><td>合盖 folder 与树内行同形</td></tr>
+        <tr><td>E 实心统一</td><td>comment-dots (实心)</td><td>folder-open (实心)</td><td>字重统一</td><td>只改一个 class，成本最低</td><td>实心整体偏重</td></tr>
+        <tr><td>F 线性统一</td><td>comment-dots (线性)</td><td>folder-open (线性)</td><td>字重统一</td><td>只改一个 class，观感最轻</td><td>开盖线性辨识度略降</td></tr>
+    </table>
+</div>
+
+<script>
+    // ===== 六组图标方案（s = 会话侧 / f = 文件侧，均为 Font Awesome 6 free 类名） =====
+    var VARIANTS = [
+        {
+            id: 'A', tag: 'A', name: '现状基线 · 字重混排',
+            s: 'far fa-comment-dots', f: 'fas fa-folder-open',
+            desc: '现行定稿原样保留，作为<em>参照系</em>，方便与其余各款并排比对。',
+            note: '线性气泡 + 实心开盖，两端视觉重量不一致，是本轮替换的主要动机。',
+            rec: false
+        },
+        {
+            id: 'B', tag: 'B', name: '时光 · 树语 · 语义直给',
+            s: 'fas fa-clock-rotate-left', f: 'fas fa-folder-tree',
+            desc: '历史时钟对目录树，双实心统一字重；「会话历史 / 文件树」的语义<em>最直给</em>，零学习成本。',
+            note: 'folder-tree 与上方工作区切换钮同形（见迷你侧栏顶部）；若介意撞形，文件侧可换回 fa-folder-open 只动会话侧。',
+            rec: true
+        },
+        {
+            id: 'C', tag: 'C', name: '对话 · 文档 · 内容隐喻',
+            s: 'far fa-comments', f: 'far fa-file-lines',
+            desc: '多条对话对文档行，讲「<em>对话流 vs 文档流</em>」的内容故事；全线性统一字重，观感安静。',
+            note: 'fa-comments 双气泡在滑块 11px 下略显紧凑，量产前建议核对最小尺寸的辨识度。',
+            rec: false
+        },
+        {
+            id: 'D', tag: 'D', name: '气泡 · 抽屉 · 极简线性',
+            s: 'far fa-message', f: 'far fa-folder',
+            desc: '单气泡对合盖文件夹，<em>笔画最少</em>的全线性组合；与 GitHub 线性图标血缘最近，存在感最低。',
+            note: '合盖 fa-folder 与文件树行内的文件夹图标同形，「入口 vs 内容」的层级差被弱化。',
+            rec: false
+        },
+        {
+            id: 'E', tag: 'E', name: '字重统一 · 实心版',
+            s: 'fas fa-comment-dots', f: 'fas fa-folder-open',
+            desc: '保留现状图形语言，仅把会话侧换成实心，两端统一为 solid；<em>改动最小</em>（只动一个 class）。',
+            note: '实心组合在深色底上视觉重量偏大，但与小号滑块搭配的抓握感更强。',
+            rec: false
+        },
+        {
+            id: 'F', tag: 'F', name: '字重统一 · 线性版',
+            s: 'far fa-comment-dots', f: 'far fa-folder-open',
+            desc: '保留现状图形语言，仅把文件侧换成线性，两端统一为 regular；同样<em>只动一个 class</em>。',
+            note: '线性开盖文件夹的「打开」语义在 11px 下辨识度略降，需实际窗口确认。',
+            rec: false
+        }
+    ];
+
+    // ===== 滑轨（几何/动效与 qualia-code-ui 现行实现一致） =====
+    function railHTML(v, view, clickable) {
+        var cls = 'rail' + (clickable ? ' tgl' : '');
+        return '' +
+            '<div class="' + cls + '" data-view="' + view + '" role="switch" title="切换 会话 / 文件">' +
+                '<span class="end end-l"><i class="' + v.s + '"></i></span>' +
+                '<span class="end end-r"><i class="' + v.f + '"></i></span>' +
+                '<span class="thumb">' +
+                    '<span class="ti ti-s"><i class="' + v.s + '"></i></span>' +
+                    '<span class="ti ti-f"><i class="' + v.f + '"></i></span>' +
+                '</span>' +
+            '</div>';
+    }
+
+    // ===== 总览卡片：双态静态滑轨 + 大号图标对照 =====
+    var pgrid = document.getElementById('pgrid');
+    pgrid.innerHTML = VARIANTS.map(function (v) {
+        return '' +
+            '<div class="pcard" data-go="demo-' + v.id + '">' +
+                '<div class="pc-head"><span class="tag">' + v.tag + '</span><span class="pc-name">' + v.name + '</span>' +
+                (v.rec ? '<span class="rec">推荐</span>' : '') + '</div>' +
+                '<div class="pc-views">' +
+                    '<div class="pc-view">' + railHTML(v, 's', false) + '<span>会话态</span></div>' +
+                    '<div class="pc-view">' + railHTML(v, 'f', false) + '<span>文件态</span></div>' +
+                '</div>' +
+                '<div class="pc-icons">' +
+                    '<span class="pc-ic"><i class="' + v.s + '"></i><code>' + v.s + '</code></span>' +
+                    '<span class="pc-x">·</span>' +
+                    '<span class="pc-ic"><i class="' + v.f + '"></i><code>' + v.f + '</code></span>' +
+                '</div>' +
+            '</div>';
+    }).join('');
+
+    // ===== 逐款详解：迷你侧栏 + 可点击滑轨 =====
+    document.getElementById('demos').innerHTML = VARIANTS.map(function (v) {
+        return '' +
+            '<section class="demo" id="demo-' + v.id + '">' +
+                '<div class="demo-head"><span class="tag">' + v.tag + '</span><span class="name">' + v.name + '</span>' +
+                (v.rec ? '<span class="rec">推荐</span>' : '') + '</div>' +
+                '<p class="demo-desc">' + v.desc + '</p>' +
+                '<div class="stage"><div class="mside" data-view="s">' +
+                    '<div class="ms-brand"><i class="fas fa-code"></i>Qualia Code</div>' +
+                    '<div class="ms-ws"><i class="fas fa-folder-tree"></i><span class="ws-t"><b>qualia</b><i>D:\\Projects\\qualia</i></span><i class="fas fa-chevron-down cv"></i></div>' +
+                    '<div class="ms-hdr">' +
+                        railHTML(v, 's', true) +
+                        '<button class="act act-s" title="新建会话"><i class="fas fa-plus"></i></button>' +
+                        '<button class="act act-f" title="刷新文件"><i class="fas fa-sync-alt"></i></button>' +
+                    '</div>' +
+                    '<div class="ms-list">' +
+                        '<div class="p-s">' +
+                            '<div class="ms-row on"><i class="far fa-comment"></i><span>重构侧栏视图切换</span></div>' +
+                            '<div class="ms-row"><i class="far fa-comment"></i><span>修复主题切换闪烁</span></div>' +
+                        '</div>' +
+                        '<div class="p-f">' +
+                            '<div class="ms-row"><i class="fas fa-folder"></i><span>src</span></div>' +
+                            '<div class="ms-row i1"><i class="fas fa-folder"></i><span>components</span></div>' +
+                            '<div class="ms-row i2"><i class="far fa-file-lines"></i><span>SidebarArea.vue</span></div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="ms-foot"><i class="fas fa-sliders-h"></i>设置</div>' +
+                '</div></div>' +
+                '<p class="spec">会话侧 <code>' + v.s + '</code> · 文件侧 <code>' + v.f + '</code> —— ' + v.note + '</p>' +
+            '</section>';
+    }).join('');
+
+    // ===== 交互：滑轨二态开关（同步驱动所在迷你侧栏的列表/动作钮），卡片跳转，主题切换 =====
+    document.addEventListener('click', function (e) {
+        var rail = e.target.closest('.rail.tgl');
+        if (rail) {
+            var next = rail.dataset.view === 's' ? 'f' : 's';
+            rail.dataset.view = next;
+            var ms = rail.closest('.mside');
+            if (ms) ms.dataset.view = next;
+            return;
+        }
+        var card = e.target.closest('.pcard');
+        if (card) {
+            var t = document.getElementById(card.dataset.go);
+            if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+    document.getElementById('themeBtn').addEventListener('click', function () {
+        document.body.classList.toggle('light-theme');
+    });
+</script>
+</body>
+</html>

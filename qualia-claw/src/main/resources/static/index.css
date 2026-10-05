@@ -1210,6 +1210,43 @@ body.light-theme .chat-area {
 @keyframes shimmer {
     to { background-position: -200% 0; }
 }
+/* 思考折叠条：任务结束后折叠思考与步骤，点击展开/收起 */
+.think-toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    width: fit-content;
+}
+.think-toggle:hover {
+    color: var(--text-primary);
+}
+.think-toggle .tt-chevron {
+    font-size: 9px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+.think-toggle.open .tt-chevron {
+    transform: rotate(90deg);
+}
+.think-toggle .tt-badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 100px;
+    color: var(--text-secondary);
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.act-flow.collapsed {
+    display: none;
+}
 /* 活动流：垂直时间线，思考节点与工具 chips 按时间顺序交替 */
 .act-flow {
     position: relative;

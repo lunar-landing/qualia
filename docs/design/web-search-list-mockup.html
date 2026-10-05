@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>联网搜索 · 结果列表设计 · Qualia</title>
+<style>
+    /* ===== 主题变量（与 act-flow 系列定稿一致） ===== */
+    body[data-theme="dark"] {
+        --page: #080a10;
+        --panel: #12161f;
+        --panel-border: #1e2530;
+        --code-bg: #161b22;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-soft: rgba(255, 255, 255, 0.05);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #4f566b;
+        --accent: #e6edf3;
+        --pill-bg: rgba(128, 144, 168, 0.14);
+        --pill-bg-hover: rgba(128, 144, 168, 0.24);
+        --hover: rgba(255, 255, 255, 0.045);
+        --ok: #3fb950;
+        --url: #7ddfb0;
+        --browser-bg: #0d0f16;
+    }
+    body[data-theme="light"] {
+        --page: #f6f8fa;
+        --panel: #ffffff;
+        --panel-border: #e4e8ee;
+        --code-bg: #eef1f4;
+        --line: rgba(31, 35, 40, 0.12);
+        --line-soft: rgba(31, 35, 40, 0.07);
+        --text-1: #1f2328;
+        --text-2: #57657a;
+        --text-3: #8c959f;
+        --accent: #24292f;
+        --pill-bg: rgba(31, 35, 40, 0.06);
+        --pill-bg-hover: rgba(31, 35, 40, 0.11);
+        --hover: rgba(31, 35, 40, 0.045);
+        --ok: #1a7f37;
+        --url: #0f7b4f;
+        --browser-bg: #ffffff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        transition: background 0.25s, color 0.25s;
+        padding-bottom: 80px;
+    }
+    .ic { width: 12px; height: 12px; flex: 0 0 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ===== 顶部控制条 ===== */
+    .bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bar h1 { font-size: 15px; font-weight: 650; letter-spacing: 0.2px; }
+    .bar h1 small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 10px; }
+    .bar button {
+        padding: 7px 18px; border-radius: 100px; cursor: pointer;
+        border: 1px solid var(--panel-border); background: var(--panel); color: var(--text-1);
+        font-size: 12.5px; transition: all 0.2s;
+    }
+    .bar button:hover { border-color: var(--text-3); }
+
+    main { max-width: 880px; margin: 0 auto; padding: 34px 24px 0; }
+    .vblock { margin-bottom: 52px; }
+    .vblock > header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .vblock > header .no {
+        font-size: 11px; font-weight: 700; color: var(--text-2);
+        background: var(--pill-bg); padding: 3px 10px; border-radius: 100px;
+        font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+    }
+    .vblock > header h2 { font-size: 16.5px; font-weight: 650; }
+    .vblock > p.desc { font-size: 13px; color: var(--text-2); line-height: 1.7; margin-bottom: 16px; }
+    .vblock > p.desc b { color: var(--text-1); font-weight: 600; }
+    .stage-label { font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+
+    .stage {
+        position: relative;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 12px;
+    }
+    .stage + .stage { margin-top: 12px; }
+
+    /* ===== chip（与 act-flow V1 同款灰底胶囊） ===== */
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 11px; border-radius: 100px;
+        border: none; background: var(--pill-bg); color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: default;
+        transition: background 0.15s, color 0.15s;
+    }
+    .chip .st { display: none; width: 11px; height: 11px; flex: 0 0 11px; }
+    .chip .st svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .chip.done .st-ok { display: flex; color: var(--ok); }
+    .spin {
+        width: 11px; height: 11px; flex: 0 0 11px;
+        border-radius: 50%;
+        border: 1.6px solid var(--pill-bg);
+        border-top-color: var(--text-2);
+        animation: rot 0.8s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* ===== 搜索详情：查询头 ===== */
+    .ws-detail { margin-top: 10px; }
+    .ws-head {
+        display: flex; align-items: center; gap: 8px;
+        padding-bottom: 8px; margin-bottom: 2px;
+        border-bottom: 1px solid var(--line-soft);
+    }
+    .ws-head .ic { color: var(--text-2); }
+    .ws-head .ws-query {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px; font-weight: 600; color: var(--text-1);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ws-head .ws-badges { margin-left: auto; display: flex; gap: 5px; flex: 0 0 auto; }
+    .ws-badge {
+        padding: 2px 8px; border-radius: 100px;
+        background: var(--pill-bg); font-size: 10px; color: var(--text-2);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .ws-badge.ok { color: var(--ok); }
+
+    /* ===== 结果条目：与全量页同构（站点行 → 标题 → 摘要） ===== */
+    .ws-list { display: flex; flex-direction: column; max-height: 330px; overflow-y: auto; }
+    .ws-list::-webkit-scrollbar { width: 5px; }
+    .ws-list::-webkit-scrollbar-thumb { background: var(--pill-bg); border-radius: 4px; }
+    .ws-item {
+        display: block; text-decoration: none;
+        padding: 11px 10px; margin: 0 -10px;
+        border-radius: 10px;
+        transition: background 0.15s;
+        position: relative;
+    }
+    .ws-item:hover { background: var(--hover); }
+    .ws-item + .ws-item { border-top: 1px solid var(--line-soft); }
+    .ws-site { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; min-width: 0; }
+    .ws-avatar {
+        width: 16px; height: 16px; flex: 0 0 16px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 8.5px; font-weight: 700; color: #fff;
+    }
+    .ws-sitename { font-size: 11px; font-weight: 500; color: var(--text-1); flex: 0 0 auto; }
+    .ws-siteurl {
+        font-family: 'JetBrains Mono', monospace; font-size: 10px;
+        color: var(--url); opacity: 0.85;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ws-title {
+        display: block;
+        font-size: 12.5px; font-weight: 600; color: var(--text-1); line-height: 1.45;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        padding-right: 20px;
+    }
+    .ws-item:hover .ws-title { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .ws-snippet {
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 11.5px; line-height: 1.6; color: var(--text-2); margin-top: 3px;
+    }
+    .ws-ext {
+        position: absolute; right: 8px; top: 42px;
+        color: var(--text-3); opacity: 0; transition: opacity 0.15s;
+    }
+    .ws-item:hover .ws-ext { opacity: 1; }
+
+    /* 查看全部 */
+    .ws-more {
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        width: 100%; margin-top: 8px; padding: 7px 0;
+        border: 1px dashed var(--line); border-radius: 9px;
+        background: transparent; color: var(--text-2);
+        font-size: 11.5px; font-family: inherit; cursor: pointer;
+        transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .ws-more:hover { color: var(--text-1); border-color: var(--text-3); background: var(--hover); }
+    .ws-more .ic { width: 10px; height: 10px; }
+
+    /* ===== 搜索中：骨架行 ===== */
+    .sk-row { display: flex; align-items: flex-start; gap: 8px; padding: 11px 10px; margin: 0 -10px; }
+    .sk-row + .sk-row { border-top: 1px solid var(--line-soft); }
+    .sk {
+        border-radius: 5px;
+        background: linear-gradient(90deg, var(--pill-bg) 40%, var(--pill-bg-hover) 50%, var(--pill-bg) 60%);
+        background-size: 200% 100%;
+        animation: shimmer 1.8s linear infinite;
+    }
+    .sk-ava { width: 16px; height: 16px; border-radius: 50%; flex: 0 0 16px; }
+    .sk-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; padding-top: 1px; }
+    .sk-l1 { height: 8px; width: 55%; }
+    .sk-l2 { height: 8px; width: 92%; }
+    .sk-l3 { height: 8px; width: 78%; }
+
+    /* ===== 浏览器 Tab 外框 ===== */
+    .bw { border: 1px solid var(--panel-border); border-radius: 14px; overflow: hidden; background: var(--browser-bg); }
+    .bw-tabs {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 12px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--panel-border);
+    }
+    .bw-tab {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 13px; border-radius: 8px;
+        font-size: 11.5px; color: var(--text-2);
+    }
+    .bw-tab.active { background: var(--pill-bg); color: var(--text-1); font-weight: 600; }
+    .bw-tab .ic { width: 10px; height: 10px; }
+    .bw-body { height: 470px; overflow-y: auto; }
+    .bw-body::-webkit-scrollbar { width: 6px; }
+    .bw-body::-webkit-scrollbar-thumb { background: var(--pill-bg); border-radius: 4px; }
+
+    /* ===== 全量结果页（sticky 查询头 + 通栏列表） ===== */
+    .pg-head {
+        position: sticky; top: 0; z-index: 2;
+        background: color-mix(in srgb, var(--browser-bg) 88%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 22px 28px 0;
+    }
+    .pg-head-inner {
+        max-width: 660px; margin: 0 auto;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line-soft);
+    }
+    .pg-query { display: flex; align-items: center; gap: 10px; }
+    .pg-query .ic { width: 15px; height: 15px; flex: 0 0 15px; color: var(--text-2); }
+    .pg-query-text { font-size: 16px; font-weight: 700; letter-spacing: 0.2px; }
+    .pg-meta {
+        display: flex; align-items: center; gap: 7px;
+        margin-top: 8px; padding-left: 25px;
+        font-size: 11px; color: var(--text-3);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .pg-meta .sep { opacity: 0.5; }
+    .pg-meta .src { color: var(--text-2); font-weight: 600; }
+    .pg-results { max-width: 660px; margin: 0 auto; padding: 6px 28px 20px; }
+    .pg-item {
+        display: block; text-decoration: none;
+        padding: 16px 12px; margin: 0 -12px;
+        border-radius: 10px;
+        transition: background 0.15s;
+        position: relative;
+    }
+    .pg-item + .pg-item { border-top: 1px solid var(--line-soft); }
+    .pg-item:hover { background: var(--hover); }
+    .pg-site { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; min-width: 0; }
+    .pg-avatar {
+        width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700; color: #fff;
+    }
+    .pg-sitename { font-size: 12px; font-weight: 500; color: var(--text-1); flex: 0 0 auto; }
+    .pg-siteurl {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        color: var(--url); opacity: 0.85;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pg-title {
+        display: block;
+        font-size: 14.5px; font-weight: 600; color: var(--text-1); line-height: 1.5;
+        margin-bottom: 4px; padding-right: 24px;
+    }
+    .pg-item:hover .pg-title { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .pg-snippet {
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 12.5px; line-height: 1.7; color: var(--text-2);
+    }
+    .pg-ext {
+        position: absolute; right: 12px; top: 50px;
+        width: 13px; height: 13px; color: var(--text-3);
+        opacity: 0; transition: opacity 0.15s;
+    }
+    .pg-item:hover .pg-ext { opacity: 1; }
+    .pg-end {
+        max-width: 660px; margin: 0 auto; padding: 2px 28px 36px;
+        text-align: center; font-size: 11.5px; color: var(--text-3);
+    }
+    .pg-end::before { content: '— '; opacity: 0.5; }
+    .pg-end::after { content: ' —'; opacity: 0.5; }
+
+    footer.note {
+        max-width: 880px; margin: 0 auto; padding: 0 24px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8;
+        border-top: 1px solid var(--panel-border); padding-top: 18px;
+    }
+    footer.note b { color: var(--text-2); font-weight: 600; }
+</style>
+</head>
+<body data-theme="dark">
+
+    <svg width="0" height="0" style="position:absolute">
+        <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3Z"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+        <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></symbol>
+        <symbol id="i-angles" viewBox="0 0 24 24"><path d="m5 6 6 6-6 6M13 6l6 6-6 6"/></symbol>
+        <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-5-6-5"/><path d="M12 19h8"/></symbol>
+        <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/></symbol>
+    </svg>
+
+    <div class="bar">
+        <h1>联网搜索 · 结果列表设计<small>执行流内列表与浏览器全量页同构 · 深浅主题</small></h1>
+        <button id="themeBtn">切换到日间</button>
+    </div>
+
+    <main>
+        <!-- ============ A. 执行流内 ============ -->
+        <section class="vblock">
+            <header><span class="no">A</span><h2>执行流内 · chip 展开详情</h2></header>
+            <p class="desc">核心改动一条：执行流内列表与浏览器全量页<b>同构</b>——条目统一为「站点行（字母头像 + 域名）→ 标题 → 两行摘要」。现役紧凑列表不带站点行，来源信息弱；同构后用户在对话流里预读的结构与点开全量页完全一致。搜索中用<b>骨架行 shimmer</b> 替换纯文字 spinner，保留查询头让等待时有内容锚点。</p>
+
+            <div class="stage">
+                <div class="stage-label">形态一 · 搜索中</div>
+                <button class="chip"><svg class="ic"><use href="#i-globe"/></svg>联网搜索 Java ReAct agent 框架<span class="spin"></span></button>
+                <div class="ws-detail">
+                    <div class="ws-head">
+                        <svg class="ic"><use href="#i-globe"/></svg>
+                        <span class="ws-query">Java ReAct agent 框架 对比</span>
+                        <span class="ws-badges"><span class="ws-badge">tavily</span></span>
+                    </div>
+                    <div class="ws-list">
+                        <div class="sk-row"><span class="sk sk-ava"></span><span class="sk-lines"><span class="sk sk-l1"></span><span class="sk sk-l2"></span><span class="sk sk-l3"></span></span></div>
+                        <div class="sk-row"><span class="sk sk-ava"></span><span class="sk-lines"><span class="sk sk-l1"></span><span class="sk sk-l2"></span><span class="sk sk-l3"></span></span></div>
+                        <div class="sk-row"><span class="sk sk-ava"></span><span class="sk-lines"><span class="sk sk-l1"></span><span class="sk sk-l2"></span><span class="sk sk-l3"></span></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stage">
+                <div class="stage-label">形态二 · 已完成（默认展示 3 条，可滚动）</div>
+                <button class="chip done"><svg class="ic"><use href="#i-globe"/></svg>联网搜索 Java ReAct agent 框架<span class="st st-ok"><svg><use href="#i-check"/></svg></span></button>
+                <div class="ws-detail">
+                    <div class="ws-head">
+                        <svg class="ic"><use href="#i-globe"/></svg>
+                        <span class="ws-query">Java ReAct agent 框架 对比</span>
+                        <span class="ws-badges"><span class="ws-badge">tavily</span><span class="ws-badge">6 条</span><span class="ws-badge ok">1.8s</span></span>
+                    </div>
+                    <div class="ws-list">
+                        <a class="ws-item" href="javascript:void(0)">
+                            <span class="ws-site"><span class="ws-avatar" style="background:#6366f1">G</span><span class="ws-sitename">github.com</span><span class="ws-siteurl">github.com/lunar-landing/qualia</span></span>
+                            <span class="ws-title">Qualia: 企业级 Java AI Agent 框架</span>
+                            <span class="ws-snippet">ReAct 模式与 MCP 工具链，支持多智能体编排、会话记忆与技能热加载，开箱即用的 Web 控制台。</span>
+                            <svg class="ic ws-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="ws-item" href="javascript:void(0)">
+                            <span class="ws-site"><span class="ws-avatar" style="background:#0ea5e9">J</span><span class="ws-sitename">juejin.cn</span><span class="ws-siteurl">juejin.cn/post/7382149032</span></span>
+                            <span class="ws-title">基于 ReAct 模式的 Java 智能体框架设计实践</span>
+                            <span class="ws-snippet">思考-行动-观察循环的工程化落地：工具注册、步骤流式回传、上下文压缩与失败重试策略。</span>
+                            <svg class="ic ws-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="ws-item" href="javascript:void(0)">
+                            <span class="ws-site"><span class="ws-avatar" style="background:#f59e0b">S</span><span class="ws-sitename">stackoverflow.com</span><span class="ws-siteurl">stackoverflow.com/questions/78102</span></span>
+                            <span class="ws-title">How to implement a ReAct loop with tool calling in Java</span>
+                            <span class="ws-snippet">I'm building an LLM agent that iterates thought → action → observation. What are the pitfalls of streaming steps…</span>
+                            <svg class="ic ws-ext"><use href="#i-ext"/></svg>
+                        </a>
+                    </div>
+                    <button class="ws-more" id="moreBtn"><svg class="ic"><use href="#i-angles"/></svg>查看全部 6 条结果</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ B. 浏览器 Tab 全量页 ============ -->
+        <section class="vblock">
+            <header><span class="no">B</span><h2>浏览器 Tab · 全量结果页</h2></header>
+            <p class="desc">点「查看全部」后在工作区浏览器打开的页面。结构沿用现役定稿（sticky 毛玻璃查询头 + 站点行通栏列表 + 尽头提示），配色与字号对齐新主题变量；条目结构与 A 完全同构，仅字号放大一档。<b>下方列表可直接滚动</b>，查询头会吸附。</p>
+            <div class="bw">
+                <div class="bw-tabs">
+                    <span class="bw-tab"><svg class="ic"><use href="#i-term"/></svg>终端</span>
+                    <span class="bw-tab active"><svg class="ic"><use href="#i-globe"/></svg>搜索结果 · tavily</span>
+                </div>
+                <div class="bw-body">
+                    <div class="pg-head">
+                        <div class="pg-head-inner">
+                            <div class="pg-query"><svg class="ic"><use href="#i-globe"/></svg><span class="pg-query-text">Java ReAct agent 框架 对比</span></div>
+                            <div class="pg-meta"><span class="src">tavily</span><span class="sep">·</span><span>6 条结果</span><span class="sep">·</span><span>1.8s</span></div>
+                        </div>
+                    </div>
+                    <div class="pg-results">
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#6366f1">G</span><span class="pg-sitename">github.com</span><span class="pg-siteurl">github.com/lunar-landing/qualia</span></span>
+                            <span class="pg-title">Qualia: 企业级 Java AI Agent 框架</span>
+                            <span class="pg-snippet">ReAct 模式与 MCP 工具链，支持多智能体编排、会话记忆与技能热加载，开箱即用的 Web 控制台。</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#0ea5e9">J</span><span class="pg-sitename">juejin.cn</span><span class="pg-siteurl">juejin.cn/post/7382149032</span></span>
+                            <span class="pg-title">基于 ReAct 模式的 Java 智能体框架设计实践</span>
+                            <span class="pg-snippet">思考-行动-观察循环的工程化落地：工具注册、步骤流式回传、上下文压缩与失败重试策略。</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#f59e0b">S</span><span class="pg-sitename">stackoverflow.com</span><span class="pg-siteurl">stackoverflow.com/questions/78102</span></span>
+                            <span class="pg-title">How to implement a ReAct loop with tool calling in Java</span>
+                            <span class="pg-snippet">I'm building an LLM agent that iterates thought → action → observation. What are the pitfalls of streaming steps to a web UI while keeping context compact?</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#10b981">Z</span><span class="pg-sitename">zhihu.com</span><span class="pg-siteurl">zhihu.com/question/6402891</span></span>
+                            <span class="pg-title">如何评价 Qualia 框架的 MCP 工具链设计</span>
+                            <span class="pg-snippet">从 SPI 扩展、apiVersion 运行时校验到智能体级工具白名单，工具生态的边界设计与安全考虑。</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#14b8a6">C</span><span class="pg-sitename">cnblogs.com</span><span class="pg-siteurl">cnblogs.com/p/spring-mcp-server</span></span>
+                            <span class="pg-title">Spring Boot 集成 MCP Server 的完整指南</span>
+                            <span class="pg-snippet">SSE 传输、会话保持与工具发现的三个关键配置，附完整示例仓库与常见连接故障排查。</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                        <a class="pg-item" href="javascript:void(0)">
+                            <span class="pg-site"><span class="pg-avatar" style="background:#ec4899">M</span><span class="pg-sitename">modelcontextprotocol.io</span><span class="pg-siteurl">modelcontextprotocol.io/specification</span></span>
+                            <span class="pg-title">Model Context Protocol Specification</span>
+                            <span class="pg-snippet">Protocol primitives for tools, resources and prompts, transported over JSON-RPC 2.0 with capability negotiation.</span>
+                            <svg class="ic pg-ext"><use href="#i-ext"/></svg>
+                        </a>
+                    </div>
+                    <div class="pg-end">已展示全部 6 条结果</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="note">
+        说明：设计主张是<b>两处列表同构</b>——同一份「站点行 → 标题 → 摘要」结构在 chip 详情（小字号、3 条、限高滚动）与全量页（大字号、通栏、sticky 头）间只做尺寸缩放，不做结构切换。落地改动点：① <b>browser.js</b> 的 <b>itemHtml</b> 增加迷你站点行（头像沿用域名哈希取色）；② 搜索中骨架行替换 <b>tc-running</b> 文案行，查询头在等待期也渲染；③ <b>buildPage</b> 配色对齐新变量（URL 绿、hover 底、毛玻璃头）。头像取色沿用现役 8 色板与域名哈希算法，同一站点颜色稳定。
+    </footer>
+
+    <script>
+        /* ===== 主题切换 ===== */
+        const btn = document.getElementById('themeBtn');
+        btn.addEventListener('click', () => {
+            const b = document.body;
+            const next = b.dataset.theme === 'dark' ? 'light' : 'dark';
+            b.dataset.theme = next;
+            btn.textContent = next === 'dark' ? '切换到日间' : '切换到夜间';
+        });
+
+        /* 「查看全部」滚到浏览器全量页（mockup 内模拟 openAll） */
+        document.getElementById('moreBtn').addEventListener('click', () => {
+            document.querySelectorAll('.vblock')[1].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    </script>
+</body>
+</html>

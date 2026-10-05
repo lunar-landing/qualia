@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 侧边栏多项目会话共存 · 五种样式</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        padding: 36px 20px 90px;
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        --stream-glow: 0 0 0 1px rgba(26,127,55,0.35), 0 0 10px rgba(26,127,55,0.18);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        --stream-glow: 0 0 0 1px rgba(63,185,80,0.4), 0 0 12px rgba(63,185,80,0.22);
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 1000px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 22px; line-height: 1.7; }
+    code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .nav { max-width: 1000px; margin: 0 auto 26px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .nav a {
+        text-decoration: none; font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+        border: 1px solid var(--border); background: var(--bg-card); border-radius: 20px; padding: 6px 14px;
+        display: inline-flex; align-items: center; gap: 7px;
+    }
+    .nav a:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav .v { font-size: 9.5px; border-radius: 4px; padding: 1px 5px; color: #fff; font-weight: 700; }
+
+    .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+    .concept { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); scroll-margin-top: 20px; }
+    .c-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+    .c-badge { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; border-radius: 6px; padding: 3px 8px; color: #fff; }
+    .c-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+    .c-head .en { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.6px; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; border-radius: 5px; padding: 2px 7px; }
+    .chip.fit { background: var(--info-bg); color: var(--info); }
+    .chip.risk { background: var(--warning-bg); color: var(--warning); }
+    .c-locate { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.7; }
+    .c-body { display: grid; grid-template-columns: 300px 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 860px) { .c-body { grid-template-columns: 1fr; } }
+
+    .c-notes { display: flex; flex-direction: column; gap: 12px; }
+    .note h4 { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.6px; margin-bottom: 5px; }
+    .note p, .note li { font-size: 12px; color: var(--text-secondary); line-height: 1.75; }
+    .note ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .note li { display: flex; gap: 8px; }
+    .note li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    .note b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 侧栏通用 ===== */
+    .sb {
+        width: 264px; background: var(--bg-inset); border: 1px solid var(--border);
+        border-radius: 12px; padding: 12px 10px; display: flex; flex-direction: column; gap: 4px;
+        overflow: hidden;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; padding: 2px 6px 8px; }
+    .brand i {
+        width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 10px;
+    }
+    .ws-head {
+        display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 3px;
+        border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card); font-size: 10.5px; cursor: pointer;
+    }
+    .ws-head .nm { font-weight: 700; color: var(--text-primary); }
+    .ws-head .pth { color: var(--text-muted); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ws-head .cv { margin-left: auto; color: var(--text-muted); font-size: 8px; flex-shrink: 0; }
+    .seg { display: flex; gap: 2px; background: var(--bg-chip); border-radius: 8px; padding: 2px; margin-bottom: 4px; }
+    .seg span { flex: 1; text-align: center; font-size: 10px; font-weight: 700; color: var(--text-muted); border-radius: 6px; padding: 4px 0; cursor: pointer; }
+    .seg .on { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 2px rgba(31,35,40,0.12); }
+    .search {
+        display: flex; align-items: center; gap: 6px; background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 8px; padding: 5px 9px; font-size: 10px; color: var(--text-muted); margin-bottom: 4px;
+    }
+    .dot-live { width: 5px; height: 5px; border-radius: 50%; background: var(--success); animation: pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
+    @keyframes pulse { 50% { opacity: 0.25; } }
+    .spin {
+        width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        border: 1.5px solid var(--border); border-top-color: var(--success);
+        animation: rot 0.9s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    .time-h { padding: 5px 8px 2px; font-size: 9.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.4px; }
+    .sess {
+        display: flex; align-items: center; gap: 7px; padding: 6px 9px; margin: 1px 0;
+        border-radius: 7px; font-size: 11.5px; color: var(--text-secondary); cursor: pointer;
+        white-space: nowrap; overflow: hidden;
+    }
+    .sess:hover { background: var(--bg-hover); }
+    .sess .t { overflow: hidden; text-overflow: ellipsis; }
+    .sess .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+    .sess.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+    .sess.live { box-shadow: var(--stream-glow); }
+    .sess.live .dot { background: var(--success); }
+    .sess .badge { margin-left: auto; font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
+
+    /* ===== S1 分组手风琴 ===== */
+    .grp-head {
+        display: flex; align-items: center; gap: 6px; padding: 7px 8px 3px; margin-top: 3px;
+        font-size: 10.5px; font-weight: 700; color: var(--text-primary); cursor: pointer; border-radius: 6px;
+    }
+    .grp-head:hover { background: var(--bg-hover); }
+    .grp-head .pth { font-weight: 400; color: var(--text-muted); font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .grp-head .arr { font-size: 8px; color: var(--text-muted); width: 10px; flex-shrink: 0; }
+    .grp-head .cnt { font-size: 9px; font-weight: 600; color: var(--text-muted); background: var(--bg-chip); border-radius: 8px; padding: 1px 6px; flex-shrink: 0; }
+    .grp-fold .grp-body { display: none; }
+    .grp-head.grp-fold .arr::before { content: "▸"; }
+    .grp-head .arr::before { content: "▾"; }
+
+    /* ===== S2 色轨脉搏流 ===== */
+    .p-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 4px 7px; }
+    .p-chip {
+        display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700;
+        border: 1px solid var(--border); border-radius: 12px; padding: 2px 8px; cursor: pointer;
+        color: var(--text-secondary); background: var(--bg-card);
+    }
+    .p-chip .sw { width: 6px; height: 6px; border-radius: 2px; }
+    .p-chip.on { background: var(--bg-active); color: var(--text-primary); border-color: var(--text-muted); }
+    .rail-sess { position: relative; padding-left: 12px; }
+    .rail-sess::before {
+        content: ""; position: absolute; left: 4px; top: 7px; bottom: 7px; width: 3px; border-radius: 2px;
+        background: var(--rail, var(--border));
+    }
+    .proj-in { display: inline-block; font-size: 8.5px; font-weight: 700; color: var(--text-muted); margin-left: 2px; }
+    .sb-hidden { display: none !important; }
+
+    /* ===== S3 双列项目轨 ===== */
+    .s3-wrap { display: flex; gap: 0; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; width: 264px; }
+    .s3-rail { width: 52px; flex-shrink: 0; background: var(--bg-card); border-right: 1px solid var(--border); padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .s3-item {
+        width: 36px; height: 36px; border-radius: 10px; background: var(--bg-chip); color: var(--text-secondary);
+        display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; cursor: pointer;
+        position: relative;
+    }
+    .s3-item:hover { background: var(--bg-hover); }
+    .s3-item.on { background: var(--accent); color: var(--bg-page); }
+    .s3-item .bd { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--success); border: 1.5px solid var(--bg-card); }
+    .s3-list { flex: 1; min-width: 0; padding: 10px 8px; display: flex; flex-direction: column; gap: 3px; }
+    .s3-pane-h { font-size: 10px; font-weight: 700; color: var(--text-primary); padding: 0 6px 4px; display: flex; align-items: center; gap: 6px; }
+    .s3-pane-h .pth { font-weight: 400; color: var(--text-muted); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ===== S4 焦点优先流 ===== */
+    .live-zone {
+        background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+        padding: 7px; margin-bottom: 5px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .live-zone .lz-h { font-size: 9px; font-weight: 800; color: var(--success); letter-spacing: 0.5px; padding: 1px 4px 2px; display: flex; align-items: center; gap: 5px; }
+    .lz-row {
+        display: flex; align-items: center; gap: 7px; padding: 6px 7px; border-radius: 7px;
+        font-size: 11px; color: var(--text-secondary); cursor: pointer; overflow: hidden; white-space: nowrap;
+        position: relative;
+    }
+    .lz-row:hover { background: var(--bg-hover); }
+    .lz-row .t { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .lz-row .prog { position: absolute; left: 7px; right: 7px; bottom: 2px; height: 2px; border-radius: 1px; background: var(--bg-chip); overflow: hidden; }
+    .lz-row .prog i { display: block; height: 100%; width: 60%; background: var(--success); border-radius: 1px; animation: slide 2.8s ease-in-out infinite alternate; }
+    @keyframes slide { from { width: 24%; } to { width: 82%; } }
+    .pj { flex-shrink: 0; font-size: 8.5px; font-weight: 700; border-radius: 4px; padding: 1px 5px; }
+
+    /* ===== S5 堆叠切换器 ===== */
+    .ws-stack { position: relative; }
+    .ws-dd {
+        position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 10;
+        background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(31,35,40,0.16); padding: 5px; display: none;
+    }
+    .ws-dd.open { display: block; }
+    .dd-item { padding: 6px 8px; border-radius: 7px; cursor: pointer; }
+    .dd-item:hover { background: var(--bg-hover); }
+    .dd-item .r1 { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: var(--text-primary); }
+    .dd-item .r1 .pth { font-weight: 400; color: var(--text-muted); font-size: 9px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd-item .r2 { font-size: 9.5px; color: var(--text-muted); padding: 2px 0 0 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd-foot { border-top: 1px solid var(--border-soft); margin-top: 4px; padding: 7px 8px 4px; font-size: 10px; font-weight: 700; color: var(--info); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .all-entry {
+        display: flex; align-items: center; gap: 7px; padding: 6px 9px; margin-top: 2px;
+        border: 1px dashed var(--border); border-radius: 8px; font-size: 10.5px; font-weight: 700;
+        color: var(--info); cursor: pointer; background: var(--bg-card);
+    }
+
+    /* ===== 对比表 ===== */
+    .cmp { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--card-shadow); }
+    .cmp h2 { font-size: 15px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    th {
+        text-align: left; padding: 8px 10px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary);
+        background: var(--bg-inset); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-inset); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); }
+
+    .verdict {
+        display: flex; gap: 10px; align-items: flex-start; margin-top: 16px;
+        background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px;
+        padding: 13px 15px; font-size: 12px; line-height: 1.8; color: var(--text-secondary);
+    }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict b { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1>侧边栏 · 多项目会话共存五种样式</h1>
+<p class="sub">同一个聚合数据源（<code>/sessions/all</code> + 多实例状态）的五种侧栏呈现，从渐进改良到保守兜底<br>均可直接映射到现有 <code>SidebarArea / ConversationList</code> 结构</p>
+
+<div class="nav">
+    <a href="#s1"><span class="v" style="background:#0969da">S1</span>分组手风琴</a>
+    <a href="#s2"><span class="v" style="background:#1a7f37">S2</span>色轨脉搏流</a>
+    <a href="#s3"><span class="v" style="background:#8250df">S3</span>双列项目轨</a>
+    <a href="#s4"><span class="v" style="background:#9a6700">S4</span>焦点优先流</a>
+    <a href="#s5"><span class="v" style="background:#cf222e">S5</span>堆叠切换器</a>
+</div>
+
+<div class="wrap">
+
+    <!-- ===== S1 分组手风琴 ===== -->
+    <div class="concept" id="s1">
+        <div class="c-head">
+            <span class="c-badge" style="background:#0969da">S1</span>
+            <h2>分组手风琴</h2><span class="en">GROUPED ACCORDION</span>
+            <span class="chip fit">P1 直接落地</span>
+        </div>
+        <p class="c-locate">上一版 P1 的样式化定稿：项目组可折叠，组头带路径、会话数与流 spinner；组内沿用现有时间分组。焦点项目组置顶展开，其余组默认折叠。</p>
+        <div class="c-body">
+            <div class="sb">
+                <div class="brand"><i>Q</i> Qualia Code</div>
+                <div class="ws-head"><span>📂</span><div style="min-width:0"><div class="nm">qualia</div><div class="pth">D:\Projects\qualia</div></div><span class="cv">▼</span></div>
+                <div class="seg"><span class="on">会话</span><span>文件</span></div>
+                <div class="search">⌕ 搜索会话…</div>
+                <div class="grp-head"><span class="arr"></span>qualia<span class="pth">D:\Projects\qualia</span><span class="cnt">12</span><span class="spin"></span></div>
+                <div class="grp-body">
+                    <div class="time-h">今天</div>
+                    <div class="sess live on"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="badge">24</span></div>
+                    <div class="sess"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span></div>
+                    <div class="time-h">昨天</div>
+                    <div class="sess"><span class="dot"></span><span class="t">附件回读与存储分层</span></div>
+                </div>
+                <div class="grp-head"><span class="arr"></span>qualia-claw<span class="pth">…\qualia\qualia-claw</span><span class="cnt">7</span></div>
+                <div class="grp-body">
+                    <div class="sess live"><span class="dot"></span><span class="t">模型面板单卡编辑</span></div>
+                    <div class="sess"><span class="dot"></span><span class="t">工具配置下沉到智能体</span></div>
+                </div>
+                <div class="grp-head grp-fold"><span class="arr"></span>blog<span class="pth">D:\Projects\blog</span><span class="cnt">3</span></div>
+                <div class="grp-body" style="display:none"><div class="sess"><span class="dot"></span><span class="t">hexo 迁移 astro</span></div></div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>组排序按<b>项目内最近活动时间</b>，焦点项目恒置顶且展开</li>
+                        <li>折叠状态持久化到 localStorage；<code>cnt</code> 徽章 + spinner 是组头仅有的两个状态件</li>
+                        <li>组内结构零改动——现有时间分组原样嵌套</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：结构最稳，认知零迁移，改造成本最低</li>
+                        <li><b>劣</b>：项目多了折叠列表会变长；「正在跑的项目」折叠后只剩一行组头</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== S2 色轨脉搏流 ===== -->
+    <div class="concept" id="s2">
+        <div class="c-head">
+            <span class="c-badge" style="background:#1a7f37">S2</span>
+            <h2>色轨脉搏流</h2><span class="en">COLOR-RAIL PULSE</span>
+            <span class="chip fit">无分组</span>
+        </div>
+        <p class="c-locate">侧边栏里不出现「项目组」：全部会话按时间混排成一条流，每行左缘 3px 项目色轨，行内附项目名小字；顶部色点 chips 一键过滤。项目从「容器」降级为「属性」。</p>
+        <div class="c-body">
+            <div class="sb">
+                <div class="brand"><i>Q</i> Qualia Code</div>
+                <div class="ws-head"><span>📂</span><div style="min-width:0"><div class="nm">全部项目</div><div class="pth">5 个项目 · 2 个运行中</div></div><span class="cv">▼</span></div>
+                <div class="seg"><span class="on">会话</span><span>文件</span></div>
+                <div class="search">⌕ 搜索会话…</div>
+                <div class="p-chips">
+                    <span class="p-chip on" data-p="all" onclick="s2filter(this)">全部</span>
+                    <span class="p-chip" data-p="a" onclick="s2filter(this)"><span class="sw" style="background:#0969da"></span>qualia</span>
+                    <span class="p-chip" data-p="b" onclick="s2filter(this)"><span class="sw" style="background:#8250df"></span>claw</span>
+                    <span class="p-chip" data-p="c" onclick="s2filter(this)"><span class="sw" style="background:#9a6700"></span>blog</span>
+                </div>
+                <div class="time-h">今天</div>
+                <div class="sess rail-sess live on" data-p="a" style="--rail:#0969da"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="badge">24</span></div>
+                <div class="sess rail-sess live" data-p="b" style="--rail:#8250df"><span class="dot"></span><span class="t">模型面板单卡编辑 <span class="proj-in" style="color:#8250df">claw</span></span></div>
+                <div class="sess rail-sess" data-p="a" style="--rail:#0969da"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span></div>
+                <div class="sess rail-sess" data-p="c" style="--rail:#9a6700"><span class="dot"></span><span class="t">hexo 迁移 astro <span class="proj-in" style="color:#9a6700">blog</span></span></div>
+                <div class="time-h">昨天</div>
+                <div class="sess rail-sess" data-p="a" style="--rail:#0969da"><span class="dot"></span><span class="t">附件回读与存储分层</span></div>
+                <div class="sess rail-sess" data-p="b" style="--rail:#8250df"><span class="dot"></span><span class="t">工具配置下沉到智能体 <span class="proj-in" style="color:#8250df">claw</span></span></div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>项目色板按项目注册表顺序稳定分配（哈希路径 → 5 色 GitHub 系）</li>
+                        <li>非焦点项目的会话行内附 <code>proj-in</code> 小字标签；色轨承担主识别</li>
+                        <li>chips 过滤与搜索框可叠加（AND 语义）</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：纵向空间利用率最高；「最近发生了什么」跨项目一目了然</li>
+                        <li><b>劣</b>：色彩噪音随项目数上升；弱化容器感，找「某项目的全部会话」依赖过滤</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== S3 双列项目轨 ===== -->
+    <div class="concept" id="s3">
+        <div class="c-head">
+            <span class="c-badge" style="background:#8250df">S3</span>
+            <h2>双列项目轨</h2><span class="en">PROJECT RAIL</span>
+            <span class="chip fit">宽屏桌面版</span><span class="chip risk">侧栏加宽 48px</span>
+        </div>
+        <p class="c-locate">借鉴 VSCode Activity Bar：侧栏左缘竖排项目字母块（36px 轨道），右列只显示选中项目的会话。项目切换在轨道上一点完成，会话列表永远是「单项目视图」的清爽形态。</p>
+        <div class="c-body">
+            <div class="s3-wrap">
+                <div class="s3-rail">
+                    <div class="s3-item on" data-n="a" onclick="s3pick(this)">Q<div class="bd"></div></div>
+                    <div class="s3-item" data-n="b" onclick="s3pick(this)">C<div class="bd"></div></div>
+                    <div class="s3-item" data-n="c" onclick="s3pick(this)">B</div>
+                    <div class="s3-item" style="font-weight:400;color:var(--text-muted)">＋</div>
+                </div>
+                <div class="s3-list">
+                    <div class="s3-pane" data-n="a">
+                        <div class="s3-pane-h"><span class="dot-live"></span>qualia<span class="pth">…\Projects\qualia</span></div>
+                        <div class="sess live on"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="badge">24</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">附件回读与存储分层</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">墨白主题去紫化</span></div>
+                    </div>
+                    <div class="s3-pane sb-hidden" data-n="b">
+                        <div class="s3-pane-h"><span class="dot-live"></span>qualia-claw<span class="pth">…\qualia\qualia-claw</span></div>
+                        <div class="sess live"><span class="dot"></span><span class="t">模型面板单卡编辑</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">工具配置下沉到智能体</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">MCP 验证面板</span></div>
+                    </div>
+                    <div class="s3-pane sb-hidden" data-n="c">
+                        <div class="s3-pane-h">blog<span class="pth">D:\Projects\blog</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">hexo 迁移 astro</span></div>
+                        <div class="sess"><span class="dot"></span><span class="t">部署脚本迁移</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>字母块 = 项目名首字母，hover 出完整路径 tooltip；绿点角标 = 有流</li>
+                        <li>右列顶部保留会话/文件分段切换（图示省略文件态）</li>
+                        <li>「全部项目」可做成轨道顶部一个聚合图标，点击切到 S2 混排视图——两种样式叠加</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：单项目列表保持最简；项目切换最快；项目多时扩展性最好</li>
+                        <li><b>劣</b>：侧栏需加宽 48px；跨项目总览弱，依赖聚合入口补足</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== S4 焦点优先流 ===== -->
+    <div class="concept" id="s4">
+        <div class="c-head">
+            <span class="c-badge" style="background:#9a6700">S4</span>
+            <h2>焦点优先流</h2><span class="en">FOCUS-FIRST FEED</span>
+            <span class="chip fit">运行中置顶</span>
+        </div>
+        <p class="c-locate">只回答一个问题：「现在什么在跑」。顶部常驻「运行中」区聚合所有项目的活跃会话（带细进度线），下方是全项目按时间平铺的最近会话，项目身份压缩为行内彩色小徽章。</p>
+        <div class="c-body">
+            <div class="sb">
+                <div class="brand"><i>Q</i> Qualia Code</div>
+                <div class="ws-head"><span>📂</span><div style="min-width:0"><div class="nm">qualia</div><div class="pth">D:\Projects\qualia</div></div><span class="cv">▼</span></div>
+                <div class="seg"><span class="on">会话</span><span>文件</span></div>
+                <div class="search">⌕ 搜索会话…</div>
+                <div class="live-zone">
+                    <div class="lz-h"><span class="dot-live"></span>运行中 · 2</div>
+                    <div class="lz-row"><span class="dot-live"></span><span class="t">项目会话共存设计</span><span class="pj" style="background:var(--info-bg);color:var(--info)">qualia</span><div class="prog"><i></i></div></div>
+                    <div class="lz-row"><span class="dot-live"></span><span class="t">模型面板单卡编辑</span><span class="pj" style="background:rgba(130,80,223,0.14);color:#8250df">claw</span><div class="prog"><i style="animation-duration:3.6s"></i></div></div>
+                </div>
+                <div class="time-h">最近 · 全部项目</div>
+                <div class="sess on"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="pj" style="background:var(--info-bg);color:var(--info)">qualia</span><span class="badge">24</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span><span class="pj" style="background:var(--info-bg);color:var(--info)">qualia</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">hexo 迁移 astro</span><span class="pj" style="background:var(--warning-bg);color:var(--warning)">blog</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">模型面板单卡编辑</span><span class="pj" style="background:rgba(130,80,223,0.14);color:#8250df">claw</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">附件回读与存储分层</span><span class="pj" style="background:var(--info-bg);color:var(--info)">qualia</span></div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>「运行中」区 = 多实例活跃流聚合，进度线来自步骤事件（step / totalSteps）</li>
+                        <li>等待确认的会话在此区置顶并转<b>警示色</b>，跨项目人机协同排队可见</li>
+                        <li>下方平铺流与 S2 共享数据，只是去掉色轨、保留小徽章</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：多项目并行的价值最直接——正在发生的事永远在第一屏</li>
+                        <li><b>劣</b>：运行区为空时略浪费一截高度（可自动收起为单行）；徽章识别弱于分组</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== S5 堆叠切换器 ===== -->
+    <div class="concept" id="s5">
+        <div class="c-head">
+            <span class="c-badge" style="background:#cf222e">S5</span>
+            <h2>堆叠切换器</h2><span class="en">STACKED SWITCHER</span>
+            <span class="chip risk">保守兜底</span>
+        </div>
+        <p class="c-locate">侧栏本体保持「单项目视图」完全不变；共存能力全部收进顶部工作区切换器：下拉项直接预览每个项目的最近会话与运行态，另给一个「查看全部项目会话」入口弹聚合面板。改动面最小。</p>
+        <div class="c-body">
+            <div class="sb">
+                <div class="brand"><i>Q</i> Qualia Code</div>
+                <div class="ws-stack">
+                    <div class="ws-head" onclick="s5toggle(event)"><span>📂</span><div style="min-width:0"><div class="nm">qualia</div><div class="pth">D:\Projects\qualia</div></div><span class="cv">▲</span></div>
+                    <div class="ws-dd open" id="wsdd">
+                        <div class="dd-item">
+                            <div class="r1"><span class="dot-live"></span>qualia<span class="pth">…\Projects\qualia</span></div>
+                            <div class="r2">项目会话共存设计 · 侧边栏宽度拖拽 · 附件回读…</div>
+                        </div>
+                        <div class="dd-item">
+                            <div class="r1"><span class="dot-live"></span>qualia-claw<span class="pth">…\qualia-claw</span></div>
+                            <div class="r2">模型面板单卡编辑（运行中）· 工具配置下沉…</div>
+                        </div>
+                        <div class="dd-item">
+                            <div class="r1">blog<span class="pth">D:\Projects\blog</span></div>
+                            <div class="r2">hexo 迁移 astro · 部署脚本迁移</div>
+                        </div>
+                        <div class="dd-foot">⧉ 查看全部项目的会话（聚合面板）</div>
+                    </div>
+                </div>
+                <div class="seg"><span class="on">会话</span><span>文件</span></div>
+                <div class="search">⌕ 搜索会话…</div>
+                <div class="time-h">今天</div>
+                <div class="sess live on"><span class="dot"></span><span class="t">项目会话共存设计</span><span class="badge">24</span></div>
+                <div class="sess"><span class="dot"></span><span class="t">侧边栏宽度拖拽调整</span></div>
+                <div class="time-h">昨天</div>
+                <div class="sess"><span class="dot"></span><span class="t">附件回读与存储分层</span></div>
+            </div>
+            <div class="c-notes">
+                <div class="note">
+                    <h4>要点</h4>
+                    <ul>
+                        <li>下拉项 = 项目 + 最近会话预览串 + 运行绿点；点击项 = 切换焦点项目</li>
+                        <li>「聚合面板」以整面板层打开（复用文件预览整面板层的交互模式），内容即 S2 混排流</li>
+                        <li>ConversationList 零改动；只动工作区头与新增一个面板层</li>
+                    </ul>
+                </div>
+                <div class="note">
+                    <h4>优劣</h4>
+                    <ul>
+                        <li><b>优</b>：改动最小、零认知迁移，适合作为共存能力的第一个交付形态</li>
+                        <li><b>劣</b>：共存藏在两层交互之后；聚合面板是「临时窗口」不是常驻视图</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 对比 ===== -->
+    <div class="cmp">
+        <h2>横向对比</h2>
+        <table>
+            <tr><th>样式</th><th>项目识别方式</th><th>总览能力</th><th>运行中可见性</th><th>侧栏宽度</th><th>改造量</th><th>适用</th></tr>
+            <tr><td><b>S1 分组手风琴</b></td><td>组头分组</td><td>展开即全览</td><td>组头 spinner</td><td>不变</td><td><b>最小</b></td><td>默认形态，P1 落地</td></tr>
+            <tr><td><b>S2 色轨脉搏流</b></td><td>左缘色轨 + chips</td><td>混排即全览</td><td>行内流光晕</td><td>不变</td><td>小</td><td>项目 ≤ 5、重「最近动态」</td></tr>
+            <tr><td><b>S3 双列项目轨</b></td><td>字母块轨道</td><td>弱（靠聚合入口）</td><td>轨道角标</td><td>+48px</td><td>中</td><td>项目多、桌面宽屏</td></tr>
+            <tr><td><b>S4 焦点优先流</b></td><td>行内小徽章</td><td>运行区 + 平铺流</td><td><b>置顶区最强</b></td><td>不变</td><td>中</td><td>多项目同时跑任务</td></tr>
+            <tr><td><b>S5 堆叠切换器</b></td><td>下拉预览</td><td>聚合面板</td><td>下拉绿点</td><td>不变</td><td><b>最小</b></td><td>共存能力首发交付</td></tr>
+        </table>
+        <div class="verdict">
+            <span class="dot"></span>
+            <span><b>建议路径</b>：以 <b>S5 起步</b>（一个下拉 + 一个聚合面板，当天可交付）→ <b>S1 转正</b>为常驻形态（手风琴分组）→ 有多项目并行需求后叠加 <b>S4 的「运行中」置顶区</b>（S1+S4 天然兼容：置顶区插在分组列表上方）。<b>S2</b> 适合项目少、以「动态」为中心的用户，可作为 S1 的显示模式开关（分组 / 混排二态）。<b>S3</b> 留给桌面端宽屏场景。五种样式共用 <code>/sessions/all</code> 一份数据，切换成本仅在 <code>ConversationList</code> 渲染层。</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function s2filter(el) {
+    var box = el.closest('.sb');
+    box.querySelectorAll('.p-chip').forEach(function (c) { c.classList.remove('on'); });
+    el.classList.add('on');
+    var p = el.dataset.p;
+    box.querySelectorAll('.rail-sess').forEach(function (row) {
+        row.classList.toggle('sb-hidden', p !== 'all' && row.dataset.p !== p);
+    });
+    box.querySelectorAll('.time-h').forEach(function (h) {
+        if (p === 'all') { h.classList.remove('sb-hidden'); return; }
+        var next = h.nextElementSibling, show = false;
+        while (next && !next.classList.contains('time-h')) {
+            if (next.dataset.p === p) show = true;
+            next = next.nextElementSibling;
+        }
+        h.classList.toggle('sb-hidden', !show);
+    });
+}
+function s3pick(el) {
+    document.querySelectorAll('.s3-item').forEach(function (i) { i.classList.remove('on'); });
+    el.classList.add('on');
+    document.querySelectorAll('.s3-pane').forEach(function (p) {
+        p.classList.toggle('sb-hidden', p.dataset.n !== el.dataset.n);
+    });
+}
+function s5toggle(e) {
+    e.stopPropagation();
+    document.getElementById('wsdd').classList.toggle('open');
+}
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('.ws-stack')) document.getElementById('wsdd').classList.remove('open');
+});
+document.querySelectorAll('.grp-head').forEach(function (h) {
+    h.addEventListener('click', function () {
+        h.classList.toggle('grp-fold');
+        var body = h.nextElementSibling;
+        if (body && body.classList.contains('grp-body')) {
+            body.style.display = body.style.display === 'none' ? '' : 'none';
+        }
+    });
+});
+</script>
+</body>
+</html>

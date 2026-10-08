@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 会话列表精细设计 · 四版本对比</title>
+<style>
+/* ===== 主题变量：与 qualia-code-ui/src/styles/index.css 对齐（默认日间） ===== */
+:root {
+    --bg-app: #ffffff; --bg-surface: #ffffff; --bg-sidebar: #eff2f5;
+    --bg-hover: #e9edf1; --bg-active: #e4e9ee; --bg-input: #ffffff;
+    --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+    --border-color: #d0d7de;
+    --accent: #24292f; --accent-light: #32383f;
+    --accent-gradient: linear-gradient(145deg, #32383f, #24292f); --accent-ink: #ffffff;
+    --success: #1a7f37;
+    --sandbox-bg: #f3f7fa; --sandbox-border: #b6c7d4; --sandbox-text: #4d6a80;
+    --scrollbar-thumb: #c8d0d8;
+    --pill-bg: rgba(255, 255, 255, 0.85); --pill-border: rgba(31, 35, 40, 0.14);
+    --card-shadow: 0 1px 3px rgba(31, 35, 40, 0.06);
+    --ws-q: #5c7fb5; --ws-d: #7f9bb0;
+}
+body.dark-theme {
+    --bg-app: #080a10; --bg-surface: rgba(19, 24, 32, 0.92); --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-hover: rgba(255, 255, 255, 0.04); --bg-active: rgba(230, 237, 243, 0.10); --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2; --text-secondary: #8f97ae; --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.07);
+    --accent: #e6edf3; --accent-light: #f0f6fc;
+    --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e); --accent-ink: #0d1117;
+    --success: #34d399;
+    --sandbox-bg: rgba(77, 106, 128, 0.13); --sandbox-border: #3d5468; --sandbox-text: #7d9cb5;
+    --scrollbar-thumb: #2e3546;
+    --pill-bg: rgba(22, 26, 36, 0.72); --pill-border: rgba(255, 255, 255, 0.1);
+    --card-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    --ws-q: #7d9cc9; --ws-d: #9ab4c4;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg-app); color: var(--text-primary);
+    padding: 30px 20px 80px; font-size: 13px;
+    transition: background 0.25s, color 0.25s;
+    -webkit-font-smoothing: antialiased;
+}
+svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+svg.ic.fill { fill: currentColor; stroke: none; }
+
+.pillbar {
+    position: fixed; top: 10px; right: 14px; z-index: 100;
+    background: var(--pill-bg); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--pill-border); border-radius: 100px; padding: 4px 6px; box-shadow: var(--card-shadow);
+}
+.pillbar button {
+    border: none; background: transparent; color: var(--text-secondary);
+    font-size: 11px; font-weight: 600; border-radius: 100px; padding: 5px 12px; cursor: pointer; font-family: inherit;
+}
+.pillbar button:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+.sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 26px; line-height: 1.7; }
+.sub code, p code, td code, li code, .desc code {
+    font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+    background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+}
+.wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+.card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px 20px; box-shadow: var(--card-shadow); }
+.card > h2 { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.card > h2 .no {
+    width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+    background: var(--accent); color: var(--accent-ink);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700;
+}
+.desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.7; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: var(--text-secondary); background: var(--bg-hover); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td b { color: var(--text-primary); font-weight: 600; }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 7px; letter-spacing: 0.3px; white-space: nowrap; }
+.tag.rec { background: rgba(26, 127, 55, 0.12); color: var(--success); }
+.tag.opt { background: var(--bg-hover); color: var(--text-muted); }
+.tag.warn { background: rgba(154, 103, 0, 0.12); color: #9a6700; }
+
+.verdict { display: flex; gap: 10px; align-items: flex-start; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.75; color: var(--text-secondary); }
+.verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+.verdict b { color: var(--text-primary); }
+
+/* ===== 版本卡：左侧 1:1 侧栏切片 + 右侧说明 ===== */
+.ver-card > h2 .vtag { font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 8px; letter-spacing: 0.3px; }
+.ver-grid { display: grid; grid-template-columns: 234px 1fr; gap: 18px; align-items: start; }
+
+/* ===== 侧栏切片（1:1 规格：234px，行高/字号/间距与实现一致） ===== */
+.sb {
+    width: 234px; min-width: 234px;
+    background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px;
+    display: flex; flex-direction: column; padding: 14px 11px 10px; overflow: hidden;
+}
+.sb-header { display: flex; align-items: center; justify-content: flex-end; padding: 0 5px 13px 5px; border-bottom: 1px solid var(--border-color); }
+.header-acts { display: flex; gap: 2px; }
+.header-acts i { font-style: normal; color: var(--text-muted); font-size: 13px; padding: 5px 7px; border-radius: 6px; }
+
+.conv-list { list-style: none; flex: 1; overflow: hidden; margin-top: 9px; padding-right: 2px; }
+.conv-list li.sess {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 11px; margin-bottom: 5px;
+    cursor: pointer; color: var(--text-secondary); font-size: 12.5px; font-weight: 500;
+}
+.conv-list li.sess.active { background: var(--bg-active); color: var(--accent-light); box-shadow: inset 0 0 0 1px var(--border-color); }
+.conv-list li.sess > i { font-size: 14px; width: 18px; color: var(--text-muted); text-align: center; flex-shrink: 0; font-style: normal; }
+.conv-list li.sess.active > i { color: var(--accent-light); }
+.conv-list li.sess .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-list li.sess .tm { flex-shrink: 0; font-size: 10px; color: var(--text-muted); font-weight: 400; }
+.conv-list li.sess .unread-dot { flex: none; width: 8px; height: 8px; margin: 0 5px; border-radius: 50%; background: var(--success); }
+.conv-list li.sess .stream-dot { flex: none; width: 12px; height: 12px; margin: 0 3px; border-radius: 50%; border: 1.5px solid var(--success); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.conv-list mark { background: rgba(31, 35, 40, 0.1); color: var(--text-primary); border-radius: 3px; padding: 0 1px; font-weight: 600; }
+body.dark-theme .conv-list mark { background: rgba(230, 237, 243, 0.2); color: var(--accent-light); }
+
+/* 组头通用（A/B） */
+.grp-h { display: flex; align-items: center; gap: 6px; padding: 11px 11px 4px; font-size: 10.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+.grp-h:first-child { padding-top: 2px; }
+.grp-h.sandbox { color: var(--sandbox-text); }
+.grp-h .gic { font-size: 11px; width: 14px; text-align: center; flex-shrink: 0; }
+.grp-h .cnt { font-weight: 400; opacity: 0.75; }
+.grp-h .add { margin-left: auto; border: none; background: transparent; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 0 5px; border-radius: 5px; font-family: inherit; opacity: 0.55; }
+.grp-h:hover .add { opacity: 1; background: var(--bg-hover); }
+.sb-badge { font-size: 8.5px; font-weight: 700; letter-spacing: 0.4px; border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); border-radius: 4px; padding: 0 4px; line-height: 1.5; flex-shrink: 0; }
+
+/* B 折叠 */
+.grp-h .chev { font-size: 9px; width: 10px; color: var(--text-muted); transition: transform 0.2s; }
+.grp-h.collapsed .chev { transform: rotate(-90deg); }
+.collapsed-kids { display: none; }
+.expanded-kids { display: block; }
+
+/* C 筛选器 */
+.ws-chipbar { display: flex; gap: 5px; padding: 10px 2px 4px; overflow-x: auto; scrollbar-width: none; }
+.ws-chipbar::-webkit-scrollbar { display: none; }
+.fchip {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 600; color: var(--text-secondary);
+    border: 1px solid var(--border-color); background: transparent;
+    border-radius: 100px; padding: 3px 10px; cursor: pointer; font-family: inherit;
+}
+.fchip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.fchip .fd { width: 6px; height: 6px; border-radius: 50%; }
+.fchip.sandbox { border-style: dashed; color: var(--sandbox-text); }
+.fchip.sandbox.on { background: var(--sandbox-text); border-color: var(--sandbox-text); color: #fff; }
+
+/* D 归属徽标 */
+.own { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 600; color: var(--text-muted); }
+.own .od { width: 6px; height: 6px; border-radius: 50%; }
+.own.sandbox { color: var(--sandbox-text); }
+.own.sandbox .od { border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg); }
+
+/* 日期组通用（C/D） */
+.date-h { padding: 11px 11px 4px; font-size: 10.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+.date-h:first-child { padding-top: 2px; }
+
+/* 说明列 */
+.desc-col h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; }
+.desc-col p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.75; margin-bottom: 8px; }
+.desc-col ul { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+.desc-col ul li { display: flex; gap: 8px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; }
+.desc-col ul li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+.desc-col .pros b { color: var(--success); } .desc-col .cons b { color: #9a6700; }
+.fit { font-size: 11px; color: var(--text-muted); line-height: 1.7; border-top: 1px dashed var(--border-color); padding-top: 8px; }
+.fit b { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="pillbar"><button id="themeBtn">切换 深 / 浅</button></div>
+
+<h1>会话列表精细设计 · 四版本</h1>
+<p class="sub">
+    定位：<b>跨项目历史库</b>（全局可见，不携带「当前工作区」状态）· 搜索 / 右键重命名删除 / 流式点 / 未读点等现有资产在四版本中保持不变
+</p>
+
+<div class="wrap">
+
+    <!-- 00 通用行状态 -->
+    <div class="card">
+        <h2><span class="no">00</span>通用行状态（四版本共用，规格对齐实现）</h2>
+        <p class="desc">行高 <code>9px 11px</code> 内距、字号 12.5px、圆角 11px、激活态 <code>--bg-active</code> + 内描边；前缀位 18px 宽，四种状态互换不跳动。</p>
+        <div style="display:flex; gap:16px; flex-wrap:wrap">
+            <div class="sb" style="width:300px">
+                <ul class="conv-list">
+                    <li class="sess active"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">常规 · 当前会话（激活态）</span></li>
+                    <li class="sess"><span class="stream-dot"></span><span class="tt">生成中 · 旋转弧线 spinner</span><span class="tm">流式</span></li>
+                    <li class="sess"><span class="unread-dot"></span><span class="tt">后台完成 · 绿点未读</span><span class="tm">今天</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">搜索命中高亮 <mark>Workspace</mark> 标题</span><span class="tm">昨天</span></li>
+                </ul>
+            </div>
+            <div style="flex:1; min-width:280px">
+                <ul class="desc-col" style="list-style:none">
+                    <li style="display:flex; gap:8px; font-size:11.5px; color:var(--text-secondary); line-height:1.9"><span>—</span><span><b>流式 spinner</b>：绿弧线替换前缀图标位，结束后切常规；后台完成 → 8px 静态绿点，切入消失</span></li>
+                    <li style="display:flex; gap:8px; font-size:11.5px; color:var(--text-secondary); line-height:1.9"><span>—</span><span><b>搜索</b>：入口仍在头部放大镜，框滑出于滚动区上方，命中 <code>&lt;mark&gt;</code> 高亮，跨组全局过滤</span></li>
+                    <li style="display:flex; gap:8px; font-size:11.5px; color:var(--text-secondary); line-height:1.9"><span>—</span><span><b>右键</b>：重命名（行内输入）/ 删除（confirm），菜单规格不变</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 0T 对比总览 -->
+    <div class="card">
+        <h2><span class="no">0T</span>四版本对比总览</h2>
+        <table>
+            <tr><th style="width:150px">维度</th><th>A 分组时间线</th><th>B 可折叠分组</th><th>C 筛选器</th><th>D 扁平徽标</th></tr>
+            <tr><td><b>项目归属可扫读</b></td><td><b>强</b>（一屏全览）</td><td><b>强</b>（可收起降噪）</td><td>中（需切 chip）</td><td>弱（逐行扫徽标）</td></tr>
+            <tr><td><b>时间可扫读</b></td><td>中（行尾相对时间）</td><td>中（行尾相对时间）</td><td><b>强</b>（日期分组保留）</td><td><b>强</b>（日期分组保留）</td></tr>
+            <tr><td><b>视觉噪音</b></td><td>低</td><td>低（收起后更低）</td><td>低</td><td><b>最低</b></td></tr>
+            <tr><td><b>「项目下新建」入口</b></td><td>组头 ＋</td><td>组头 ＋</td><td>chip 旁 ＋</td><td>需另设入口</td></tr>
+            <tr><td><b>与现状结构差</b></td><td>中（日期组→项目组）</td><td>中 + 折叠状态管理</td><td>小（列表结构不变，加 chip 条）</td><td>小（行尾加徽标）</td></tr>
+            <tr><td><b>会话量适应</b></td><td>～百条</td><td><b>大量（可折叠）</b></td><td>大量（先筛后看）</td><td>中（长列表扫徽标累）</td></tr>
+            <tr><td><b>定位</b></td><td><span class="tag rec">推荐 · 默认</span></td><td><span class="tag opt">进阶选项</span></td><td><span class="tag opt">时间轴优先</span></td><td><span class="tag warn">不推荐</span></td></tr>
+        </table>
+    </div>
+
+    <!-- A 分组时间线 -->
+    <div class="card ver-card">
+        <h2><span class="no">A</span>分组时间线 <span class="vtag tag rec">推荐 · 默认</span></h2>
+        <p class="desc">项目组为一级结构（沙箱组置顶），组内按时间倒序、行尾给相对时间补回时间维度。组头即「项目上下文」：名称 + 条数 + 悬停 ＋。</p>
+        <div class="ver-grid">
+            <div class="sb">
+                <div class="sb-header">
+                    <span class="header-acts"><i><svg class="ic"><use href="#i-search"/></svg></i><i><svg class="ic"><use href="#i-plus"/></svg></i></span>
+                </div>
+                <ul class="conv-list">
+                    <li class="grp-h sandbox"><span class="gic">◇</span>默认工作区 <span class="sb-badge">沙箱</span><span class="cnt">3</span><button class="add">＋</button></li>
+                    <li class="sess active"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">新会话</span><span class="tm">14:32</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">问 Rust 所有权</span><span class="tm">昨天</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">翻译 README 段落</span><span class="tm">周一</span></li>
+                    <li class="grp-h"><span class="gic"><svg class="ic fill"><use href="#i-folder"/></svg></span>qualia<span class="cnt">4</span><button class="add">＋</button></li>
+                    <li class="sess"><span class="unread-dot"></span><span class="tt">重构 WorkspaceHistory</span><span class="tm">13:07</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">打包脚本排查</span><span class="tm">昨天</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">会话存储迁移验证</span><span class="tm">周二</span></li>
+                    <li class="grp-h"><span class="gic"><svg class="ic fill"><use href="#i-folder"/></svg></span>demo-app<span class="cnt">2</span><button class="add">＋</button></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">联调登录接口</span><span class="tm">昨天</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">首页视觉走查</span><span class="tm">9/30</span></li>
+                </ul>
+            </div>
+            <div class="desc-col">
+                <h3>规则</h3>
+                <ul>
+                    <li>组序：◇ 沙箱组<b>恒置顶</b> → 项目组按<b>组内最近活跃</b>倒序</li>
+                    <li>行尾时间：<b>今天显示 HH:mm</b>，更早显示「昨天 / 周X / M/D」，10px 弱化</li>
+                    <li>组头悬停 ＋：新建并<b>绑定</b>该项目的新会话；沙箱组 ＋ = 新建默认会话</li>
+                    <li>搜索时组头隐藏、命中行平铺（命中唯一上下文就是标题高亮）</li>
+                </ul>
+                <h3>优点 / 代价</h3>
+                <ul class="pros"><li><b>＋</b> 归属一屏全览，与「绑定是会话属性」的语义完全同构；改动集中在 <code>rows</code> computed 的分组键</li></ul>
+                <ul class="cons"><li><b>－</b> 项目多 + 会话多时列表变长（时间维度弱化为行尾小字）</li></ul>
+                <p class="fit"><b>适用：</b>默认形态；会话量中等、项目 2~10 个的日常场景。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- B 可折叠分组 -->
+    <div class="card ver-card">
+        <h2><span class="no">B</span>可折叠分组 <span class="tag opt">进阶选项</span></h2>
+        <p class="desc">在 A 的基础上给组头加折叠：VSCode SCM 风格的 chevron + 折叠状态持久化。可点击右侧切片中的组头体验。</p>
+        <div class="ver-grid">
+            <div class="sb">
+                <div class="sb-header">
+                    <span class="header-acts"><i><svg class="ic"><use href="#i-search"/></svg></i><i><svg class="ic"><use href="#i-plus"/></svg></i></span>
+                </div>
+                <ul class="conv-list" id="colB">
+                    <li class="grp-h sandbox" data-g="b1"><span class="chev">▾</span><span class="gic">◇</span>默认工作区 <span class="sb-badge">沙箱</span><span class="cnt">3</span><button class="add">＋</button></li>
+                    <li class="sess k b1 active"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">新会话</span><span class="tm">14:32</span></li>
+                    <li class="sess k b1"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">问 Rust 所有权</span><span class="tm">昨天</span></li>
+                    <li class="sess k b1"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">翻译 README 段落</span><span class="tm">周一</span></li>
+                    <li class="grp-h" data-g="b2"><span class="chev">▾</span><span class="gic"><svg class="ic fill"><use href="#i-folder"/></svg></span>qualia<span class="cnt">4</span><button class="add">＋</button></li>
+                    <li class="sess k b2"><span class="unread-dot"></span><span class="tt">重构 WorkspaceHistory</span><span class="tm">13:07</span></li>
+                    <li class="sess k b2"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">打包脚本排查</span><span class="tm">昨天</span></li>
+                    <li class="sess k b2"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">会话存储迁移验证</span><span class="tm">周二</span></li>
+                    <li class="grp-h collapsed" data-g="b3"><span class="chev">▾</span><span class="gic"><svg class="ic fill"><use href="#i-folder"/></svg></span>demo-app<span class="cnt">2</span><button class="add">＋</button></li>
+                    <li class="sess k b3" style="display:none"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">联调登录接口</span><span class="tm">昨天</span></li>
+                    <li class="sess k b3" style="display:none"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">首页视觉走查</span><span class="tm">9/30</span></li>
+                </ul>
+            </div>
+            <div class="desc-col">
+                <h3>规则（在 A 之上追加）</h3>
+                <ul>
+                    <li>组头 = 折叠开关（chevron 旋转 0.2s）；折叠态仅留「图标 + 名称 + 条数」一行</li>
+                    <li>折叠状态 <code>localStorage</code> 持久化（key 按工作区路径）</li>
+                    <li><b>例外</b>：活跃会话 / 产生未读的组强制展开，折叠不可作用于它</li>
+                    <li>组头悬停仍出 ＋（与折叠互不干扰：chevron 在左、＋ 在右）</li>
+                </ul>
+                <h3>优点 / 代价</h3>
+                <ul class="pros"><li><b>＋</b> 大量会话时可把不活跃项目收起，扫读噪音最低化；IDE 用户零学习</li></ul>
+                <ul class="cons"><li><b>－</b> 多一层状态（折叠持久化 + 活跃组强制展开的边界）；「收起后忘了里面有未读」需条数/绿点补偿</li></ul>
+                <p class="fit"><b>适用：</b>会话量大（50+）或多项目重度用户；可作为 A 的无破坏增强（组头加 chevron 即可，分阶段上线）。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- C 筛选器 -->
+    <div class="card ver-card">
+        <h2><span class="no">C</span>工作区筛选器 <span class="tag opt">时间轴优先</span></h2>
+        <p class="desc">不改变列表结构：顶部加一条工作区 chip 筛选条，「全部」= 传统日期分组流 + 行尾归属徽标；选中某工作区 = 同样的日期流但只含该工作区。可点击 chip 体验。</p>
+        <div class="ver-grid">
+            <div class="sb">
+                <div class="sb-header">
+                    <span class="header-acts"><i><svg class="ic"><use href="#i-search"/></svg></i><i><svg class="ic"><use href="#i-plus"/></svg></i></span>
+                </div>
+                <div class="ws-chipbar" id="chipbar">
+                    <button class="fchip on" data-f="all">全部</button>
+                    <button class="fchip sandbox" data-f="">◇ 沙箱</button>
+                    <button class="fchip" data-f="qualia"><span class="fd" style="background:var(--ws-q)"></span>qualia</button>
+                    <button class="fchip" data-f="demo-app"><span class="fd" style="background:var(--ws-d)"></span>demo-app</button>
+                </div>
+                <ul class="conv-list" id="listC"></ul>
+            </div>
+            <div class="desc-col">
+                <h3>规则</h3>
+                <ul>
+                    <li>chip 条为<b>临时视图过滤</b>，不是状态切换：不持久化、无「当前工作区」语义（重启回「全部」）</li>
+                    <li>「全部」视图行尾带归属徽标（色点 + 项目名）；筛选后徽标隐去（上下文已明确）</li>
+                    <li>日期分组（今天 / 昨天 / 近 7 天 / 更早）完整保留——与现状 <code>sessionGroupLabel</code> 完全同源</li>
+                    <li>chip 条末尾固定一枚 <code>＋</code>：新建会话并绑定到当前选中工作区（「全部」时=新建默认会话）</li>
+                </ul>
+                <h3>优点 / 代价</h3>
+                <ul class="pros"><li><b>＋</b> 时间轴体验与现状零差异，实现面最小（一层 filter）；筛选是显式动作，不与绑定语义混淆</li></ul>
+                <ul class="cons"><li><b>－</b> 归属一屏不可见，项目全貌要靠切 chip；多一层「筛选态」心智（但它是视图态而非数据态）</li></ul>
+                <p class="fit"><b>适用：</b>用户以「最近在做什么」为主轴找会话、项目上下文其次；或作为 A/B 之上的叠加能力（chip 条与分组可并存：分组内再筛）。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- D 扁平徽标 -->
+    <div class="card ver-card">
+        <h2><span class="no">D</span>扁平时间流 + 归属徽标 <span class="tag warn">不推荐 · 列出供对比</span></h2>
+        <p class="desc">完全不加组：沿用今天的日期分组，行尾挂归属徽标。最安静，但项目维度退化为逐行扫读。</p>
+        <div class="ver-grid">
+            <div class="sb">
+                <div class="sb-header">
+                    <span class="header-acts"><i><svg class="ic"><use href="#i-search"/></svg></i><i><svg class="ic"><use href="#i-plus"/></svg></i></span>
+                </div>
+                <ul class="conv-list">
+                    <li class="date-h">今天</li>
+                    <li class="sess active"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">新会话</span><span class="own sandbox"><span class="od"></span>沙箱</span></li>
+                    <li class="sess"><span class="unread-dot"></span><span class="tt">重构 WorkspaceHistory</span><span class="own"><span class="od" style="background:var(--ws-q)"></span>qualia</span></li>
+                    <li class="date-h">昨天</li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">问 Rust 所有权</span><span class="own sandbox"><span class="od"></span>沙箱</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">打包脚本排查</span><span class="own"><span class="od" style="background:var(--ws-q)"></span>qualia</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">联调登录接口</span><span class="own"><span class="od" style="background:var(--ws-d)"></span>demo-app</span></li>
+                    <li class="date-h">本周更早</li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">翻译 README 段落</span><span class="own sandbox"><span class="od"></span>沙箱</span></li>
+                    <li class="sess"><i><svg class="ic"><use href="#i-chat"/></svg></i><span class="tt">会话存储迁移验证</span><span class="own"><span class="od" style="background:var(--ws-q)"></span>qualia</span></li>
+                </ul>
+            </div>
+            <div class="desc-col">
+                <h3>规则</h3>
+                <ul>
+                    <li>日期分组原样保留（今天 / 昨天 / 近 7 天…），行尾 9.5px 徽标：色点 + 项目名 / 沙箱</li>
+                    <li>徽标色（蓝灰调）：沙箱 = 虚线 ◇ 灰蓝，项目 = 各自固定色点（按项目名 hash 取色）</li>
+                </ul>
+                <h3>优点 / 代价</h3>
+                <ul class="pros"><li><b>＋</b> 结构与现状完全一致，视觉最安静</li></ul>
+                <ul class="cons"><li><b>－</b> 「项目下新建」失去自然落点，需另造入口；找某项目的会话只能靠扫徽标或搜索——与「多项目历史库」定位相悖</li></ul>
+                <p class="fit"><b>适用：</b>几乎不用项目功能的轻度用户。列出仅供对比，不建议作为默认。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结论 -->
+    <div class="card">
+        <h2><span class="no">07</span>选型建议</h2>
+        <p class="desc">以「归属扫读优先、时间扫读其次」为默认权衡。</p>
+        <div class="verdict">
+            <span class="dot"></span>
+            <span><b>默认落 A（分组时间线）</b>——与绑定语义同构、改动收敛在 <code>ConversationList.rows</code> 分组键 + 行尾时间；<b>B 作为第二阶段增强</b>（组头加 chevron + 持久化，接口不变）；<b>C 的 chip 条可与 A 叠加</b>（先分组、组内再筛），留作后续按需；D 淘汰。若你更看重时间轴原体验，改选 C 亦可，代价是项目全貌需切换查看。</span>
+        </div>
+    </div>
+
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="i-chat" viewBox="0 0 16 16"><path d="M3 3.2h10c.8 0 1.4.6 1.4 1.4v5.6c0 .8-.6 1.4-1.4 1.4H8.4L5 14.6v-3H3c-.8 0-1.4-.6-1.4-1.4V4.6c0-.8.6-1.4 1.4-1.4z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.8 5c0-.9.7-1.6 1.6-1.6h3.2L8.2 5h4.4c.9 0 1.6.7 1.6 1.6v5.2c0 .9-.7 1.6-1.6 1.6H3.4c-.9 0-1.6-.7-1.6-1.6V5z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.6 13.6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
+</defs></svg>
+
+<script>
+/* 主题切换 */
+document.getElementById('themeBtn').onclick = () => document.body.classList.toggle('dark-theme');
+
+/* B：折叠演示（活跃/未读组不可折叠的例外已在数据上体现） */
+document.querySelectorAll('#colB .grp-h').forEach((h) => {
+  h.addEventListener('click', (e) => {
+    if (e.target.classList.contains('add')) return;
+    if (h.dataset.g === 'b1') return; // 活跃会话所在组强制展开
+    const g = h.dataset.g;
+    h.classList.toggle('collapsed');
+    const open = !h.classList.contains('collapsed');
+    document.querySelectorAll('#colB .k.' + g).forEach((r) => (r.style.display = open ? 'flex' : 'none'));
+  });
+});
+
+/* C：筛选演示 */
+const DATA = [
+  { t: '新会话', ws: '', time: '今天', active: true },
+  { t: '重构 WorkspaceHistory', ws: 'qualia', time: '今天', unread: true },
+  { t: '问 Rust 所有权', ws: '', time: '昨天' },
+  { t: '打包脚本排查', ws: 'qualia', time: '昨天' },
+  { t: '联调登录接口', ws: 'demo-app', time: '昨天' },
+  { t: '翻译 README 段落', ws: '', time: '本周更早' },
+  { t: '会话存储迁移验证', ws: 'qualia', time: '本周更早' },
+];
+const WSDOT = { qualia: 'var(--ws-q)', 'demo-app': 'var(--ws-d)' };
+const WSNAME = { '': '沙箱', qualia: 'qualia', 'demo-app': 'demo-app' };
+let filterC = 'all';
+
+function renderC() {
+  const ul = document.getElementById('listC');
+  ul.innerHTML = '';
+  let lastDate = null;
+  for (const s of DATA) {
+    if (filterC !== 'all' && s.ws !== filterC) continue;
+    if (s.time !== lastDate) {
+      lastDate = s.time;
+      const h = document.createElement('li');
+      h.className = 'date-h';
+      h.textContent = s.time;
+      ul.appendChild(h);
+    }
+    const li = document.createElement('li');
+    li.className = 'sess' + (s.active ? ' active' : '');
+    const prefix = s.unread ? '<span class="unread-dot"></span>' : '<i><svg class="ic"><use href="#i-chat"/></svg></i>';
+    const own = filterC === 'all'
+      ? '<span class="own' + (s.ws === '' ? ' sandbox' : '') + '"><span class="od"' + (s.ws ? ' style="background:' + WSDOT[s.ws] + '"' : '') + '></span>' + WSNAME[s.ws] + '</span>'
+      : '';
+    li.innerHTML = prefix + '<span class="tt">' + s.t + '</span>' + own;
+    ul.appendChild(li);
+  }
+}
+document.querySelectorAll('#chipbar .fchip').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('#chipbar .fchip').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    filterC = c.dataset.f;
+    renderC();
+  };
+});
+renderC();
+</script>
+</body>
+</html>

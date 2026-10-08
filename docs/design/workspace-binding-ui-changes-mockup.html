@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 会话绑定工作区 · 前端变化效果稿</title>
+<style>
+/* ===== CSS 变量：对齐 qualia-code-ui/src/styles/index.css（日间默认 + 夜间） ===== */
+:root {
+    --bg-app: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-sidebar: #eff2f5;
+    --bg-hover: #e9edf1;
+    --bg-active: #e4e9ee;
+    --bg-input: #ffffff;
+    --text-primary: #24292f;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --border-color: #d0d7de;
+    --border-active: rgba(36, 41, 47, 0.3);
+    --shadow: 0 16px 40px rgba(31, 35, 40, 0.1);
+    --shadow-dd: 0 10px 32px rgba(31, 35, 40, 0.14), 0 2px 8px rgba(31, 35, 40, 0.08);
+    --accent: #24292f;
+    --accent-ink: #ffffff;
+    --accent-gradient: linear-gradient(145deg, #32383f, #24292f);
+    --success: #1a7f37;
+    --sandbox-bg: #f3f7fa;
+    --sandbox-border: #b6c7d4;
+    --sandbox-text: #4d6a80;
+    --radius-sm: 11px;
+    --radius-md: 16px;
+    --font-mono: ui-monospace, Consolas, monospace;
+}
+body.dark-theme {
+    --bg-app: #080a10;
+    --bg-surface: rgba(19, 24, 32, 0.96);
+    --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --border-active: rgba(230, 237, 243, 0.42);
+    --shadow: 0 32px 64px rgba(0, 0, 0, 0.7), 0 12px 24px rgba(0, 0, 0, 0.5);
+    --shadow-dd: 0 14px 40px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.4);
+    --accent: #e6edf3;
+    --accent-ink: #0d1117;
+    --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
+    --success: #34d399;
+    --sandbox-bg: rgba(144, 177, 199, 0.10);
+    --sandbox-border: rgba(144, 177, 199, 0.45);
+    --sandbox-text: #a8c3d6;
+}
+
+/* ===== base ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg-app); color: var(--text-primary);
+    font-size: 13px; padding: 34px 20px 80px; transition: background 0.2s;
+}
+.ctrl { max-width: 1120px; margin: 0 auto 10px; display: flex; justify-content: space-between; align-items: center; }
+.ctrl .sim { font-size: 11px; color: var(--text-secondary); }
+.theme-btn {
+    font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-secondary);
+}
+.theme-btn:hover { color: var(--text-primary); border-color: var(--border-active); }
+h1 { text-align: center; font-size: 19px; letter-spacing: -0.5px; margin-bottom: 5px; }
+.sub { text-align: center; font-size: 12px; color: var(--text-muted); margin-bottom: 26px; line-height: 1.7; }
+code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 4px; padding: 1px 5px; }
+
+/* ===== 变化总览表 ===== */
+.brief { max-width: 1120px; margin: 0 auto 34px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-surface); padding: 20px 24px; }
+.brief h2 { font-size: 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.brief h2::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+.brief table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.brief th, .brief td { border: 1px solid var(--border-color); padding: 7px 10px; text-align: left; vertical-align: top; line-height: 1.6; }
+.brief th { background: var(--bg-hover); font-weight: 600; white-space: nowrap; }
+.brief td { color: var(--text-secondary); }
+.brief td b { color: var(--text-primary); font-weight: 600; }
+.del { text-decoration: line-through; color: var(--text-muted); }
+.add-tag { font-size: 10px; font-weight: 700; color: var(--success); border: 1px solid var(--success); border-radius: 5px; padding: 0 5px; margin-right: 5px; white-space: nowrap; }
+
+/* ===== 画板 ===== */
+.scene { max-width: 1120px; margin: 0 auto 46px; }
+.scene-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.scene-title .tag { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border-radius: 5px; padding: 2px 8px; border: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-input); }
+.scene-title .tag.sandbox { border-color: var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+.scene-desc { font-size: 11.5px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.7; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+/* ===== App 窗口 ===== */
+.app-wrap { position: relative; }
+.app { display: grid; grid-template-columns: 236px 1fr; height: 560px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); background: var(--bg-app); box-shadow: var(--shadow); position: relative; }
+.app.half { height: 430px; }
+.win-label { font-size: 10.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
+.win-label.old::before { content: "OLD"; font-size: 9px; background: var(--bg-active); border-radius: 4px; padding: 1px 6px; }
+.win-label.new::before { content: "NEW"; font-size: 9px; background: var(--sandbox-border); color: var(--bg-app); border-radius: 4px; padding: 1px 6px; }
+
+.sidebar { background: var(--bg-sidebar); border-right: 1px solid var(--border-color); padding: 13px 10px; display: flex; flex-direction: column; min-width: 0; }
+.sidebar-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 12.5px; padding: 2px 6px 12px; }
+.sidebar-brand .logo { width: 21px; height: 21px; border-radius: 7px; flex-shrink: 0; background: var(--accent-gradient); color: var(--accent-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+.grp { padding: 4px 7px 4px; font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; display: flex; align-items: center; gap: 5px; }
+.grp.sandbox { color: var(--sandbox-text); }
+.sess {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; margin-bottom: 3px;
+    cursor: pointer; color: var(--text-secondary); font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden;
+}
+.sess:hover { background: var(--bg-hover); }
+.sess.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+.sess .t { overflow: hidden; text-overflow: ellipsis; }
+.sess .wsdot { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; }
+.sess .wsdot.sb { background: var(--sandbox-border); }
+.sess .wsdot.pj { background: var(--text-muted); }
+.sidebar-foot { padding: 8px 6px 2px; font-size: 11px; color: var(--text-muted); display: flex; gap: 14px; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+.topbar .pname { font-size: 12px; font-weight: 600; }
+.topbar .spacer { flex: 1; }
+
+/* 右上角绑定 chip（变化点 ③） */
+.ws-chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px;
+    padding: 3px 10px; border-radius: 20px; cursor: pointer; position: relative;
+}
+.ws-chip.sandbox { border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+.ws-chip.folder { border: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-input); }
+.ws-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+.ws-chip .caret { font-size: 8px; opacity: 0.7; }
+
+/* chip 下拉（换绑 / 解绑） */
+.chip-dd {
+    position: absolute; right: 0; top: 26px; z-index: 40; min-width: 220px; text-align: left;
+    background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-dd); padding: 6px; display: none;
+}
+.chip-dd.show { display: block; }
+.dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; cursor: pointer; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; }
+.dd-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.dd-item .p { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; }
+.dd-cap { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; padding: 5px 9px 3px; }
+.dd-sep { height: 1px; background: var(--border-color); margin: 5px 2px; }
+.dd-unbind { color: var(--text-muted); font-size: 11px; padding: 6px 9px; cursor: pointer; border-radius: 7px; }
+.dd-unbind:hover { color: var(--text-secondary); background: var(--bg-hover); }
+
+/* 聊天区 */
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px; }
+.msg { margin-bottom: 14px; max-width: 78%; }
+.msg.user { margin-left: auto; }
+.msg .bubble { font-size: 12px; line-height: 1.7; padding: 9px 13px; border-radius: var(--radius-sm); background: var(--bg-active); }
+.msg.ai { max-width: 92%; font-size: 12px; line-height: 1.75; color: var(--text-primary); }
+.msg.ai p { margin-bottom: 7px; }
+
+/* 输入区（变化点 ②：工作区按钮进输入框） */
+.input-zone { padding: 10px 22px 16px; flex-shrink: 0; }
+.bind-nudge {
+    display: flex; align-items: center; gap: 9px; margin-bottom: 9px;
+    padding: 7px 12px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg);
+    font-size: 11px; color: var(--sandbox-text);
+}
+.bind-nudge b { font-weight: 600; }
+.bind-nudge .go { margin-left: auto; font-size: 10.5px; font-weight: 600; white-space: nowrap; border-left: 1px solid var(--sandbox-border); padding-left: 10px; }
+.input-box { border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-input); }
+.input-box .ph { display: block; padding: 11px 14px 2px; font-size: 12px; color: var(--text-muted); }
+.input-tools { display: flex; align-items: center; gap: 6px; padding: 6px 9px 8px; }
+.tool-btn {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; cursor: pointer;
+    border: 1px solid var(--border-color); border-radius: 7px; padding: 4px 10px; color: var(--text-secondary); background: transparent;
+    position: relative;
+}
+.tool-btn:hover { color: var(--text-primary); border-color: var(--border-active); }
+.tool-btn.ws-bind { border-style: dashed; border-color: var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+.tool-btn.ws-bind:hover { border-style: solid; }
+.tool-btn.ws-bound { color: var(--text-secondary); }
+.send { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; background: var(--accent-gradient); color: var(--accent-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+.chips { display: flex; gap: 6px; margin-top: 8px; }
+.chip-sm { font-size: 10px; color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 20px; padding: 2px 10px; cursor: pointer; }
+
+/* 输入框按钮的绑定下拉 */
+.bind-dd {
+    position: absolute; bottom: 40px; left: 0; z-index: 40; min-width: 250px;
+    background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-dd); padding: 6px; display: none;
+}
+.bind-dd.up { bottom: 40px; }
+.bind-dd.show { display: block; }
+
+/* 启动遮罩弹窗（现状） */
+.launch-mask { position: absolute; inset: 0; z-index: 50; background: color-mix(in srgb, var(--bg-app) 55%, transparent); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; }
+.launch-modal { width: 320px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-dd); padding: 20px 22px; }
+.launch-modal .t { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+.launch-modal .d { font-size: 11px; color: var(--text-muted); line-height: 1.7; margin-bottom: 14px; }
+.launch-modal .btn { display: block; text-align: center; font-size: 12px; font-weight: 600; padding: 8px; border-radius: 8px; background: var(--accent-gradient); color: var(--accent-ink); margin-bottom: 10px; }
+.launch-modal .recent { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 6px; }
+.launch-modal .r-item { font-size: 11.5px; color: var(--text-secondary); padding: 6px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.launch-modal .r-item:hover { background: var(--bg-hover); }
+.launch-modal .skip { text-align: center; font-size: 10.5px; color: var(--text-muted); margin-top: 10px; cursor: pointer; }
+.launch-modal .skip u { text-underline-offset: 2px; }
+
+.note { font-size: 11px; color: var(--text-muted); line-height: 1.8; max-width: 1120px; margin: 0 auto; }
+.note b { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="ctrl">
+    <span class="sim">Qualia Code · 前端变化效果稿 · 2026-10-07</span>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark-theme')">切换日间/夜间</button>
+</div>
+<h1>会话绑定工作区 · 前端变化</h1>
+<div class="sub">
+    启动不再强制选工作区；会话默认派生（免绑定直聊），绑定动作收进<b>输入框的工作区按钮</b>；<br>
+    右上角实时显示当前会话的绑定；侧栏会话按归属分组。
+</div>
+
+<!-- ===================== 变化总览 ===================== -->
+<div class="brief">
+    <h2>变化点总览</h2>
+    <table>
+        <tr><th style="width:120px">位置</th><th style="width:320px">现状</th><th>实施后</th></tr>
+        <tr><td><b>启动</b></td><td><span class="del">未选工作区强制弹出全屏选择弹窗，选完才能用</span></td><td><b>直接进入聊天</b>（派生态），选择工作区延后到输入框按需触发</td></tr>
+        <tr><td><b>输入框</b></td><td>无工作区入口</td><td><span class="add-tag">新增</span>工具行左侧「工作区按钮」：派生态显示 <b>绑定工作区</b>（虚线），绑定后显示 <b>项目名</b>；点击弹最近列表选择</td></tr>
+        <tr><td><b>右上角</b></td><td>无绑定标识</td><td><span class="add-tag">新增</span>绑定 chip：派生 = <b>默认工作区</b>（虚线徽标）；绑定 = <b>项目名 · 路径</b>；点击可换绑 / 解绑</td></tr>
+        <tr><td><b>侧栏会话</b></td><td><span class="del">跟随当前工作区切换，单列表</span></td><td>全局列表按归属分组：<b>默认工作区</b>组置顶 + 各项目分组</td></tr>
+    </table>
+</div>
+
+<!-- ===================== 画板一：启动行为 ===================== -->
+<div class="scene">
+    <div class="scene-title">变化一 · 启动行为 <span class="tag">旧 vs 新</span></div>
+    <div class="scene-desc">左：现状——首次启动被弹窗阻断；右：实施后——直接进入聊天，会话即派生态，绑定动作延后。</div>
+    <div class="duo">
+        <div>
+            <div class="win-label old">现状 · 强制选择工作区</div>
+            <div class="app half">
+                <div class="sidebar">
+                    <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                    <div class="grp">今天</div>
+                    <div class="sess"><span class="t">—</span></div>
+                </div>
+                <div class="main">
+                    <div class="topbar"><span class="pname">聊天</span></div>
+                    <div class="chat"></div>
+                    <div class="input-zone"><div class="input-box"><span class="ph">询问任何问题…</span><div class="input-tools"><span class="send">➤</span></div></div></div>
+                </div>
+                <div class="launch-mask">
+                    <div class="launch-modal">
+                        <div class="t">选择工作区</div>
+                        <div class="d">首次启动：请选择一个工作区文件夹 —— 会话、文件树与技能都在这里。</div>
+                        <div class="btn">浏览文件夹…</div>
+                        <div class="recent">最近</div>
+                        <div class="r-item">D:\Projects\qualia</div>
+                        <div class="r-item">C:\work\demo-app</div>
+                        <div class="skip"><u>必须选择后才能使用</u></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="win-label new">实施后 · 直接进入（派生态）</div>
+            <div class="app half">
+                <div class="sidebar">
+                    <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                    <div class="grp sandbox">◇ 默认工作区</div>
+                    <div class="sess on"><span class="wsdot sb"></span><span class="t">解释一下 JVM 内存模型</span></div>
+                </div>
+                <div class="main">
+                    <div class="topbar">
+                        <span class="pname">聊天</span><span class="spacer"></span>
+                        <span class="ws-chip sandbox"><span class="dot"></span>默认工作区<span class="caret">▼</span></span>
+                    </div>
+                    <div class="chat">
+                        <div class="msg user"><div class="bubble">帮我写一个线程安全的单例</div></div>
+                        <div class="msg ai"><p>使用静态内部类方式：…</p></div>
+                    </div>
+                    <div class="input-zone">
+                        <div class="input-box">
+                            <span class="ph">询问任何问题…</span>
+                            <div class="input-tools">
+                                <span class="tool-btn ws-bind">▤ 绑定工作区</span>
+                                <span class="send">➤</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 画板二：派生态交互 ===================== -->
+<div class="scene">
+    <div class="scene-title">派生态 · 输入框绑定入口 <span class="tag sandbox">未绑定</span></div>
+    <div class="scene-desc">输入框工具行左侧为工作区按钮（虚线 = 未绑定）；点击展开绑定面板（最近工作区 + 浏览）；右上角同步显示默认工作区徽标。输入框上方的提示条常驻可关。</div>
+    <div class="app-wrap">
+        <div class="app">
+            <div class="sidebar">
+                <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                <div class="grp sandbox">◇ 默认工作区</div>
+                <div class="sess on"><span class="wsdot sb"></span><span class="t">解释一下 JVM 内存模型</span></div>
+                <div class="sess"><span class="wsdot sb"></span><span class="t">写一个正则：匹配 IPv4</span></div>
+                <div class="grp">qualia</div>
+                <div class="sess"><span class="wsdot pj"></span><span class="t">重构 WorkspaceHistory</span></div>
+                <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+            </div>
+            <div class="main">
+                <div class="topbar">
+                    <span class="pname">聊天</span><span class="spacer"></span>
+                    <span class="ws-chip sandbox"><span class="dot"></span>默认工作区<span class="caret">▼</span></span>
+                </div>
+                <div class="chat">
+                    <div class="msg user"><div class="bubble">把这段话翻译成英文：你好，世界</div></div>
+                    <div class="msg ai"><p>Hello, world.</p></div>
+                </div>
+                <div class="input-zone">
+                    <div class="bind-nudge"><b>当前为默认工作区</b>　文件操作保存在本会话独立目录；绑定项目后可获得项目上下文<span class="go">绑定文件夹 →</span></div>
+                    <div class="input-box">
+                        <span class="ph">询问任何问题…</span>
+                        <div class="input-tools">
+                            <span class="tool-btn ws-bind" onclick="this.nextElementSibling.classList.toggle('show')">▤ 绑定工作区 ▲</span>
+                            <span class="bind-dd" id="dd-input">
+                                <div class="dd-cap">最近工作区</div>
+                                <div class="dd-item">📁 qualia<span class="p">　D:\Projects\qualia</span></div>
+                                <div class="dd-item">📁 demo-app<span class="p">　C:\work\demo-app</span></div>
+                                <div class="dd-sep"></div>
+                                <div class="dd-item">＋ 浏览文件夹…</div>
+                            </span>
+                            <span class="send">➤</span>
+                        </div>
+                    </div>
+                    <div class="chips"><span class="chip-sm">/技能</span><span class="chip-sm">/模型</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 画板三：绑定态 ===================== -->
+<div class="scene">
+    <div class="scene-title">绑定态 · 右上角标识与换绑 <span class="tag">已绑定</span></div>
+    <div class="scene-desc">绑定后：输入框按钮变为项目名（实线）、提示条消失、右上角 chip 显示项目名与路径；点击 chip 展开管理菜单（切换其他项目 / 解绑回默认）。</div>
+    <div class="app-wrap">
+        <div class="app">
+            <div class="sidebar">
+                <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                <div class="grp sandbox">◇ 默认工作区</div>
+                <div class="sess"><span class="wsdot sb"></span><span class="t">解释一下 JVM 内存模型</span></div>
+                <div class="grp">📁 qualia</div>
+                <div class="sess on"><span class="wsdot pj"></span><span class="t">重构 WorkspaceHistory</span></div>
+                <div class="sess"><span class="wsdot pj"></span><span class="t">打包脚本排查</span></div>
+                <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+            </div>
+            <div class="main">
+                <div class="topbar">
+                    <span class="pname">聊天</span><span class="spacer"></span>
+                    <span class="ws-chip folder" onclick="this.nextElementSibling.classList.toggle('show')">
+                        <span class="dot"></span>qualia · D:\Projects\qualia<span class="caret">▼</span>
+                    </span>
+                    <span class="chip-dd" id="dd-chip">
+                        <div class="dd-cap">当前会话绑定</div>
+                        <div class="dd-item on">📁 qualia<span class="p">　D:\Projects\qualia</span></div>
+                        <div class="dd-item">◇ 默认工作区<span class="p">　解除绑定</span></div>
+                        <div class="dd-item">📁 demo-app<span class="p">　C:\work\demo-app</span></div>
+                        <div class="dd-sep"></div>
+                        <div class="dd-item">＋ 浏览文件夹…</div>
+                    </span>
+                </div>
+                <div class="chat">
+                    <div class="msg user"><div class="bubble">看看 DesktopLauncher 的启动流程</div></div>
+                    <div class="msg ai"><p>启动链路：单实例锁 → 取工作区 → 启动 Web 服务 → WebView 打开窗口。</p></div>
+                </div>
+                <div class="input-zone">
+                    <div class="input-box">
+                        <span class="ph">基于当前工作区提问…</span>
+                        <div class="input-tools">
+                            <span class="tool-btn ws-bound">📁 qualia</span>
+                            <span class="send">➤</span>
+                        </div>
+                    </div>
+                    <div class="chips"><span class="chip-sm">/技能</span><span class="chip-sm">/模型</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 画板四：侧栏分组 ===================== -->
+<div class="scene">
+    <div class="scene-title">侧栏会话分组 <span class="tag">旧 vs 新</span></div>
+    <div class="scene-desc">左：现状单列表随工作区切换；右：全局列表按归属分组——默认工作区组置顶（虚线圆点标记），项目会话按项目分组。</div>
+    <div class="duo">
+        <div>
+            <div class="win-label old">现状 · 单列表（随工作区切换）</div>
+            <div class="app half" style="grid-template-columns: 300px 1fr;">
+                <div class="sidebar">
+                    <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                    <div class="grp">会话</div>
+                    <div class="sess on"><span class="t">解释一下 JVM 内存模型</span></div>
+                    <div class="sess"><span class="t">重构 WorkspaceHistory</span></div>
+                    <div class="sess"><span class="t">打包脚本排查</span></div>
+                    <div class="sess"><span class="t">写一个正则：匹配 IPv4</span></div>
+                    <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+                </div>
+                <div class="main" style="align-items:center; justify-content:center; color:var(--text-muted); font-size:11px;">切换项目 = 整列表被替换</div>
+            </div>
+        </div>
+        <div>
+            <div class="win-label new">实施后 · 全局列表按归属分组</div>
+            <div class="app half" style="grid-template-columns: 300px 1fr;">
+                <div class="sidebar">
+                    <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                    <div class="grp sandbox">◇ 默认工作区</div>
+                    <div class="sess on"><span class="wsdot sb"></span><span class="t">解释一下 JVM 内存模型</span></div>
+                    <div class="sess"><span class="wsdot sb"></span><span class="t">写一个正则：匹配 IPv4</span></div>
+                    <div class="grp">📁 qualia</div>
+                    <div class="sess"><span class="wsdot pj"></span><span class="t">重构 WorkspaceHistory</span></div>
+                    <div class="sess"><span class="wsdot pj"></span><span class="t">打包脚本排查</span></div>
+                    <div class="grp">📁 demo-app</div>
+                    <div class="sess"><span class="wsdot pj"></span><span class="t">联调登录接口</span></div>
+                    <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+                </div>
+                <div class="main" style="align-items:center; justify-content:center; color:var(--sandbox-text); font-size:11px;">一份列表 · 归属一目了然</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="note">
+    <b>交互补充说明：</b>
+    ① 画板二 / 三中的按钮与 chip 均可点击展开下拉，演示换绑 / 解绑交互；
+    ② 绑定动作 = 为<b>当前会话</b>写绑定（binding.json），不影响其他会话；
+    ③ 解绑 = 选中「默认工作区」，会话文件工具根切回 <code>sessions/{sid}/workspace/</code>；
+    ④ 流式对话进行中按钮禁用（与现有切换互斥逻辑一致）。
+</div>
+
+</body>
+</html>

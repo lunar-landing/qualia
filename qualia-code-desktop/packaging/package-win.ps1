@@ -3,6 +3,7 @@
 # 前置要求：
 #   1. 已安装完整 JDK 17（含 jpackage，JRE 不含），且 java/jpackage 在 PATH 中
 #   2. Windows 10/11 系统自带 WebView2 运行时（内嵌浏览器内核）
+#   3. 已安装 Node.js（>= 20.19 或 >= 22.12），用于构建 qualia-code-ui 前端
 #
 # 用法（在项目根目录 PowerShell 执行）：
 #   .\qualia-code-desktop\packaging\package-win.ps1
@@ -31,6 +32,27 @@ Set-Location $ProjectRoot
 # 先安装 core/code 到本地仓库，再打包 desktop 模块的 shaded jar
 & mvn -q -pl qualia-code-desktop -am clean package -DskipTests
 if ($LASTEXITCODE -ne 0) { throw "Maven 构建失败" }
+
+# 构建前端：npm run build 产物直写 qualia-code/target/classes/static（vite outDir 约定）。
+# 必须在 clean 之后执行，否则产物会被 clean 删除。
+$UiDir = Join-Path $ProjectRoot "qualia-code-ui"
+if (-not (Test-Path (Join-Path $UiDir "node_modules"))) {
+    Write-Host "==> 安装前端依赖 (npm install)..."
+    Set-Location $UiDir
+    & npm install --no-fund --no-audit
+    if ($LASTEXITCODE -ne 0) { Set-Location $ProjectRoot; throw "npm install 失败" }
+    Set-Location $ProjectRoot
+}
+Write-Host "==> 构建前端 (npm run build)..."
+Set-Location $UiDir
+& npm run build
+if ($LASTEXITCODE -ne 0) { Set-Location $ProjectRoot; throw "前端构建失败" }
+Set-Location $ProjectRoot
+
+# 无 clean 增量重打：static 已在 target/classes 中，重打 qualia-code jar 并重新 shade 进 uber-jar
+Write-Host "==> 重新打包（含前端静态资源，不执行 clean）..."
+& mvn -q -pl qualia-code-desktop -am package -DskipTests
+if ($LASTEXITCODE -ne 0) { throw "重新打包失败" }
 
 # 定位 shaded jar（shade 插件覆盖原 jar，同名输出）
 $Jar = Get-ChildItem -Path $TargetDir -Filter "qualia-code-desktop-*.jar" |

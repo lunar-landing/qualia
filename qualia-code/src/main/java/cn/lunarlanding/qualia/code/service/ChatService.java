@@ -17,6 +17,8 @@ import cn.lunarlanding.qualia.core.model.chat.impl.DeepSeekChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.MimoChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.MimoTokenPlanChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.OpenAIChatModel;
+import cn.lunarlanding.qualia.core.model.chat.impl.ZhipuChatModel;
+import cn.lunarlanding.qualia.core.model.chat.impl.ZhipuCodingPlanChatModel;
 import cn.lunarlanding.qualia.core.skill.Skill;
 import cn.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
 import cn.lunarlanding.qualia.core.tool.impl.harness.LocalWorkspace;
@@ -87,7 +89,7 @@ public class ChatService {
 
     /**
      * 切换到新工作区：释放旧实例的 MCP 连接后整体重建（workspacePath 为 final，只能换实例），
-     * Agent/Memory 均惰性重建，会话列表自然切到新工作区的 .qualia/sessions
+     * Agent/Memory 均惰性重建；会话数据统一存全局桶，切换时惰性触发该工作区的存量迁移
      */
     public static synchronized void switchWorkspace(Path workspacePath) {
         if (instance != null) {
@@ -144,7 +146,7 @@ public class ChatService {
         loadGlobalSkills();
         connectMcpServers();
         memory = agent.getMemory();
-        memoryDir = workspacePath.resolve(".qualia").resolve("sessions");
+        memoryDir = WorkspaceDataStore.globalSessionsDir();
         currentModelName = defaultModelName;
     }
     
@@ -230,6 +232,13 @@ public class ChatService {
                     return new MimoTokenPlanChatModel(apiKey);
                 }
                 return new MimoChatModel(apiKey);
+            }
+            // 智谱模型：根据type区分按量付费 vs 令牌计划（Coding Plan）
+            if (lowerProvider.contains("zhipu") || lowerProvider.contains("bigmodel") || lowerProvider.contains("glm")) {
+                if ("token-plan".equals(type)) {
+                    return new ZhipuCodingPlanChatModel(apiKey);
+                }
+                return new ZhipuChatModel(apiKey);
             }
             if (lowerProvider.contains("qwen") || lowerProvider.contains("dashscope") || lowerProvider.contains("tongyi")) {
                 return new DashscopeChatModel(apiKey);
@@ -357,7 +366,9 @@ public class ChatService {
     private void ensureMemory() {
         synchronized (memoryLock) {
             if (memory == null) {
-                memoryDir = workspacePath.resolve(".qualia").resolve("sessions");
+                // 存量迁移（惰性幂等）：把当前工作区 .qualia/sessions 搬入全局桶，项目目录零会话数据
+                WorkspaceDataStore.migrateProjectSessions(workspacePath);
+                memoryDir = WorkspaceDataStore.globalSessionsDir();
                 memory = new JsonMemory(memoryDir);
             }
         }
@@ -392,19 +403,24 @@ public class ChatService {
         ensureMemory();
         String sessionId = UUID.randomUUID().toString();
         String sessionTitle = title != null ? title : "新会话";
+        // 会话归属绑定当前工作区（binding.json 与会话域同生灭；派生工作区会话第二步接入后可为 null）
+        WorkspaceDataStore.writeBinding(sessionId, workspacePath);
         return new SessionInfo(sessionId, sessionTitle, System.currentTimeMillis());
     }
 
     /**
-     * 获取所有会话
+     * 获取当前工作区的会话列表（项目模式列表语义：仅显示绑定到当前工作区的会话，
+     * 归属以 binding.json 为准；迁移会话已由 WorkspaceDataStore 补写归属）
      */
     public List<SessionInfo> getSessions() {
         ensureMemory();
         
         List<SessionInfo> sessionList = new ArrayList<>();
         if (memoryDir != null && Files.exists(memoryDir)) {
+            Path currentWorkspace = workspacePath == null
+                    ? null : workspacePath.toAbsolutePath().normalize();
             try (var paths = Files.list(memoryDir)) {
-                // 新布局：memoryDir/{sessionId}/session.json
+                // 新布局：memoryDir/{sessionId}/session.json；绑定不匹配的会话不混入当前项目列表
                 paths.filter(Files::isDirectory)
                      .forEach(dir -> {
                          Path file = dir.resolve("session.json");
@@ -412,6 +428,10 @@ public class ChatService {
                              return;
                          }
                          String sessionId = dir.getFileName().toString();
+                         if (currentWorkspace == null
+                                 || !currentWorkspace.equals(WorkspaceDataStore.readBinding(sessionId))) {
+                             return;
+                         }
                          List<MemoryMessage> messages = memory.getSessionHistory(sessionId);
                          if (!messages.isEmpty()) {
                              String title = readCustomTitle(dir);
@@ -496,6 +516,8 @@ public class ChatService {
      */
     public boolean deleteSession(String sessionId) {
         ensureMemory();
+        // 先删绑定元数据，保证 clearSession 后会话域目录可正常清空
+        WorkspaceDataStore.deleteBinding(sessionId);
         memory.clearSession(sessionId);
         // 联动清理会话附件仓库
         AttachmentService.getInstance().clearSession(sessionId);
@@ -539,9 +561,9 @@ public class ChatService {
         }
     }
 
-    /** 会话目录：.qualia/sessions/{sessionId} */
+    /** 会话域目录：全局桶 sessions/{sessionId}（路径唯一权威见 WorkspaceDataStore） */
     private Path sessionDir(String sessionId) {
-        return workspacePath.resolve(".qualia").resolve("sessions").resolve(sessionId);
+        return WorkspaceDataStore.sessionDir(sessionId);
     }
 
     /** 读会话自定义标题（title.txt 不存在或为空返回 null，回退自动标题） */

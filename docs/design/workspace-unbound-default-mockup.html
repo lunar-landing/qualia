@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 无绑定默认工作区设计稿（Default Workspace）</title>
+<style>
+/* ===== CSS 变量：对齐 qualia-code-ui/src/styles/index.css（深色默认 + 日间石墨工程） ===== */
+:root {
+    --bg-app: #080a10;
+    --bg-surface: rgba(19, 24, 32, 0.85);
+    --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --border-active: rgba(230, 237, 243, 0.42);
+    --shadow: 0 32px 64px rgba(0, 0, 0, 0.7), 0 12px 24px rgba(0, 0, 0, 0.5);
+    --shadow-dd: 0 14px 40px rgba(0, 0, 0, 0.55), 0 3px 10px rgba(0, 0, 0, 0.4);
+    --accent: #e6edf3;
+    --accent-ink: #0d1117;
+    --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
+    --success: #34d399;
+    --radius-xs: 4px;
+    --radius-sm: 11px;
+    --radius-md: 16px;
+    --font-mono: ui-monospace, Consolas, monospace;
+    /* 默认工作区专属：沙箱徽标底色（微弱青灰，日/夜各自校准） */
+    --sandbox-bg: rgba(144, 177, 199, 0.10);
+    --sandbox-border: rgba(144, 177, 199, 0.45);
+    --sandbox-text: #a8c3d6;
+}
+body.light-theme {
+    --bg-app: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-sidebar: #eff2f5;
+    --bg-hover: #e9edf1;
+    --bg-active: #e4e9ee;
+    --bg-input: #ffffff;
+    --text-primary: #24292f;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --border-color: #d0d7de;
+    --border-active: rgba(36, 41, 47, 0.3);
+    --shadow: 0 16px 40px rgba(31, 35, 40, 0.1);
+    --shadow-dd: 0 10px 32px rgba(31, 35, 40, 0.14), 0 2px 8px rgba(31, 35, 40, 0.08);
+    --accent: #24292f;
+    --accent-ink: #ffffff;
+    --accent-gradient: linear-gradient(145deg, #32383f, #24292f);
+    --success: #1a7f37;
+    --sandbox-bg: #f3f7fa;
+    --sandbox-border: #b6c7d4;
+    --sandbox-text: #4d6a80;
+}
+
+/* ===== reset & base ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg-app); color: var(--text-primary);
+    font-size: 13px; padding: 34px 20px 80px;
+    transition: background 0.2s;
+}
+
+/* 页头（原型专属） */
+.ctrl { max-width: 1060px; margin: 0 auto 10px; display: flex; justify-content: space-between; align-items: center; }
+.ctrl .sim { font-size: 11px; color: var(--text-secondary); }
+.theme-btn {
+    font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-secondary);
+}
+.theme-btn:hover { color: var(--text-primary); border-color: var(--border-active); }
+h1 { text-align: center; font-size: 19px; letter-spacing: -0.5px; margin-bottom: 5px; }
+.sub { text-align: center; font-size: 12px; color: var(--text-muted); margin-bottom: 26px; line-height: 1.7; }
+code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 4px; padding: 1px 5px; }
+
+/* ===== 设计说明卡 ===== */
+.brief { max-width: 1060px; margin: 0 auto 34px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-surface); padding: 20px 24px; }
+.brief h2 { font-size: 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.brief h2::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+.brief p { font-size: 12px; color: var(--text-secondary); line-height: 1.8; margin-bottom: 10px; }
+.brief table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 10px 0 14px; }
+.brief th, .brief td { border: 1px solid var(--border-color); padding: 7px 10px; text-align: left; vertical-align: top; line-height: 1.6; }
+.brief th { background: var(--bg-hover); font-weight: 600; white-space: nowrap; }
+.brief td { color: var(--text-secondary); }
+.brief td b { color: var(--text-primary); font-weight: 600; }
+.flow { display: flex; gap: 10px; align-items: stretch; margin-top: 6px; flex-wrap: wrap; }
+.flow .node {
+    flex: 1; min-width: 180px; border: 1px dashed var(--border-color); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: 11px; line-height: 1.7; color: var(--text-secondary); background: var(--bg-input);
+}
+.flow .node b { display: block; color: var(--text-primary); font-size: 11.5px; margin-bottom: 3px; }
+.flow .node.new { border-color: var(--sandbox-border); background: var(--sandbox-bg); }
+.flow .node.new b { color: var(--sandbox-text); }
+.flow .arr { align-self: center; color: var(--text-muted); font-size: 14px; }
+/* 路径结构示意 */
+pre.tree {
+    font-family: var(--font-mono); font-size: 10.5px; line-height: 1.8;
+    background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    padding: 10px 14px; overflow-x: auto; color: var(--text-secondary); margin: 4px 0 12px;
+}
+
+/* ===== 画板 ===== */
+.scene { max-width: 1060px; margin: 0 auto 46px; }
+.scene-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.scene-title .tag {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border-radius: 5px; padding: 2px 8px;
+    border: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-input);
+}
+.scene-title .tag.sandbox { border-color: var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+.scene-desc { font-size: 11.5px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.7; }
+
+/* ===== App 窗口 ===== */
+.app-wrap { max-width: 1060px; margin: 0 auto; position: relative; }
+.app { display: grid; grid-template-columns: 252px 1fr; height: 620px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); background: var(--bg-app); box-shadow: var(--shadow); }
+.sidebar { background: var(--bg-sidebar); border-right: 1px solid var(--border-color); padding: 13px 10px; display: flex; flex-direction: column; position: relative; }
+.sidebar-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; padding: 2px 6px 12px; }
+.sidebar-brand .logo {
+    width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
+    background: var(--accent-gradient); color: var(--accent-ink);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
+}
+
+/* ===== 工作区切换按钮（两种形态） ===== */
+.ws-switch-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 11px 9px 9px; margin-bottom: 13px;
+    background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    cursor: pointer; text-align: left; position: relative; z-index: 31;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ws-switch-btn:hover { background: var(--bg-active); border-color: var(--border-active); }
+.ws-switch-btn.open { background: var(--bg-active); border-color: var(--border-active); }
+/* 形态一：默认工作区（虚线边框 = 非用户指定的自动绑定） */
+.ws-switch-btn.sandbox { border-style: dashed; border-color: var(--sandbox-border); background: var(--sandbox-bg); }
+.ws-switch-btn.sandbox:hover, .ws-switch-btn.sandbox.open { border-style: solid; border-color: var(--sandbox-border); }
+.ws-ico { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.ws-ico.sandbox { background: var(--sandbox-bg); border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); }
+.ws-ico.folder { background: var(--bg-active); color: var(--text-secondary); }
+.ws-meta { flex: 1; min-width: 0; }
+.ws-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-switch-btn.sandbox .ws-name { color: var(--sandbox-text); }
+.ws-sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-caret { color: var(--text-muted); font-size: 9px; flex-shrink: 0; }
+
+/* ===== 工作区下拉面板 ===== */
+.ws-dd {
+    position: absolute; left: 10px; right: 10px; top: 88px; z-index: 30;
+    background: var(--bg-surface); backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-dd); padding: 7px; display: none;
+}
+.ws-dd.show { display: block; }
+.dd-cap { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; padding: 6px 9px 4px; }
+.dd-item {
+    display: flex; align-items: center; gap: 9px; padding: 8px 9px;
+    border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; position: relative;
+}
+.dd-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.dd-item.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+.dd-item .p { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; }
+.dd-item.on .p { color: var(--text-secondary); }
+.dd-item.sandbox-item { border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg); margin-bottom: 6px; }
+.dd-item.sandbox-item:hover, .dd-item.sandbox-item.on { border-style: solid; }
+.dd-item.sandbox-item .nm { color: var(--sandbox-text); }
+.dd-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 5px;
+    background: var(--sandbox-border); color: var(--bg-app); flex-shrink: 0;
+}
+.dd-check { margin-left: auto; color: var(--success); font-size: 11px; flex-shrink: 0; }
+.dd-bind {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin: 7px 2px 2px; padding: 9px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border-color); background: var(--bg-input);
+    font-size: 12px; font-weight: 600; color: var(--text-primary);
+}
+.dd-bind:hover { background: var(--bg-active); border-color: var(--border-active); }
+.dd-sep { height: 1px; background: var(--border-color); margin: 6px 2px; }
+.dd-unbind { color: var(--text-muted); font-size: 11px; text-align: center; padding: 7px 0 3px; cursor: pointer; }
+.dd-unbind:hover { color: var(--text-secondary); }
+
+/* ===== 会话列表 ===== */
+.conversation-list { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.grp { padding: 4px 7px 4px; font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+.sess {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: var(--radius-sm); margin-bottom: 3px;
+    cursor: pointer; color: var(--text-secondary); font-size: 12.5px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; transition: background 0.13s;
+}
+.sess:hover { background: var(--bg-hover); }
+.sess.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+.sess .t { overflow: hidden; text-overflow: ellipsis; }
+.sidebar-foot { padding: 8px 6px 2px; font-size: 11px; color: var(--text-muted); display: flex; gap: 14px; }
+.sidebar-foot span { cursor: pointer; }
+.sidebar-foot span:hover { color: var(--text-secondary); }
+
+/* ===== 主区 ===== */
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+    display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+    border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+.topbar .pname { font-size: 12.5px; font-weight: 600; }
+.ws-chip {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+    font-size: 10.5px; padding: 3px 10px; border-radius: 20px; cursor: default;
+}
+.ws-chip.sandbox { border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+.ws-chip.folder { border: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-input); }
+.ws-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 26px; }
+.msg { margin-bottom: 16px; max-width: 78%; }
+.msg.user { margin-left: auto; }
+.msg .bubble { font-size: 12.5px; line-height: 1.7; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg-active); }
+.msg.ai { max-width: 92%; }
+.msg.ai .ai-text { font-size: 12.5px; line-height: 1.75; color: var(--text-primary); }
+.msg.ai .ai-text p { margin-bottom: 8px; }
+.msg.ai code { font-size: 11px; }
+.hint-path { font-size: 10.5px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 4px; }
+
+/* 输入区 */
+.input-zone { padding: 12px 26px 18px; flex-shrink: 0; }
+/* 非阻断绑定提示条（默认工作区专属） */
+.bind-nudge {
+    display: flex; align-items: center; gap: 9px; margin-bottom: 10px;
+    padding: 8px 13px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg);
+    font-size: 11.5px; color: var(--sandbox-text);
+}
+.bind-nudge b { font-weight: 600; }
+.bind-nudge .go { margin-left: auto; font-size: 11px; font-weight: 600; white-space: nowrap; border-left: 1px solid var(--sandbox-border); padding-left: 10px; }
+.input-box {
+    display: flex; align-items: flex-end; gap: 10px;
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    background: var(--bg-input); padding: 11px 14px;
+}
+.input-box .ph { flex: 1; font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+.send {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: var(--accent-gradient); color: var(--accent-ink);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.chips { display: flex; gap: 6px; margin-top: 8px; }
+.chip {
+    font-size: 10.5px; color: var(--text-muted); border: 1px solid var(--border-color);
+    border-radius: 20px; padding: 3px 11px; cursor: pointer;
+}
+.chip:hover { color: var(--text-secondary); border-color: var(--border-active); }
+
+/* 工作区面板空状态（画板 C 右侧） */
+.ws-panel-empty {
+    border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg);
+    border-radius: var(--radius-sm); padding: 26px 18px; text-align: center;
+}
+.ws-panel-empty .big { font-size: 20px; margin-bottom: 8px; opacity: 0.55; }
+.ws-panel-empty .t1 { font-size: 12px; font-weight: 600; color: var(--sandbox-text); margin-bottom: 5px; }
+.ws-panel-empty .t2 { font-size: 11px; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
+.ws-panel-empty .btn {
+    display: inline-block; font-size: 11px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--sandbox-border); border-radius: 7px; padding: 6px 14px; color: var(--sandbox-text);
+}
+.ws-panel-empty .btn:hover { background: var(--sandbox-bg); }
+
+.note { font-size: 11px; color: var(--text-muted); line-height: 1.8; max-width: 1060px; margin: 0 auto; }
+.note b { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="ctrl">
+    <span class="sim">Qualia Code · 设计稿 · 2026-10-07</span>
+    <button class="theme-btn" onclick="document.body.classList.toggle('light-theme')">切换日间/夜间</button>
+</div>
+<h1>无绑定默认工作区（Default Workspace）</h1>
+<div class="sub">
+    目标：不再强制绑定工作区 —— 启动即可问答；仅在用户主动「绑定文件夹」时，会话才落到真实项目目录。<br>
+    所有会话统一存放于 <code>~/.qualia/code/sessions/{sessionId}/</code>；未绑定时会话使用自己域内的派生工作区 <code>workspace/</code>，绑定后指向用户选择的文件夹——存储不分桶，差别只在会话的绑定字段。
+</div>
+
+<!-- ===================== 设计说明卡 ===================== -->
+<div class="brief">
+    <h2>概念模型与行为变化</h2>
+    <p><b>单一会话桶 + 绑定字段</b>：所有会话统一存于 <code>sessions/{sessionId}/</code>，会话与工作区的关系由会话元数据的 <code>workspace</code> 字段表达——<code>null</code> 即使用域内派生工作区 <code>workspace/</code>，写入用户选择的路径即绑定外部工作区。绑定/解绑只改字段、零迁移；UI 上仍以<b>虚线 + 沙箱徽标</b>区分两种形态。</p>
+    <p><b>统一存储布局：</b></p>
+    <pre class="tree">~/.qualia/code/
+├─ sessions/{sessionId}/              ← 所有会话统一存放（不再按工作区分桶）
+│    ├─ session.json                  # 元数据：workspace = null | 用户绑定的路径
+│    ├─ memory.json / files/
+│    └─ workspace/                    ← 派生工作区（未绑定时创建，文件工具根）
+└─ workspaces.json                    ← 最近工作区列表（绑定记录，供快速切换）</pre>
+    <table>
+        <tr><th style="width:130px">维度</th><th>派生工作区（未绑定）</th><th>用户绑定工作区</th></tr>
+        <tr><td><b>会话存储</b></td><td colspan="2">统一 <code>sessions/{sid}/</code>（单一桶，两态相同）</td></tr>
+        <tr><td><b>绑定表达</b></td><td>元数据 <code>workspace = null</code>（缺省）</td><td>元数据 <code>workspace = 用户选择的路径</code></td></tr>
+        <tr><td><b>文件工具</b></td><td>根 <code>sessions/{sid}/workspace/</code>（按需创建），能力完整</td><td>根 = 绑定的项目目录，具备项目上下文</td></tr>
+        <tr><td><b>隔离粒度</b></td><td><b>会话级</b>：独立 workspace/</td><td>项目级：同项目多会话共享目录</td></tr>
+        <tr><td><b>启动行为</b></td><td><b>直接进入聊天</b>，不再弹出工作区选择弹窗</td><td>静默复用最近有效工作区（现状不变）</td></tr>
+        <tr><td><b>绑定 / 解绑</b></td><td colspan="2">绑定 = 写入 <code>workspace</code> 字段；解绑 = 置回 <code>null</code>。只改元数据，<b>会话数据零迁移</b></td></tr>
+        <tr><td><b>删除清理</b></td><td>删会话目录即全部清理（含派生 workspace/）</td><td>删会话仅删 <code>sessions/{sid}/</code>，外部项目目录不受影响</td></tr>
+        <tr><td><b>安全边界</b></td><td colspan="2"><code>workspace</code> 字段仅允许「用户显式绑定动作」（文件夹选择对话框）写入；模型输出 / 普通消息不可改写——外部路径写入即信任边界</td></tr>
+        <tr><td><b>历史记录</b></td><td>派生形态不进 recent 列表（固定项置顶展示）</td><td>照常写入 workspaces.json 供快速切换</td></tr>
+    </table>
+    <p><b>启动流程对比：</b></p>
+    <div class="flow">
+        <div class="node"><b>现状 · 无历史</b>启动 → 检测无工作区 → 强制弹出选择弹窗 → 用户选中后才能进入</div>
+        <div class="arr">→</div>
+        <div class="node new"><b>新方案 · 无历史</b>启动 → 自动使用默认工作区（不存在则创建）→ 直接进入聊天；绑定动作延后、按需</div>
+    </div>
+</div>
+
+<!-- ===================== 场景一 ===================== -->
+<div class="scene">
+    <div class="scene-title">场景一 · 默认工作区主界面 <span class="tag sandbox">未绑定</span></div>
+    <div class="scene-desc">首次启动直接进入聊天；侧栏工作区按钮呈虚线沙箱形态，下拉面板中「默认工作区」为置顶固定项且当前选中。</div>
+    <div class="app-wrap">
+        <div class="app">
+            <div class="sidebar">
+                <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                <div class="ws-switch-btn sandbox open" onclick="this.classList.toggle('open'); document.getElementById('dd1').classList.toggle('show')">
+                    <span class="ws-ico sandbox">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="11" height="9" rx="2" stroke-dasharray="2.4 2"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+                    </span>
+                    <span class="ws-meta">
+                        <span class="ws-name">默认工作区</span>
+                        <span class="ws-sub" style="display:block">随会话创建 · 独立隔离</span>
+                    </span>
+                    <span class="ws-caret">▲</span>
+                </div>
+                <!-- 下拉面板（展开态） -->
+                <div class="ws-dd show" id="dd1">
+                    <div class="dd-item sandbox-item on">
+                        <span class="ws-ico sandbox" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="11" height="9" rx="2" stroke-dasharray="2.4 2"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+                        </span>
+                        <span class="nm">默认工作区</span>
+                        <span class="dd-badge">DEFAULT</span>
+                        <span class="dd-check">✓</span>
+                    </div>
+                    <div class="dd-cap">最近工作区</div>
+                    <div class="dd-item">
+                        <span class="ws-ico folder" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5h4l1.2 1.5h5.8v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/></svg>
+                        </span>
+                        <span class="nm">qualia<span class="p">　D:\Projects\qualia</span></span>
+                    </div>
+                    <div class="dd-item">
+                        <span class="ws-ico folder" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5h4l1.2 1.5h5.8v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/></svg>
+                        </span>
+                        <span class="nm">demo-app<span class="p">　C:\work\demo-app</span></span>
+                    </div>
+                    <div class="dd-sep"></div>
+                    <div class="dd-bind">＋ 绑定文件夹…</div>
+                </div>
+                <div class="conversation-list">
+                    <div class="grp">今天</div>
+                    <div class="sess on"><span class="t">解释一下 JVM 内存模型</span></div>
+                    <div class="sess"><span class="t">写一个正则：匹配 IPv4</span></div>
+                    <div class="grp">昨天</div>
+                    <div class="sess"><span class="t">把这段话翻译成英文</span></div>
+                </div>
+                <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+            </div>
+            <div class="main">
+                <div class="topbar">
+                    <span class="pname">聊天</span>
+                    <span class="ws-chip sandbox"><span class="dot"></span>默认工作区</span>
+                </div>
+                <div class="chat">
+                    <div class="msg user"><div class="bubble">帮我写一个 Java 单例，要求线程安全</div></div>
+                    <div class="msg ai">
+                        <div class="ai-text">
+                            <p>使用静态内部类方式，兼顾示例代码最简与懒加载：</p>
+                            <p><code>public class Singleton { private Singleton() {} private static class H { static final Singleton I = new Singleton(); } public static Singleton getInstance() { return H.I; } }</code></p>
+                            <p>类加载机制保证 <code>H</code> 初始化线程安全，首次调用才加载。</p>
+                        </div>
+                    </div>
+                    <div class="hint-path">会话与工作区同域：~/.qualia/code/sessions/{sid}/workspace/</div>
+                </div>
+                <div class="input-zone">
+                    <div class="bind-nudge" title="点击打开绑定">
+                        <b>当前为默认工作区</b>　文件操作保存在本会话独立目录；绑定项目文件夹后可获得项目上下文
+                        <span class="go">绑定文件夹 →</span>
+                    </div>
+                    <div class="input-box">
+                        <span class="ph">询问任何问题…</span>
+                        <span class="send">➤</span>
+                    </div>
+                    <div class="chips"><span class="chip">/技能</span><span class="chip">/模型</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 场景二 ===================== -->
+<div class="scene">
+    <div class="scene-title">场景二 · 绑定实体文件夹后 <span class="tag">已绑定</span></div>
+    <div class="scene-desc">从下拉菜单点「绑定文件夹…」选择项目目录后：按钮切换为实线实体形态，显示项目名与路径；会话列表切到该工作区；提示条消失。菜单底部出现「回到默认工作区」解绑入口。</div>
+    <div class="app-wrap">
+        <div class="app">
+            <div class="sidebar">
+                <div class="sidebar-brand"><span class="logo">Q</span>Qualia Code</div>
+                <div class="ws-switch-btn open" onclick="this.classList.toggle('open'); document.getElementById('dd2').classList.toggle('show')">
+                    <span class="ws-ico folder">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5h4l1.2 1.5h5.8v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/></svg>
+                    </span>
+                    <span class="ws-meta">
+                        <span class="ws-name">qualia</span>
+                        <span class="ws-sub" style="display:block">D:\Projects\qualia</span>
+                    </span>
+                    <span class="ws-caret">▲</span>
+                </div>
+                <div class="ws-dd show" id="dd2">
+                    <div class="dd-item sandbox-item">
+                        <span class="ws-ico sandbox" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="11" height="9" rx="2" stroke-dasharray="2.4 2"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+                        </span>
+                        <span class="nm">默认工作区</span>
+                        <span class="dd-badge">DEFAULT</span>
+                    </div>
+                    <div class="dd-cap">最近工作区</div>
+                    <div class="dd-item on">
+                        <span class="ws-ico folder" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5h4l1.2 1.5h5.8v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/></svg>
+                        </span>
+                        <span class="nm">qualia<span class="p">　D:\Projects\qualia</span></span>
+                        <span class="dd-check">✓</span>
+                    </div>
+                    <div class="dd-item">
+                        <span class="ws-ico folder" style="width:22px;height:22px">
+                            <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5h4l1.2 1.5h5.8v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/></svg>
+                        </span>
+                        <span class="nm">demo-app<span class="p">　C:\work\demo-app</span></span>
+                    </div>
+                    <div class="dd-sep"></div>
+                    <div class="dd-bind">＋ 绑定其他文件夹…</div>
+                    <div class="dd-unbind">回到默认工作区（解除绑定）</div>
+                </div>
+                <div class="conversation-list">
+                    <div class="grp">今天</div>
+                    <div class="sess on"><span class="t">重构 WorkspaceHistory 增加默认态</span></div>
+                    <div class="sess"><span class="t">打包脚本为什么丢了前端产物</span></div>
+                    <div class="grp">更早</div>
+                    <div class="sess"><span class="t">桌面壳启动流程梳理</span></div>
+                </div>
+                <div class="sidebar-foot"><span>设置</span><span>技能</span></div>
+            </div>
+            <div class="main">
+                <div class="topbar">
+                    <span class="pname">聊天</span>
+                    <span class="ws-chip folder"><span class="dot"></span>qualia · D:\Projects\qualia</span>
+                </div>
+                <div class="chat">
+                    <div class="msg user"><div class="bubble">看看 DesktopLauncher 的启动流程</div></div>
+                    <div class="msg ai">
+                        <div class="ai-text">
+                            <p>启动链路：单实例锁 → <code>WorkspaceHistory.latestValid()</code> 取工作区 → 选空闲端口启动 Web 服务 → SWT WebView 打开窗口。</p>
+                            <p>文件位于 <code>qualia-code-desktop/src/main/java/.../DesktopLauncher.java</code>。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-zone">
+                    <div class="input-box">
+                        <span class="ph">基于当前工作区提问…</span>
+                        <span class="send">➤</span>
+                    </div>
+                    <div class="chips"><span class="chip">/技能</span><span class="chip">/模型</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 场景三 ===================== -->
+<div class="scene">
+    <div class="scene-title">场景三 · 可发现性引导细节 <span class="tag sandbox">未绑定</span></div>
+    <div class="scene-desc">默认工作区下，「绑定」能力通过三处非阻断入口可被发现；右侧为工作区面板（文件浏览器）在默认态下的空状态卡片。</div>
+    <div class="app-wrap">
+        <div class="app" style="grid-template-columns: 1fr 340px;">
+            <div class="main" style="border-right: 1px solid var(--border-color);">
+                <div class="topbar">
+                    <span class="pname">聊天</span>
+                    <span class="ws-chip sandbox"><span class="dot"></span>默认工作区</span>
+                </div>
+                <div class="chat" style="display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+                    <div style="font-size:17px; font-weight:600; margin-bottom:8px;">直接开始提问</div>
+                    <div style="font-size:11.5px; color:var(--text-muted); line-height:1.8; max-width:380px;">
+                        无需选择文件夹，会话自动保存在默认工作区。<br>
+                        需要处理某个项目时，再绑定文件夹即可。
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:16px;">
+                        <span class="chip" style="color:var(--text-secondary)">解释这段代码…</span>
+                        <span class="chip" style="color:var(--text-secondary)">翻译一段文档…</span>
+                        <span class="chip sandbox-tag" style="color:var(--sandbox-text); border-color:var(--sandbox-border)">＋ 绑定项目文件夹</span>
+                    </div>
+                </div>
+                <div class="input-zone">
+                    <div class="bind-nudge">
+                        <b>当前为默认工作区</b>　绑定后可获得项目文件上下文
+                        <span class="go">绑定文件夹 →</span>
+                    </div>
+                    <div class="input-box"><span class="ph">询问任何问题…</span><span class="send">➤</span></div>
+                    <div class="chips"><span class="chip">/技能</span><span class="chip">/模型</span></div>
+                </div>
+            </div>
+            <div class="main" style="padding:18px; justify-content:center;">
+                <div class="ws-panel-empty">
+                    <div class="big">□</div>
+                    <div class="t1">本会话的默认工作区为空</div>
+                    <div class="t2">此会话的文件操作保存在会话独立的 workspace 目录；<br>绑定项目文件夹后，这里将展示项目目录树。</div>
+                    <div class="btn">绑定文件夹…</div>
+                </div>
+                <div class="note" style="margin-top:14px;">
+                    <b>引导入口汇总：</b>① 输入区上方提示条（常驻、可关闭）② 工作区面板空状态 ③ 侧栏工作区按钮下拉菜单。三处均为非阻断式，不打断问答流。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="note">
+    <b>落地要点（开发参考）：</b>
+    ① 所有会话统一存 <code>sessions/{sid}/</code>，废弃 <code>workspaces/{wsKey}</code> 键控分桶；
+    ② session.json 增加 <code>workspace</code> 字段：null = 派生工作区，非 null = 用户绑定路径；
+    ③ Workspace 实现按字段解析根：null → <code>sessions/{sid}/workspace/</code>（按需创建），路径 → 用户文件夹；
+    ④ <code>workspace</code> 字段仅由绑定动作（文件夹选择对话框）写入，消息/模型不可改——信任边界；
+    ⑤ 绑定/解绑只改字段零迁移；workspaces.json 保留为最近列表（UI 快捷数据）。
+</div>
+
+</body>
+</html>

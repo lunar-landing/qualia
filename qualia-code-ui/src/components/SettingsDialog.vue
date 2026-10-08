@@ -29,6 +29,7 @@ const MODEL_PRESETS: Record<string, { label: string; models: string[]; types: Mo
   },
   deepseek: { label: 'settings.presetDeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'], types: ['pay-as-you-go'] },
   xiaomi: { label: 'settings.presetXiaomi', models: ['MiMo'], types: ['pay-as-you-go', 'token-plan'] },
+  zhipu: { label: 'settings.presetZhipu', models: ['glm-4.6', 'glm-4.5', 'glm-4.5-air'], types: ['pay-as-you-go', 'token-plan'] },
   openai: { label: 'settings.presetOpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'], types: ['pay-as-you-go'] },
 }
 const TRANSPORTS: McpTransport[] = ['streamable-http', 'http-sse', 'stdio']
@@ -36,6 +37,7 @@ const PROVIDER_DOT_CLASS: Record<string, string> = {
   dashscope: 'mc-dot-dashscope',
   deepseek: 'mc-dot-deepseek',
   xiaomi: 'mc-dot-xiaomi',
+  zhipu: 'mc-dot-zhipu',
   openai: 'mc-dot-openai',
 }
 /** 工具图标：双字母 mono 块（跨平台渲染一致），未知工具回退 TL */
@@ -1573,6 +1575,7 @@ body.light-theme .model-edit-dialog {
 .mc-dot-dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
 .mc-dot-deepseek { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
 .mc-dot-xiaomi { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+.mc-dot-zhipu { background: linear-gradient(145deg, #2354e6, #5a8bff); }
 .mc-dot-openai { background: linear-gradient(145deg, #30333e, #5a5f70); }
 .mc-dot-custom { background: var(--text-muted); }
 .mc-badge-default {

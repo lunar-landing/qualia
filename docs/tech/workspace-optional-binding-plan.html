@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 工作区可选绑定改造方案（定稿）</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        padding: 36px 20px 90px;
+        font-size: 13px;
+    }
+
+    /* ===== 双主题变量：默认日间（石墨工程 GitHub 风），.dark 切换 ===== */
+    body {
+        --bg-page: #f6f8fa; --bg-card: #ffffff; --bg-inset: #f6f8fa;
+        --bg-code: #f6f8fa; --bg-code-head: #eff2f5;
+        --bg-table-head: #f6f8fa; --bg-table-row-alt: #fbfcfd;
+        --bg-chip: #eaeef2; --bg-active: #e4e9ee; --bg-hover: #f0f3f6;
+        --border: #d0d7de; --border-soft: #e4e8ec;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f;
+        --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5;
+        --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --code-k: #cf222e; --code-s: #0a3069; --code-c: #6e7781;
+        --code-f: #8250df; --code-a: #953800; --code-n: #0550ae;
+        --card-shadow: 0 1px 3px rgba(31,35,40,0.06);
+        --sandbox-bg: #f3f7fa; --sandbox-border: #b6c7d4; --sandbox-text: #4d6a80;
+        background: var(--bg-page); color: var(--text-primary);
+    }
+    body.dark {
+        --bg-page: #10131c; --bg-card: #171b26; --bg-inset: #1d2230;
+        --bg-code: #1d2230; --bg-code-head: #232a3a;
+        --bg-table-head: #1d2230; --bg-table-row-alt: #1a1f2b;
+        --bg-chip: #262d3d; --bg-active: #2a3143; --bg-hover: #232a3a;
+        --border: #303a4e; --border-soft: #262d3d;
+        --text-primary: #e4e9f2; --text-secondary: #a8b1c4; --text-muted: #6e7890;
+        --accent: #e4e9f2;
+        --success: #3fb950; --success-bg: rgba(63,185,80,0.14);
+        --warning: #d29922; --warning-bg: rgba(210,153,34,0.14);
+        --danger: #f85149; --danger-bg: rgba(248,81,73,0.14);
+        --info: #58a6ff; --info-bg: rgba(88,166,255,0.14);
+        --code-k: #ff7b72; --code-s: #a5d6ff; --code-c: #8b949e;
+        --code-f: #d2a8ff; --code-a: #ffa657; --code-n: #79c0ff;
+        --card-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        --sandbox-bg: rgba(77,106,128,0.12); --sandbox-border: #3d5468; --sandbox-text: #7d9cb5;
+        background: var(--bg-page); color: var(--text-primary);
+    }
+
+    .ctrl-bar { max-width: 960px; margin: 0 auto 8px; display: flex; justify-content: flex-end; }
+    .theme-btn {
+        font-size: 11px; border-radius: 7px; padding: 5px 12px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .badge-final {
+        font-size: 10px; font-weight: 700; letter-spacing: 1px;
+        background: var(--success-bg); color: var(--success);
+        border-radius: 6px; padding: 3px 9px; vertical-align: 3px;
+    }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-muted); margin-bottom: 30px; line-height: 1.7; }
+    .sub code, p code, td code, li code, .rm-body code, .desc code, .pane code, .flow-lane code {
+        font-family: Consolas, monospace; font-size: 11px; font-weight: 600;
+        background: var(--bg-chip); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ===== 卡片 ===== */
+    .card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 20px; box-shadow: var(--card-shadow);
+    }
+    .card > h2 {
+        font-size: 13.5px; font-weight: 700; margin-bottom: 4px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card > h2 .no {
+        width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+        background: var(--accent); color: var(--bg-page);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 700;
+    }
+    .card > .desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.7; }
+
+    /* ===== 表格 ===== */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+        text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700;
+        color: var(--text-secondary); background: var(--bg-table-head);
+        border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.65; vertical-align: top; }
+    tr:nth-child(even) td { background: var(--bg-table-row-alt); }
+    tr:last-child td { border-bottom: none; }
+    td b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 徽章 / 标签 ===== */
+    .tag { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 7px; letter-spacing: 0.3px; vertical-align: 1px; white-space: nowrap; }
+    .tag.new { background: var(--success-bg); color: var(--success); }
+    .tag.mod { background: var(--warning-bg); color: var(--warning); }
+    .tag.del { background: var(--danger-bg); color: var(--danger); }
+    .tag.keep { background: var(--bg-chip); color: var(--text-secondary); }
+    .tag.done { background: var(--success-bg); color: var(--success); }
+    .tag.todo { background: var(--danger-bg); color: var(--danger); }
+
+    /* ===== 结论条 ===== */
+    .verdict {
+        display: flex; gap: 10px; align-items: flex-start;
+        background: var(--bg-inset); border: 1px solid var(--border);
+        border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.75; color: var(--text-secondary);
+    }
+    .verdict .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); margin-top: 6px; flex-shrink: 0; }
+    .verdict.warn .dot { background: var(--warning); }
+    .verdict b { color: var(--text-primary); }
+
+    /* ===== 代码块 ===== */
+    .codeblock { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-code); }
+    .cb-head {
+        display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+        background: var(--bg-code-head); border-bottom: 1px solid var(--border);
+        font-size: 10.5px; font-weight: 600; color: var(--text-secondary);
+    }
+    .cb-head .dots { display: flex; gap: 4px; }
+    .cb-head .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .cb-head .file { font-family: Consolas, monospace; }
+    .cb-head .note { margin-left: auto; font-weight: 400; color: var(--text-muted); }
+    .cb-body { padding: 10px 14px; overflow: auto; max-height: 420px; }
+    .cb-body pre { font-family: Consolas, "JetBrains Mono", monospace; font-size: 11px; line-height: 1.75; color: var(--text-primary); }
+    .k { color: var(--code-k); } .s { color: var(--code-s); } .c { color: var(--code-c); }
+    .f { color: var(--code-f); } .a { color: var(--code-a); } .n { color: var(--code-n); }
+    .add { display: inline-block; width: 100%; background: var(--success-bg); }
+    .add::before { content: "+ "; color: var(--success); font-weight: 700; }
+    .rem { display: inline-block; width: 100%; background: var(--danger-bg); opacity: 0.85; }
+    .rem::before { content: "- "; color: var(--danger); font-weight: 700; }
+
+    /* ===== 双栏 / 栅格 ===== */
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .pane { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .pane h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+    .pane p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.75; }
+    .flow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10.5px; }
+    .flow .step { background: var(--bg-chip); border-radius: 6px; padding: 3px 8px; font-weight: 600; color: var(--text-primary); }
+    .flow .step.hot { background: var(--info-bg); color: var(--info); }
+    .flow .step.bad { background: var(--danger-bg); color: var(--danger); text-decoration: line-through; }
+    .flow .arr { color: var(--text-muted); }
+
+    /* ===== 列表 ===== */
+    ul.plain { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    ul.plain li { display: flex; gap: 9px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+    ul.plain li::before { content: "—"; color: var(--text-muted); flex-shrink: 0; }
+    ul.plain b { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 落地路线 ===== */
+    .rm-item { display: flex; gap: 12px; }
+    .rm-rail { display: flex; flex-direction: column; align-items: center; }
+    .rm-node {
+        width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+        border: 2px solid var(--accent); background: var(--bg-card);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9.5px; font-weight: 700; color: var(--text-primary);
+    }
+    .rm-line { width: 2px; flex: 1; background: var(--border); min-height: 22px; }
+    .rm-item:last-child .rm-line { display: none; }
+    .rm-body { padding: 1px 0 16px; }
+    .rm-body h4 { font-size: 12px; font-weight: 700; margin-bottom: 3px; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+    .rm-body p { font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; }
+
+    /* ===== 数据流泳道 ===== */
+    .flow-lane { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .flow-lane h4 { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+    .flow-lane ol { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .flow-lane li { display: flex; gap: 8px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.7; }
+    .flow-lane li .no { width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0; margin-top: 2px;
+        background: var(--bg-chip); color: var(--text-primary); font-size: 9px; font-weight: 700;
+        display: inline-flex; align-items: center; justify-content: center; }
+    .flow-lane li.fend .no { background: var(--info-bg); color: var(--info); }
+    .flow-lane li.hot { color: var(--text-primary); font-weight: 600; }
+
+    /* ===== 迷你 UI 示意 ===== */
+    .sketch {
+        background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+        padding: 10px 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.9;
+    }
+    .sketch .cap { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.4px; margin-bottom: 6px; text-transform: uppercase; }
+    .ws-chip {
+        display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600;
+        border-radius: 7px; padding: 3px 9px; cursor: pointer;
+    }
+    .ws-chip.default { border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); background: var(--sandbox-bg); }
+    .ws-chip.bound { border: 1px solid var(--border); color: var(--text-primary); background: var(--bg-card); }
+    .ws-chip .caret { font-size: 8px; color: var(--text-muted); }
+    .sess-list { display: flex; flex-direction: column; gap: 2px; }
+    .grp { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; margin-top: 7px; letter-spacing: 0.3px; }
+    .grp:first-child { margin-top: 0; }
+    .grp.sandbox { color: var(--sandbox-text); }
+    .grp .mini-badge { font-size: 8.5px; font-weight: 700; border: 1px dashed var(--sandbox-border); color: var(--sandbox-text); border-radius: 4px; padding: 0 4px; }
+    .grp .add-hint { margin-left: auto; color: var(--text-muted); font-weight: 400; }
+    .sess { display: flex; align-items: center; gap: 7px; padding: 3px 6px 3px 14px; border-radius: 6px; font-size: 11px; }
+    .sess:hover { background: var(--bg-hover); }
+    .sess.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+    .sess .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .sess.bound .dot { background: var(--text-secondary); }
+    .sess.free .dot { border: 1px dashed var(--sandbox-border); background: var(--sandbox-bg); }
+    .sess .tm { margin-left: auto; font-size: 9.5px; color: var(--text-muted); }
+    .nudge {
+        display: flex; align-items: center; gap: 8px; font-size: 10.5px; line-height: 1.5;
+        background: var(--sandbox-bg); border: 1px dashed var(--sandbox-border); border-radius: 8px;
+        padding: 7px 10px; color: var(--sandbox-text);
+    }
+    .nudge b { color: var(--text-primary); }
+    .nudge .go { margin-left: auto; font-weight: 700; white-space: nowrap; cursor: pointer; }
+    .empty-card { text-align: center; padding: 18px 12px; border: 1px dashed var(--sandbox-border); border-radius: 10px; background: var(--sandbox-bg); color: var(--sandbox-text); }
+    .empty-card .big { font-size: 22px; opacity: 0.55; margin-bottom: 6px; }
+    .empty-card .t1 { font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .empty-card .t2 { font-size: 10.5px; line-height: 1.7; margin-bottom: 10px; }
+    .empty-card .btn { display: inline-block; font-size: 10.5px; font-weight: 700; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); border-radius: 7px; padding: 4px 12px; cursor: pointer; }
+    .foot-note { font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar"><button class="theme-btn" onclick="document.body.classList.toggle('dark')">切换 深 / 浅 主题</button></div>
+
+<h1><span>工作区可选绑定改造方案（qualia-code）</span><span class="badge-final">定稿</span></h1>
+<p class="sub">
+    启动即可聊 · 是否绑定工作区由用户按会话选择 · 单一会话桶 + <code>binding.json</code><br>
+    所有产品与界面决策已锁定（§00）；方案与已落地存储模型零返工衔接 · 2026-10-08
+</p>
+
+<div class="wrap">
+
+    <!-- 00 决策记录 -->
+    <div class="card">
+        <h2><span class="no">00</span>决策记录：本方案锁定的全部结论</h2>
+        <p class="desc">以下决策已在设计评审中逐一确认，实施阶段不再讨论；后续章节只展开「怎么做」。</p>
+        <table>
+            <tr><th style="width:44px">#</th><th style="width:230px">决策点</th><th>结论</th></tr>
+            <tr><td>D1</td><td><b>全局工作区概念</b></td><td>整体取消。一切归位会话级：绑定是<b>会话的可选属性</b>，写入 <code>binding.json</code>（仅绑定接口可写）</td></tr>
+            <tr><td>D2</td><td><b>启动流程</b></td><td>启动直达聊天：无强制弹窗、无历史进 Hero 欢迎页；选择工作区延后到按需触发</td></tr>
+            <tr><td>D3</td><td><b>绑定入口</b></td><td><b>唯一化</b>到输入框工具行首位 chip（下拉：最近项目 / 浏览文件夹… / 回到默认工作区）；侧栏顶部工作区按钮<b>整个移除</b></td></tr>
+            <tr><td>D4</td><td><b>侧栏信息架构</b></td><td>收敛为<b>纯全局会话历史库</b>；会话/文件 双视图滑轨<b>移除</b>（混域 + 未绑定时文件视图半失效）</td></tr>
+            <tr><td>D5</td><td><b>会话列表形态</b></td><td>采用四版本对比稿中的<b>版本 A · 分组时间线</b>：「◇ 默认工作区」组置顶（虚线+沙箱徽标），项目组按最近活跃倒序跟随，组悬停 <code>＋</code> 新建该组会话；B（可折叠）留作后续增强，C（chip 筛选）与输入区 chip 语义冲突不采用，D 淘汰</td></tr>
+            <tr><td>D6</td><td><b>文件树归属</b></td><td>并入工作区面板为「文件」Tab（<code>文件/变更/终端/浏览器</code> 全会话域）；R/W/M 活动徽标随树迁入；面板头部显示当前绑定</td></tr>
+            <tr><td>D7</td><td><b>新建会话</b></td><td>一律<b>默认工作区起步</b>（绑定 = 用户显式选择）；「进项目干活」由项目组悬停 <code>＋</code> 承接（新建 + 直接绑定该项目）</td></tr>
+            <tr><td>D8</td><td><b>绑定作用域</b></td><td>换绑 / 解绑只影响当前会话；流式对话进行中绑定动作禁用（互斥）</td></tr>
+            <tr><td>D9</td><td><b>引导方式</b></td><td>全部非阻断：输入区上方常驻可关闭提示条 + 面板空态卡 + chip 下拉，三处入口不打断问答流</td></tr>
+        </table>
+    </div>
+
+    <!-- 01 目标形态 -->
+    <div class="card">
+        <h2><span class="no">01</span>目标形态：绑定是会话的可选属性</h2>
+        <p class="desc">废除「先选工作区才能用」的前置门槛。新会话一律落在<b>默认工作区</b>（会话域内派生沙箱），用户显式绑定项目文件夹后该会话的 Agent 根目录切到项目根；绑定/解绑只读写 <code>binding.json</code>，零迁移。</p>
+        <div class="verdict">
+            <span class="dot"></span>
+            <span>一句话：<b>启动即可聊；绑定 = 为当前会话写 <code>binding.json</code>（仅绑定接口可写，信任边界不变）；解绑 = 删字段回默认态。</b>改造后三区各管一件事，互不交叉：<b>侧栏管全局历史 · chip 管当前绑定 · 面板管当前会话的工作现场</b>。</span>
+        </div>
+        <div class="cols2" style="margin-top:14px">
+            <div class="pane">
+                <h3>◇ 默认工作区（派生沙箱）</h3>
+                <p>会话创建即用的形态。Agent 根目录指向会话域内 <code>sessions/{sid}/workspace/</code>（发首条消息时惰性创建，空会话不落盘）；全局配置/技能/MCP 照常加载，文件操作隔离在会话沙箱内，不触碰任何项目目录。</p>
+                <div class="flow">
+                    <span class="step hot">新建会话</span><span class="arr">→</span>
+                    <span class="step">◇ 默认工作区</span><span class="arr">→</span>
+                    <span class="step">直接提问</span>
+                </div>
+            </div>
+            <div class="pane">
+                <h3>📁 绑定工作区（项目根）</h3>
+                <p>用户显式动作后写入 <code>binding.json</code>。Agent 根目录切换到项目根，获得项目文件上下文；项目目录<b>零会话数据写入</b>。解绑随时回默认态，会话数据不丢。</p>
+                <div class="flow">
+                    <span class="step">◇ 默认工作区</span><span class="arr">→</span>
+                    <span class="step hot">绑定文件夹…</span><span class="arr">→</span>
+                    <span class="step">📁 项目根</span>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:14px" class="codeblock">
+            <div class="cb-head">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">~/.qualia/code/ 存储布局（已实施，不变）</span>
+                <span class="note">会话统一全局桶 · 绑定差异只在 binding.json</span>
+            </div>
+            <div class="cb-body"><pre>~/.qualia/code/
+├── config.json              <span class="c"># 全局配置（模型 / MCP / 技能，跨工作区共享）</span>
+├── workspaces.json          <span class="c"># 最近工作区历史</span>
+└── sessions/
+    ├── {sid-a}/             <span class="c"># 绑定态会话域</span>
+    │   ├── session.json     <span class="c"># 聊天记录</span>
+    │   ├── memory.json      <span class="c"># 压缩摘要</span>
+    │   ├── files/           <span class="c"># 附件仓库</span>
+    │   └── binding.json     <span class="c"># {"workspace": "D:\\Projects\\qualia"}</span>
+    └── {sid-b}/             <span class="c"># 默认态会话域（未绑定）</span>
+        ├── session.json
+        ├── memory.json
+        ├── files/
+        ├── binding.json     <span class="c"># 不存在 = 派生工作区语义</span>
+        └── workspace/       <span class="c"># 派生沙箱：Agent 根目录（惰性创建）</span></pre></div>
+        </div>
+    </div>
+
+    <!-- 02 现状盘点 -->
+    <div class="card">
+        <h2><span class="no">02</span>现状盘点：存储已就绪，产品行为未接通</h2>
+        <p class="desc">上一批次已完成数据层改造，强制绑定的最后堵点是拦截层与前端启动流。</p>
+        <table>
+            <tr><th style="width:340px">模块</th><th style="width:90px">状态</th><th>说明</th></tr>
+            <tr><td>存储层：全局桶 <code>~/.qualia/code/sessions/{sid}/</code></td><td><span class="tag done">已实施</span></td><td>session.json + memory.json + files/ + binding.json + 可选 workspace/</td></tr>
+            <tr><td><code>WorkspaceDataStore</code> 路径权威 / binding 读写 / 存量迁移</td><td><span class="tag done">已实施</span></td><td><code>readBinding / writeBinding(null=删文件) / deleteBinding / migrateProjectSessions</code> 齐备，本批<b>零改动</b></td></tr>
+            <tr><td>ChatService memoryDir / 附件仓库收口</td><td><span class="tag done">已实施</span></td><td>均走 WorkspaceDataStore；core 仅 JsonMemory 一个文件改动</td></tr>
+            <tr><td><code>ChatController.noWorkspace()</code> 拦截 8 处接口</td><td><span class="tag todo">待拆除</span></td><td>createSession / getSessions / getTokenStats / getSession / deleteSession / rename / messages / startStream——<b>强制的最后堵点</b></td></tr>
+            <tr><td>绑定 / 解绑 API</td><td><span class="tag todo">待新增</span></td><td>无 <code>/sessions/{sid}/bind</code>，binding.json 运行期唯一写入方目前只有 createSession</td></tr>
+            <tr><td>Agent 根目录派生（未绑定 → sessions/{sid}/workspace/）</td><td><span class="tag todo">待新增</span></td><td>Agent 根仍取全局 currentWorkspace，派生沙箱未接入</td></tr>
+            <tr><td>getSessions 按当前工作区过滤</td><td><span class="tag mod">待改</span></td><td>「绑定不匹配即跳过」删除，改全量返回 + <code>workspace</code> 字段，分组交给前端</td></tr>
+            <tr><td>前端启动强制弹窗 <code>forced="!wsCurrent"</code></td><td><span class="tag todo">待拆除</span></td><td>App.vue 未绑定即强制打开 WorkspaceSwitcher，不可关闭</td></tr>
+            <tr><td>侧栏滑轨 / 顶部工作区按钮 / 文件树在侧栏</td><td><span class="tag mod">待改造</span></td><td>按 D3 / D4 / D6 重造：侧栏纯会话库，文件树迁面板「文件」Tab</td></tr>
+        </table>
+    </div>
+
+    <!-- 03 后端改动 -->
+    <div class="card">
+        <h2><span class="no">03</span>后端改动：拆拦截 + 绑定 API + 根目录派生</h2>
+        <p class="desc">qualia-code 模块一次可编译交付；core 零改动；<code>WorkspaceDataStore</code> 零改动。</p>
+        <table>
+            <tr><th style="width:44px">#</th><th style="width:250px">改动</th><th style="width:250px">文件</th><th>说明</th></tr>
+            <tr><td>1</td><td><span class="tag del">删除</span> 聊天域强制拦截</td><td><code>ChatController</code></td><td>移除 <code>noWorkspace()</code> 及 8 处分支；接口行为改由「目标会话的绑定解析」决定</td></tr>
+            <tr><td>2</td><td><span class="tag new">新增</span> 绑定 / 解绑 API</td><td><code>ChatController</code></td><td><code>POST /api/chat/sessions/{sid}/bind</code>，见下方契约表；内部唯一写入方 <code>WorkspaceDataStore.writeBinding</code></td></tr>
+            <tr><td>3</td><td><span class="tag new">新增</span> Agent 根目录解析跟随会话</td><td><code>ChatService</code></td><td><code>resolveAgentRoot(sid)</code>：绑定 → 项目根；未绑定 → 会话域 <code>workspace/</code>（惰性创建）</td></tr>
+            <tr><td>4</td><td><span class="tag mod">改造</span> 实例策略：活跃会话驱动</td><td><code>ChatService</code></td><td>新增 <code>activeSessionId</code>；会话切换 / 绑定变更 → 解析 root → 与当前实例 root 不同则复用 <code>switchWorkspace</code> 重建（MCP / 配置重载）；同 root 复用零开销。顺带修复现状 <code>getInstance(Path)</code> 创建后忽略路径差异的隐患——取实例统一走 <code>require(sid)</code></td></tr>
+            <tr><td>5</td><td><span class="tag mod">改造</span> getSessions 全量化</td><td><code>ChatService</code> / <code>SessionInfo</code></td><td><code>SessionInfo</code> 增加 <code>public String workspace</code>（null = 默认工作区）；列表返回全部会话并回填归属，分组展示交给前端</td></tr>
+            <tr><td>6</td><td><span class="tag mod">改造</span> createSession 默认态</td><td><code>ChatService</code></td><td>去掉 <code>writeBinding(sid, workspacePath)</code>（隐式继承全局）→ 不写绑定文件（派生语义）；「新建即绑定项目」改由 bind API 显式完成（D7 项目组 <code>＋</code>）</td></tr>
+            <tr><td>7</td><td><span class="tag keep">兼容</span> currentWorkspace 镜像化</td><td><code>WebApplication</code></td><td>改为返回 ChatService 活跃 root；终端 cwd / 附件 / ConfigController 等调用点零改动，语义 = 当前活跃根目录</td></tr>
+            <tr><td>8</td><td><span class="tag keep">保留</span> /api/workspace/switch 旧端点</td><td><code>WorkspaceController</code></td><td>不删（外部脚本兼容）；前端改造后不再调用，目录浏览能力由 WorkspaceSwitcher 降级版复用</td></tr>
+        </table>
+
+        <h3 style="font-size:12.5px; font-weight:700; margin:16px 0 8px">API 契约</h3>
+        <table>
+            <tr><th style="width:290px">接口</th><th style="width:190px">请求</th><th>响应 / 行为</th></tr>
+            <tr><td><code>POST /api/chat/sessions/{sid}/bind</code></td><td><code>{"workspace": "D:\\Projects\\qualia"}</code></td><td><code>{success, session: SessionInfo}</code>；目录不存在 → 400；该会话流式中 → 409 互斥</td></tr>
+            <tr><td><code>POST /api/chat/sessions/{sid}/bind</code></td><td><code>{"workspace": null}</code> 或空 body</td><td>解绑 → 删 binding.json 回派生态，响应同上</td></tr>
+            <tr><td><code>GET /api/chat/sessions</code></td><td>—</td><td>全量 <code>List&lt;SessionInfo&gt;</code>（含 workspace 字段），无启动前置条件</td></tr>
+            <tr><td><code>POST /api/chat/sessions</code></td><td><code>{"title"?}</code></td><td>新会话 workspace=null（派生态）；不再隐式继承全局工作区</td></tr>
+        </table>
+
+        <div class="codeblock" style="margin-top:14px">
+            <div class="cb-head">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">ChatService.java</span>
+                <span class="note">根目录解析：绑定优先，缺省派生</span>
+            </div>
+            <div class="cb-body"><pre><span class="c">/** Agent 根目录：绑定 → 项目根；未绑定 → 会话域派生工作区（惰性创建） */</span>
+<span class="k">private</span> <span class="n">Path</span> <span class="f">resolveAgentRoot</span>(<span class="n">String</span> sessionId) {
+    <span class="n">Path</span> bound = <span class="n">WorkspaceDataStore</span>.<span class="f">readBinding</span>(sessionId);  <span class="c">// binding.json 唯一权威</span>
+    <span class="k">if</span> (bound != <span class="k">null</span>) {
+        <span class="k">return</span> bound;                                        <span class="c">// 项目根：按项目加载上下文</span>
+    }
+    <span class="k">return</span> <span class="n">WorkspaceDataStore</span>.<span class="f">sessionDir</span>(sessionId)
+            .<span class="f">resolve</span>(<span class="s">"workspace"</span>);                           <span class="c">// 派生沙箱：首条消息时惰性创建</span>
+}
+
+<span class="c">/** 会话激活 / 绑定变更的统一入口：root 变化才重建，同 root 零开销 */</span>
+<span class="k">public static synchronized</span> <span class="k">void</span> <span class="f">require</span>(<span class="n">String</span> sessionId) {
+    <span class="n">Path</span> root = <span class="f">resolveAgentRoot</span>(sessionId);
+    <span class="k">if</span> (instance == <span class="k">null</span> || !instance.root.<span class="f">equals</span>(root)) {
+        <span class="f">switchWorkspace</span>(root);          <span class="c">// 复用既有重建：reloadConfig + new ChatService</span>
+    }
+    instance.activeSessionId = sessionId;
+}</pre></div>
+        </div>
+        <div class="codeblock" style="margin-top:14px">
+            <div class="cb-head">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">ChatController.java</span>
+                <span class="note">绑定 / 解绑：信任边界唯一入口</span>
+            </div>
+            <div class="cb-body"><pre><span class="c">/** 绑定/解绑当前会话的工作区（body: {"workspace": "路径"}；缺省或空 = 解绑） */</span>
+<span class="a">@PostMapping</span>(<span class="s">"/sessions/{sessionId}/bind"</span>)
+<span class="k">public</span> <span class="n">ResponseEntity</span>&lt;<span class="n">Map</span>&lt;<span class="n">String</span>, <span class="n">Object</span>&gt;&gt; <span class="f">bind</span>(<span class="a">@PathVariable</span> <span class="n">String</span> sessionId,
+        <span class="a">@RequestBody</span>(required = <span class="k">false</span>) <span class="n">Map</span>&lt;<span class="n">String</span>, <span class="n">String</span>&gt; body) {
+    <span class="k">if</span> (<span class="n">ChatService</span>.<span class="f">isStreaming</span>(sessionId)) {
+        <span class="k">return</span> ResponseEntity.<span class="f">status</span>(409).<span class="f">body</span>(<span class="n">Map</span>.<span class="f">of</span>(<span class="s">"error"</span>, <span class="s">"流式对话进行中，暂不能变更绑定"</span>));
+    }
+    <span class="n">String</span> ws = body == <span class="k">null</span> ? <span class="k">null</span> : body.<span class="f">get</span>(<span class="s">"workspace"</span>);
+    <span class="k">if</span> (ws != <span class="k">null</span> &amp;&amp; !<span class="n">Files</span>.<span class="f">isDirectory</span>(<span class="n">Path</span>.<span class="f">of</span>(ws))) {
+        <span class="k">return</span> ResponseEntity.<span class="f">badRequest</span>().<span class="f">body</span>(<span class="n">Map</span>.<span class="f">of</span>(<span class="s">"error"</span>, <span class="s">"目录不存在"</span>));
+    }
+    <span class="n">WorkspaceDataStore</span>.<span class="f">writeBinding</span>(sessionId, ws == <span class="k">null</span> ? <span class="k">null</span> : <span class="n">Path</span>.<span class="f">of</span>(ws)); <span class="c">// null = 删 binding.json</span>
+    <span class="n">ChatService</span>.<span class="f">require</span>(sessionId);   <span class="c">// root 变化时重建实例 + 镜像 currentWorkspace</span>
+    <span class="k">return</span> ResponseEntity.<span class="f">ok</span>(<span class="n">Map</span>.<span class="f">of</span>(<span class="s">"success"</span>, <span class="k">true</span>, <span class="s">"session"</span>, <span class="n">ChatService</span>.<span class="f">getInstance</span>().<span class="f">getSession</span>(sessionId)));
+}</pre></div>
+        </div>
+        <div class="codeblock" style="margin-top:14px">
+            <div class="cb-head">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="file">ChatController / ChatService — 拦截拆除示意</span>
+            </div>
+            <div class="cb-body"><pre><span class="rem">if (noWorkspace()) {</span>
+<span class="rem">    return ResponseEntity.badRequest().build();   // 启动未绑定即拒绝建会话</span>
+<span class="rem">}</span>
+<span class="add">SessionInfo session = chatService().createSession(title);   // 默认工作区起步，无需前置条件</span>
+
+<span class="c">// createSession：不再隐式继承全局工作区</span>
+<span class="rem">WorkspaceDataStore.writeBinding(sessionId, workspacePath);</span>
+<span class="add">// 不写绑定文件 = 派生语义；「新建即绑项目」由 bind API 显式完成</span>
+
+<span class="c">// getSessions：全量返回 + 归属字段（原「绑定不匹配即跳过」过滤删除）</span>
+<span class="rem">if (!currentWorkspace.equals(WorkspaceDataStore.readBinding(sessionId))) { return; }</span>
+<span class="add">info.workspace = WorkspaceDataStore.readBinding(sessionId);   // null = 默认工作区，前端分组</span></pre></div>
+        </div>
+    </div>
+
+    <!-- 04 前端改动 -->
+    <div class="card">
+        <h2><span class="no">04</span>前端改动（qualia-code-ui）：组件级清单</h2>
+        <p class="desc">视觉规格与完整设计稿一致：<b>docs/design/workspace-optional-binding-full-ui.html</b>（1:1 应用骨架）；会话列表细节另见 <b>docs/design/session-list-versions.html</b> 版本 A。</p>
+        <table>
+            <tr><th style="width:210px">文件 / 组件</th><th style="width:90px">动作</th><th>说明</th></tr>
+            <tr><td><code>App.vue</code></td><td><span class="tag del">删除</span></td><td>启动强制流：<code>if (!wsStore.current) wsSwitcherOpen.value = true</code> 整段移除；启动直接渲染主界面（无历史 → Hero）</td></tr>
+            <tr><td><code>stores/workspace.ts</code></td><td><span class="tag mod">改造</span></td><td><code>current</code> 全局态退化为「活跃会话绑定」镜像（由 SessionInfo.workspace 派生）；删除 <code>sideRail</code> 视图态；新增 <code>recentWorkspaces</code>（喂 chip 下拉最近项目）</td></tr>
+            <tr><td><code>api/chat.ts</code></td><td><span class="tag new">新增</span></td><td><code>bindSession(sid, workspace?)</code>；<code>SessionInfo</code> 类型补 <code>workspace: string | null</code></td></tr>
+            <tr><td><code>SidebarArea.vue</code></td><td><span class="tag mod">改造</span></td><td>删顶部工作区按钮 + 删会话/文件滑轨；头部仅剩 搜索 + 新建；<code>side-files</code> 视图整块移除</td></tr>
+            <tr><td><code>ConversationList.vue</code></td><td><span class="tag mod">改造</span></td><td>版本 A 分组：◇沙箱组恒置顶 → 项目组按最近活跃倒序；组悬停 <code>＋</code> = 新建并绑定该项目；行尾时间（今天 HH:mm / 昨天 / 周X / M/D）；搜索时组头隐藏、保留 mark 高亮；右键重命名/删除不变</td></tr>
+            <tr><td><code>InputArea.vue</code></td><td><span class="tag new">新增</span></td><td>工具行首位 chip（两态：◇ 虚线沙箱 / 📁 实线项目）+ 下拉菜单 + 引导条；<code>isStreaming</code> 时禁用；dock 位置随 Hero/底部锚点搬运</td></tr>
+            <tr><td><code>WorkspacePanel.vue</code></td><td><span class="tag mod">改造</span></td><td>Tab 变为 <code>文件 / 变更 / 终端 / 浏览器</code>；文件 Tab：目录树（绑定→项目树 / 未绑定→空态卡 + 绑定按钮）+ R/W/M 活动徽标；头部 <code>工作区 · {沙箱|项目名}</code></td></tr>
+            <tr><td><code>WorkspaceSwitcher.vue</code></td><td><span class="tag mod">降级</span></td><td>删 <code>forced</code> 不可关闭分支；保留目录浏览能力，作为普通弹窗由 chip 菜单「浏览文件夹…」触发；选中即调 bind API</td></tr>
+            <tr><td><code>FileTree.vue</code>（自侧栏迁出）</td><td><span class="tag mod">搬家</span></td><td>组件与点击预览逻辑（聊天区整栏 FilePreview）原样迁入面板文件 Tab；新增 R/W/M 徽标渲染</td></tr>
+            <tr><td><code>i18n/zh-CN.ts</code></td><td><span class="tag new">新增</span></td><td>文案见下方清单</td></tr>
+        </table>
+
+        <div class="cols3" style="margin-top:14px">
+            <div class="pane">
+                <h3>示意 A · 会话列表分组（版本 A）</h3>
+                <div class="sketch">
+                    <div class="cap">侧栏 · 会话历史</div>
+                    <div class="sess-list">
+                        <div class="grp sandbox">◇ 默认工作区 <span class="mini-badge">沙箱</span><span class="add-hint">＋</span></div>
+                        <div class="sess free"><span class="dot"></span>问 Rust 所有权<span class="tm">10:24</span></div>
+                        <div class="sess free"><span class="dot"></span>翻译一段 README<span class="tm">昨天</span></div>
+                        <div class="grp">📁 qualia<span class="add-hint">＋</span></div>
+                        <div class="sess bound on"><span class="dot"></span>重构 WorkspaceHistory<span class="tm">10:02</span></div>
+                        <div class="sess bound"><span class="dot"></span>打包脚本排查<span class="tm">周三</span></div>
+                        <div class="grp">📁 demo-app<span class="add-hint">＋</span></div>
+                        <div class="sess bound"><span class="dot"></span>联调登录接口<span class="tm">9/28</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="pane">
+                <h3>示意 B · 绑定 chip（唯一入口）</h3>
+                <div class="sketch">
+                    <div class="cap">输入框工具行首位 · 点击展开</div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px">
+                        <span class="ws-chip default">◇ 默认工作区 <span class="caret">▼</span></span>
+                        <span class="ws-chip bound">📁 qualia <span class="caret">▼</span></span>
+                    </div>
+                    <div style="font-size:10.5px; line-height:2.0; border:1px solid var(--border); border-radius:8px; padding:6px 10px; background:var(--bg-card)">
+                        <div style="font-weight:700; font-size:9.5px; color:var(--text-muted); letter-spacing:.4px">当前会话绑定</div>
+                        <div>📁 qualia　<span style="color:var(--text-muted)">D:\Projects\qualia</span></div>
+                        <div style="color:var(--sandbox-text)">◇ 默认工作区　<span style="color:var(--text-muted)">解除绑定</span></div>
+                        <div>📁 demo-app　<span style="color:var(--text-muted)">C:\work\demo-app</span></div>
+                        <div style="border-top:1px solid var(--border-soft); margin-top:3px; padding-top:3px">＋ 浏览文件夹…</div>
+                    </div>
+                    <p style="margin-top:8px; font-size:10.5px">换绑 / 解绑只写当前会话的 <code>binding.json</code>；流式对话进行中按钮禁用（D8）。</p>
+                </div>
+            </div>
+            <div class="pane">
+                <h3>示意 C · 引导条 + 面板文件空态</h3>
+                <div class="sketch">
+                    <div class="cap">输入区上方 · 可关闭</div>
+                    <div class="nudge">
+                        <span><b>当前为默认工作区</b>　绑定后可获得项目上下文</span>
+                        <span class="go">绑定文件夹 →</span>
+                    </div>
+                    <div class="cap" style="margin-top:12px">工作区面板 · 文件 Tab · 未绑定空态</div>
+                    <div class="empty-card">
+                        <div class="big">□</div>
+                        <div class="t1">本会话的默认工作区为空</div>
+                        <div class="t2">文件操作保存在会话独立目录；<br>绑定项目文件夹后展示项目目录树。</div>
+                        <span class="btn">绑定文件夹…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="font-size:12.5px; font-weight:700; margin:16px 0 8px">i18n 文案清单（zh-CN）</h3>
+        <table>
+            <tr><th style="width:240px">key</th><th>文案</th></tr>
+            <tr><td><code>chat.binding.defaultWorkspace</code></td><td>◇ 默认工作区</td></tr>
+            <tr><td><code>chat.binding.menu.browse</code> / <code>.unbind</code></td><td>浏览文件夹… / 回到默认工作区（解除绑定）</td></tr>
+            <tr><td><code>chat.binding.menu.recent</code></td><td>最近项目</td></tr>
+            <tr><td><code>chat.binding.nudge</code></td><td>当前为默认工作区，绑定后可获得项目上下文　绑定文件夹 →</td></tr>
+            <tr><td><code>panel.files.emptyTitle</code> / <code>.emptyDesc</code></td><td>本会话的默认工作区为空 / 文件操作保存在会话独立目录；绑定项目文件夹后展示项目目录树。</td></tr>
+            <tr><td><code>panel.title</code></td><td>工作区 · {沙箱|项目名}</td></tr>
+            <tr><td><code>session.group.sandbox</code></td><td>默认工作区（组尾徽标：沙箱）</td></tr>
+            <tr><td><code>session.group.newHere</code></td><td>在此项目下新建会话（组悬停 ＋ 的 tooltip）</td></tr>
+        </table>
+    </div>
+
+    <!-- 05 关键数据流 -->
+    <div class="card">
+        <h2><span class="no">05</span>关键数据流：三条主链路</h2>
+        <p class="desc">前端步（蓝）与后端步（灰）按序执行；F = 前端，B = 后端。</p>
+        <div style="display:flex; flex-direction:column; gap:12px">
+            <div class="flow-lane">
+                <h4>链路 1 · 启动直达（未绑定）</h4>
+                <ol>
+                    <li class="fend"><span class="no">F1</span>打开应用：不再检查全局工作区，直接进主界面；无历史 → Hero 欢迎页 + 引导条 + chip「◇ 默认工作区」</li>
+                    <li class="fend"><span class="no">F2</span><code>GET /api/chat/sessions</code> 拉全量列表（此时也可并行）</li>
+                    <li class="hot"><span class="no">B1</span>getSessions 全量返回，逐条附 workspace 字段；无启动前置条件</li>
+                    <li class="fend"><span class="no">F3</span>用户直接提问 → <code>POST /stream</code></li>
+                    <li class="hot"><span class="no">B2</span><code>ChatService.require(sid)</code> → resolveAgentRoot = <code>sessions/{sid}/workspace/</code>（首条消息时惰性创建）→ Agent 在沙箱内干活</li>
+                </ol>
+            </div>
+            <div class="flow-lane">
+                <h4>链路 2 · 换绑 / 解绑（chip 菜单）</h4>
+                <ol>
+                    <li class="fend"><span class="no">F1</span>chip 下拉选「最近项目」或「浏览文件夹…」（后者弹降级版 WorkspaceSwitcher）</li>
+                    <li class="fend"><span class="no">F2</span><code>POST /api/chat/sessions/{sid}/bind</code>（流式中按钮已禁用，后端 409 兜底）</li>
+                    <li class="hot"><span class="no">B1</span>校验目录存在 → <code>writeBinding</code> → <code>require(sid)</code>：root 变化 → switchWorkspace 重建（MCP/配置重载）→ 镜像 currentWorkspace</li>
+                    <li class="fend"><span class="no">F3</span>响应后一次性刷新三区：chip 换态 → 面板文件树/变更重载 → 会话列表重新分组（会话从◇组移入项目组）</li>
+                </ol>
+            </div>
+            <div class="flow-lane">
+                <h4>链路 3 · 项目组悬停 ＋（进项目干活，承接旧「切换工作区」意图）</h4>
+                <ol>
+                    <li class="fend"><span class="no">F1</span>项目组行悬停 → 点 <code>＋</code></li>
+                    <li class="fend"><span class="no">F2</span><code>POST /api/chat/sessions</code> 新会话（派生态）→ 紧接 <code>POST .../bind {"workspace": 该项目}</code></li>
+                    <li class="hot"><span class="no">B1</span>两步落盘：session.json 建立 → binding.json 写入 → require 切 root（若当前实例已在该项目 root 则零重建）</li>
+                    <li class="fend"><span class="no">F3</span>切到新会话：chip 已是 📁 项目名，面板展示项目树，直接开聊</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- 06 实施顺序 -->
+    <div class="card">
+        <h2><span class="no">06</span>实施顺序：两批交付</h2>
+        <p class="desc">后端先行一次可编译交付，前端随后接通；全程不启动服务，编译 / 类型检查通过后交由人工实测。</p>
+        <div style="margin-top:6px">
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">1</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>后端批 <span class="tag new">可编译交付</span></h4>
+                    <p><code>SessionInfo.workspace</code> 字段 + getSessions 全量化 → 拆除 <code>noWorkspace()</code> 8 处拦截 → createSession 改派生态 → bind API（409 互斥 + 目录校验）→ <code>resolveAgentRoot</code> + <code>require(sid)</code> 实例策略 → <code>currentWorkspace</code> 镜像化。<code>mvn compile</code> 通过即交付。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">2</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>前端批</h4>
+                    <p>api/store 类型与镜像态 → 删 <code>forced</code> 强制流（App.vue / WorkspaceSwitcher）→ 侧栏重造（删滑轨与工作区按钮）→ 会话列表版本 A（分组 / ＋ / 时间 / 搜索态）→ 绑定 chip + 下拉 + 引导条 → 面板「文件」Tab + 空态（文件树迁入 + R/W/M 徽标）→ i18n 文案。<code>vue-tsc</code> + eslint 通过。</p>
+                </div>
+            </div>
+            <div class="rm-item">
+                <div class="rm-rail"><div class="rm-node">3</div><div class="rm-line"></div></div>
+                <div class="rm-body">
+                    <h4>验证 <span class="tag keep">人工实测</span></h4>
+                    <p>默认态直聊（沙箱隔离）→ chip 绑定项目 → 面板文件树出现项目目录 → 换绑 / 解绑三区联动刷新 → 项目组 ＋ 新建即绑定 → 老会话迁移归属正确 → 流式中绑定被 409 拦截 → 删除会话外部项目零残留。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 07 边界与风险 -->
+    <div class="card">
+        <h2><span class="no">07</span>边界与风险</h2>
+        <p class="desc">全部为已知可接受项，无阻断风险。</p>
+        <ul class="plain">
+            <li><b>Agent 重建开销</b>：跨 root 切换会话触发 MCP / 配置重载（秒级）；同 root 复用零开销；流式互斥已有（<code>ACTIVE_STREAMS</code>），重建期间 UI 由既有加载态覆盖。</li>
+            <li><b>getInstance 隐患顺带修复</b>：现状 <code>getInstance(Path)</code> 实例创建后忽略路径差异；本批统一收敛到 <code>require(sid)</code> 单入口，消除「Controller 持旧实例读旧工作区」类问题。</li>
+            <li><b>旧端点兼容</b>：<code>/api/workspace/switch</code> 保留但前端不再调用；其「切全局」语义与 D1 冲突，后续版本可评估移除。</li>
+            <li><b>派生沙箱不进最近列表</b>：防污染工作区历史视图；会话删除随域目录整体清理，外部项目不受影响。</li>
+            <li><b>老用户感知</b>：升级后侧栏从「单项目列表」变「全量分组」，属预期产品行为变化，归属数据已由存量迁移补写。</li>
+            <li><b>空会话不落盘</b>：仅创建未发消息的会话不建派生目录，列表继续过滤空会话。</li>
+            <li><b>信任边界不变</b>：<code>binding.json</code> 仅绑定接口可写，消息 / 模型输出不可触达。</li>
+        </ul>
+        <div class="verdict warn" style="margin-top:14px">
+            <span class="dot"></span>
+            <span>关联文档：<b>docs/design/workspace-optional-binding-full-ui.html</b>（完整前端设计稿 · 1:1 骨架）、<b>docs/design/session-list-versions.html</b>（会话列表四版本对比 · 采用 A）、<b>docs/tech/session-storage-keyed-design.html</b>（存储模型 · 已落地）。</span>
+        </div>
+    </div>
+
+    <p class="foot-note">Qualia Code · 工作区可选绑定改造方案（定稿）· 2026-10-08 · 与已落地存储模型（单一会话桶 + binding.json）完全衔接，无返工</p>
+
+</div>
+
+</body>
+</html>

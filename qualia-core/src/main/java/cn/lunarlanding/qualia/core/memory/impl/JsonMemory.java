@@ -18,8 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 基于 JSON 文件的会话级记忆实现
- * 用于本地 CLI 开发场景，数据存储在 workspace/.qualia/sessions/ 目录下（每会话一个以会话 id 命名的子目录：
- * session.json 聊天记录 / summaries.json 压缩摘要，附件等其他会话资源同域聚合）
+ * 会话数据目录由调用方决定（产品层可覆写 Workspace#getMemoryDir 指向全局桶），每会话一个以会话 id 命名的子目录：
+ * session.json 聊天记录 / memory.json 压缩摘要，附件等其他会话资源同域聚合）
  */
 public class JsonMemory implements Memory {
 
@@ -34,6 +34,7 @@ public class JsonMemory implements Memory {
             Files.createDirectories(memoryDir);
             migrateLegacyMemoryDir();
             migrateLegacyLayout();
+            migrateSummariesFileName();
         } catch (IOException e) {
             throw new RuntimeException("创建 memory 目录失败: " + memoryDir, e);
         }
@@ -79,7 +80,7 @@ public class JsonMemory implements Memory {
     /**
      * 旧版扁平布局迁移（幂等，启动时执行一次）：
      * {memoryDir}/{sessionId}.json           → {memoryDir}/{sessionId}/session.json
-     * {memoryDir}/{sessionId}_summaries.json → {memoryDir}/{sessionId}/summaries.json
+     * {memoryDir}/{sessionId}_summaries.json → {memoryDir}/{sessionId}/memory.json
      * 仅识别会话 id 命名的文件，搬完即删旧文件；新位置已存在时视为已迁移，仅清理旧文件
      */
     private void migrateLegacyLayout() {
@@ -96,7 +97,7 @@ public class JsonMemory implements Memory {
                 if (!sessionId.matches("[A-Za-z0-9_-]+")) {
                     continue;
                 }
-                Path target = memoryDir.resolve(sessionId).resolve(summary ? "summaries.json" : "session.json");
+                Path target = memoryDir.resolve(sessionId).resolve(summary ? "memory.json" : "session.json");
                 try {
                     Files.createDirectories(target.getParent());
                     Files.move(file, target);
@@ -113,6 +114,35 @@ public class JsonMemory implements Memory {
             }
         } catch (IOException e) {
             logger.error("[JsonMemory] 扫描旧版记忆布局失败", e);
+        }
+    }
+
+    /**
+     * 摘要文件更名迁移（幂等）：{memoryDir}/{sessionId}/summaries.json → memory.json。
+     * 2026-10 摘要文件由 summaries.json 更名 memory.json；
+     * 新名已存在（已迁移过）时仅清理旧名文件，避免覆盖。
+     */
+    private void migrateSummariesFileName() {
+        try (var paths = Files.list(memoryDir)) {
+            for (Path dir : paths.filter(Files::isDirectory).toList()) {
+                Path legacy = dir.resolve("summaries.json");
+                if (!Files.isRegularFile(legacy)) {
+                    continue;
+                }
+                Path target = dir.resolve("memory.json");
+                try {
+                    if (Files.exists(target)) {
+                        Files.deleteIfExists(legacy);
+                    } else {
+                        Files.move(legacy, target);
+                        logger.info("[JsonMemory] 摘要文件已更名: {} -> {}", legacy.getFileName(), target.getFileName());
+                    }
+                } catch (IOException e) {
+                    logger.error("[JsonMemory] 摘要文件更名失败: {}", legacy, e);
+                }
+            }
+        } catch (IOException e) {
+            logger.error("[JsonMemory] 扫描摘要旧文件名失败", e);
         }
     }
 
@@ -273,7 +303,7 @@ public class JsonMemory implements Memory {
     }
 
     private Path getSummaryFile(String sessionId) {
-        return memoryDir.resolve(sessionId).resolve("summaries.json");
+        return memoryDir.resolve(sessionId).resolve("memory.json");
     }
 
     private List<MemoryMessage> loadMessages(String sessionId) {

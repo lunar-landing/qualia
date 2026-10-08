@@ -1742,6 +1742,17 @@ body.light-theme .hljs-title.class_.inherited__ {
     width: max-content;
     min-width: 100%;
 }
+/* 文本型语言块（markdown/text）默认换行：长句/长 URL 阅读优先，复制不受影响（仅显示行为）；
+   代码型语言仍横向滚动。width 须还原 auto——max-content 按最长行撑宽，不还原等于没换 */
+.msg .bubble pre code.language-markdown, .code-wrap pre code.language-markdown,
+.msg .bubble pre code.language-text, .code-wrap pre code.language-text,
+.msg .bubble pre code.language-txt, .code-wrap pre code.language-txt,
+.msg .bubble pre code.language-plaintext, .code-wrap pre code.language-plaintext,
+.msg .bubble pre code.language-plain, .code-wrap pre code.language-plain {
+    white-space: pre-wrap;
+    word-break: break-word;
+    width: auto;
+}
 /* 圆角卡片表：深浅共用骨架；宽度随内容收缩（fit-content，窄表不拉满），超宽时封顶横向滚动 */
 .msg .bubble table {
     display: block;

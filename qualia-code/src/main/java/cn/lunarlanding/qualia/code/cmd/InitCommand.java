@@ -31,6 +31,7 @@ public class InitCommand implements Callable<Integer> {
         PRESETS.put("2", new ModelPreset("openai", "gpt-4o", "https://api.openai.com/v1", "OpenAI"));
         PRESETS.put("3", new ModelPreset("deepseek", "deepseek-chat", "https://api.deepseek.com/v1", "DeepSeek"));
         PRESETS.put("4", new ModelPreset("claude", "claude-3-5-sonnet-20241022", "https://api.anthropic.com", "Claude"));
+        PRESETS.put("5", new ModelPreset("zhipu", "glm-4.6", "https://open.bigmodel.cn/api/coding/paas/v4", "智谱GLM（令牌计划）"));
     }
 
     @Override
@@ -59,9 +60,9 @@ public class InitCommand implements Callable<Integer> {
         PRESETS.forEach((key, preset) -> 
             System.out.println("  " + key + ". " + preset.description)
         );
-        System.out.println("  5. 自定义");
+        System.out.println("  6. 自定义");
         System.out.println();
-        System.out.print("请输入选项 [1-5] (默认 1): ");
+        System.out.print("请输入选项 [1-6] (默认 1): ");
         String choice = scanner.nextLine().trim();
         if (choice.isEmpty()) choice = "1";
 

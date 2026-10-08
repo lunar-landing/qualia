@@ -334,6 +334,7 @@ export default {
     presetDashscope: '通义千问（阿里云百炼）',
     presetDeepSeek: 'DeepSeek',
     presetXiaomi: '小米MiMo',
+    presetZhipu: '智谱GLM',
     presetOpenAI: 'OpenAI',
     categoryFile: '📁 文件操作',
     categoryNetwork: '🌐 网络操作',

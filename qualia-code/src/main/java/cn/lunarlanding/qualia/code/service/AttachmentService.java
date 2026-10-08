@@ -57,10 +57,9 @@ public class AttachmentService {
         }
     }
 
-    /** 附件仓库目录：{workspace}/.qualia/sessions/{sessionId}/files（会话域内，与聊天记录同目录聚合） */
+    /** 附件仓库目录：全局桶 sessions/{sessionId}/files（会话域内，与聊天记录同目录聚合，路径权威见 WorkspaceDataStore） */
     private Path repositoryDir(String sessionId) {
-        Path sessionDir = WebApplication.getCurrentWorkspace()
-                .resolve(".qualia").resolve("sessions").resolve(sessionId);
+        Path sessionDir = WorkspaceDataStore.sessionDir(sessionId);
         migrateLegacyAttachmentsDir(sessionDir);
         return sessionDir.resolve("files");
     }

@@ -3,7 +3,8 @@
 #
 # 前置要求：
 #   1. 已安装完整 JDK 17（含 jpackage），java/jpackage 在 PATH 中
-#   2. 在 macOS 上执行（jpackage 不支持交叉打包；Apple Silicon 与 Intel 需各自打一份）
+#   2. 已安装 Node.js（>= 20.19 或 >= 22.12），用于构建 qualia-code-ui 前端
+#   3. 在 macOS 上执行（jpackage 不支持交叉打包；Apple Silicon 与 Intel 需各自打一份）
 #
 # 关键点：
 #   - SWT 在 macOS 上必须以 -XstartOnFirstThread 运行，否则 SWT 事件循环无法在主线程启动
@@ -26,6 +27,20 @@ VERSION="1.5.0"
 echo "==> 构建可执行 jar（含全部依赖）..."
 cd "$PROJECT_ROOT"
 ./mvnw -q -pl qualia-code-desktop -am clean package -DskipTests || mvn -q -pl qualia-code-desktop -am clean package -DskipTests
+
+# 构建前端：npm run build 产物直写 qualia-code/target/classes/static（vite outDir 约定）。
+# 必须在 clean 之后执行，否则产物会被 clean 删除。
+UI_DIR="$PROJECT_ROOT/qualia-code-ui"
+if [ ! -d "$UI_DIR/node_modules" ]; then
+  echo "==> 安装前端依赖 (npm install)..."
+  (cd "$UI_DIR" && npm install --no-fund --no-audit)
+fi
+echo "==> 构建前端 (npm run build)..."
+(cd "$UI_DIR" && npm run build)
+
+# 无 clean 增量重打：static 已在 target/classes 中，重打 qualia-code jar 并重新 shade 进 uber-jar
+echo "==> 重新打包（含前端静态资源，不执行 clean）..."
+./mvnw -q -pl qualia-code-desktop -am package -DskipTests || mvn -q -pl qualia-code-desktop -am package -DskipTests
 
 # 定位 shaded jar
 JAR="$(find "$TARGET_DIR" -maxdepth 1 -name 'qualia-code-desktop-*.jar' ! -name '*original*' | head -n 1)"
@@ -52,7 +67,7 @@ jpackage \
   --app-version "$VERSION" \
   --input "$INPUT_DIR" \
   --main-jar "$JAR_NAME" \
-  --main-class com.lunarlanding.qualia.code.desktop.DesktopLauncher \
+  --main-class cn.lunarlanding.qualia.code.desktop.DesktopLauncher \
   --dest "$DIST_DIR" \
   --java-options "-XstartOnFirstThread" \
   --java-options "-Dfile.encoding=UTF-8" \

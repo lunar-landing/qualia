@@ -336,6 +336,7 @@ export default {
     presetDashscope: 'Qwen (Alibaba Bailian)',
     presetDeepSeek: 'DeepSeek',
     presetXiaomi: 'Xiaomi MiMo',
+    presetZhipu: 'Zhipu GLM (BigModel)',
     presetOpenAI: 'OpenAI',
     categoryFile: '📁 File operations',
     categoryNetwork: '🌐 Network operations',

@@ -937,6 +937,17 @@ body.light-theme .term-chat .t-answer .md pre code {
   color: var(--text-code);
 }
 
+/* 文本型语言块（markdown/text）默认换行，与气泡版对齐；width 还原 auto 才能真正折行（max-content 按最长行撑宽） */
+.term-chat .t-answer .md pre code.language-markdown,
+.term-chat .t-answer .md pre code.language-text,
+.term-chat .t-answer .md pre code.language-txt,
+.term-chat .t-answer .md pre code.language-plaintext,
+.term-chat .t-answer .md pre code.language-plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: auto;
+}
+
 .term-chat .t-answer .md a {
   color: var(--t-blue);
   text-decoration: none;

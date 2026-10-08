@@ -151,9 +151,6 @@ public class CodeAgentConfig {
      * @return 配置对象
      */
     public static CodeAgentConfig load(Path workspacePath) {
-        // 初始化工作区目录
-        initWorkspace(workspacePath);
-        
         // 旧路径配置自动迁移到产品目录
         migrateLegacyConfigIfNeeded();
         
@@ -222,24 +219,9 @@ public class CodeAgentConfig {
     }
     
     /**
-     * 初始化工作区目录
+     * [已移除] 工作区目录预建：会话数据已统一入全局桶 ~/.qualia/code/sessions（见 WorkspaceDataStore），
+     * 项目目录零写入——不再预建 .qualia/memory、.qualia/skills；存量空目录由迁移惰性清理。
      */
-    private static void initWorkspace(Path workspacePath) {
-        // 启动时可能尚未选择工作区（前端强制选择流程），此时不做目录初始化
-        if (workspacePath == null) {
-            return;
-        }
-        Path qualiaDir = workspacePath.resolve(".qualia");
-        if (!Files.exists(qualiaDir)) {
-            try {
-                Files.createDirectories(qualiaDir.resolve("memory"));
-                Files.createDirectories(qualiaDir.resolve("skills"));
-                System.out.println("已初始化工作区: " + qualiaDir);
-            } catch (IOException e) {
-                System.err.println("初始化工作区失败: " + e.getMessage());
-            }
-        }
-    }
     
     /**
      * 加载 JSON 文件

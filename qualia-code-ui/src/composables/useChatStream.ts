@@ -5,7 +5,10 @@ import { useChatStore } from '@/stores/chat'
 import { useConfigStore } from '@/stores/config'
 import { DEFAULT_SESSION_TITLE, useSessionStore } from '@/stores/session'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { CHANGE_TOOLS, stepFilePath } from '@/utils/steps'
+import { usePreviewStore } from '@/stores/preview'
+import { readFileContent } from '@/api/config'
+import { CHANGE_TOOLS, baseName, stepFilePath } from '@/utils/steps'
+import { pickHtmlWrite } from '@/utils/autoPreview'
 import { parseSkillSlash, rewriteSkillMessage } from '@/utils/skillSlash'
 import type { AgentStep, HistoryAttachment, PendingAttachment, StreamEvent } from '@/types'
 
@@ -167,12 +170,35 @@ function finish(sid: string) {
   if (st && !st.fullAnswer && st.steps.length === 0) {
     chat.removeMessage(sid, st.msgId)
   }
+  // 自动预览：本轮写入了 HTML 文件时，工作区浏览器区域打开行数最多的一份（endStream 前读 steps）
+  if (st) autoPreviewWrittenHtml(sid, st.steps)
   const hasContent = !!st && (st.steps.length > 0 || !!st.fullAnswer)
   chat.endStream(sid)
   markUnreadIfBackground(sid, hasContent)
   useWorkspaceStore().clearTransientBadges()
   // 正常完成 → 自动接发待发送队列（错误/停止不触发，队列挂起待手动恢复）
   tryConsumeQueue(sid)
+}
+
+/**
+ * 回答完成后的自动预览：本轮有 write/edit 写入 HTML 文件时，
+ * 取写入与编辑行数最多的一份，打开工作区浏览器区域预览（openHtml 后
+ * WorkspacePanel 的既有 watch 自动展开面板并切到浏览器 Tab）。错误收尾（fail）不触发。
+ */
+function autoPreviewWrittenHtml(sid: string, steps: AgentStep[]) {
+  const pick = pickHtmlWrite(steps)
+  if (!pick) return
+  const open = (html: string) => usePreviewStore().openHtml(html, baseName(pick.path), pick.path)
+  if (pick.content != null) {
+    open(pick.content)
+  } else {
+    // edit 只改了片段，全文从工作区读（与磁盘落盘一致）
+    void readFileContent(pick.path, sid)
+      .then((f) => {
+        if (f.content != null) open(f.content)
+      })
+      .catch(() => {}) // 读取失败静默跳过，不打扰
+  }
 }
 
 /** 流错误收尾：无内容时错误直接作为回复展示（对齐旧版 handleStreamError） */

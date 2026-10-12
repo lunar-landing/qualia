@@ -7,6 +7,7 @@ import {
   renameSession as apiRename,
 } from '@/api/chat'
 import { useChatStore } from '@/stores/chat'
+import { useMaterialsStore } from '@/stores/materials'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { ChatSession } from '@/types'
 
@@ -41,6 +42,8 @@ export const useSessionStore = defineStore('session', {
       const session = await apiCreate(title)
       this.sessions.unshift(session)
       this.currentSessionId = session.id
+      // 主区覆盖视图（资料库等）随切入聊天区关闭
+      useMaterialsStore().closeView()
       // 新会话未绑定：工作区镜像必须清空——否则残留上一会话的绑定，chip 会误显示已选中
       useWorkspaceStore().applySessionWorkspace(session.workspace ?? null)
       return session
@@ -50,6 +53,8 @@ export const useSessionStore = defineStore('session', {
       this.currentSessionId = sessionId
       // 切入即视为已读：清除后台会话完成提示
       useChatStore().clearUnread(sessionId)
+      // 主区覆盖视图（资料库等）随切入聊天区关闭——否则浮层盖住聊天区，看似切换失败
+      useMaterialsStore().closeView()
       // 绑定镜像同步 + 会话域数据失效（文件树随新会话的工作区重载）
       useWorkspaceStore().applySessionWorkspace(this.sessions.find((s) => s.id === sessionId)?.workspace)
       // 历史懒加载由 ChatArea 渲染时触发（ensureHistory），store 不耦合加载时序

@@ -5,12 +5,14 @@ import { useTheme } from '@/composables/theme'
 import { useChatView } from '@/composables/chatView'
 import { setLocale } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
+import { useMaterialsStore } from '@/stores/materials'
 import ConversationList from '@/components/ConversationList.vue'
 import TokenHeatmap from '@/components/TokenHeatmap.vue'
 
 const emit = defineEmits<{ openSettings: [] }>()
 
 const sessionStore = useSessionStore()
+const materials = useMaterialsStore()
 const { isLight, toggleTheme } = useTheme()
 const { view: chatView, toggleView: toggleChatView } = useChatView()
 const { t, locale } = useI18n()
@@ -145,6 +147,16 @@ onBeforeUnmount(() => {
     <TokenHeatmap />
 
     <div class="sidebar-footer">
+      <!-- 资料（Wiki 式资料库）入口：设置按钮上方，同款样式；点击在主区整栏展开 -->
+      <button
+        class="settings-btn"
+        :class="{ open: materials.open }"
+        :title="t('materials.title')"
+        @click="materials.toggleView()"
+      >
+        <i class="fas fa-book-open"></i>
+        <span>{{ t('materials.entry') }}</span>
+      </button>
       <div class="settings-anchor" ref="anchorRef">
         <button class="settings-btn" :class="{ open: flyoutOpen }" :title="t('sidebar.settings')" @click="toggleFlyout">
           <i class="fas fa-sliders-h"></i>

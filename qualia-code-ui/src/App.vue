@@ -4,6 +4,7 @@ import SidebarArea from '@/components/SidebarArea.vue'
 import ChatArea from '@/components/ChatArea.vue'
 import ChatTerminal from '@/components/ChatTerminal.vue'
 import WorkspacePanel from '@/components/WorkspacePanel.vue'
+import MaterialsView from '@/components/materials/MaterialsView.vue'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher.vue'
 import Lightbox from '@/components/Lightbox.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
@@ -53,6 +54,8 @@ onMounted(async () => {
         <ChatArea v-show="chatView !== 'terminal'" />
         <ChatTerminal v-show="chatView === 'terminal'" />
         <WorkspacePanel />
+        <!-- 资料整栏视图：覆盖聊天区 + 工作区面板（内部随 materials store 开合） -->
+        <MaterialsView />
       </div>
     </div>
 

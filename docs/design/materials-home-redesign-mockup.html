@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库首页重设计 · 文库封面页</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<!--
+  资料库首页（目录首页态）重设计 · 两版对比
+  ============================================================
+  共同主张：从「目录索引」升级为「文库封面页」——
+    1. 头部 Hero：库标识块 + 库名大字 + 元信息行（进库第一眼有锚点）
+    2. 根级文章置顶（无组头弱化），文件夹组带计数徽标 + 延展细线
+    3. 空库给行动点：实底上传主按钮 + 拖拽副提示（两版共用）
+  V1 行列表：文章为两行块状行（名称 + 摘要），图标着色，元信息 mono 右对齐
+  V2 卡片网格：文章卡片化（图标 + 标题 + 两行摘要 + mono 元信息），与列表页卡片语言同源
+  零依赖 · 日间默认 + 夜间切换 · 悬停态真实可感
+-->
+<style>
+:root {
+  --bg-app: #ffffff;
+  --bg-panel: #f6f8fa;
+  --bg-hover: #e9edf1;
+  --bg-active: #e4e9ee;
+  --bg-input: #f0f2f5;
+  --text-primary: #1f2328;
+  --text-secondary: #57657a;
+  --text-muted: #8c959f;
+  --border-color: #d0d7de;
+  --accent-light: #32383f;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(50, 56, 63, 0.06);
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+body.dark-theme {
+  --bg-app: #080a10;
+  --bg-panel: #0d1117;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(230, 237, 243, 0.10);
+  --bg-input: #161b22;
+  --text-primary: #e4e9f2;
+  --text-secondary: #8f97ae;
+  --text-muted: #4f566b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --accent-light: #f0f6fc;
+  --accent-ink: #0d1117;
+  --accent-soft: rgba(240, 246, 252, 0.07);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-app); color: var(--text-primary);
+  transition: background 0.2s ease, color 0.2s ease;
+  padding: 28px 32px 48px;
+}
+.page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.page-head h1 { font-size: 19px; font-weight: 700; }
+.page-head .sub { font-size: 12.5px; color: var(--text-secondary); }
+.theme-btn {
+  margin-left: auto; border: 1px solid var(--border-color); background: transparent;
+  color: var(--text-secondary); font-size: 12px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+}
+.theme-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 22px; align-items: start; }
+@media (max-width: 1240px) { .compare { grid-template-columns: 1fr; } }
+.pane-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+.pane-label b { color: var(--text-primary); }
+
+/* ===== 模拟详情页右栏（阅读区宽度节奏：内容 720px 居中） ===== */
+.reader {
+  border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-panel);
+  overflow: hidden;
+}
+.reader-head {
+  display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 16px;
+  border-bottom: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary);
+}
+.reader-head .bb {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-secondary); border-radius: 7px; font-size: 12px;
+}
+.reader-head .bb:hover { background: var(--bg-hover); color: var(--text-primary); }
+.reader-body { padding: 30px 32px 56px; }
+
+/* ===== 1. 头部 Hero ===== */
+.hero { display: flex; gap: 16px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 22px; }
+.hero .mark {
+  width: 46px; height: 46px; border-radius: 12px; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.hero .mark i { font-size: 19px; color: var(--accent-light); }
+.hero h2 { font-size: 21px; font-weight: 700; letter-spacing: 0.2px; line-height: 1.3; }
+.hero .desc { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.6; }
+.hero .meta { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.hero .meta span {
+  font-size: 11px; color: var(--text-secondary); background: var(--bg-input);
+  border-radius: 20px; padding: 3px 10px;
+}
+.hero .meta b { font-family: var(--mono); font-weight: 600; color: var(--text-primary); }
+
+/* ===== 2. 组头：徽标 + 延展细线 ===== */
+.gt { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; }
+.gt:first-of-type { margin-top: 0; }
+.gt i { font-size: 11px; color: var(--text-secondary); }
+.gt .t { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.gt .cnt {
+  font-family: var(--mono); font-size: 10px; color: var(--text-secondary);
+  background: var(--bg-input); border-radius: 9px; padding: 1px 8px;
+}
+.gt .rule { flex: 1; height: 1px; background: var(--border-color); opacity: 0.6; }
+
+/* ===== 3. 文章行：两行块状（名称行 + 摘要行） ===== */
+.home-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer;
+}
+.home-row:hover { background: var(--bg-hover); }
+.home-row .fic {
+  width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.home-row .fic i { font-size: 12.5px; color: var(--accent-light); }
+.home-row .body { flex: 1; min-width: 0; }
+.home-row .l1 { display: flex; align-items: baseline; gap: 10px; }
+.home-row .nm { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-row .mt { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+.home-row .sm {
+  font-size: 11.5px; color: var(--text-secondary); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ===== 3b. V2 卡片网格（文章卡片陈列，与列表页 kb-grid 语言同源） ===== */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 12px; }
+.kb-card {
+  border: 1px solid var(--border-color); border-radius: 12px; padding: 13px 14px 11px;
+  cursor: pointer; display: flex; flex-direction: column; gap: 8px;
+}
+.kb-card:hover { border-color: var(--text-muted); background: var(--bg-hover); }
+.kb-card .c-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.kb-card .fic {
+  width: 26px; height: 26px; border-radius: 7px; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kb-card .fic i { font-size: 11.5px; color: var(--accent-light); }
+.kb-card .nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-card .c-sm {
+  font-size: 11.5px; color: var(--text-secondary); line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.kb-card .c-mt { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: auto; padding-top: 2px; }
+
+/* 空库态（两版共用）：居中窄栏 */
+.empty-strip { max-width: 560px; margin: 34px auto 0; }
+.empty-strip .pane-label { text-align: center; }
+
+/* ===== 4. 空库行动点 ===== */
+.empty-hero { text-align: center; padding: 40px 0 8px; }
+.empty-hero .big {
+  width: 64px; height: 64px; border-radius: 18px; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+}
+.empty-hero .big i { font-size: 24px; color: var(--accent-light); }
+.empty-hero .t { font-size: 14.5px; font-weight: 600; }
+.empty-hero .s { font-size: 12px; color: var(--text-secondary); margin: 6px 0 18px; line-height: 1.7; }
+.btn-primary {
+  border: none; background: var(--accent-light); color: var(--accent-ink);
+  font-size: 12.5px; font-weight: 600; padding: 9px 22px; border-radius: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.btn-primary:hover { opacity: 0.88; }
+.empty-hint { margin-top: 12px; font-size: 11px; color: var(--text-muted); }
+
+/* 设计点注释 */
+.notes { margin-top: 26px; border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.8; }
+.notes b { color: var(--text-primary); }
+.notes ul { list-style: none; margin-top: 4px; }
+.notes li { padding-left: 14px; position: relative; }
+.notes li::before { content: ''; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>资料库首页 · 文库封面页</h1>
+  <span class="sub">目录首页态重设计 · V1 行列表 / V2 卡片网格</span>
+  <button class="theme-btn" onclick="document.body.classList.toggle('dark-theme')">切换夜间</button>
+</div>
+
+<div class="compare">
+  <!-- 左：V1 行列表（封面页） -->
+  <div>
+    <div class="pane-label">V1 · 行列表 · <b>两行块状行 + Hero 头</b>（试试悬停文章行）</div>
+    <div class="reader">
+      <div class="reader-head">
+        <button class="bb"><i class="fas fa-arrow-left"></i></button>
+        <span>产品知识库</span>
+      </div>
+      <div class="reader-body">
+
+        <div class="hero">
+          <div class="mark"><i class="fas fa-book-open"></i></div>
+          <div>
+            <h2>产品知识库</h2>
+            <div class="desc">团队产品文档与规范沉淀，上传后全文可检索。</div>
+            <div class="meta">
+              <span><b>7</b> 篇文章</span>
+              <span><b>2,178</b> 字</span>
+              <span>更新于 <b>3 小时前</b></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 根级文章置顶：无组头，直接铺开（高频入口） -->
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">快速开始.md</span><span class="mt">487 · 3h</span></div>
+            <div class="sm">本篇带你五分钟上手：创建资料库、上传第一份文档、体验 wiki 导航…</div>
+          </div>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">系统架构总览.md</span><span class="mt">678 · 昨天</span></div>
+            <div class="sm">本文描述「资料」功能的整体分层：纯 Markdown 存储、路径即 ID、同步转换管线…</div>
+          </div>
+        </div>
+
+        <div class="gt">
+          <i class="fas fa-folder"></i><span class="t">guide</span><span class="cnt">3</span><span class="rule"></span>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">部署指南.md</span><span class="mt">308 · 2d</span></div>
+            <div class="sm">先看右下角 toast 的失败原因：格式白名单、单文件 50MB 上限…</div>
+          </div>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">常见问题.md</span><span class="mt">218 · 5d</span></div>
+            <div class="sm">上传的 HTML 会被解析为 Markdown 吗？——不会，白名单直接拒绝…</div>
+          </div>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">release-notes.md</span><span class="mt">152 · 1w</span></div>
+            <div class="sm">v1.2 上线 wiki 导航与整篇阅读；v1.1 补齐 pdf/docx 同步转换…</div>
+          </div>
+        </div>
+
+        <div class="gt">
+          <i class="fas fa-folder"></i><span class="t">specs</span><span class="cnt">2</span><span class="rule"></span>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">资料库设计规范.md</span><span class="mt">452 · 3d</span></div>
+            <div class="sm">路径契约、frontmatter 系统维护边界、原件留档策略…</div>
+          </div>
+        </div>
+        <div class="home-row">
+          <div class="fic"><i class="fas fa-file-lines"></i></div>
+          <div class="body">
+            <div class="l1"><span class="nm">编辑器交互约定.md</span><span class="mt">287 · 6h</span></div>
+            <div class="sm">工具条插入保留原生 undo 栈；编辑态撑满宽度、预览态 720px…</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：V2 卡片网格陈列室 -->
+  <div>
+    <div class="pane-label">V2 · 卡片网格 · <b>文章卡片陈列</b>（试试悬停卡片）</div>
+    <div class="reader">
+      <div class="reader-head">
+        <button class="bb"><i class="fas fa-arrow-left"></i></button>
+        <span>产品知识库</span>
+      </div>
+      <div class="reader-body">
+
+        <div class="hero">
+          <div class="mark"><i class="fas fa-book-open"></i></div>
+          <div>
+            <h2>产品知识库</h2>
+            <div class="desc">团队产品文档与规范沉淀，上传后全文可检索。</div>
+            <div class="meta">
+              <span><b>7</b> 篇文章</span>
+              <span><b>2,178</b> 字</span>
+              <span>更新于 <b>3 小时前</b></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 根级文章卡片网格：高频入口置顶 -->
+        <div class="card-grid">
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">快速开始.md</span></div>
+            <div class="c-sm">本篇带你五分钟上手：创建资料库、上传第一份文档、体验 wiki 导航与整篇阅读。</div>
+            <div class="c-mt">487 字 · 3 小时前</div>
+          </div>
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">系统架构总览.md</span></div>
+            <div class="c-sm">「资料」功能整体分层：纯 Markdown 存储、路径即 ID、同步转换管线与原件留档。</div>
+            <div class="c-mt">678 字 · 昨天</div>
+          </div>
+        </div>
+
+        <div class="gt">
+          <i class="fas fa-folder"></i><span class="t">guide</span><span class="cnt">3</span><span class="rule"></span>
+        </div>
+        <div class="card-grid">
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">部署指南.md</span></div>
+            <div class="c-sm">先看右下角 toast 的失败原因：格式白名单、单文件 50MB 上限与目录权限。</div>
+            <div class="c-mt">308 字 · 2 天前</div>
+          </div>
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">常见问题.md</span></div>
+            <div class="c-sm">上传的 HTML 会被解析为 Markdown 吗？——不会，白名单直接拒绝。</div>
+            <div class="c-mt">218 字 · 5 天前</div>
+          </div>
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">release-notes.md</span></div>
+            <div class="c-sm">v1.2 上线 wiki 导航与整篇阅读；v1.1 补齐 pdf/docx 同步转换。</div>
+            <div class="c-mt">152 字 · 1 周前</div>
+          </div>
+        </div>
+
+        <div class="gt">
+          <i class="fas fa-folder"></i><span class="t">specs</span><span class="cnt">2</span><span class="rule"></span>
+        </div>
+        <div class="card-grid">
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">资料库设计规范.md</span></div>
+            <div class="c-sm">路径契约、frontmatter 系统维护边界、原件留档策略。</div>
+            <div class="c-mt">452 字 · 3 天前</div>
+          </div>
+          <div class="kb-card">
+            <div class="c-head"><div class="fic"><i class="fas fa-file-lines"></i></div><span class="nm">编辑器交互约定.md</span></div>
+            <div class="c-sm">工具条插入保留原生 undo 栈；编辑态撑满宽度、预览态 720px。</div>
+            <div class="c-mt">287 字 · 6 小时前</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 空库态（两版共用） -->
+<div class="empty-strip">
+  <div class="pane-label">空库态 · <b>行动点前置（两版共用）</b></div>
+  <div class="reader">
+    <div class="reader-head">
+      <button class="bb"><i class="fas fa-arrow-left"></i></button>
+      <span>新资料库</span>
+    </div>
+    <div class="reader-body">
+      <div class="hero">
+        <div class="mark"><i class="fas fa-book-open"></i></div>
+        <div>
+          <h2>新资料库</h2>
+          <div class="desc">还没有文章 —— 从第一份文档开始。</div>
+        </div>
+      </div>
+      <div class="empty-hero">
+        <div class="big"><i class="fas fa-arrow-up-from-bracket"></i></div>
+        <div class="t">上传或新建第一篇文章</div>
+        <div class="s">支持多选 · md / txt / pdf / docx<br>单文件 ≤ 50MB，也可直接拖拽到页面</div>
+        <button class="btn-primary"><i class="fas fa-arrow-up-from-bracket"></i>上传文档</button>
+        <div class="empty-hint">或点击右上角按钮新建文章 / 文件夹</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>两版取舍</b>
+  <ul>
+    <li><b>V1 行列表</b>：信息密度高、纵向扫视快，摘要单行通栏呈现——效率型目录</li>
+    <li><b>V2 卡片网格</b>：陈列感强、悬停命中面积大；与列表页 kb-grid 卡片语言同源，进库前后视觉一致；摘要两行截断</li>
+    <li>两版共用：Hero 锚点、根级文章置顶、组头徽标 + 延展细线、空库行动点</li>
+    <li>取舍核心只在「文章行的形态」——行 vs 卡片，信息架构完全一致</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -67,6 +67,17 @@ export function fmtTokens(n: number | undefined | null): string {
   return `${(n / 1000000).toFixed(1)}M`
 }
 
+/** 字数人性化：中文万进制（1.2 万），其他语言 k 分段（12.3k）——资料统计行与树节点共用 */
+export function formatWordCount(n: number | undefined | null): string {
+  if (!n || n <= 0) return '0'
+  if (i18n.global.locale.value === 'zh-CN') {
+    if (n < 10000) return String(n)
+    return `${(n / 10000).toFixed(1)} 万`
+  }
+  if (n < 1000) return String(n)
+  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`
+}
+
 /** 当前时刻 HH:MM（消息时间戳展示） */
 export function nowTimeStr(): string {
   const now = new Date()

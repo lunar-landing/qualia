@@ -45,5 +45,6 @@ export const http = {
   post: <T>(url: string, body?: unknown) => request<T>(url, jsonInit('POST', body)),
   postForm: <T>(url: string, form: FormData) => request<T>(url, { method: 'POST', body: form }),
   put: <T>(url: string, body?: unknown) => request<T>(url, jsonInit('PUT', body)),
+  patch: <T>(url: string, body?: unknown) => request<T>(url, jsonInit('PATCH', body)),
   delete: <T>(url: string) => request<T>(url, { method: 'DELETE' }),
 }

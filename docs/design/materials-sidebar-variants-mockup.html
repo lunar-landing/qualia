@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库侧边栏优化 · 三版本对比</title>
+<!--
+  资料库侧边栏（文章树栏）优化设计 · 三版本并排对比
+  ============================================================
+  规范依据：docs/design mockup 惯例（零依赖 / 日间默认 + 夜间切换 / 方案对比 + 推荐标注）
+  变量体系：石墨工程风格（对齐 workspace-browser-redesign.html 的 :root）
+
+  V1 静默精修（推荐）：现状布局上做增量——紧凑过滤框 + 选中左竖条 + 文件夹开合图标 + 树头按钮分组
+  V2 双段头：上传提为文字主按钮 + 过滤框独立成行（一级入口感）
+  V3 IDE 密度：行高压缩 34px + 文件夹文章数徽标 + 元信息弱化
+
+  可交互：三个版本的过滤框均可真实输入（文章命中自动展开祖先链 / 文件夹名命中整组保留 / 无匹配空态）；
+  文件夹可点击折叠展开；右上角切换日间/夜间。
+-->
+<style>
+:root {
+  --bg-app: #ffffff;
+  --bg-panel: #f6f8fa;
+  --bg-hover: #e9edf1;
+  --bg-active: #e4e9ee;
+  --bg-input: #f6f8fa;
+  --text-primary: #1f2328;
+  --text-secondary: #57657a;
+  --text-muted: #8c959f;
+  --border-color: #d0d7de;
+  --accent-light: #32383f;
+  --accent-ink: #ffffff;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+body.dark-theme {
+  --bg-app: #080a10;
+  --bg-panel: #0d1117;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(230, 237, 243, 0.10);
+  --bg-input: #0b0e14;
+  --text-primary: #e4e9f2;
+  --text-secondary: #8f97ae;
+  --text-muted: #4f566b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --accent-light: #f0f6fc;
+  --accent-ink: #0d1117;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  transition: background 0.2s ease, color 0.2s ease;
+  padding: 28px 32px 48px;
+}
+
+/* ===== 页头 ===== */
+.page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.page-head h1 { font-size: 19px; font-weight: 700; letter-spacing: 0.2px; }
+.page-head .sub { font-size: 12.5px; color: var(--text-secondary); }
+.theme-btn {
+  margin-left: auto; border: 1px solid var(--border-color); background: transparent;
+  color: var(--text-secondary); font-size: 12px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+}
+.theme-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.page-tip { font-size: 12px; color: var(--text-secondary); margin-bottom: 22px; }
+.page-tip b { color: var(--text-primary); font-weight: 600; }
+
+/* ===== 三列对比 ===== */
+.variants { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 1180px) { .variants { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+.variant-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.variant-head .vn { font-size: 14px; font-weight: 700; }
+.variant-head .vd { font-size: 11.5px; color: var(--text-secondary); }
+.badge-rec {
+  font-size: 10px; font-weight: 600; color: var(--accent-ink); background: var(--accent-light);
+  border-radius: 20px; padding: 2px 9px; letter-spacing: 1px;
+}
+
+/* ===== 侧边栏实例（264px 定宽，对齐产品 kb-tree-col） ===== */
+.sidebar {
+  width: 264px; border: 1px solid var(--border-color); border-radius: 12px;
+  background: var(--bg-panel); overflow: hidden;
+}
+.tree-head {
+  display: flex; align-items: center; gap: 7px; height: 48px; padding: 0 12px;
+  border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+.tree-head .bk { color: var(--text-secondary); font-size: 12px; }
+.tree-head .kb-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-head .spring { flex: 1; }
+.head-btn {
+  width: 26px; height: 26px; border: none; background: transparent; color: var(--text-secondary);
+  border-radius: 7px; cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.head-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.head-sep { width: 1px; height: 14px; background: var(--border-color); margin: 0 3px; flex-shrink: 0; }
+
+/* V2 双段头：上传文字主按钮 */
+.head-primary {
+  border: none; background: var(--accent-light); color: var(--accent-ink);
+  font-size: 11px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+}
+.head-primary:hover { opacity: 0.88; }
+
+/* ===== 过滤框（V1 紧凑嵌入 / V2 独立大行 / V3 同 V1） ===== */
+.filter-row { padding: 8px 10px; border-bottom: 1px solid var(--border-color); }
+.filter {
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px;
+  background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px;
+}
+.filter:focus-within { border-color: var(--text-muted); }
+.filter i { color: var(--text-muted); font-size: 10.5px; }
+.filter input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  color: var(--text-primary); font-size: 12px;
+}
+.filter input::placeholder { color: var(--text-muted); }
+.filter .esc {
+  font-family: var(--mono); font-size: 9px; color: var(--text-muted);
+  border: 1px solid var(--border-color); border-radius: 4px; padding: 1px 4px; flex-shrink: 0;
+}
+/* V2：过滤升级为主行（更高、无明显边框盒、大输入区） */
+.filter-row.hero { padding: 10px 12px; }
+.filter.hero { height: 38px; border-radius: 10px; font-size: 12.5px; }
+
+/* ===== 树区 ===== */
+.kb-tree { max-height: 460px; overflow-y: auto; padding: 6px; }
+.tree-row {
+  display: flex; align-items: center; gap: 8px; height: 40px; margin: 2px 0;
+  padding: 0 9px; border-radius: 8px; font-size: 12.5px; cursor: default; user-select: none;
+  position: relative;
+}
+/* V3：紧凑行 */
+.sidebar.v3 .tree-row { height: 34px; margin: 1px 0; font-size: 12px; border-radius: 7px; }
+.tree-row.file { cursor: pointer; }
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.on { background: var(--bg-active); }
+/* 选中左缘竖条（V1/V2/V3 共同设计点） */
+.tree-row.on::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px;
+  border-radius: 2px; background: var(--accent-light);
+}
+.sidebar.v3 .tree-row.on::before { top: 5px; bottom: 5px; }
+.caret { width: 12px; color: var(--text-secondary); font-size: 9px; flex-shrink: 0; text-align: center; }
+.fic { width: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }
+.nm { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.words { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-secondary); flex-shrink: 0; }
+.sidebar.v3 .words { font-size: 10px; color: var(--text-muted); }
+/* V3：文件夹文章数徽标 */
+.cnt-badge {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-secondary);
+  background: var(--bg-active); border-radius: 9px; padding: 1px 7px; flex-shrink: 0;
+}
+.row-acts { display: none; gap: 2px; margin-left: auto; flex-shrink: 0; }
+.tree-row:hover .row-acts { display: inline-flex; }
+.tree-row:hover .words, .tree-row:hover .cnt-badge { display: none; }
+.row-acts button {
+  width: 22px; height: 22px; border: none; background: none; color: var(--text-secondary);
+  cursor: pointer; border-radius: 6px; font-size: 10.5px;
+}
+.row-acts button:hover { background: var(--bg-active); color: var(--text-primary); }
+.tree-empty { padding: 28px 12px; text-align: center; font-size: 11.5px; color: var(--text-muted); }
+
+/* ===== 设计说明卡 ===== */
+.notes {
+  width: 264px; margin-top: 10px; border: 1px solid var(--border-color); border-radius: 10px;
+  padding: 12px 14px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.75;
+}
+.notes b { color: var(--text-primary); font-weight: 600; }
+.notes ul { list-style: none; }
+.notes li { padding-left: 14px; position: relative; margin: 3px 0; }
+.notes li::before { content: ''; position: absolute; left: 2px; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); }
+
+/* 页脚 */
+.page-foot { margin-top: 26px; font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>资料库侧边栏 · 三版本设计</h1>
+  <span class="sub">264px 文章树栏 · 石墨变量 · 日间默认</span>
+  <button class="theme-btn" onclick="document.body.classList.toggle('dark-theme')">切换夜间</button>
+</div>
+<p class="page-tip">三个版本的<b>过滤框均可真实输入</b>（试试「部署」或「spec」），文件夹可点击折叠；选中行统一带 <b>左缘竖条</b>，滚动跟随与折叠记忆为行为项不在视觉稿内。推荐 <b>V1</b>。</p>
+
+<div class="variants">
+  <section>
+    <div class="variant-head">
+      <span class="vn">V1 · 静默精修</span><span class="badge-rec">推荐</span>
+      <span class="vd">现状布局上的增量优化</span>
+    </div>
+    <div class="sidebar v1" data-variant="v1"></div>
+    <div class="notes">
+      <b>设计点</b>
+      <ul>
+        <li>树头下嵌 32px 紧凑过滤框：输入即过滤，命中文章自动展开祖先链</li>
+        <li>树头按钮分组：新建类（文件夹/文章）与上传之间细分隔线，语义分堆</li>
+        <li>选中行左缘 2px 墨色竖条 + bg-active，与 hover 拉开层次</li>
+        <li>文件夹展开态切换 fa-folder-open，开合有直接反馈</li>
+        <li>行高/密度/信息结构完全不动 —— 风险最小</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="variant-head">
+      <span class="vn">V2 · 双段头</span>
+      <span class="vd">上传提为文字主按钮</span>
+    </div>
+    <div class="sidebar v2" data-variant="v2"></div>
+    <div class="notes">
+      <b>设计点</b>
+      <ul>
+        <li>树头两段式：第一行库名 + 实底「上传」主按钮（最高频动作给最高权重）</li>
+        <li>第二行 38px 大过滤框，视觉上一级入口；Esc 清空</li>
+        <li>新建文件夹/文章收敛为过滤行右侧的「+」下拉（结构让位给过滤）</li>
+        <li>取舍：头部多占一行高度；实底按钮是全栏唯一重色，注意力锚点明确</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="variant-head">
+      <span class="vn">V3 · IDE 密度</span>
+      <span class="vd">紧凑行 + 文章数徽标</span>
+    </div>
+    <div class="sidebar v3" data-variant="v3"></div>
+    <div class="notes">
+      <b>设计点</b>
+      <ul>
+        <li>行高 40→34px、间距减半、字号 12px：同屏多显约 15% 条目</li>
+        <li>文件夹行右侧文章数徽标（mono 圆角块），结构一目了然</li>
+        <li>字数弱化为 muted 色——名称是主信息，元信息退后</li>
+        <li>取舍：密度接近 IDE 文件树，但与产品其余 40px 行节奏有落差</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<div class="page-foot">
+  共同基线：40px 树行（V3 除外）· hover 让位行内操作（打开/重命名/删除）· 空文件夹弱化行 · 过滤为纯前端本地计算，零接口。<br>
+  行为项（不在视觉稿）：过滤命中自动滚动到首个命中行 · 选中行 scrollIntoView 跟随 · 折叠状态按「库 + 路径」记忆于 store。
+</div>
+
+<script>
+// ===== 示例树数据（文件夹 children 为 null 表示未加载无子级的空组不出现；此为静态示例） =====
+const TREE = [
+  { type: 'file', name: '快速开始.md', words: 487 },
+  { type: 'folder', name: 'guide', children: [
+    { type: 'file', name: '部署指南.md', words: 308 },
+    { type: 'file', name: '常见问题.md', words: 218 },
+    { type: 'file', name: 'release-notes.md', words: 152 },
+  ]},
+  { type: 'folder', name: 'specs', children: [
+    { type: 'file', name: '资料库设计规范.md', words: 452 },
+    { type: 'file', name: '编辑器交互约定.md', words: 287 },
+  ]},
+  { type: 'file', name: '系统架构总览.md', words: 678 },
+  { type: 'folder', name: 'notes', children: [
+    { type: 'file', name: '头脑风暴.md', words: 96 },
+  ]},
+]
+const SELECTED = 'specs/资料库设计规范.md'
+
+// ===== 渲染：三个实例共用一套树渲染，差异由 variant 配置驱动 =====
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;') }
+
+function rowHtml(node, depth, opts) {
+  const isFolder = node.type === 'folder'
+  const open = isFolder && (opts.forceOpen || (opts.openMap.get(node.name) ?? depth === 0))
+  const on = !isFolder && node.path === SELECTED
+  const pad = 9 + depth * 20
+  let right = ''
+  if (isFolder && opts.variant === 'v3') {
+    right = `<span class="cnt-badge">${node.children.length}</span>`
+  } else if (!isFolder && node.words) {
+    right = `<span class="words">${node.words}</span>`
+  }
+  const icon = isFolder ? (open ? 'fa-folder-open' : 'fa-folder') : 'fa-file-lines'
+  return `<div class="tree-row ${isFolder ? '' : 'file'} ${on ? 'on' : ''}" style="padding-left:${pad}px" data-name="${esc(node.name)}" data-path="${esc(node.path || node.name)}">
+    <i class="caret fas ${isFolder ? (open ? 'fa-chevron-down' : 'fa-chevron-right') : ''}"></i>
+    <i class="fic fas ${icon}"></i>
+    <span class="nm" title="${esc(node.name)}">${esc(node.name)}</span>
+    ${right}
+    <span class="row-acts">
+      ${isFolder ? '' : '<button title="打开"><i class="far fa-eye"></i></button>'}
+      <button title="重命名"><i class="fas fa-pen"></i></button>
+      <button title="删除" style="color:inherit"><i class="fas fa-trash-alt"></i></button>
+    </span>
+  </div>`
+}
+
+function renderTree(nodes, depth, opts) {
+  let html = ''
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      const open = opts.openMap.get(node.name) ?? depth === 0
+      html += rowHtml(node, depth, opts)
+      if (open) html += renderTree(node.children, depth + 1, opts)
+    } else {
+      html += rowHtml(node, depth, opts)
+    }
+  }
+  return html
+}
+
+// 过滤：返回过滤后的树（文章名/路径命中保留 + 祖先链；文件夹名命中整组保留）；null 表示无关键词
+function filterTree(nodes, kw) {
+  if (!kw) return null
+  const hit = (n) => n.name.toLowerCase().includes(kw)
+  const walk = (list) => {
+    const out = []
+    for (const n of list) {
+      if (n.type === 'file') { if (hit(n)) out.push(n); continue }
+      if (hit(n)) { out.push(n); continue }           // 文件夹名命中 → 整组保留
+      const kids = walk(n.children)
+      if (kids.length) out.push({ ...n, children: kids })  // 子级命中 → 保留文件夹（自动展开）
+    }
+    return out
+  }
+  return walk(nodes)
+}
+
+document.querySelectorAll('.sidebar').forEach((sb) => {
+  const variant = sb.dataset.variant
+  const openMap = new Map()
+  const opts = { variant, openMap }
+
+  // 头部：V2 双段头（上传主按钮 + 新建收敛为单个 + 下拉示意），V1/V3 现状头 + 分组分隔线
+  const headV1 = `<div class="tree-head">
+    <i class="fas fa-book-open bk"></i><span class="kb-name">产品知识库</span><span class="spring"></span>
+    <button class="head-btn" title="新建文件夹"><i class="fas fa-folder-plus"></i></button>
+    <button class="head-btn" title="新建文章"><i class="fas fa-file-circle-plus"></i></button>
+    <span class="head-sep"></span>
+    <button class="head-btn" title="上传 · 支持多选"><i class="fas fa-arrow-up-from-bracket"></i></button>
+  </div>`
+  const headV2 = `<div class="tree-head">
+    <i class="fas fa-book-open bk"></i><span class="kb-name">产品知识库</span><span class="spring"></span>
+    <button class="head-btn" title="新建（文件夹 / 文章）"><i class="fas fa-plus"></i></button>
+    <button class="head-primary"><i class="fas fa-arrow-up-from-bracket"></i>上传</button>
+  </div>`
+  const filterCls = variant === 'v2' ? 'filter hero' : 'filter'
+  const filterRow = `<div class="filter-row ${variant === 'v2' ? 'hero' : ''}">
+    <label class="${filterCls}">
+      <i class="fas fa-magnifying-glass"></i>
+      <input type="text" placeholder="过滤文章…" />
+      <span class="esc">Esc</span>
+    </label>
+  </div>`
+
+  sb.innerHTML = (variant === 'v2' ? headV2 : headV1) + filterRow + '<div class="kb-tree"></div>'
+  const treeEl = sb.querySelector('.kb-tree')
+  const input = sb.querySelector('input')
+
+  function repaint() {
+    const kw = input.value.trim().toLowerCase()
+    const filtered = filterTree(TREE, kw)
+    const list = filtered ?? TREE
+    opts.forceOpen = !!kw // 过滤命中时全部强制展开（含深层文件夹），否则命中的深层子级不可见
+    if (kw && list.length === 0) {
+      treeEl.innerHTML = '<div class="tree-empty">无匹配文章</div>'
+      return
+    }
+    treeEl.innerHTML = renderTree(list, 0, opts)
+  }
+  input.addEventListener('input', repaint)
+
+  // 文件夹点击折叠/展开（事件委托；以行上当前 caret 态取反，与渲染默认一致）
+  sb.addEventListener('click', (e) => {
+    const row = e.target.closest('.tree-row')
+    if (!row) return
+    const caret = row.querySelector('.caret')
+    if (!caret || !caret.classList.contains('fas')) return
+    const key = row.dataset.path
+    openMap.set(key, !caret.classList.contains('fa-chevron-down'))
+    repaint()
+  })
+
+  repaint()
+})
+</script>
+</body>
+</html>

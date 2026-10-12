@@ -3,6 +3,9 @@ package cn.lunarlanding.qualia.code.service;
 import cn.lunarlanding.qualia.code.CodeAgentConfig;
 import cn.lunarlanding.qualia.code.CodeAgentMcpServerConfig;
 import cn.lunarlanding.qualia.code.CodeAgentModelConfig;
+import cn.lunarlanding.qualia.code.tool.MaterialListTool;
+import cn.lunarlanding.qualia.code.tool.MaterialReadTool;
+import cn.lunarlanding.qualia.code.tool.MaterialTreeTool;
 import cn.lunarlanding.qualia.core.agent.CallOptions;
 import cn.lunarlanding.qualia.core.agent.HarnessAgent;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
@@ -47,6 +50,16 @@ public class ChatService {
 
     /** 全局技能目录（~/.qualia/code/skills），所有工作区共享 */
     private static final Path GLOBAL_SKILLS_DIR = CodeAgentConfig.GLOBAL_SKILLS_DIR;
+
+    /**
+     * 资料库工具使用指引（追加到系统提示词）。刻意不含库清单快照：
+     * 库随时增删，发现动作交给 material_list，避免提示词过期误导模型。
+     */
+    private static final String MATERIAL_GUIDE = "\n\n## 资料库\n"
+            + "可使用 material_* 工具查阅本机资料库（wiki 式目录 + 整篇文章，不切块）：\n"
+            + "material_list 发现库 → material_tree 浏览目录 → material_read 整篇阅读。\n"
+            + "当用户提及「资料 / 文档 / wiki」、询问既有约定，或任务需要背景知识时，"
+            + "优先检索资料库再回答；引用内容时注明来源文章路径。";
 
     private static ChatService instance;
 
@@ -200,6 +213,7 @@ public class ChatService {
                 logger.warn("读取全局 AGENT.md 失败，保持工作区/默认提示词", e);
             }
         }
+        registerMaterialTools();
         disableTools();
         loadGlobalSkills();
         connectMcpServers();
@@ -312,8 +326,21 @@ public class ChatService {
     }
 
     /**
-     * 根据配置禁用工具
+     * 注册资料库只读检索工具（material_list / material_tree / material_read），
+     * 并在系统提示词追加使用指引。须在 disableTools() 之前调用，
+     * 使既有 disabledTools 配置对 material_* 同样生效；三工具均 isReadOnly，
+     * 只读问答模式自动保留。写入工具（material_write）为后续项。
      */
+    private void registerMaterialTools() {
+        MaterialService materials = MaterialService.getInstance();
+        agent.addTool(new MaterialListTool(materials));
+        agent.addTool(new MaterialTreeTool(materials));
+        agent.addTool(new MaterialReadTool(materials));
+        agent.setSystemPrompt(agent.getSystemPrompt() + MATERIAL_GUIDE);
+        logger.info("资料库工具已注册（material_list / material_tree / material_read）");
+    }
+
+    /** 根据配置禁用工具 */
     private void disableTools() {
         Set<String> disabledTools = new HashSet<>(config.getDisabledTools());
         if (disabledTools.isEmpty()) {

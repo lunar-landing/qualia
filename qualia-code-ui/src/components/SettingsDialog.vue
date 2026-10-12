@@ -44,6 +44,7 @@ const PROVIDER_DOT_CLASS: Record<string, string> = {
 const TOOL_ICONS: Record<string, string> = {
   read: 'RD', grep: 'GP', glob: 'GL', replace: 'RW', write: 'WR',
   delete_file: 'DF', bash: 'SH', web_fetch: 'WF', baidu_search: 'BS', http: 'HT',
+  material_list: 'ML', material_tree: 'MT', material_read: 'MR',
 }
 const CATEGORY_LABELS: Record<string, string> = {
   file: 'settings.categoryFile',

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useSessionStore } from '@/stores/session'
 import { usePreviewStore } from '@/stores/preview'
 import { rawFileUrl, readFileContent, revealWorkspaceFile } from '@/api/config'
 import { useTheme } from '@/composables/theme'
@@ -55,7 +56,7 @@ async function reload() {
   if (isFile.value) {
     reloading.value = true
     try {
-      const res = await readFileContent(preview.path)
+      const res = await readFileContent(preview.path, useSessionStore().currentSessionId)
       if (res.type === 'text') {
         const content = String(res.content ?? '')
         preview.openHtml(
@@ -76,7 +77,7 @@ async function reload() {
 async function revealFolder() {
   if (!preview.path) return
   try {
-    await revealWorkspaceFile(preview.path)
+    await revealWorkspaceFile(preview.path, useSessionStore().currentSessionId)
   } catch {
     // 后端报错（未选工作区/路径越界）静默
   }
@@ -84,7 +85,7 @@ async function revealFolder() {
 
 /** 系统浏览器打开：文件走 raw 字节端点，网页走原 URL */
 function openExternal() {
-  window.open(isFile.value ? rawFileUrl(preview.path) : preview.url)
+  window.open(isFile.value ? rawFileUrl(preview.path, useSessionStore().currentSessionId) : preview.url)
 }
 
 /** 复制路径/链接，按钮短暂显示对勾反馈 */

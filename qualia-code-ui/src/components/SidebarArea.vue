@@ -4,31 +4,19 @@ import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/theme'
 import { useChatView } from '@/composables/chatView'
 import { setLocale } from '@/i18n'
-import { useWorkspaceStore } from '@/stores/workspace'
-import { useChatStore } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
 import ConversationList from '@/components/ConversationList.vue'
-import FileTree from '@/components/FileTree.vue'
 import TokenHeatmap from '@/components/TokenHeatmap.vue'
 
-const emit = defineEmits<{ openSettings: []; openSwitcher: [] }>()
+const emit = defineEmits<{ openSettings: [] }>()
 
-const ws = useWorkspaceStore()
-const chat = useChatStore()
 const sessionStore = useSessionStore()
 const { isLight, toggleTheme } = useTheme()
 const { view: chatView, toggleView: toggleChatView } = useChatView()
 const { t, locale } = useI18n()
 
-const wsName = computed(() => ws.current?.name ?? t('sidebar.workspace'))
-const wsPath = computed(() => ws.current?.path ?? t('sidebar.pathLoading'))
 /** 会话搜索展开态：入口钮在本组件 header，搜索框与过滤在 ConversationList 内 */
 const sessionSearch = ref(false)
-
-/** 流式期间切换入口置灰（当前会话或任意后台会话进行中都算） */
-const wsDisabled = computed(
-  () => ws.streaming || (sessionStore.currentSessionId ? chat.isProcessing(sessionStore.currentSessionId) : false),
-)
 
 /** 设置悬浮菜单：点设置钮弹出右侧浮层，点「系统设置」才真正开弹窗（为后续设置入口扩展留位） */
 const flyoutOpen = ref(false)
@@ -135,41 +123,10 @@ onBeforeUnmount(() => {
       <span>Qualia Code</span>
     </div>
 
-    <!-- 工作区切换入口：流式期间置灰（点击拦截，对齐旧 openWorkspaceSwitcher 兜底检查） -->
-    <button
-      class="ws-switch-btn"
-      :class="{ disabled: wsDisabled }"
-      :title="t('sidebar.switchWorkspace')"
-      @click="!wsDisabled && emit('openSwitcher')"
-    >
-      <span class="ws-switch-icon"><i class="fas fa-folder-tree"></i></span>
-      <span class="ws-switch-info">
-        <span class="ws-switch-name">{{ wsName }}</span>
-        <span class="ws-switch-path">{{ wsPath }}</span>
-      </span>
-      <i class="fas fa-chevron-down ws-switch-arrow"></i>
-    </button>
-
-    <!-- 顶部视图切换：会话历史 / 工作区文件树（渐变滑轨，右侧按钮随视图切换） -->
+    <!-- 顶部 header：标题 + 操作钮组（搜索 / 新建；文件树在工作区面板，侧栏为纯全局会话库） -->
     <div class="sidebar-header">
-      <!-- 渐变滑轨：端点固定双视图图标，滑块携带激活图标滑向当前侧（二态开关语义） -->
-      <button
-        class="side-rail"
-        :class="{ 'is-files': ws.sidebarView === 'files' }"
-        role="switch"
-        :aria-checked="ws.sidebarView === 'files'"
-        :title="t('sidebar.toggleView')"
-        @click="ws.switchSidebarView(ws.sidebarView === 'sessions' ? 'files' : 'sessions')"
-      >
-        <span class="side-rail-end side-rail-l"><i class="far fa-comment-dots"></i></span>
-        <span class="side-rail-end side-rail-r"><i class="fas fa-folder-open"></i></span>
-        <span class="side-rail-thumb">
-          <i class="far fa-comment-dots side-rail-s"></i>
-          <i class="fas fa-folder-open side-rail-f"></i>
-        </span>
-      </button>
-      <!-- 右侧操作钮组：包成一组避免 space-between 把搜索钮推到行中 -->
-      <span v-if="ws.sidebarView === 'sessions'" class="header-acts">
+      <span class="sidebar-title">{{ t('sidebar.sessionsTitle') }}</span>
+      <span class="header-acts">
         <button
           :class="{ on: sessionSearch }"
           :title="t('sidebar.searchSessions')"
@@ -181,22 +138,11 @@ onBeforeUnmount(() => {
           <i class="fas fa-plus"></i>
         </button>
       </span>
-      <button v-else :title="t('wsPanel.refreshFiles')" @click="ws.loadFileTree().catch(() => undefined)">
-        <i class="fas fa-sync-alt"></i>
-      </button>
     </div>
 
-    <!-- 会话历史：仅会话视图显示（含热力矩阵与底部间距） -->
-    <template v-if="ws.sidebarView === 'sessions'">
-      <ConversationList :search-open="sessionSearch" @close-search="sessionSearch = false" />
-
-      <!-- 近 30 日 token 用量热力矩阵（无数据/接口失败整块隐藏） -->
-      <TokenHeatmap />
-    </template>
-    <!-- 文件树：懒加载子目录，点击文件由工作区面板以整面板层预览 -->
-    <div v-else class="side-files">
-      <FileTree :active-path="ws.previewFile?.path" @open="ws.openFilePreview($event)" />
-    </div>
+    <!-- 全局会话库（工作区分组）+ 近 30 日 token 用量热力矩阵 -->
+    <ConversationList :search-open="sessionSearch" @close-search="sessionSearch = false" />
+    <TokenHeatmap />
 
     <div class="sidebar-footer">
       <div class="settings-anchor" ref="anchorRef">

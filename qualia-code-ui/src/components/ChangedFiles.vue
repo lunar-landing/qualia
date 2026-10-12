@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useSessionStore } from '@/stores/session'
 import { usePreviewStore } from '@/stores/preview'
 import { readFileContent } from '@/api/config'
 import { useTheme } from '@/composables/theme'
@@ -61,7 +62,7 @@ async function open(f: ChangedFile) {
     return
   }
   try {
-    const res = await readFileContent(f.path)
+    const res = await readFileContent(f.path, useSessionStore().currentSessionId)
     if (res.type === 'text') {
       const content = String(res.content ?? '')
       // 第三参传文件语义路径：浏览器 Tab 地址栏显示面包屑并解锁 reveal 等文件动作

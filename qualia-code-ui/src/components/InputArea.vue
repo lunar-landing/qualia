@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
 import { useConfigStore } from '@/stores/config'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { useChatStream, tryConsumeQueue } from '@/composables/useChatStream'
 import { uploadAttachment } from '@/api/attachment'
+import { getContextInfo } from '@/api/chat'
 import { rewriteSkillMessage, joinSkillNames } from '@/utils/skillSlash'
-import { docIconMeta, formatBytes } from '@/utils/format'
+import { docIconMeta, formatBytes, relTime } from '@/utils/format'
 import ModelSelector from '@/components/ModelSelector.vue'
 import ModeSelector from '@/components/ModeSelector.vue'
+import ContextMeter from '@/components/ContextMeter.vue'
 import QueuedPanel from '@/components/QueuedPanel.vue'
-import type { PendingAttachment, SkillInfo } from '@/types'
+import type { ContextInfo, PendingAttachment, SkillInfo } from '@/types'
 
 const MAX_ATTACHMENTS = 4
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -21,6 +24,7 @@ const { t, locale } = useI18n()
 
 const sessionStore = useSessionStore()
 const chat = useChatStore()
+const ws = useWorkspaceStore()
 const { send, stop } = useChatStream()
 
 const sid = computed(() => sessionStore.currentSessionId)
@@ -53,6 +57,107 @@ function autoResize() {
 
 const configStore = useConfigStore()
 
+// ===== 上下文视图数据：只读信号条（ContextMeter）消费（切会话即拉取；流收尾 processing 边沿刷新） =====
+const ctx = ref<ContextInfo | null>(null)
+async function refreshCtx() {
+  if (!sid.value) {
+    ctx.value = null
+    return
+  }
+  try {
+    ctx.value = await getContextInfo(sid.value)
+  } catch {
+    /* 静默：状态条取数失败不提示 */
+  }
+}
+watch(sid, refreshCtx, { immediate: true })
+watch(processing, (now, prev) => {
+  if (prev && !now) refreshCtx()
+})
+
+// ===== 工作区 chip（唯一设置入口）：下拉完成最近打开/移除，浏览更多才开选择弹窗 =====
+/** 当前会话工作区（ws store 镜像；无会话视同未设置） */
+const bound = computed(() => (sid.value ? ws.current : null))
+/** 锁定：已产生对话（后端 locked 标记，无论是否绑定）——chip 只读，不再弹菜单 */
+const locked = computed(() => !!sessionStore.currentSession?.locked)
+const bindMenuOpen = ref(false)
+const bindHold = ref<HTMLElement | null>(null)
+/** 请求进行中（快速绑定/移除共用） */
+const binding = ref(false)
+
+function toggleBindMenu() {
+  if (processing.value || locked.value) return
+  bindMenuOpen.value = !bindMenuOpen.value
+  // 打开即拉取最近打开列表（轻量幂等；失败静默，列表区留空不影响浏览入口）
+  if (bindMenuOpen.value) void ws.refresh().catch(() => {})
+}
+
+/** 最近打开列表（方案 A）：当前项置顶可见（勾选+使用中徽标），其余按最近顺序；上限 5 */
+const recentQuick = computed(() => {
+  const curPath = ws.current?.path ?? ''
+  const cur = curPath.toLowerCase()
+  const items = ws.recent.filter((it) => it.exists !== false)
+  // 当前项不在历史中（如启动后直接来自会话绑定）时补一条合成条目，保证「当前在哪」始终可见
+  const head = curPath && !items.some((it) => it.path.toLowerCase() === cur)
+    ? [{ path: curPath, name: ws.current!.name, lastOpened: new Date().toISOString() }]
+    : []
+  const ordered = [
+    ...items.filter((it) => it.path.toLowerCase() === cur),
+    ...items.filter((it) => it.path.toLowerCase() !== cur),
+  ]
+  return [...head, ...ordered].slice(0, 5)
+})
+
+function isCurrent(path: string): boolean {
+  return path.toLowerCase() === (ws.current?.path ?? '').toLowerCase()
+}
+
+/** 快速绑定最近项目：无会话先静默创建；409 等错误 alert 透传（对齐 unbind） */
+async function pickRecent(path: string) {
+  if (binding.value) return
+  binding.value = true
+  try {
+    if (!sid.value) await sessionStore.createSession()
+    await sessionStore.bindSession(sessionStore.currentSessionId!, path)
+    bindMenuOpen.value = false
+  } catch (e) {
+    alert(e instanceof Error ? e.message : String(e))
+  } finally {
+    binding.value = false
+  }
+}
+
+/** 浏览更多：打开绑定选择弹窗（App 层渲染 WorkspaceSwitcher），关闭本菜单 */
+function openPicker() {
+  bindMenuOpen.value = false
+  ws.openPicker()
+}
+
+/** 移除工作区：删 binding.json 回未设置态（流式 409 由后端裁决，alert 透传原因） */
+async function unbind() {
+  if (!sid.value || binding.value) return
+  binding.value = true
+  try {
+    await sessionStore.bindSession(sid.value, null)
+    bindMenuOpen.value = false
+  } catch (e) {
+    alert(e instanceof Error ? e.message : String(e))
+  } finally {
+    binding.value = false
+  }
+}
+
+// document 级点击关闭：chip/菜单内部点击忽略（对齐 ModelSelector 委托模式）
+function onDocClick(e: MouseEvent) {
+  if (!bindMenuOpen.value) return
+  const el = e.target as Element
+  if (bindHold.value?.contains(el) || el.closest('.bind-menu')) return
+  bindMenuOpen.value = false
+}
+
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+
 /** 已选技能（菜单采纳后以 chip 列表展示，可多选；发送时组装改写指令） */
 const selectedSkills = ref<SkillInfo[]>([])
 
@@ -80,7 +185,9 @@ function acceptSlash(s: SkillInfo) {
     selectedSkills.value.push(s)
   }
   input.value = ''
-  autoResize()
+  // 清空是程序赋值不触发 input 事件，且此刻 v-model 尚未刷到 DOM，
+  // 同步量高会读到旧多行文本把高度撑回去；等 DOM 更新后再收缩
+  nextTick(autoResize)
   textareaEl.value?.focus()
 }
 
@@ -158,12 +265,12 @@ function doSend() {
   void send(text, attachments).then(() => textareaEl.value?.focus())
 }
 
-/** 发送/入队后统一清空草稿（对齐旧版：视觉即时反馈，流状态由 useChatStream 管理） */
+/** 发送/入队后统一清空草稿（对齐旧版：视觉即时反馈，流状态由 useChatStream 管理）；高度收缩等 v-model 刷到 DOM 后再量 */
 function clearDraft() {
   input.value = ''
   selectedSkills.value = []
   pending.value = []
-  autoResize()
+  nextTick(autoResize)
 }
 
 /** 入队后释放 blob 预览：队列条目只留上传回执元数据，objectUrl 不再被引用（发送走服务端附件） */
@@ -314,6 +421,45 @@ function onFileChange() {
         <div class="slash-foot">{{ t('input.slashHint') }}</div>
       </div>
       <div class="input-tools">
+        <!-- 工作区 chip：未绑定时虚线描边显示「沙箱」（当前状态），点击下拉可选绑定；已绑定实底项目名 -->
+        <div ref="bindHold" class="bind-hold">
+          <button
+            type="button"
+            class="bind-chip"
+            :class="{ bound: !!bound, open: bindMenuOpen, locked: locked, disabled: processing }"
+            :title="locked ? t('input.lockedTip') : (bound ? bound.path : t('input.bindTitle'))"
+            @click="toggleBindMenu"
+          >
+            <i class="fas" :class="bound ? 'fa-folder-open' : 'fa-folder-plus'"></i>
+            <span class="bc-name">{{ bound ? bound.name : t('input.chipNone') }}</span>
+          </button>
+          <div v-if="bindMenuOpen" class="bind-menu">
+            <!-- 最近打开（方案 A）：当前项置顶可见，点其他项即切换，移除弱化沉底 -->
+            <template v-if="recentQuick.length">
+              <div class="bm-label">{{ t('input.recentWorkspaces') }}</div>
+              <div
+                v-for="it in recentQuick"
+                :key="it.path"
+                class="bm-item"
+                :class="{ current: isCurrent(it.path), recent: !isCurrent(it.path) }"
+                :title="it.path"
+                @click="!isCurrent(it.path) && pickRecent(it.path)"
+              >
+                <i class="fas" :class="isCurrent(it.path) ? 'fa-check' : 'fa-folder'"></i>
+                <span class="bm-name">{{ it.name }}</span>
+                <span v-if="isCurrent(it.path)" class="cur-tag">{{ t('switcher.inUse') }}</span>
+                <span v-else class="bm-time">{{ relTime(it.lastOpened) }}</span>
+              </div>
+            </template>
+            <div class="bm-sep"></div>
+            <button type="button" class="bm-item" @click="openPicker">
+              <i class="fas fa-folder-plus"></i><span>{{ t('input.browseMore') }}</span>
+            </button>
+            <button v-if="bound" type="button" class="bm-item muted" :disabled="binding" @click="unbind">
+              <i class="fas fa-link-slash"></i><span>{{ t('input.unbind') }}</span>
+            </button>
+          </div>
+        </div>
         <button
           class="tool-btn"
           :title="t('input.attachTitle')"
@@ -321,6 +467,7 @@ function onFileChange() {
         >
           <i class="fas fa-paperclip"></i>
         </button>
+        <ContextMeter :info="ctx" />
         <ModelSelector />
         <ModeSelector />
         <!-- 生成期间切换为红色停止态（仅断开前端流） -->

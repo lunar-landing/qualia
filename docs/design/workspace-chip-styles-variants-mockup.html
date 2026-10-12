@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作区 chip · 沙箱/绑定两态样式方案</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root {
+    --bg-app: #f4f5f7;
+    --bg-surface: #ffffff;
+    --bg-hover: #eef0f3;
+    --bg-active: #e9ebee;
+    --border: #e3e6ea;
+    --border-strong: #d4d8de;
+    --text-1: #1e2229;
+    --text-2: #4b5260;
+    --text-3: #8a91a0;
+    --accent: #17191d;
+    --accent-ink: #ffffff;
+    --ok: #2da44e;
+    --warn: #b45309;
+    --warn-soft: rgba(217, 119, 6, 0.4);
+    --mono: ui-monospace, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; }
+  .page-head p { color: var(--text-3); font-size: 12.5px; margin-top: 4px; }
+
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-2); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    margin-bottom: 8px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+  .sec-sub { font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
+
+  .layout { display: flex; gap: 24px; align-items: flex-start; }
+  .stage {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .meta { flex: 1; min-width: 280px; font-size: 12.5px; color: var(--text-2); }
+  .meta h5 { font-size: 12px; color: var(--text-1); margin: 14px 0 4px; }
+  .meta h5:first-child { margin-top: 0; }
+  .meta ul { padding-left: 18px; }
+  .meta li { margin-bottom: 3px; }
+  .meta .good { color: var(--ok); }
+  .meta .bad { color: #b35900; }
+
+  .state-label { font-size: 10.5px; color: var(--text-3); letter-spacing: 0.5px; margin-bottom: -8px; }
+
+  /* ===== 输入框工具行（真实场景还原） ===== */
+  .demo-wrap {
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-strong);
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(30, 34, 41, 0.06);
+    width: 430px;
+  }
+  .demo-textarea { padding: 13px 15px 4px; min-height: 34px; font-size: 13.5px; color: var(--text-3); }
+  .demo-tools { display: flex; align-items: center; gap: 4px; padding: 4px 9px 9px 11px; }
+  .tool-ghost {
+    width: 30px; height: 30px; border: none; border-radius: 9px;
+    background: transparent; color: var(--text-3); font-size: 13.5px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .send-btn {
+    width: 32px; height: 32px; margin-left: auto;
+    border: none; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink); font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+
+  /* ===== 方案 A：状态色语义 ===== */
+  .a-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 10px;
+    border-radius: 8px;
+    font-size: 11.5px; cursor: pointer;
+    background: transparent;
+  }
+  .a-sandbox { border: 1px dashed var(--warn-soft); color: var(--warn); }
+  .a-bound { border: none; color: var(--text-2); }
+  .a-bound .adot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 1px; }
+  .a-locked { border: none; color: var(--text-3); opacity: 0.6; cursor: not-allowed; }
+  .a-locked i.fa-lock { font-size: 9px; }
+
+  /* ===== 方案 B：胶囊徽章 ===== */
+  .b-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 11px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: 0.8px;
+    cursor: pointer;
+  }
+  .b-sandbox { border: 1px solid var(--border-strong); color: var(--text-3); background: transparent; }
+  .b-sandbox .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+  .b-bound { border: none; background: var(--accent); color: var(--accent-ink); }
+  .b-bound .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .b-locked { border: none; background: var(--bg-active); color: var(--text-3); cursor: not-allowed; opacity: 0.75; }
+  .b-locked .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+  .b-locked i.fa-lock { font-size: 9px; }
+
+  /* ===== 方案 C：纯文本流 ===== */
+  .c-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 26px; padding: 0 8px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    cursor: pointer;
+    border: none; background: transparent;
+  }
+  .c-sandbox { color: var(--text-3); font-style: italic; }
+  .c-bound { color: var(--text-1); font-weight: 550; }
+  .c-bound::before {
+    content: '';
+    width: 2.5px; height: 12px; border-radius: 2px;
+    background: #4c7dbe;
+  }
+  .c-locked { color: var(--text-3); cursor: not-allowed; }
+  .c-locked::before {
+    content: '';
+    width: 2.5px; height: 12px; border-radius: 2px;
+    background: var(--border-strong);
+  }
+  .c-locked .lk { font-size: 9.5px; color: var(--text-3); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: 0.8px; color: var(--text-3); font-weight: 650; }
+  td b { color: var(--text-1); }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 650; border-radius: 999px; padding: 2px 10px; margin-right: 6px; }
+  .tag.a { background: #fff3e0; color: var(--warn); }
+  .tag.b { background: #eef0f3; color: var(--text-2); }
+  .tag.c { background: #e8f0fe; color: #1a56c4; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>工作区 chip 两态样式 · 三版方案</h1>
+  <p>沙箱态（未绑定，文件改动落在会话目录）与绑定态（已锚定项目）的样式语言。三版均保留交互不变：点击弹下拉（最近打开/浏览更多/移除），锁定后只读。日间 · 石墨工程</p>
+</div>
+
+<!-- ============ A ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag a">方案 A</span> 状态色语义 <small>琥珀=未锚定 · 绿点=已锚定</small></div>
+  <div class="sec-sub">颜色直接表达「文件去哪了」：琥珀虚线 = 改动在会话目录（未锚定），绿点 = 已锚定项目。无需读字即知状态。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="state-label">沙箱态（未绑定）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="a-chip a-sandbox"><i class="fas fa-folder-plus"></i><span>沙箱</span></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">绑定态</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="a-chip a-bound"><span class="adot"></span><span class="adot" style="display:none"></span><i class="fas fa-folder-open" style="font-size:11px;color:var(--text-3)"></i><span>qualia</span></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">锁定态（已对话）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="a-chip a-locked"><i class="fas fa-folder-open"></i><span>qualia</span><i class="fas fa-lock"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>设计要点</h5>
+      <ul>
+        <li>沙箱态：琥珀色虚线 + folder-plus，警示「改动未锚定到项目」</li>
+        <li>绑定态：无边框，绿点（锚定安全）+ folder-open + 项目名灰字</li>
+        <li>锁定态：灰化 + 行尾小锁，悬停提示原因</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 状态零成本可读——扫一眼颜色就知道文件去向</li>
+        <li class="good">＋ 锁定态的锁图标语义直白</li>
+        <li class="bad">－ 引入琥珀/绿两个语义色，工具行色彩比现在丰富</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag b">方案 B</span> 胶囊徽章 <small>mono 大写 · 终端工具感</small></div>
+  <div class="sec-sub">chip 做成小胶囊徽章：等宽字体大写 + 状态圆点，绑定态反白实底——与终端风格视图同语言。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="state-label">沙箱态（未绑定）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="b-chip b-sandbox"><span class="bdot"></span>SANDBOX</button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">绑定态</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="b-chip b-bound"><span class="bdot"></span>QUALIA</button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">锁定态（已对话）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="b-chip b-locked"><span class="bdot"></span>QUALIA <i class="fas fa-lock"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>设计要点</h5>
+      <ul>
+        <li>沙箱态：灰描边透明胶囊 + 灰点，大写 SANDBOX（等宽宽字距）</li>
+        <li>绑定态：近黑实底胶囊反白（与发送按钮同体系），绿点 = 锚定</li>
+        <li>锁定态：灰底胶囊 + 锁图标，不可点</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 工具感/极客感最强，绑定态存在感清晰（实底胶囊）</li>
+        <li class="good">＋ 大写 mono 与终端 tab / 状态栏语言统一</li>
+        <li class="bad">－ 中文环境里大写英文徽章混排（SANDBOX/QUALIA）可能显突兀</li>
+        <li class="bad">－ 实底胶囊在工具行里视觉偏重</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag c">方案 C</span> 纯文本流 <small>无框无图标 · 最轻表达</small></div>
+  <div class="sec-sub">chip 退化为一段状态文字：沙箱态斜体灰字，绑定态项目色条 + 项目名。靠字重与色条区分，几乎零视觉重量。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="state-label">沙箱态（未绑定）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="c-chip c-sandbox"><span>沙箱（未绑定）</span></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">绑定态</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="c-chip c-bound"><span>qualia</span></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <div class="state-label">锁定态（已对话）</div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="c-chip c-locked"><span>qualia</span><i class="fas fa-lock lk"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>设计要点</h5>
+      <ul>
+        <li>沙箱态：斜体灰字「沙箱（未绑定）」，无图标无框，hover 才浮背景提示可点</li>
+        <li>绑定态：2.5px 项目色条（哈希色）+ 项目名中字重——像编辑器文件标记</li>
+        <li>锁定态：色条灰化 + 小锁后缀</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 视觉重量最轻，工具行只剩一行纯净图标</li>
+        <li class="good">＋ 项目色条可顺带做多项目区分（每项目一色）</li>
+        <li class="bad">－ 可点击感知最弱，新用户可能不知道 chip 能点</li>
+        <li class="bad">－ 斜体中文渲染在部分字体下发虚</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 对比 ============ -->
+<div class="sec">
+  <div class="sec-title">方案对比 <small>交互三版一致：点击弹下拉 · 锁定只读 · 悬停提示</small></div>
+  <div class="stage" style="padding: 8px 24px;">
+    <table>
+      <tr><th></th><th>A · 状态色语义</th><th>B · 胶囊徽章</th><th>C · 纯文本流</th></tr>
+      <tr><td><b>状态可读性</b></td><td><b>最高</b>（颜色即语义）</td><td>高（实底/描边/灰底三态分明）</td><td>中（靠文字说明）</td></tr>
+      <tr><td><b>可点击感知</b></td><td>高（虚线框 = 可交互）</td><td>高（胶囊钮感）</td><td><b>弱</b>（需 hover 发现）</td></tr>
+      <tr><td><b>视觉噪声</b></td><td>中（引入两语义色）</td><td>中高（实底胶囊偏重）</td><td><b>最低</b></td></tr>
+      <tr><td><b>锁定表达</b></td><td>灰化 + 锁</td><td>灰底胶囊 + 锁</td><td>灰条 + 锁</td></tr>
+      <tr><td><b>风格倾向</b></td><td>状态指示器</td><td>终端工具感</td><td>编辑器极简</td></tr>
+      <tr><td><b>适用</b></td><td>想让状态一眼可读（推荐）</td><td>极客审美 / 终端风用户</td><td>视觉极简主义</td></tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

@@ -2,14 +2,17 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useSessionStore } from '@/stores/session'
 import { usePreviewStore } from '@/stores/preview'
 import ChangesPanel from './ChangesPanel.vue'
 import TerminalPanel from './TerminalPanel.vue'
 import BrowserPane from './BrowserPane.vue'
+import FileTree from './FileTree.vue'
 
 /**
  * 工作区面板壳（平移旧 index.html 的 steps-panel 结构与 toggleStepsPanel/toggleWsMaximize/initWsResize 逻辑）：
- * 审查 / 终端 / 浏览器三 Tab（文件列表已移至侧栏，点击侧栏文件在聊天区整栏预览）；
+ * 文件 / 审查 / 终端 / 浏览器四 Tab（文件树自侧栏迁回面板，随会话绑定显示）；绑定变化时镜像失效，
+ * 切到文件 Tab 重新挂载 FileTree 即按当前绑定重载；标题随绑定显示项目名（沙箱态显示「沙箱」）；
  * 左缘拖拽调宽（252 ~ 视口余宽，不持久化）；
  * 放大转为覆盖层从右向左铺开盖住聊天区（占位符钉住布局避免重排）。
  * 浏览器 Tab 由 BrowserPane 渲染：地址栏工具栏（面包屑/URL + 刷新/reveal/外开/复制）
@@ -17,10 +20,12 @@ import BrowserPane from './BrowserPane.vue'
  */
 const { t } = useI18n()
 const ws = useWorkspaceStore()
+const sessionStore = useSessionStore()
 const preview = usePreviewStore()
 
-// label 存字典 key，渲染时 t() 翻译，保证切语言同步
+// label 存字典 key，渲染时 t() 翻译，保证切语言同步（文件在首位，对齐「先看结构再看变更」动线）
 const TABS = [
+  { id: 'wsFiles', icon: 'fa-folder-tree', label: 'wsPanel.files' },
   { id: 'wsChanges', icon: 'fa-code-pull-request', label: 'wsPanel.changes' },
   { id: 'wsTerm', icon: 'fa-terminal', label: 'wsPanel.terminal' },
   { id: 'wsPreview', icon: 'fa-globe', label: 'wsPanel.browser' },
@@ -123,7 +128,10 @@ watch(
   >
     <div class="ws-resizer" @mousedown="startResize"></div>
     <div class="steps-panel-header">
-      <h4><i class="fas fa-layer-group"></i> {{ t('wsPanel.title') }}</h4>
+      <h4>
+        <i class="fas fa-layer-group"></i>
+        <span class="ws-title-name" :title="ws.current?.path">{{ ws.current ? ws.current.name : t('wsPanel.noWorkspace') }}</span>
+      </h4>
       <div class="steps-panel-actions">
         <button :title="ws.panelMaximized ? t('wsPanel.restore') : t('wsPanel.maximize')" @click="toggleMax">
           <i
@@ -146,6 +154,16 @@ watch(
       </button>
     </div>
 
+    <!-- 文件 Tab：有会话即渲染（未绑定 = 派生沙箱树，随会话 id 变化重载）；无会话才显示空态 -->
+    <div class="ws-pane" :class="{ active: ws.activeTab === 'wsFiles' }" id="wsFiles">
+      <div v-if="sessionStore.currentSessionId" class="pf-scroll">
+        <FileTree :active-path="ws.previewFile?.path" @open="ws.openFilePreview($event)" />
+      </div>
+      <div v-else class="pf-empty">
+        <i class="fas fa-folder-plus"></i>
+        <span>{{ t('wsPanel.filesEmpty') }}</span>
+      </div>
+    </div>
     <div class="ws-pane" :class="{ active: ws.activeTab === 'wsChanges' }" id="wsChanges">
       <ChangesPanel />
       <div class="cp-note"><i class="fas fa-circle-info"></i> {{ t('wsPanel.changesNote') }}</div>

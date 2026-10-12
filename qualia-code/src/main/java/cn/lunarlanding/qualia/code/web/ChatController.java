@@ -5,10 +5,12 @@ import cn.lunarlanding.qualia.core.agent.CallOptions;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
 import cn.lunarlanding.qualia.core.memory.MemoryMessage;
 import cn.lunarlanding.qualia.core.model.chat.Attachment;
-import cn.lunarlanding.qualia.code.WebApplication;
 import cn.lunarlanding.qualia.code.service.AttachmentService;
 import cn.lunarlanding.qualia.code.service.ChatService;
 import cn.lunarlanding.qualia.code.service.ChatService.SessionInfo;
+import cn.lunarlanding.qualia.code.service.WorkspaceDataStore;
+import cn.lunarlanding.qualia.code.service.WorkspaceHistory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -28,43 +33,37 @@ import java.util.stream.Collectors;
 public class ChatController {
 
     /**
-     * 每次现取单例，不缓存引用：切换 workspace 会重建 ChatService 实例，
+     * 每次现取单例，不缓存引用：会话激活（require）会按绑定解析 root 并可能重建实例，
      * 缓存会导致 Controller 持旧实例继续读旧工作区
      */
     private ChatService chatService() {
-        return ChatService.getInstance(WebApplication.getCurrentWorkspace());
+        return ChatService.getInstance();
     }
 
     /**
-     * 启动时未绑定工作区（等待前端强制选择）：读接口返回空、写接口拒绝，
-     * 避免 ChatService 拿 null 路径初始化报 500
-     */
-    private boolean noWorkspace() {
-        return WebApplication.getCurrentWorkspace() == null;
-    }
-
-    /**
-     * 创建新会话
+     * 创建新会话（默认工作区起步，是否绑定由用户随后显式选择）
      */
     @PostMapping("/sessions")
     public ResponseEntity<SessionInfo> createSession(@RequestBody(required = false) Map<String, String> body) {
-        if (noWorkspace()) {
-            return ResponseEntity.badRequest().build();
-        }
         String title = body != null ? body.get("title") : null;
         SessionInfo session = chatService().createSession(title);
         return ResponseEntity.ok(session);
     }
 
     /**
-     * 获取所有会话
+     * 获取全部会话（跨项目历史库，归属见 workspace 字段，分组交给前端）
      */
     @GetMapping("/sessions")
     public ResponseEntity<List<SessionInfo>> getSessions() {
-        if (noWorkspace()) {
-            return ResponseEntity.ok(List.of());
-        }
         return ResponseEntity.ok(chatService().getSessions());
+    }
+
+    /**
+     * 会话上下文视图数据（输入框底部只读状态条：估算占用 / 消息数 / 上轮用量 / 窗口百分比）
+     */
+    @GetMapping("/context")
+    public ResponseEntity<Map<String, Object>> getContext(@RequestParam String sessionId) {
+        return ResponseEntity.ok(chatService().getContextInfo(sessionId));
     }
 
     /**
@@ -73,9 +72,6 @@ public class ChatController {
     @GetMapping("/stats/tokens")
     public ResponseEntity<List<Map<String, Object>>> getTokenStats(
             @RequestParam(defaultValue = "30") int days) {
-        if (noWorkspace()) {
-            return ResponseEntity.ok(List.of());
-        }
         return ResponseEntity.ok(chatService().getDailyTokenStats(Math.min(Math.max(days, 1), 90)));
     }
 
@@ -84,15 +80,67 @@ public class ChatController {
      */
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<SessionInfo> getSession(@PathVariable String sessionId) {
-        if (noWorkspace()) {
-            return ResponseEntity.notFound().build();
+        SessionInfo session = chatService().getSessionInfo(sessionId);
+        return session == null
+                ? ResponseEntity.notFound().build()
+                : ResponseEntity.ok(session);
+    }
+
+    /**
+     * 绑定 / 解绑当前会话的工作区（binding.json 运行期唯一写入入口，信任边界）
+     *
+     * <p>body: {@code {"workspace": "D:\\Projects\\demo"}} 绑定；缺省、空串或 null 即解绑回默认工作区；
+     * {@code create: true} 时目录不存在会先创建（对齐旧 /switch 的创建并打开）。
+     * 流式对话进行中返回 409 互斥；目录不存在且未带 create 返回 400。</p>
+     */
+    @PostMapping("/sessions/{sessionId}/bind")
+    public ResponseEntity<Map<String, Object>> bind(@PathVariable String sessionId,
+                                                    @RequestBody(required = false) Map<String, Object> body) {
+        if (sessionId == null || !sessionId.matches("[A-Za-z0-9_-]+")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "会话标识非法"));
         }
-        List<SessionInfo> sessions = chatService().getSessions();
-        return sessions.stream()
-                .filter(s -> s.id.equals(sessionId))
-                .findFirst()
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        if (ChatService.isStreaming()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "有对话正在进行，请等待完成后再变更绑定"));
+        }
+        Object rawWs = body == null ? null : body.get("workspace");
+        String ws = rawWs instanceof String ? (String) rawWs : null;
+        // create 可能是 boolean 字面量或字符串，统一字符串化后解析（null → "null" → false）
+        boolean create = Boolean.parseBoolean(String.valueOf(body == null ? null : body.get("create")));
+        Path target = null;
+        if (ws != null && !ws.isBlank()) {
+            try {
+                target = Path.of(ws).toAbsolutePath().normalize();
+            } catch (InvalidPathException e) {
+                return ResponseEntity.badRequest().body(Map.of("error", "路径格式非法"));
+            }
+            if (!Files.isDirectory(target)) {
+                if (!create) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "目录不存在"));
+                }
+                try {
+                    Files.createDirectories(target);
+                } catch (IOException e) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "目录创建失败：" + e.getMessage()));
+                }
+            }
+        }
+        // 锁定校验：已产生对话的会话工作区状态冻结——绑定/换绑/解绑均拒绝（无消息时可随意调整）
+        if (!chatService().getSessionHistory(sessionId).isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "会话已产生对话，工作区已锁定，不能更改"));
+        }
+        if (target != null) WorkspaceHistory.record(target); // 最近打开列表（对齐旧 /switch）
+        WorkspaceDataStore.writeBinding(sessionId, target); // null = 删 binding.json
+        ChatService.require(sessionId);   // root 变化时重建实例 + currentWorkspace 镜像跟随
+        SessionInfo session = chatService().getSessionInfo(sessionId);
+        if (session == null) {
+            // 新会话（尚无消息）buildSessionInfo 返回 null：构造轻量条目保证 workspace 回传
+            //（对齐 createSession 的轻量构造，否则前端拿到空 session 无法回显）
+            session = new SessionInfo(sessionId, "新会话", System.currentTimeMillis());
+            session.workspace = target == null ? null : target.toString();
+        }
+        return ResponseEntity.ok(Map.of("success", true, "session", session));
     }
 
     /**
@@ -100,9 +148,6 @@ public class ChatController {
      */
     @DeleteMapping("/sessions/{sessionId}")
     public ResponseEntity<Map<String, Object>> deleteSession(@PathVariable String sessionId) {
-        if (noWorkspace()) {
-            return ResponseEntity.badRequest().build();
-        }
         boolean deleted = chatService().deleteSession(sessionId);
         return ResponseEntity.ok(Map.of("success", deleted));
     }
@@ -113,9 +158,6 @@ public class ChatController {
     @PutMapping("/sessions/{sessionId}/title")
     public ResponseEntity<Map<String, Object>> renameSession(@PathVariable String sessionId,
                                                              @RequestBody(required = false) Map<String, String> body) {
-        if (noWorkspace()) {
-            return ResponseEntity.badRequest().build();
-        }
         chatService().renameSession(sessionId, body != null ? body.get("title") : null);
         return ResponseEntity.ok(Map.of("success", true));
     }
@@ -206,12 +248,15 @@ public class ChatController {
     private SseEmitter startStream(String sessionId, String message, String model, List<Attachment> attachments, boolean readOnly) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
 
-        // 未选择工作区时直接回错（正常流程下前端强制弹窗拦截，此处为直接访问接口的兜底）
-        if (noWorkspace()) {
-            return failFast(emitter, "尚未选择工作区");
+        // 并发流防护：全局同时只允许一条流（重建实例会让进行中的对话上下文错乱，此处兜底）
+        if (ChatService.isStreaming()) {
+            return failFast(emitter, "已有对话正在进行，请等待完成后再发送");
         }
 
-        // 活跃流记账：工作区切换前据此互斥，流终止（完成/出错）时销账
+        // 会话激活：解析绑定 root（未绑定 → 派生沙箱）并确保 Agent 实例与之匹配
+        ChatService.require(sessionId);
+
+        // 活跃流记账：绑定变更前据此互斥，流终止（完成/出错）时销账
         ChatService.beginStream();
 
         // 设置回调
@@ -295,9 +340,6 @@ public class ChatController {
      */
     @GetMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<List<Map<String, Object>>> getMessages(@PathVariable String sessionId) {
-        if (noWorkspace()) {
-            return ResponseEntity.ok(List.of());
-        }
         List<MemoryMessage> messages = chatService().getSessionHistory(sessionId);
         List<Map<String, Object>> result = messages.stream()
                 .map(msg -> {

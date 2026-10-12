@@ -1,0 +1,34 @@
+{
+	"messages":[
+		{
+			"content":"Hello",
+			"createdAt":1791448392516,
+			"id":"64d0375f-d757-4f8c-8078-6a4dc578e410",
+			"role":"USER",
+			"sequence":1,
+			"sessionId":"1f96fa05-2dcb-4c5e-b3c2-00cba9537be0"
+		},
+		{
+			"completionTokens":155,
+			"content":"Hey! Good to see you. I'm qualia-code, your coding buddy in this workspace. What are we working on today — debugging something, building something new, or just poking around the codebase?",
+			"createdAt":1791448399254,
+			"durationMs":6738,
+			"id":"2609bb25-66ea-4a04-9b21-7a30f0db6562",
+			"promptTokens":1793,
+			"reasoningContent":"The system prompt says default Chinese, but \"user changed language, follow it\" — user spoke English, so respond in English.",
+			"role":"ASSISTANT",
+			"sequence":2,
+			"sessionId":"1f96fa05-2dcb-4c5e-b3c2-00cba9537be0",
+			"steps":[
+				{
+					"content":"\n{\n    \"type\": \"answer\",\n    \"thought\": \"用户只是打招呼，无需调用工具，直接友好回应即可\",\n    \"answer\": \"Hey! 我是 qualia-code，你工作区里的编程搭档。有什么想做的——看代码、改 bug、写功能，还是查点资料？直接说就行。\"\n}\n",
+					"stepType":"THOUGHT",
+					"timestamp":0
+				}
+			],
+			"stepsJson":"[{\"content\":\"\\n{\\n    \\\"type\\\": \\\"answer\\\",\\n    \\\"thought\\\": \\\"用户只是打招呼，无需调用工具，直接友好回应即可\\\",\\n    \\\"answer\\\": \\\"Hey! 我是 qualia-code，你工作区里的编程搭档。有什么想做的——看代码、改 bug、写功能，还是查点资料？直接说就行。\\\"\\n}\\n\",\"stepType\":\"THOUGHT\",\"timestamp\":0}]",
+			"totalTokens":1948
+		}
+	],
+	"sessionId":"1f96fa05-2dcb-4c5e-b3c2-00cba9537be0"
+}

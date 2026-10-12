@@ -3,7 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '@/stores/session'
 import { useChatStore } from '@/stores/chat'
-import { sessionGroupLabel } from '@/utils/format'
+import { sessionRowTime } from '@/utils/format'
+import type { ChatSession } from '@/types'
 
 const sessionStore = useSessionStore()
 const chat = useChatStore()
@@ -41,28 +42,57 @@ function onSearchKeydown(e: KeyboardEvent) {
 
 type Row =
   | { kind: 'group'; key: string; label: string }
-  | { kind: 'session'; key: string; id: string; title: string; active: boolean; streaming: boolean; unread: boolean }
+  | { kind: 'session'; key: string; id: string; title: string; active: boolean; streaming: boolean; unread: boolean; time: string }
 
+/** 时间桶固定顺序（组头出现顺序） */
+const BUCKETS = ['today', 'yesterday', 'week', 'older'] as const
+type Bucket = (typeof BUCKETS)[number]
+
+const BUCKET_LABEL: Record<Bucket, string> = {
+  today: 'conversation.groupToday',
+  yesterday: 'conversation.groupYesterday',
+  week: 'conversation.groupWeek',
+  older: 'conversation.groupOlder',
+}
+
+/** 时间分桶：今天 / 昨天 / 7 天内 / 更早（createdAt 实为会话文件最后修改时间 = 最近活跃） */
+function bucketOf(ts: number): Bucket {
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diffDays = Math.round((dayStart(new Date()) - dayStart(new Date(ts))) / 86400000)
+  if (diffDays <= 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return 'week'
+  return 'older'
+}
+
+/** 方案 A 时间线分组：组头 = 今天/昨天/7天内/更早，组内沿用后端时间倒序；搜索过滤保持分组结构 */
 const rows = computed<Row[]>(() => {
   const q = query.value.trim().toLowerCase()
-  const out: Row[] = []
-  let lastGroup: string | null = null
+  const hit = (title: string) => !q || title.toLowerCase().includes(q)
+  const sessionRow = (s: ChatSession): Row => ({
+    kind: 'session',
+    key: s.id,
+    id: s.id,
+    title: s.title,
+    active: s.id === sessionStore.currentSessionId,
+    streaming: chat.isProcessing(s.id),
+    unread: !!chat.unreadBySession[s.id],
+    time: sessionRowTime(s.createdAt),
+  })
+  const buckets = new Map<Bucket, Row[]>()
   for (const s of sessionStore.sessions) {
-    if (q && !s.title.toLowerCase().includes(q)) continue
-    const group = sessionGroupLabel(s.createdAt)
-    if (group !== lastGroup) {
-      lastGroup = group
-      out.push({ kind: 'group', key: `g-${group}-${s.id}`, label: group })
-    }
-    out.push({
-      kind: 'session',
-      key: s.id,
-      id: s.id,
-      title: s.title,
-      active: s.id === sessionStore.currentSessionId,
-      streaming: chat.isProcessing(s.id),
-      unread: !!chat.unreadBySession[s.id],
-    })
+    if (!hit(s.title)) continue
+    const b = bucketOf(s.createdAt)
+    const arr = buckets.get(b)
+    if (arr) arr.push(sessionRow(s))
+    else buckets.set(b, [sessionRow(s)])
+  }
+  const out: Row[] = []
+  for (const b of BUCKETS) {
+    const list = buckets.get(b)
+    if (!list) continue
+    out.push({ kind: 'group', key: `g-${b}`, label: t(BUCKET_LABEL[b]) })
+    out.push(...list)
   }
   return out
 })
@@ -193,7 +223,9 @@ onBeforeUnmount(() => {
 
     <ul v-show="!showEmpty" class="conversation-list">
       <template v-for="row in rows" :key="row.key">
-        <li v-if="row.kind === 'group'" class="conv-group">{{ row.label }}</li>
+        <li v-if="row.kind === 'group'" class="conv-group">
+          <span class="cg-name">{{ row.label }}</span>
+        </li>
         <li
           v-else
           :data-id="row.id"
@@ -216,6 +248,7 @@ onBeforeUnmount(() => {
             @blur="commitRename"
           />
           <span v-else class="session-title" v-html="highlightTitle(row.title)"></span>
+          <span class="session-time">{{ row.time }}</span>
         </li>
       </template>
     </ul>

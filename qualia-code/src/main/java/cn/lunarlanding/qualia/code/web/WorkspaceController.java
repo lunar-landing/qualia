@@ -19,11 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 工作区 API：查询当前工作区与历史、运行期切换
+ * 工作区 API：查询当前工作区与历史、目录浏览、运行期切换（兼容端点）
  *
- * 切换语义：更新 WebApplication 的路径引用 + 整体重建 ChatService，
- * 文件树/会话/技能等接口均实时读取当前路径，切换后自动指向新工作区。
- * 流式对话进行中时拒绝切换（前端按钮同步置灰，此处为兜底）。
+ * <p>改造后工作区绑定跟随会话（binding.json，见 ChatController bind 接口），
+ * 本控制器的 /switch 保留兼容外部脚本；日常绑定入口为会话级 bind API。
+ * 切换语义：整体重建 ChatService，currentWorkspace 镜像自动跟随。</p>
  */
 @RestController
 @RequestMapping("/api/workspace")
@@ -164,8 +164,7 @@ public class WorkspaceController {
                 && current.toAbsolutePath().normalize().toString().equalsIgnoreCase(target.toString());
 
         if (!same) {
-            WebApplication.setCurrentWorkspace(target);
-            ChatService.switchWorkspace(target);
+            ChatService.switchWorkspace(target);   // currentWorkspace 镜像随实例自动跟随
         }
         // 无论是否同一路径都刷新历史时间戳
         WorkspaceHistory.record(target);

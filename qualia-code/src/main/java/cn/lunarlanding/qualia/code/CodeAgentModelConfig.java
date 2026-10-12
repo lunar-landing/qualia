@@ -23,6 +23,9 @@ public class CodeAgentModelConfig {
     /** 模型名称：qwen-max, gpt-4, claude-3.5-sonnet 等 */
     private String model;
 
+    /** 上下文窗口大小（tokens，可选）：前端上下文视图计算占用百分比，未配置则不显示 */
+    private Integer contextWindow;
+
     public CodeAgentModelConfig() {}
 
     public String getName() {
@@ -71,6 +74,14 @@ public class CodeAgentModelConfig {
 
     public void setBaseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
+    }
+
+    public Integer getContextWindow() {
+        return contextWindow;
+    }
+
+    public void setContextWindow(Integer contextWindow) {
+        this.contextWindow = contextWindow;
     }
 
 }

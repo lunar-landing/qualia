@@ -28,11 +28,17 @@ export interface StreamConnection {
 /**
  * 打开流式连接（与后端协议一致的双通道自动选择）：
  * - 带附件：POST /api/chat/stream（fetch ReadableStream + \n\n 分帧）
- * - 纯文本：GET /api/chat/stream（EventSource）
+ * - 纯文本：GET /api/chat/stream（EventSource）；消息超长时降级 POST，
+ *   避免 URL 编码后请求行超出服务器请求头限制（Tomcat 默认 8KB）返回 431
  */
 export function openStream(opts: OpenStreamOptions, onFrame: (frame: StreamFrame) => void): StreamConnection {
-  return opts.attachmentIds?.length ? openPostStream(opts, onFrame) : openEventSource(opts, onFrame)
+  if (opts.attachmentIds?.length) return openPostStream(opts, onFrame)
+  const urlBytes = encodeURIComponent(opts.message).length + opts.sessionId.length + 64
+  return urlBytes > MAX_GET_URL_BYTES ? openPostStream(opts, onFrame) : openEventSource(opts, onFrame)
 }
+
+/** GET 通道 URL 长度安全阈值（字节）：为 Cookie / UA 等其余请求头预留余量 */
+const MAX_GET_URL_BYTES = 4000
 
 /**
  * 解析单个 SSE data 负载为归一化帧。

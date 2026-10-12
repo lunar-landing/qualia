@@ -1,71 +1,63 @@
 import { defineStore } from 'pinia'
-import { getWorkspaceInfo, switchWorkspace as apiSwitch } from '@/api/workspace'
+import { getWorkspaceInfo } from '@/api/workspace'
 import { listWorkspaceFiles } from '@/api/config'
-import type { SwitchResult, WorkspaceFileInfo, WorkspaceRef } from '@/types'
+import { pathBaseName } from '@/utils/format'
+import type { WorkspaceFileInfo, WorkspaceRef } from '@/types'
 
 /** 文件树活动徽标（步骤事件驱动：R=读 W=写 M=改） */
 export type FileBadgeKind = 'R' | 'W' | 'M'
 
-/** 侧栏列表视图：sessions=会话历史 / files=工作区文件树 */
-export type SidebarView = 'sessions' | 'files'
-
-/** 沿用主题/语言约定持久化到 localStorage */
-const SIDE_VIEW_KEY = 'codex-side-view'
-
-function initialSideView(): SidebarView {
-  return localStorage.getItem(SIDE_VIEW_KEY) === 'files' ? 'files' : 'sessions'
-}
-
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
-    /** null 表示启动未绑定工作区（强制弹出选择弹窗） */
+    /** 活跃会话绑定工作区的镜像（session store 切会话/换绑时写入；null = 派生沙箱态） */
     current: null as { path: string; name: string } | null,
     recent: [] as WorkspaceRef[],
-    /** 后端互斥标志：对话流进行中禁止切换 */
+    /** 后端互斥标志：对话流进行中禁止换绑 */
     streaming: false,
-    /** 根级文件列表（子目录由 FileTree 组件懒加载） */
+    /** 根级文件列表（子目录由 TreeNode 懒加载；绑定/会话变化后清空待重载） */
     fileTree: [] as WorkspaceFileInfo[],
     /** 路径 → 徽标（本轮对话的瞬时活动标记，新一轮发送时清空） */
     fileBadges: {} as Record<string, FileBadgeKind>,
 
-    /** 工作区面板 UI 状态（对齐旧版 steps-panel 的 collapsed/maximized/tabs；文件 Tab 已移至侧栏） */
+    /** 工作区面板 UI 状态（对齐旧版 steps-panel 的 collapsed/maximized/tabs） */
     panelCollapsed: false,
     panelMaximized: false,
-    activeTab: 'wsChanges' as 'wsChanges' | 'wsTerm' | 'wsPreview',
-    /** 侧栏列表视图：会话历史 / 文件树（顶部分段切换，持久化） */
-    sidebarView: initialSideView() as SidebarView,
-    /** 侧栏文件树点开的预览文件（工作区面板以整面板层展示，null=关闭） */
+    activeTab: 'wsChanges' as 'wsChanges' | 'wsFiles' | 'wsTerm' | 'wsPreview',
+    /** 文件 Tab 点开的预览文件（聊天区以整栏层展示，null=关闭） */
     previewFile: null as { path: string } | null,
-    /** 终端/审查 Tab 有新内容但未激活时的提示圆点 */
-    tabDots: { wsChanges: false, wsTerm: false } as Record<string, boolean>,
+    /** 审查/文件/终端 Tab 有新内容但未激活时的提示圆点 */
+    tabDots: { wsChanges: false, wsFiles: false, wsTerm: false } as Record<string, boolean>,
     /** 待定位的变更文件（文件树徽标点击 → 审查面板展开滚动定位；每次新对象保证 watch 触发） */
     pendingFileFocus: null as { path: string } | null,
+    /** 绑定选择弹窗开合（chip 菜单 / 引导条等多入口共享，App 层读取渲染） */
+    pickerOpen: false,
   }),
 
   actions: {
+    /** 最近列表与流式互斥标志（供绑定弹窗使用；current 镜像不经此更新） */
     async refresh() {
       const info = await getWorkspaceInfo()
-      this.current = info.current
       this.recent = info.recent
       this.streaming = info.streaming
       return info
     },
 
     /**
-     * 切换工作区。NOT_FOUND（200+code）返回给调用方给「创建并打开」选项；
-     * BUSY（409）抛 ApiError
+     * 会话域镜像同步：活跃会话切换 / 换绑完成时由 session store 调用。
+     * current 随绑定重写，会话域数据（文件树、徽标、预览）整体失效；返回绑定是否变化。
      */
-    async switch(path: string, create = false): Promise<SwitchResult> {
-      const result = await apiSwitch(path, create)
-      if (result.success) {
-        this.current = result.workspace ?? { path, name: path }
-        this.afterSwitch()
-      }
-      return result
+    applySessionWorkspace(workspace: string | null | undefined): boolean {
+      const path = workspace || null
+      const changed = (this.current?.path ?? null) !== path
+      this.current = path ? { path, name: pathBaseName(path) } : null
+      this.fileTree = []
+      this.fileBadges = {}
+      this.previewFile = null
+      return changed
     },
 
-    async loadFileTree() {
-      this.fileTree = await listWorkspaceFiles('')
+    async loadFileTree(sessionId?: string | null) {
+      this.fileTree = await listWorkspaceFiles('', sessionId)
     },
 
     setBadge(path: string, kind: FileBadgeKind) {
@@ -97,20 +89,23 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.panelMaximized = !this.panelMaximized
     },
 
-    switchTab(tab: 'wsChanges' | 'wsTerm' | 'wsPreview') {
+    switchTab(tab: 'wsChanges' | 'wsFiles' | 'wsTerm' | 'wsPreview') {
       this.activeTab = tab
       delete this.tabDots[tab]
     },
 
-    /** 侧栏顶部视图切换并持久化（即时生效，会话/文件两块互斥显示） */
-    switchSidebarView(view: SidebarView) {
-      this.sidebarView = view
-      localStorage.setItem(SIDE_VIEW_KEY, view)
-    },
-
-    /** 侧栏文件树点击：记录预览文件（聊天区整栏展示，不联动工作区面板状态） */
+    /** 文件 Tab 树节点点击：记录预览文件（聊天区整栏展示，不联动面板状态） */
     openFilePreview(path: string) {
       this.previewFile = { path }
+    },
+
+    /** 打开/关闭绑定选择弹窗 */
+    openPicker() {
+      this.pickerOpen = true
+    },
+
+    closePicker() {
+      this.pickerOpen = false
     },
 
     /** 关闭文件预览层，露出聊天内容 */
@@ -121,14 +116,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     /** 徽标点击跳转审查面板并定位文件（对齐旧版 fileTree click → ChangesPanel.openFile） */
     requestFileFocus(path: string) {
       this.pendingFileFocus = { path }
-    },
-
-    /** 切换成功后的本地重置（文件树等会话域数据随工作区失效，整页重置由 App 层联动） */
-    afterSwitch() {
-      this.fileTree = []
-      this.fileBadges = {}
-      this.previewFile = null
-      void this.refresh()
     },
   },
 })

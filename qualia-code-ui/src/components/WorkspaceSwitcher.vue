@@ -5,15 +5,16 @@ import { browse } from '@/api/workspace'
 import { useChatStore } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { relTime } from '@/utils/format'
 import type { BrowseDir, BrowseResult } from '@/types'
 
 /**
- * 工作区切换弹窗（平移旧 project-panel.js）：IDE「打开项目」风格双栏。
+ * 绑定选择弹窗（平移旧 project-panel.js）：IDE「打开项目」风格双栏。
  * 左栏品牌 + 「打开文件夹」入口；右栏最近打开/目录浏览双视图。
- * 流式期间切换动作拦截；强制模式（启动未绑定工作区）不可关闭，选定后整页重载。
+ * 由输入区绑定 chip / 引导条唤起，选定后写入当前会话的绑定（bind API，会话域生效）；
+ * 无活跃会话时先静默创建再绑定；流式期间换绑被后端 409 互斥。
  */
-const props = defineProps<{ forced: boolean }>()
-const emit = defineEmits<{ close: []; switched: [] }>()
+const emit = defineEmits<{ close: [] }>()
 
 // 品牌四角星（与聊天区 AI 头像同款）
 const STAR_SVG =
@@ -31,6 +32,11 @@ const recentError = ref('')
 const searchKw = ref('')
 const hint = ref<{ msg: string; error: boolean } | null>(null)
 const switching = ref(false)
+
+// 打开即感知锁定：已产生对话的会话只读展示（列表点击另有拦截）
+if (sessionStore.currentSession?.locked) {
+  hint.value = { msg: t('input.lockedTip'), error: false }
+}
 
 const recentList = computed(() => ws.recent)
 const currentPathLower = computed(() => (ws.current?.path ?? '').toLowerCase())
@@ -54,21 +60,6 @@ const drives = computed(() => rootsCache.value?.dirs ?? [])
 
 function showError(msg: string) {
   hint.value = { msg, error: true }
-}
-
-// 相对时间：今天 HH:mm / 昨天 / N 天前 / yyyy-MM-dd
-function relTime(iso?: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const now = new Date()
-  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const diffDays = Math.round((dayStart(now) - dayStart(d)) / 86400000)
-  if (diffDays <= 0) return t('switcher.relToday', { time: `${pad(d.getHours())}:${pad(d.getMinutes())}` })
-  if (diffDays === 1) return t('switcher.relYesterday')
-  if (diffDays < 7) return t('switcher.daysAgo', { n: diffDays })
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 // Windows 绝对路径的父目录（仅用于确定浏览起点，失败时回退主目录）
@@ -165,52 +156,42 @@ function pickBrowsed() {
   if (browsePath.value) void switchTo(browsePath.value)
 }
 
-// ===== 切换工作区 =====
+// ===== 选定并绑定当前会话 =====
 async function switchTo(path: string, create = false) {
   if (switching.value) return
-  // 流式期间拦截（对齐旧 isChatStreaming 检查；入口置灰外的兜底）
+  // 流式期间换绑拦截（bind API 409 互斥的前端兜底）
   const sid = sessionStore.currentSessionId
   if (ws.streaming || (sid ? chat.isProcessing(sid) : false)) {
     showError(t('switcher.streamingBusy'))
     return
   }
+  // 锁定拦截（后端 bind 409 的前端兜底）：已产生对话的会话工作区状态冻结
+  if (sessionStore.currentSession?.locked) {
+    showError(t('input.lockedTip'))
+    return
+  }
   switching.value = true
   hint.value = null
   try {
-    const result = await ws.switch(path, create)
-    if (result.success) {
-      if (props.forced) {
-        // 首次选择：整页重载让全部模块按新工作区初始化，也顺带解除强制态
-        location.replace('/')
-        return
-      }
-      emit('close')
-      // 路径未变化时无需刷新页面状态
-      if (result.changed) emit('switched')
-    } else if (result.code === 'NOT_FOUND') {
-      // 目录不存在（最近列表的兜底场景）：进浏览视图给创建选项
-      view.value = 'browse'
-      void loadDrives()
-      showBrowseError(path, t('switcher.dirNotFound'))
-    } else {
-      showError(result.message || t('switcher.switchFailed'))
-    }
+    // 无活跃会话（欢迎态引导入口）：先静默创建，绑定落到新会话上
+    if (!sid) await sessionStore.createSession()
+    await sessionStore.bindSession(sessionStore.currentSessionId!, path, create)
+    emit('close')
   } catch (e) {
-    // BUSY（409）等 HTTP 错误：ApiError.message 为后端原因
+    // 400（目录不存在/路径非法）与 409（流式互斥）等：ApiError.message 为后端原因
     showError(t('switcher.switchFailedWith', { msg: e instanceof Error ? e.message : String(e) }))
   } finally {
     switching.value = false
   }
 }
 
-// ===== 关闭路径（强制模式拦截一切） =====
+// ===== 关闭路径 =====
 function requestClose() {
-  if (props.forced) return
   emit('close')
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key !== 'Escape' || props.forced) return
+  if (e.key !== 'Escape') return
   // 浏览视图下 Esc 先返回最近视图，再次 Esc 才关闭
   if (view.value === 'browse') backToMain()
   else requestClose()
@@ -226,7 +207,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="ws-sw-overlay open" :class="{ forced }" @click.self="requestClose">
+  <div class="ws-sw-overlay open" @click.self="requestClose">
     <div class="ws-sw-dialog">
       <aside class="ws-sw-side">
         <div class="ws-sw-side-top">
@@ -240,13 +221,7 @@ onBeforeUnmount(() => {
           <button class="ws-sw-close" :title="t('common.close')" @click="requestClose"><i class="fas fa-times"></i></button>
         </div>
         <h2 class="ws-sw-side-title">{{ t('switcher.openProject') }}</h2>
-        <div class="ws-sw-side-sub">
-          {{
-            forced
-              ? t('switcher.firstTimeSub')
-              : t('switcher.sub')
-          }}
-        </div>
+        <div class="ws-sw-side-sub">{{ t('switcher.bindSub') }}</div>
         <button class="ws-sw-open-btn" @click="showBrowse">
           <i class="fas fa-folder"></i><span>{{ t('switcher.openFolder') }}</span>
         </button>
@@ -290,7 +265,7 @@ onBeforeUnmount(() => {
             </template>
             <div v-else class="ws-sw-empty">
               <i class="far fa-folder-open"></i>
-              <span>{{ forced ? t('switcher.emptyForced') : t('switcher.empty') }}</span>
+              <span>{{ t('switcher.empty') }}</span>
             </div>
           </div>
           <div v-if="hint" class="ws-sw-hint show" :class="{ error: hint.error }">
@@ -298,7 +273,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="ws-sw-rp-foot">
             <i class="fas fa-circle-info"></i>
-            <span>{{ forced ? t('switcher.footForced') : t('switcher.foot') }}</span>
+            <span>{{ t('switcher.bindFoot') }}</span>
             <button class="foot-close" @click="requestClose">{{ t('common.close') }}</button>
           </div>
         </section>
@@ -919,11 +894,6 @@ onBeforeUnmount(() => {
 }
 .ws-sw-br-foot .pick-btn:hover { filter: brightness(1.1); }
 .ws-sw-br-foot .pick-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
-
-/* ----- 强制模式（启动时未绑定工作区）：拦截一切关闭路径 ----- */
-.ws-sw-overlay.forced .ws-sw-close { display: none; }
-.ws-sw-overlay.forced .ws-sw-rp-foot .foot-close { display: none; }
-.ws-sw-overlay.forced .ws-sw-br-foot .ghost-btn { display: none; }
 
 /* ----- 窄屏：左栏收窄为顶部条 ----- */
 @media (max-width: 720px) {

@@ -293,94 +293,13 @@ body.light-theme .sidebar-brand i {
     border-bottom: 1px solid var(--border-color);
 }
 
-/* 顶部视图切换（会话/文件）：滑轨，端点固定双视图图标，滑块携带激活图标滑向当前侧；
-   落位后盖住该端图标避免重影；外观对齐 session-search-mockup（方圆角轨道 + accent 纯色滑块） */
-.side-rail {
-    position: relative;
-    width: 52px;
-    height: 26px;
-    flex-shrink: 0;
-    padding: 0;
-    background: var(--bg-hover);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-.side-rail-end {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
+/* header 标题：纯会话库语义（文件树在工作区面板），视觉与列表分组标题同语言 */
+.sidebar-title {
+    font-size: 10.5px;
+    font-weight: 600;
     color: var(--text-muted);
-    transition: opacity 0.2s;
-}
-
-.side-rail-end i {
-    font-size: 12px;
-}
-
-.side-rail-l { left: 7px; }
-.side-rail-r { right: 7px; }
-
-/* 被滑块盖住的端点图标淡出，防重影 */
-.side-rail.is-files .side-rail-r,
-.side-rail:not(.is-files) .side-rail-l {
-    opacity: 0;
-}
-
-.side-rail-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 22px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    /* 激活块 accent 纯色底 + accent-ink 图标（夜间白底深图标 / 日间石墨底白图标），无渐变无阴影 */
-    background: var(--accent-light);
-    color: var(--accent-ink);
-    transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.5, 1);
-}
-
-/* 滑块内双图标叠放：交叉淡入 + 缩放（旧图标缩小淡出、新图标放大淡入，与滑块位移并行） */
-.side-rail-thumb i {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    font-size: 11px;
-    line-height: 1;
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.5);
-    transition: opacity 0.22s ease, transform 0.22s ease;
-}
-
-/* 激活侧图标放大淡入，另一侧保持缩小淡出 */
-.side-rail:not(.is-files) .side-rail-thumb .side-rail-s,
-.side-rail.is-files .side-rail-thumb .side-rail-f {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-}
-
-.side-rail.is-files .side-rail-thumb {
-    /* 行程 24px：内宽 50（52 − 左右边框 2）− 滑块 22 − 右侧留 2px，与左端对称 */
-    transform: translateX(24px);
-}
-
-/* 滑轨的轨道底/外框/方圆角：.sidebar-header button 的通配重置（border: none 等）
-   特异性更高会把它们抹掉，这里以更高特异性抬回 */
-.sidebar-header .side-rail {
-    padding: 0;
-    background: var(--bg-hover);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-}
-
-.sidebar-header .side-rail:hover {
-    background: var(--bg-active);
+    letter-spacing: 0.5px;
+    padding-left: 6px;
 }
 
 .sidebar-header button {
@@ -538,84 +457,6 @@ body.light-theme .settings-flyout {
     color: var(--text-secondary);
 }
 
-/* 工作区切换入口：侧边栏首行项目卡片（渐变图标块 + 名称/路径两行），流式期间置灰禁点 */
-.ws-switch-btn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 10px 11px 10px 9px;
-    margin-bottom: 13px;
-    background: var(--bg-hover);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.ws-switch-btn:hover {
-    background: var(--bg-active);
-    border-color: var(--border-active);
-}
-
-.ws-switch-icon {
-    width: 31px;
-    height: 31px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 9px;
-    background: var(--accent-gradient);
-    color: var(--accent-ink);
-    font-size: 12.5px;
-    box-shadow: var(--shadow-input);
-}
-
-.ws-switch-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.ws-switch-name {
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ws-switch-path {
-    font-size: 10.5px;
-    line-height: 1;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.ws-switch-arrow {
-    font-size: 9px;
-    color: var(--text-muted);
-    transition: color 0.15s;
-}
-
-.ws-switch-btn:hover .ws-switch-arrow {
-    color: var(--accent-light);
-}
-
-.ws-switch-btn.disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    pointer-events: none;
-}
-
 /* 会话列表包裹层：承载顶部搜索框（ss-*）+ 列表滚动区；底部外距留在此，顶部间距由列表自身 margin 提供 */
 .conv-wrap {
     flex: 1;
@@ -732,25 +573,6 @@ body.light-theme .conversation-list mark {
     background: rgba(31, 35, 40, 0.1);
 }
 
-/* 侧栏文件列表（工作区文件树，自工作区面板文件 Tab 移入）：滚动区与外距对齐会话列表 */
-.side-files {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    padding: 9px 4px 9px 0;
-}
-
-.side-files::-webkit-scrollbar {
-    width: 3px;
-}
-.side-files::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: 8px;
-}
-
 .conversation-list::-webkit-scrollbar {
     width: 3px;
 }
@@ -778,8 +600,11 @@ body.light-theme .conversation-list mark {
     background: var(--bg-hover);
 }
 
-/* 日期分组标题 */
+/* 工作区分组标题（版本 A）：◇沙箱组置顶 + 项目组；悬停浮现组级「＋」（在项目下新建并绑定） */
 .conversation-list li.conv-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     padding: 11px 11px 4px;
     margin-bottom: 2px;
     font-size: 10.5px;
@@ -794,6 +619,22 @@ body.light-theme .conversation-list mark {
 }
 .conversation-list li.conv-group:first-child {
     padding-top: 2px;
+}
+.conversation-list li.conv-group .cg-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 行尾时间标签：今天 HH:mm / 昨天 / 周X / M/D，muted 小字不与标题争位 */
+.conversation-list li .session-time {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
 }
 
 .conversation-list li.active {
@@ -1224,6 +1065,50 @@ body.light-theme .chat-float-actions {
 .ws-pane.active {
     display: flex;
 }
+
+/* 面板标题随绑定：项目名超长省略，完整路径挂 title */
+.ws-title-name {
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 文件 Tab 滚动区：承接原侧栏文件树的滚动语义（树懒加载子目录） */
+.pf-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 9px 6px 12px 2px;
+}
+.pf-scroll::-webkit-scrollbar {
+    width: 3px;
+}
+.pf-scroll::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 8px;
+}
+
+/* 文件 Tab 沙箱空态：居中引导绑定（文件树随绑定出现） */
+.pf-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px;
+}
+.pf-empty i {
+    font-size: 20px;
+    opacity: 0.55;
+}
+
 /* 文件预览层：侧栏文件树点击后在聊天区整栏展示（自带头部与关闭，盖过消息与输入区；
    层级低于 Lightbox/设置弹窗，高于聊天区内容） */
 .chat-file-preview {
@@ -1812,12 +1697,8 @@ body.light-theme .msg .bubble tbody tr:nth-child(even) td {
     margin-top: 6px;
     padding-left: 4px;
     letter-spacing: 0.2px;
-    opacity: 0;
-    transition: opacity 0.2s, color 0.25s;
-}
-
-.msg:hover .time {
     opacity: 1;
+    transition: color 0.25s;
 }
 
 .msg.user .time {
@@ -1831,7 +1712,7 @@ body.light-theme .msg .bubble tbody tr:nth-child(even) td {
     align-items: center;
     gap: 13px;
     width: 100%;
-    max-width: 690px;
+    max-width: 750px;
     padding-left: 4px;
     animation: fadeUp 0.3s ease-out;
 }
@@ -2143,6 +2024,76 @@ body.light-theme .input-wrapper:focus-within {
     padding: 4px 9px 9px 11px;
 }
 
+/* ===== 上下文信号条（ContextMeter）：工具行内 6 条垂直横线按占用比例自下而上点亮，
+   与模型选择并列只读；hover 浮层给详细信息；占用 >80% 点亮条转警示色 ===== */
+.ctx-gauge {
+    position: relative;
+    display: flex;
+    align-items: center;
+    /* 上下 8px 让 hover 背景块与旁侧 30px 按钮同高，避免背景紧贴信号线显得局促 */
+    padding: 8px 7px;
+    border-radius: 6px;
+    cursor: default;
+}
+
+.ctx-gauge:hover {
+    background: var(--bg-hover);
+}
+
+.cg-bars {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 1px;
+}
+
+.cg-bar {
+    width: 12px;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--bg-active);
+    transition: background 0.2s ease;
+}
+
+.cg-bar.on {
+    background: var(--text-secondary);
+}
+
+.cg-bar.on.hot {
+    background: #b35900;
+}
+
+.cg-tip {
+    display: none;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    z-index: 30;
+    min-width: 172px;
+    padding: 9px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-surface);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.12);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.ctx-gauge:hover .cg-tip {
+    display: block;
+}
+
+.cg-tip-row.cg-tip-strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cg-tip-row + .cg-tip-row {
+    margin-top: 1px;
+}
+
 .input-tools button {
     background: transparent;
     border: none;
@@ -2193,6 +2144,185 @@ body.light-theme .input-tools .send-btn:hover {
 }
 body.light-theme .input-tools .send-btn:active {
     box-shadow: 0 2px 6px rgba(31, 35, 40, 0.22);
+}
+
+/* ===== 工作区 chip（唯一设置入口）：未设置虚线描边 / 已设置实底；下拉最近列表一键绑定 ===== */
+.bind-hold {
+    position: relative;
+    display: inline-flex;
+}
+
+/* .input-tools 前缀提升特异性：否则被上方 ".input-tools button"（30x30 方钮通配）碾压 */
+.input-tools .bind-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    height: 26px;
+    padding: 0 9px;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.input-tools .bind-chip:hover,
+.input-tools .bind-chip.open {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* 已绑定：无边框位置指示器（非下拉框）——纯「文件夹+项目名」灰字，hover 才出反馈 */
+.input-tools .bind-chip.bound {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+/* bound(0,3,0) 与上方 hover/open 同特异性且靠后：显式补 bound+hover/open 保证反馈可见 */
+.input-tools .bind-chip.bound:hover,
+.input-tools .bind-chip.bound.open {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* 锁定（已绑定+已有对话）：只读展示，不弹菜单；不用 disabled（其 pointer-events:none 会吞 title 提示） */
+.input-tools .bind-chip.locked,
+.input-tools .bind-chip.locked:hover,
+.input-tools .bind-chip.locked.open {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.input-tools .bind-chip.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.bind-chip .bc-name {
+    max-width: 148px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 上拉菜单：最近列表一键绑定 + 浏览更多/移除；无状态行（chip 本身即状态） */
+.bind-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 252px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 1000;
+}
+
+.bind-menu .bm-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: auto;
+    height: auto;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bind-menu .bm-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.bind-menu .bm-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.bind-menu .bm-item i {
+    font-size: 12px;
+    width: 14px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* 最近打开快速区：小节标题 + 名称/相对时间双端对齐 */
+.bind-menu .bm-label {
+    padding: 4px 10px 2px;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    opacity: 0.85;
+}
+
+.bind-menu .bm-item.recent .bm-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bind-menu .bm-item.recent .bm-time {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+}
+
+/* 当前项（方案 A）：置顶可见（绿勾 + 使用中徽标），点击无操作——切换语义自明 */
+.bind-menu .bm-item.current {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: default;
+}
+
+.bind-menu .bm-item.current .fa-check {
+    color: #2da44e;
+}
+
+.bind-menu .cur-tag {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 650;
+    color: #2da44e;
+    border: 1px solid rgba(45, 164, 78, 0.35);
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+
+/* 移除工作区：次级弱化（切换是主路径，移除是边缘操作） */
+.bind-menu .bm-item.muted {
+    color: var(--text-muted);
+    font-size: 11.5px;
+}
+
+.bind-menu .bm-sep {
+    height: 1px;
+    background: var(--border-color);
+    margin: 3px 4px;
 }
 
 /* ===== 会话模式切换：ghost chip + 上拉菜单（chip 对齐 model-selector，浮层对齐 model-dropdown/slash-menu） =====
@@ -2687,15 +2817,6 @@ body.light-theme .msg .attach-card.doc {
     }
     .side-resizer {
         display: none;
-    }
-    /* 窄屏侧栏放不下文字标签，视图切换仅保留图标（高度 26 = 边框 2 + 上下各留 2 + 滑块 20） */
-    .side-rail {
-        width: 56px;
-        height: 26px;
-    }
-    .side-rail.is-files .side-rail-thumb {
-        /* 内宽 54（56 − 边框 2）− 滑块 28 − 右侧留 2px */
-        transform: translateX(22px);
     }
     .messages {
         padding: 18px 14px 11px 14px;

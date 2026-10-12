@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import hljs from 'highlight.js/lib/common'
 import { readFileContent, rawFileUrl } from '@/api/config'
+import { useSessionStore } from '@/stores/session'
 import { LANG_MAP, extOf, fileIcon, fmtSize } from '@/utils/fileMeta'
 import { baseName } from '@/utils/steps'
 import type { WorkspaceFileContent } from '@/types'
@@ -62,7 +63,7 @@ async function load(path: string) {
   loadError.value = ''
   loading.value = true
   try {
-    const res = await readFileContent(path)
+    const res = await readFileContent(path, useSessionStore().currentSessionId)
     if (props.path !== path) return
     // 后端读取失败以 200 + {error} 返回
     const err = (res as WorkspaceFileContent & { error?: string }).error
@@ -112,7 +113,7 @@ watch(
         </template>
         <!-- image：raw 字节直出 -->
         <div v-else-if="info.type === 'image'" class="fp-imgwrap">
-          <img :src="rawFileUrl(info.path)" :alt="info.name" />
+          <img :src="rawFileUrl(info.path, useSessionStore().currentSessionId)" :alt="info.name" />
         </div>
         <!-- binary：不支持预览 -->
         <div v-else class="fp-notice"><i class="fas fa-file-circle-question"></i><span>{{ t('filePreview.binary') }}</span></div>

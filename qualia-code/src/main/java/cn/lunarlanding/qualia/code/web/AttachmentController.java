@@ -1,6 +1,5 @@
 package cn.lunarlanding.qualia.code.web;
 
-import cn.lunarlanding.qualia.code.WebApplication;
 import cn.lunarlanding.qualia.code.service.AttachmentService;
 import cn.lunarlanding.qualia.code.service.AttachmentService.AttachmentInfo;
 import cn.lunarlanding.qualia.code.service.AttachmentService.ImagePayload;
@@ -33,9 +32,6 @@ public class AttachmentController {
     public ResponseEntity<AttachmentInfo> upload(
             @RequestParam("sessionId") String sessionId,
             @RequestParam("file") MultipartFile file) {
-        if (WebApplication.getCurrentWorkspace() == null) {
-            return ResponseEntity.badRequest().build();
-        }
         if (sessionId == null || sessionId.isEmpty() || file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
@@ -56,9 +52,6 @@ public class AttachmentController {
     public ResponseEntity<byte[]> image(
             @PathVariable String sessionId,
             @PathVariable String filename) {
-        if (WebApplication.getCurrentWorkspace() == null) {
-            return ResponseEntity.badRequest().build();
-        }
         ImagePayload payload = attachmentService.findImageByName(sessionId, filename.trim());
         if (payload == null) {
             return ResponseEntity.notFound().build();
@@ -74,9 +67,6 @@ public class AttachmentController {
     public ResponseEntity<Map<String, Object>> status(
             @RequestParam("sessionId") String sessionId,
             @PathVariable String id) {
-        if (WebApplication.getCurrentWorkspace() == null) {
-            return ResponseEntity.badRequest().build();
-        }
         AttachmentInfo info = attachmentService.get(sessionId, id);
         if (info == null) {
             return ResponseEntity.notFound().build();

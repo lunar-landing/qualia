@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useSessionStore } from '@/stores/session'
 import { useWorkspaceStore } from '@/stores/workspace'
 import TreeNode from './TreeNode.vue'
 
@@ -9,6 +10,7 @@ import TreeNode from './TreeNode.vue'
  * 根层容器以 :key="epoch" 强制重建子树。
  */
 const ws = useWorkspaceStore()
+const sessionStore = useSessionStore()
 
 const emit = defineEmits<{ open: [path: string] }>()
 
@@ -20,9 +22,13 @@ watch(
   },
 )
 
-onMounted(() => {
-  ws.loadFileTree().catch(() => undefined)
-})
+// 按会话权威解析工作区（绑定 → 项目根；未绑定 → 派生沙箱），沙箱空目录也正常呈现空树；
+// 监听会话 id：绑定态会话间切换时 FileTree 不重挂（面板 v-if 恒真），必须显式重载
+function reload() {
+  ws.loadFileTree(sessionStore.currentSessionId).catch(() => undefined)
+}
+onMounted(reload)
+watch(() => sessionStore.currentSessionId, reload)
 </script>
 
 <template>

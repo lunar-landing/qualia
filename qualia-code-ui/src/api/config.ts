@@ -5,6 +5,7 @@ import type {
   CurrentModel,
   MarketSkillInfo,
   McpServerConfig,
+  SaveConfigResult,
   SkillInfo,
   ToolInfo,
   WorkspaceFileContent,
@@ -15,8 +16,8 @@ export function getConfig(): Promise<AppConfig> {
   return http.get('/api/config')
 }
 
-/** 保存成功后新对话使用新配置（后端热生效） */
-export function updateConfig(patch: AppConfigPatch): Promise<{ success: boolean; message: string }> {
+/** 保存部分配置字段（改什么存什么）；保存派生工作区存储位置时后端全量迁移并返回统计 */
+export function updateConfig(patch: AppConfigPatch): Promise<SaveConfigResult> {
   return http.put('/api/config', patch)
 }
 
@@ -66,21 +67,26 @@ export function saveAgentMd(content: string): Promise<{ success: boolean; messag
 }
 
 /** 工作区文件列表；path 为空列根目录 */
-export function listWorkspaceFiles(path = ''): Promise<WorkspaceFileInfo[]> {
-  return http.get(`/api/config/files?path=${encodeURIComponent(path)}`)
+/** sid 查询串：带会话 id 时后端按会话权威解析工作区（绑定 → 项目根；未绑定 → 派生沙箱） */
+function sidQuery(sessionId?: string | null): string {
+  return sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''
+}
+
+export function listWorkspaceFiles(path = '', sessionId?: string | null): Promise<WorkspaceFileInfo[]> {
+  return http.get(`/api/config/files?path=${encodeURIComponent(path)}${sidQuery(sessionId)}`)
 }
 
 /** 文件内容预览（text 含 content；image 需另走 rawFileUrl；binary 不可预览） */
-export function readFileContent(path: string): Promise<WorkspaceFileContent> {
-  return http.get(`/api/config/file?path=${encodeURIComponent(path)}`)
+export function readFileContent(path: string, sessionId?: string | null): Promise<WorkspaceFileContent> {
+  return http.get(`/api/config/file?path=${encodeURIComponent(path)}${sidQuery(sessionId)}`)
 }
 
 /** 图片预览原始字节 URL（直接作为 <img src>） */
-export function rawFileUrl(path: string): string {
-  return `/api/config/file/raw?path=${encodeURIComponent(path)}`
+export function rawFileUrl(path: string, sessionId?: string | null): string {
+  return `/api/config/file/raw?path=${encodeURIComponent(path)}${sidQuery(sessionId)}`
 }
 
 /** 在系统文件管理器中定位工作区文件（Windows 资源管理器 /select 选中，mac Finder reveal） */
-export function revealWorkspaceFile(path: string): Promise<{ success: boolean }> {
-  return http.post(`/api/config/file/reveal?path=${encodeURIComponent(path)}`)
+export function revealWorkspaceFile(path: string, sessionId?: string | null): Promise<{ success: boolean }> {
+  return http.post(`/api/config/file/reveal?path=${encodeURIComponent(path)}${sidQuery(sessionId)}`)
 }

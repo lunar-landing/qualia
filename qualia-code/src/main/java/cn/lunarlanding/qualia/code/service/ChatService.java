@@ -50,10 +50,13 @@ public class ChatService {
 
     private static ChatService instance;
 
+    /** 活跃会话 id（最近一次 require 激活的会话，root 解析与终端等镜像跟随它） */
+    private String activeSessionId;
+
     /** 活跃流式对话计数（跨实例：切换 workspace 重建实例时旧流仍在进行，计数必须全局） */
     private static final java.util.concurrent.atomic.AtomicInteger ACTIVE_STREAMS =
             new java.util.concurrent.atomic.AtomicInteger(0);
-    
+
     private final Path workspacePath;
     private HarnessAgent agent;
     private Memory memory;
@@ -78,13 +81,68 @@ public class ChatService {
     }
 
     /**
-     * 获取单例（同一 workspace 共享同一实例）
+     * 获取单例（CLI 入口使用：启动即确定工作区路径）。
+     * Web 层请使用无参 {@link #getInstance()} + {@link #require(String)}，绑定跟随会话。
      */
     public static synchronized ChatService getInstance(Path workspacePath) {
         if (instance == null) {
             instance = new ChatService(workspacePath);
         }
         return instance;
+    }
+
+    /**
+     * 获取单例（Web 层只读接口使用）：无活跃实例时以 null root 起步，
+     * Memory/会话列表等只读能力不依赖 root；Agent 相关操作必须先 require 解析 root。
+     */
+    public static synchronized ChatService getInstance() {
+        if (instance == null) {
+            instance = new ChatService(null);
+        }
+        return instance;
+    }
+
+    /**
+     * 会话激活统一入口：解析会话的 Agent 根目录 → 与当前实例 root 不同则整体重建
+     * （复用 {@link #switchWorkspace}，MCP / 配置重载）→ 记录活跃会话。
+     *
+     * <p>绑定/解绑、发消息、打开会话等所有以会话为上下文的操作前调用；
+     * 同 root 重复调用零开销。</p>
+     */
+    public static synchronized void require(String sessionId) {
+        if (sessionId == null || !sessionId.matches("[A-Za-z0-9_-]+")) {
+            return;
+        }
+        Path root = resolveAgentRoot(sessionId);
+        try {
+            // 派生沙箱目录惰性创建（空会话不 require 即不落盘）；绑定目录幂等
+            Files.createDirectories(root);
+        } catch (IOException e) {
+            logger.warn("创建会话工作目录失败: {} - {}", root, e.getMessage());
+        }
+        if (instance == null || !root.equals(instance.workspacePath)) {
+            switchWorkspace(root);
+        }
+        instance.activeSessionId = sessionId;
+    }
+
+    /**
+     * Agent 根目录解析（binding.json 唯一权威）：绑定 → 项目根；未绑定 → 派生工作区
+     * （独立全局目录 workspaces/{sid}，支持自定义位置，解析时惰性迁移存量沙箱）
+     */
+    public static Path resolveAgentRoot(String sessionId) {
+        Path bound = WorkspaceDataStore.readBinding(sessionId);
+        if (bound != null) {
+            return bound;
+        }
+        return WorkspaceDataStore.resolveDerivedWithMigration(sessionId);
+    }
+
+    /**
+     * 当前活跃实例的 Agent 根目录（无实例时返回 null；WebApplication 镜像数据源）
+     */
+    public static Path activeRoot() {
+        return instance == null ? null : instance.workspacePath;
     }
 
     /**
@@ -145,8 +203,10 @@ public class ChatService {
         disableTools();
         loadGlobalSkills();
         connectMcpServers();
-        memory = agent.getMemory();
-        memoryDir = WorkspaceDataStore.globalSessionsDir();
+        // 记忆与 ensureMemory 同源（全局桶）：HarnessAgent 构造时自建工作区内 memory（.qualia/sessions），
+        // 必须统一覆盖为全局桶实例——否则问答写入工作区目录、getSessions 读全局桶，列表查询不到数据
+        ensureMemory();
+        agent.setMemory(memory);
         currentModelName = defaultModelName;
     }
     
@@ -397,64 +457,81 @@ public class ChatService {
     }
 
     /**
-     * 创建新会话
+     * 创建新会话：一律落在默认工作区（不写 binding.json = 派生沙箱语义），
+     * 「新建即绑项目」由绑定接口显式完成，绑定入口唯一。
      */
     public SessionInfo createSession(String title) {
         ensureMemory();
         String sessionId = UUID.randomUUID().toString();
         String sessionTitle = title != null ? title : "新会话";
-        // 会话归属绑定当前工作区（binding.json 与会话域同生灭；派生工作区会话第二步接入后可为 null）
-        WorkspaceDataStore.writeBinding(sessionId, workspacePath);
         return new SessionInfo(sessionId, sessionTitle, System.currentTimeMillis());
     }
 
     /**
-     * 获取当前工作区的会话列表（项目模式列表语义：仅显示绑定到当前工作区的会话，
-     * 归属以 binding.json 为准；迁移会话已由 WorkspaceDataStore 补写归属）
+     * 获取全部会话（跨项目历史库）：归属以 binding.json 回填到 workspace 字段
+     * （null = 默认工作区），分组展示交给前端。
      */
     public List<SessionInfo> getSessions() {
         ensureMemory();
-        
+
         List<SessionInfo> sessionList = new ArrayList<>();
         if (memoryDir != null && Files.exists(memoryDir)) {
-            Path currentWorkspace = workspacePath == null
-                    ? null : workspacePath.toAbsolutePath().normalize();
             try (var paths = Files.list(memoryDir)) {
-                // 新布局：memoryDir/{sessionId}/session.json；绑定不匹配的会话不混入当前项目列表
+                // 新布局：memoryDir/{sessionId}/session.json；全量返回，归属见 info.workspace
                 paths.filter(Files::isDirectory)
                      .forEach(dir -> {
-                         Path file = dir.resolve("session.json");
-                         if (!Files.isRegularFile(file)) {
-                             return;
-                         }
-                         String sessionId = dir.getFileName().toString();
-                         if (currentWorkspace == null
-                                 || !currentWorkspace.equals(WorkspaceDataStore.readBinding(sessionId))) {
-                             return;
-                         }
-                         List<MemoryMessage> messages = memory.getSessionHistory(sessionId);
-                         if (!messages.isEmpty()) {
-                             String title = readCustomTitle(dir);
-                             if (title == null) {
-                                 title = messages.get(0).getContent();
-                                 if (title.length() > 20) {
-                                     title = title.substring(0, 20) + "...";
-                                 }
-                             }
-                             long lastModified = 0;
-                             try {
-                                 lastModified = Files.getLastModifiedTime(file).toMillis();
-                             } catch (IOException ignored) {}
-                             sessionList.add(new SessionInfo(sessionId, title, lastModified, messages));
+                         SessionInfo info = buildSessionInfo(dir);
+                         if (info != null) {
+                             sessionList.add(info);
                          }
                      });
             } catch (IOException e) {
                 // ignore
             }
         }
-        
+
         sessionList.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
         return sessionList;
+    }
+
+    /**
+     * 获取单个会话信息（含 workspace 归属；会话为空或不存在返回 null）
+     */
+    public SessionInfo getSessionInfo(String sessionId) {
+        ensureMemory();
+        if (sessionId == null || !sessionId.matches("[A-Za-z0-9_-]+")) {
+            return null;
+        }
+        return buildSessionInfo(sessionDir(sessionId));
+    }
+
+    /** 单会话信息构建：标题（自定义优先）+ 时间 + workspace 归属；空会话返回 null */
+    private SessionInfo buildSessionInfo(Path dir) {
+        Path file = dir.resolve("session.json");
+        if (!Files.isRegularFile(file)) {
+            return null;
+        }
+        String sessionId = dir.getFileName().toString();
+        List<MemoryMessage> messages = memory.getSessionHistory(sessionId);
+        if (messages.isEmpty()) {
+            return null;
+        }
+        String title = readCustomTitle(dir);
+        if (title == null) {
+            title = messages.get(0).getContent();
+            if (title.length() > 20) {
+                title = title.substring(0, 20) + "...";
+            }
+        }
+        long lastModified = 0;
+        try {
+            lastModified = Files.getLastModifiedTime(file).toMillis();
+        } catch (IOException ignored) {}
+        SessionInfo info = new SessionInfo(sessionId, title, lastModified, messages);
+        Path bound = WorkspaceDataStore.readBinding(sessionId);
+        info.workspace = bound == null ? null : bound.toString();
+        info.locked = !messages.isEmpty();
+        return info;
     }
 
     /**
@@ -463,6 +540,40 @@ public class ChatService {
     public List<MemoryMessage> getSessionHistory(String sessionId) {
         ensureMemory();
         return memory.getSessionHistory(sessionId);
+    }
+
+    /**
+     * 会话上下文视图数据（输入框信号条）：usedTokens = 历史消息字符数×2（对齐 ContextManager
+     * 估算口径，供点亮比例）；turnCount = assistant 消息数（对话轮数）；
+     * sessionTotalTokens = 全会话 assistant 消息 totalTokens 累加（真实消耗）；
+     * contextWindow = 当前模型配置的窗口上限（未配置不返回，前端按默认值估算）
+     */
+    public Map<String, Object> getContextInfo(String sessionId) {
+        ensureMemory();
+        Map<String, Object> result = new HashMap<>();
+        List<MemoryMessage> history = memory.getSessionHistory(sessionId);
+        long chars = 0;
+        int turns = 0;
+        long totalTokens = 0;
+        for (MemoryMessage m : history) {
+            if (m.getContent() != null) {
+                chars += m.getContent().length();
+            }
+            if (m.getRole() == MemoryMessage.Role.ASSISTANT) {
+                turns++;
+                if (m.getTotalTokens() != null) {
+                    totalTokens += m.getTotalTokens();
+                }
+            }
+        }
+        result.put("usedTokens", chars * 2);
+        result.put("turnCount", turns);
+        result.put("sessionTotalTokens", totalTokens);
+        CodeAgentModelConfig modelConfig = currentModelName != null ? config.getModelByName(currentModelName) : null;
+        if (modelConfig != null && modelConfig.getContextWindow() != null) {
+            result.put("contextWindow", modelConfig.getContextWindow());
+        }
+        return result;
     }
 
     /**
@@ -518,6 +629,8 @@ public class ChatService {
         ensureMemory();
         // 先删绑定元数据，保证 clearSession 后会话域目录可正常清空
         WorkspaceDataStore.deleteBinding(sessionId);
+        // 联动清理派生工作区（默认/自定义根 + 旧版会话域位置，沙箱生成文件一并删除）
+        WorkspaceDataStore.deleteDerivedWorkspace(sessionId);
         memory.clearSession(sessionId);
         // 联动清理会话附件仓库
         AttachmentService.getInstance().clearSession(sessionId);
@@ -637,6 +750,10 @@ public class ChatService {
         public String id;
         public String title;
         public long createdAt;
+        /** 会话绑定的项目路径；null = 默认工作区（派生沙箱态） */
+        public String workspace;
+        /** 工作区锁定：已产生对话（无论是否绑定）——后端拒绝任何绑定变更（前端只读展示） */
+        public boolean locked;
         public List<Map<String, String>> messages = new ArrayList<>();
 
         public SessionInfo(String id, String title, long createdAt) {

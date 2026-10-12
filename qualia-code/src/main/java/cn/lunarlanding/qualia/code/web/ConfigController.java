@@ -9,6 +9,7 @@ import cn.lunarlanding.qualia.code.CodeAgentMcpServerConfig;
 import cn.lunarlanding.qualia.code.WebApplication;
 import cn.lunarlanding.qualia.code.service.ChatService;
 import cn.lunarlanding.qualia.code.service.SkillMarketService;
+import cn.lunarlanding.qualia.code.service.WorkspaceDataStore;
 import cn.lunarlanding.qualia.core.skill.Skill;
 import cn.lunarlanding.qualia.core.skill.SkillScript;
 import cn.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
@@ -84,10 +85,9 @@ public class ConfigController {
                 Files.createDirectories(file.getParent());
                 Files.writeString(file, content);
             }
-            // 当前工作区有活跃 Agent 时热更新提示词；未初始化时下次 initialize 自动读文件
-            Path ws = WebApplication.getCurrentWorkspace();
-            if (ws != null) {
-                ChatService.getInstance(ws).applySystemPrompt(content.isBlank() ? DEFAULT_AGENT_PROMPT : content);
+            // 活跃 Agent 存在时热更新提示词；未初始化时下次 initialize 自动读文件
+            if (ChatService.activeRoot() != null) {
+                ChatService.getInstance().applySystemPrompt(content.isBlank() ? DEFAULT_AGENT_PROMPT : content);
             }
             return Map.of("success", true);
         } catch (IOException e) {
@@ -123,6 +123,9 @@ public class ConfigController {
             result.put("mcpServers", config.getMcpServers());
             result.put("disabledSkills", config.getDisabledSkills());
             result.put("disabledTools", config.getDisabledTools());
+            // 派生工作区存储位置：null = 默认 ~/.qualia/code/workspaces；默认路径供前端 placeholder 展示
+            result.put("derivedWorkspaceDir", config.getDerivedWorkspaceDir());
+            result.put("defaultDerivedDir", CodeAgentConfig.defaultWorkspacesDir().toString());
             result.put("configFile", GLOBAL_CONFIG_FILE.toAbsolutePath().toString());
 
             return ResponseEntity.ok(result);
@@ -166,14 +169,49 @@ public class ConfigController {
                 config.put("disabledTools", configData.get("disabledTools"));
             }
 
+            // 派生工作区存储位置：空值 = 恢复默认；非空校验绝对路径且目录可创建
+            boolean derivedDirChanged = configData.containsKey("derivedWorkspaceDir");
+            Path previousDerivedDir = derivedDirChanged ? WorkspaceDataStore.readDerivedDirSetting() : null;
+            if (derivedDirChanged) {
+                Object raw = configData.get("derivedWorkspaceDir");
+                String dir = raw == null ? null : String.valueOf(raw).trim();
+                if (dir == null || dir.isEmpty()) {
+                    config.put("derivedWorkspaceDir", null); // fastjson 序列化不输出 null，即回到默认位置
+                } else {
+                    Path p = Path.of(dir);
+                    if (!p.isAbsolute()) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "派生工作区存储位置必须为绝对路径"));
+                    }
+                    try {
+                        Files.createDirectories(p);
+                    } catch (IOException ioe) {
+                        return ResponseEntity.badRequest().body(Map.of("error", "目录不可创建或不可写: " + ioe.getMessage()));
+                    }
+                    config.put("derivedWorkspaceDir", p.normalize().toString());
+                }
+            }
+
             // 保存配置
             Files.createDirectories(GLOBAL_CONFIG_DIR);
             Files.writeString(GLOBAL_CONFIG_FILE, JSON.toJSONString(config, true), StandardCharsets.UTF_8);
 
             // 热生效：置空旧 Agent，下次对话时按新配置重建
-            ChatService.getInstance(WebApplication.getCurrentWorkspace()).reloadConfig();
+            ChatService.getInstance().reloadConfig();
 
-            return ResponseEntity.ok(Map.of("success", true, "message", "配置已保存，新对话将使用新配置"));
+            // 存储位置变更：立即全量迁移已有派生工作区（上一个自定义根/默认根/旧结构位置 → 新根）
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("success", true);
+            if (derivedDirChanged) {
+                int[] stats = WorkspaceDataStore.migrateAllDerivedWorkspaces(previousDerivedDir);
+                resp.put("migrated", stats[0]);
+                resp.put("failed", stats[1]);
+                resp.put("message", stats[1] > 0
+                        ? "已保存；" + stats[0] + " 个派生工作区已迁移，" + stats[1] + " 个失败（占用中，下次使用时自动重试）"
+                        : stats[0] > 0 ? "已保存；" + stats[0] + " 个派生工作区已迁移" : "配置已保存，新对话将使用新配置");
+            } else {
+                resp.put("message", "配置已保存，新对话将使用新配置");
+            }
+            return ResponseEntity.ok(resp);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "保存配置失败: " + e.getMessage()));
         }
@@ -299,13 +337,30 @@ public class ConfigController {
     /**
      * 获取 workspace 文件列表
      */
+        /**
+     * 会话优先的工作区解析：带 sessionId 走会话权威解析（绑定 → 项目根；未绑定 → 派生沙箱），
+     * 否则回退实例全局当前工作区
+     */
+    private Path workspaceRoot(String sessionId) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            return ChatService.resolveAgentRoot(sessionId);
+        }
+        return WebApplication.getCurrentWorkspace();
+    }
+
     @GetMapping("/files")
-    public ResponseEntity<List<Map<String, Object>>> getWorkspaceFiles(@RequestParam(defaultValue = "") String path) {
+    public ResponseEntity<List<Map<String, Object>>> getWorkspaceFiles(
+            @RequestParam(defaultValue = "") String path,
+            @RequestParam(required = false) String sessionId) {
         try {
-            Path workspacePath = WebApplication.getCurrentWorkspace();
+            Path workspacePath = workspaceRoot(sessionId);
             if (workspacePath == null) {
-                // 未绑定工作区：空列表，文件树自然呈空态
+                // 无实例且无会话：空列表，文件树自然呈空态
                 return ResponseEntity.ok(List.of());
+            }
+            if (!Files.exists(workspacePath)) {
+                // 派生沙箱惰性落盘（空会话不 require 不落盘）
+                Files.createDirectories(workspacePath);
             }
             Path targetPath = path.isEmpty() ? workspacePath : workspacePath.resolve(path);
             
@@ -359,9 +414,10 @@ public class ConfigController {
      * 返回 type：text（含 content/truncated）/ image（前端走 raw 接口取图）/ binary（不支持预览）
      */
     @GetMapping("/file")
-    public ResponseEntity<Map<String, Object>> getWorkspaceFile(@RequestParam String path) {
+    public ResponseEntity<Map<String, Object>> getWorkspaceFile(
+            @RequestParam String path, @RequestParam(required = false) String sessionId) {
         try {
-            Path workspacePath = WebApplication.getCurrentWorkspace();
+            Path workspacePath = workspaceRoot(sessionId);
             if (workspacePath == null) {
                 return ResponseEntity.badRequest().body(Map.of("error", "尚未选择工作区"));
             }
@@ -412,9 +468,10 @@ public class ConfigController {
      * 获取 workspace 文件原始字节（图片预览用）
      */
     @GetMapping("/file/raw")
-    public ResponseEntity<byte[]> getWorkspaceFileRaw(@RequestParam String path) {
+    public ResponseEntity<byte[]> getWorkspaceFileRaw(
+            @RequestParam String path, @RequestParam(required = false) String sessionId) {
         try {
-            Path workspacePath = WebApplication.getCurrentWorkspace();
+            Path workspacePath = workspaceRoot(sessionId);
             if (workspacePath == null) {
                 return ResponseEntity.badRequest().build();
             }
@@ -439,9 +496,10 @@ public class ConfigController {
      * 在系统文件管理器中定位 workspace 文件（工作区浏览器「在文件夹中打开」动作）
      */
     @PostMapping("/file/reveal")
-    public ResponseEntity<Map<String, Object>> revealWorkspaceFile(@RequestParam String path) {
+    public ResponseEntity<Map<String, Object>> revealWorkspaceFile(
+            @RequestParam String path, @RequestParam(required = false) String sessionId) {
         try {
-            Path workspacePath = WebApplication.getCurrentWorkspace();
+            Path workspacePath = workspaceRoot(sessionId);
             if (workspacePath == null) {
                 return ResponseEntity.badRequest().body(Map.of("error", "尚未选择工作区"));
             }
@@ -511,11 +569,10 @@ public class ConfigController {
         }
     }
 
-    /** 技能落盘后热重载到运行中的 Agent（未初始化/未绑定工作区时安全跳过） */
+    /** 技能落盘后热重载到运行中的 Agent（未初始化时安全跳过） */
     private void reloadAgentSkills() {
-        Path ws = WebApplication.getCurrentWorkspace();
-        if (ws != null) {
-            ChatService.getInstance(ws).reloadGlobalSkills();
+        if (ChatService.activeRoot() != null) {
+            ChatService.getInstance().reloadGlobalSkills();
         }
     }
 

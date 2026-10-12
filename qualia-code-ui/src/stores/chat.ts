@@ -155,12 +155,14 @@ export const useChatStore = defineStore('chat', {
       if (s) s.status = status
     },
 
-    /** 流收尾：error 为空表示正常完成（消息本体在帧处理时已写好） */
+    /** 流收尾：error 为空表示正常完成（消息本体在帧处理时已写好）；停止/失败时兜底清理无内容占位，避免残留空壳 */
     endStream(sid: string, error?: string) {
       const s = this.streamBySession[sid]
       if (!s) return
       s.status = error ? 'error' : 'idle'
       s.error = error ?? null
+      const msg = this.messagesBySession[sid]?.find((m) => m.id === s.msgId)
+      if (msg && !msg.content && !msg.steps?.length) this.removeMessage(sid, s.msgId)
     },
 
     /** 错误气泡（无步骤无答案时流失败的回复形态，对齐旧版 handleStreamError） */

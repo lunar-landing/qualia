@@ -183,16 +183,16 @@ watch(
     </div>
   </div>
 
-  <!-- 助手消息（无步骤）：普通气泡（流式无步骤时与 plainBubble 同构） -->
-  <div v-else-if="!hasSteps" class="msg codex">
+  <!-- 助手消息（无步骤）：普通气泡；流式占位在首帧内容到达前不渲染，等待期由 typing 点独占，避免空壳显示在加载点上方 -->
+  <div v-else-if="!hasSteps && msg.content" class="msg codex">
     <div>
       <div ref="mdContainer" class="bubble" v-html="answerHtml"></div>
       <div class="time">{{ timeStr }}</div>
     </div>
   </div>
 
-  <!-- 助手消息（有步骤）：活动容器 = 摘要条 + 思考/工具流 + 思考状态条 + 回答 -->
-  <div v-else class="msg codex" :data-msg-id="msg.id">
+  <!-- 助手消息（有步骤）：活动容器 = 摘要条 + 思考/工具流 + 思考状态条 + 回答（显式 hasSteps：空占位消息三分支均不命中，不渲染） -->
+  <div v-else-if="hasSteps" class="msg codex" :data-msg-id="msg.id">
     <div class="act-col">
       <div
         v-show="!isLive && summaryCount > 0"

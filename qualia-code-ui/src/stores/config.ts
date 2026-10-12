@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { getConfig, getCurrentModel, listSkills, listTools, updateConfig, deleteSkill as apiDeleteSkill } from '@/api/config'
-import type { AppConfigPatch, AppConfig, CurrentModel, SkillInfo, ToolInfo } from '@/types'
+import type { AppConfigPatch, AppConfig, CurrentModel, SaveConfigResult, SkillInfo, ToolInfo } from '@/types'
 
 /** 设置与模型信息。主题切换独立在 composables/theme.ts（全局单例，非业务配置） */
 export const useConfigStore = defineStore('config', {
@@ -46,7 +46,7 @@ export const useConfigStore = defineStore('config', {
     },
 
     /** 保存部分字段（apiKey 掩码规则由后端合并处理）；成功后回读并重置模型选择（对齐旧版 refreshModelSelector） */
-    async save(patch: AppConfigPatch): Promise<{ success: boolean; message: string }> {
+    async save(patch: AppConfigPatch): Promise<SaveConfigResult> {
       this.saving = true
       try {
         const res = await updateConfig(patch)

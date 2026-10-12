@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话列表组织方式 · 三版方案</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root {
+    --bg-app: #f4f5f7;
+    --bg-surface: #ffffff;
+    --bg-hover: #eef0f3;
+    --bg-active: #e9ebee;
+    --border: #e3e6ea;
+    --border-strong: #d4d8de;
+    --text-1: #1e2229;
+    --text-2: #4b5260;
+    --text-3: #8a91a0;
+    --accent: #17191d;
+    --ok: #2da44e;
+    --unread: #d97706;
+    --mono: ui-monospace, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; }
+  .page-head p { color: var(--text-3); font-size: 12.5px; margin-top: 4px; }
+
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-2); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    margin-bottom: 8px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+  .sec-sub { font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
+
+  .layout { display: flex; gap: 24px; align-items: flex-start; }
+  .stage {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    flex-shrink: 0;
+  }
+  .meta { flex: 1; min-width: 280px; font-size: 12.5px; color: var(--text-2); }
+  .meta h5 { font-size: 12px; color: var(--text-1); margin: 14px 0 4px; }
+  .meta h5:first-child { margin-top: 0; }
+  .meta ul { padding-left: 18px; }
+  .meta li { margin-bottom: 3px; }
+  .meta .good { color: var(--ok); }
+  .meta .bad { color: #b35900; }
+
+  /* ===== 侧栏演示 ===== */
+  .sidebar {
+    width: 264px;
+    background: var(--bg-app);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .s-head { padding: 6px 8px 8px; font-size: 11px; color: var(--text-3); letter-spacing: 0.5px; }
+
+  .grp-label {
+    padding: 8px 8px 4px;
+    font-size: 10px; font-weight: 650; letter-spacing: 0.6px;
+    color: var(--text-3);
+  }
+  .grp-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px;
+    font-size: 11.5px; font-weight: 650; color: var(--text-2);
+  }
+  .grp-row .cnt { margin-left: auto; font-size: 10px; font-weight: 400; color: var(--text-3); font-family: var(--mono); }
+
+  .s-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    color: var(--text-1);
+    cursor: pointer;
+  }
+  .s-item:hover { background: var(--bg-hover); }
+  .s-item.active { background: var(--bg-active); font-weight: 600; }
+  .s-item .lead { width: 12px; text-align: center; flex-shrink: 0; }
+  .s-item .lead i { font-size: 11px; color: var(--text-3); }
+  .s-item .lead .dot-stream { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: breath 1.6s ease-in-out infinite; }
+  .s-item .lead .dot-unread { width: 7px; height: 7px; border-radius: 50%; background: var(--unread); }
+  @keyframes breath { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .s-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-item .time { flex-shrink: 0; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+
+  /* 项目色点 / 徽标 / 色条 */
+  .pdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .p-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    flex-shrink: 0;
+    font-size: 9.5px; color: var(--text-3);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.5px 7px;
+    line-height: 1.5;
+  }
+  .p-badge .pdot { width: 5px; height: 5px; }
+  .pbar { position: relative; }
+  .pbar::before {
+    content: '';
+    position: absolute; left: -8px; top: 6px; bottom: 6px;
+    width: 2px; border-radius: 2px;
+    background: var(--bar, var(--border-strong));
+    opacity: 0.55;
+  }
+  .c1 { background: #4c7dbe; } .c2 { background: #b3763a; }
+  .c3 { background: #4f9e78; } .c4 { background: #8a6fc0; }
+
+  .sec-wrap { margin-top: 4px; }
+  .sec-wrap .s-item { margin-left: 4px; }
+
+  /* 对比表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: 0.8px; color: var(--text-3); font-weight: 650; }
+  td b { color: var(--text-1); }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 650; border-radius: 999px; padding: 2px 10px; margin-right: 6px; }
+  .tag.a { background: #eef0f3; color: var(--text-2); }
+  .tag.b { background: #e8f0fe; color: #1a56c4; }
+  .tag.c { background: #e6f4ea; color: #1e7a3c; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>会话列表组织方式 · 三版方案</h1>
+  <p>现状问题：项目分组把时间顺序切碎，组头文字行是纯噪声；三版都保留「找得到会话」的能力，只是组织维度与视觉重量不同。日间 · 石墨工程</p>
+</div>
+
+<!-- ============ A ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag a">方案 A</span> 时间线分组 + 项目色点 <small>今天/昨天/7天内/更早 · ChatGPT 式</small></div>
+  <div class="sec-sub">分组维度换成时间（更符合「找最近聊过的」直觉），项目信息压缩为行首色点（悬停看全名），列表顺序恢复时间倒序。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="sidebar">
+        <div class="s-head">会话</div>
+        <div class="grp-label">今天</div>
+        <div class="s-item active"><span class="lead"><span class="dot-stream"></span></span><span class="pdot c1" title="qualia"></span><span class="t">修复工作区锁定逻辑</span><span class="time">14:32</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="pdot c2" title="blog"></span><span class="t">会话列表重构讨论</span><span class="time">13:05</span></div>
+        <div class="grp-label">昨天</div>
+        <div class="s-item"><span class="lead"><span class="dot-unread"></span></span><span class="pdot c3" title="chatbot-project"></span><span class="t">chatbot 问答调试</span><span class="time">昨天</span></div>
+        <div class="grp-label">7 天内</div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="pdot c1" title="qualia"></span><span class="t">README 升级</span><span class="time">周三</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="pdot c4" title="docs"></span><span class="t">设计稿整理</span><span class="time">周二</span></div>
+        <div class="grp-label">更早</div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="pdot c1" title="qualia"></span><span class="t">初次对话</span><span class="time">09-12</span></div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>分组键：今天 / 昨天 / 7 天内 / 更早（会话时间倒序）</li>
+        <li>项目 → 行首 7px 哈希色点（同项目恒同色），悬停 title 显示项目名</li>
+        <li>流式呼吸点 / 未读点语义不变</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 主流心智（ChatGPT/Claude），「最近聊的」永远在顶部</li>
+        <li class="good">＋ 组头从「每项目一行」缩到「每天段一行」，噪声最少</li>
+        <li class="bad">－ 同项目的会话被打散；色点需要学习成本（弱）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag b">方案 B</span> 扁平列表 + 项目徽标 <small>无分组 · 密度最高</small></div>
+  <div class="sec-sub">完全去掉分组层：纯时间倒序，每行尾缀项目徽标（色点 + 名称），靠搜索与滚动定位。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="sidebar">
+        <div class="s-head">会话</div>
+        <div class="s-item active"><span class="lead"><span class="dot-stream"></span></span><span class="t">修复工作区锁定逻辑</span><span class="p-badge"><span class="pdot c1"></span>qualia</span><span class="time">14:32</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">会话列表重构讨论</span><span class="p-badge"><span class="pdot c2"></span>blog</span><span class="time">13:05</span></div>
+        <div class="s-item"><span class="lead"><span class="dot-unread"></span></span><span class="t">chatbot 问答调试</span><span class="p-badge"><span class="pdot c3"></span>chatbot…</span><span class="time">昨天</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">README 升级</span><span class="p-badge"><span class="pdot c1"></span>qualia</span><span class="time">周三</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">设计稿整理</span><span class="p-badge"><span class="pdot c4"></span>docs</span><span class="time">周二</span></div>
+        <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">初次对话</span><span class="p-badge"><span class="pdot c1"></span>qualia</span><span class="time">09-12</span></div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>零分组：会话严格按最后活跃时间倒序</li>
+        <li>项目徽标 = 5px 色点 + 名称（超长省略），行内 flex 尾缀</li>
+        <li>未绑定会话不显示徽标（行自然更短）</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 视觉最安静、信息密度最高、实现最简（去分组逻辑）</li>
+        <li class="good">＋ 项目信息直接可读（不像 A 要悬停）</li>
+        <li class="bad">－ 会话多时无结构感，滚动找历史依赖搜索</li>
+        <li class="bad">－ 徽标挤占标题宽度，窄侧栏下项目名常被截断</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag c">方案 C</span> 项目色条分组 <small>保留项目维度 · 视觉降噪改良</small></div>
+  <div class="sec-sub">保留项目分组，但组头从「灰字标签」升级为「色点 + 项目名 + 会话数」，行左侧加 2px 项目色细条——扫描时靠颜色认领，不靠读字。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="sidebar">
+        <div class="s-head">会话</div>
+        <div class="grp-row"><span class="pdot c1"></span><span>qualia</span><span class="cnt">12</span></div>
+        <div class="sec-wrap">
+          <div class="s-item pbar" style="--bar: #4c7dbe;"><span class="lead"><span class="dot-stream"></span></span><span class="t">修复工作区锁定逻辑</span><span class="time">14:32</span></div>
+          <div class="s-item pbar" style="--bar: #4c7dbe;"><span class="lead"><i class="far fa-comment"></i></span><span class="t">README 升级</span><span class="time">周三</span></div>
+        </div>
+        <div class="grp-row"><span class="pdot c2"></span><span>blog</span><span class="cnt">3</span></div>
+        <div class="sec-wrap">
+          <div class="s-item pbar" style="--bar: #b3763a;"><span class="lead"><span class="dot-unread"></span></span><span class="t">会话列表重构讨论</span><span class="time">13:05</span></div>
+        </div>
+        <div class="grp-row"><span class="pdot c3"></span><span>chatbot-project</span><span class="cnt">2</span></div>
+        <div class="sec-wrap">
+          <div class="s-item pbar" style="--bar: #4f9e78;"><span class="lead"><i class="far fa-comment"></i></span><span class="t">chatbot 问答调试</span><span class="time">昨天</span></div>
+        </div>
+        <div class="grp-row" style="color: var(--text-3);"><span class="pdot" style="background: var(--border-strong);"></span><span>未分组</span><span class="cnt">5</span></div>
+        <div class="sec-wrap">
+          <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">设计稿整理</span><span class="time">周二</span></div>
+          <div class="s-item"><span class="lead"><i class="far fa-comment"></i></span><span class="t">初次对话</span><span class="time">09-12</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>组内按时间倒序；组间按「最近活跃」排布（活跃项目浮顶）</li>
+        <li>项目色 = 路径哈希取自固定调色板（4-5 色），同项目恒同色</li>
+        <li>组头行高≈会话行（紧凑），计数右对齐等宽字；未分组灰点弱化</li>
+        <li>色条 2px 只在组内容器左侧（非每行单独）</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 保留项目维度（多项目并行时归属一目了然），颜色替代文字成为主扫描线索</li>
+        <li class="good">＋ 会话数计数提供体量感；组按活跃度浮顶，当前项目永远在顶部</li>
+        <li class="bad">－ 仍保留分组结构（如果你就是不喜欢分组，这版不解决）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 对比 ============ -->
+<div class="sec">
+  <div class="sec-title">方案对比 <small>三版均保留：流式呼吸点 / 未读点 / 时间右对齐 / 搜索过滤</small></div>
+  <div class="stage" style="padding: 8px 24px;">
+    <table>
+      <tr><th></th><th>A · 时间线分组</th><th>B · 扁平+徽标</th><th>C · 项目色条分组</th></tr>
+      <tr><td><b>组织维度</b></td><td>时间（今天/昨天/7天内/更早）</td><td>无（纯倒序）</td><td>项目（组内倒序，组间活跃浮顶）</td></tr>
+      <tr><td><b>项目表达</b></td><td>行首色点（悬停全名）</td><td>行内徽标（色点+名）</td><td>组头色点+名+计数 / 行左色条</td></tr>
+      <tr><td><b>视觉噪声</b></td><td>低（组头最少）</td><td>最低</td><td>中（组头信息密度高但紧凑）</td></tr>
+      <tr><td><b>找会话</b></td><td>按「什么时候聊的」找</td><td>按滚动/搜索找</td><td>按「哪个项目」找</td></tr>
+      <tr><td><b>实现量</b></td><td>中（时间分桶）</td><td><b>最小</b>（删分组）</td><td>中（哈希色 + 组排序）</td></tr>
+      <tr><td><b>适用</b></td><td>单项目为主、重「最近」</td><td>会话量不大、极简主义</td><td>多项目并行（推荐）</td></tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

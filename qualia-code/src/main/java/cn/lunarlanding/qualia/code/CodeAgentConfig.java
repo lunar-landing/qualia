@@ -39,6 +39,11 @@ public class CodeAgentConfig {
     /** 产品全局技能目录 */
     public static final Path GLOBAL_SKILLS_DIR = GLOBAL_CONFIG_DIR.resolve("skills");
     
+    /** 派生工作区默认根目录（与 sessions 平级；可被 config.json derivedWorkspaceDir 重定位） */
+    public static Path defaultWorkspacesDir() {
+        return GLOBAL_CONFIG_DIR.resolve("workspaces");
+    }
+    
     /** 旧版配置文件（产品目录隔离前的路径，首启自动迁移） */
     private static final Path LEGACY_CONFIG_FILE = QUALIA_HOME.resolve("qualia-code.json");
     
@@ -48,14 +53,17 @@ public class CodeAgentConfig {
     private final List<CodeAgentMcpServerConfig> mcpServers;
     private final List<String> disabledSkills;
     private final List<String> disabledTools;
+    /** 派生工作区自定义存储位置（null = 默认 ~/.qualia/code/workspaces） */
+    private final String derivedWorkspaceDir;
     
-    public CodeAgentConfig(Path workspacePath, String defaultModel, List<CodeAgentModelConfig> models, List<CodeAgentMcpServerConfig> mcpServers, List<String> disabledSkills, List<String> disabledTools) {
+    public CodeAgentConfig(Path workspacePath, String defaultModel, List<CodeAgentModelConfig> models, List<CodeAgentMcpServerConfig> mcpServers, List<String> disabledSkills, List<String> disabledTools, String derivedWorkspaceDir) {
         this.workspacePath = workspacePath;
         this.defaultModel = defaultModel;
         this.models = models != null ? models : new ArrayList<>();
         this.mcpServers = mcpServers != null ? mcpServers : new ArrayList<>();
         this.disabledSkills = disabledSkills != null ? disabledSkills : new ArrayList<>();
         this.disabledTools = disabledTools != null ? disabledTools : new ArrayList<>();
+        this.derivedWorkspaceDir = derivedWorkspaceDir != null && !derivedWorkspaceDir.isBlank() ? derivedWorkspaceDir : null;
     }
     
     /**
@@ -115,6 +123,10 @@ public class CodeAgentConfig {
         return disabledTools;
     }
     
+    public String getDerivedWorkspaceDir() {
+        return derivedWorkspaceDir;
+    }
+    
     /**
      * 按模型名称获取配置
      * 
@@ -163,11 +175,12 @@ public class CodeAgentConfig {
         List<CodeAgentMcpServerConfig> mcpServers = parseMcpServers(config.getJSONArray("mcpServers"));
         List<String> disabledSkills = parseDisabledSkills(config.getJSONArray("disabledSkills"));
         List<String> disabledTools = parseDisabledSkills(config.getJSONArray("disabledTools"));
+        String derivedWorkspaceDir = config.getString("derivedWorkspaceDir");
         
         // 解析环境变量
         resolveEnvVars(models, mcpServers);
         
-        return new CodeAgentConfig(workspacePath, defaultModel, models, mcpServers, disabledSkills, disabledTools);
+        return new CodeAgentConfig(workspacePath, defaultModel, models, mcpServers, disabledSkills, disabledTools, derivedWorkspaceDir);
     }
     
     /**
@@ -359,6 +372,6 @@ public class CodeAgentConfig {
     @Deprecated
     public static CodeAgentConfig loadFromEnvironment() {
         Path workspacePath = Path.of(System.getProperty("user.dir"));
-        return new CodeAgentConfig(workspacePath, null, null, null, null, null);
+        return new CodeAgentConfig(workspacePath, null, null, null, null, null, null);
     }
 }

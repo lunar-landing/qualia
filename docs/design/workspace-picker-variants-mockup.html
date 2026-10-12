@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选择工作区 · 三版交互与样式方案</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  /* ===== 石墨工程 · 日间 ===== */
+  :root {
+    --bg-app: #f4f5f7;
+    --bg-surface: #ffffff;
+    --bg-hover: #eef0f3;
+    --bg-active: #e9ebee;
+    --border: #e3e6ea;
+    --border-strong: #d4d8de;
+    --text-1: #1e2229;
+    --text-2: #4b5260;
+    --text-3: #8a91a0;
+    --accent: #17191d;
+    --accent-ink: #ffffff;
+    --ok: #2da44e;
+    --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; }
+  .page-head p { color: var(--text-3); font-size: 12.5px; margin-top: 4px; }
+
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-2); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    margin-bottom: 8px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+  .sec-sub { font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
+
+  .layout { display: flex; gap: 24px; align-items: flex-start; }
+  .stage {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 26px 28px;
+    flex-shrink: 0;
+  }
+  .meta { flex: 1; min-width: 260px; font-size: 12.5px; color: var(--text-2); }
+  .meta h5 { font-size: 12px; color: var(--text-1); margin: 14px 0 4px; }
+  .meta h5:first-child { margin-top: 0; }
+  .meta ul { padding-left: 18px; }
+  .meta li { margin-bottom: 3px; }
+  .meta .good { color: var(--ok); }
+  .meta .bad { color: #b35900; }
+
+  /* ===== 演示：输入框 + chip ===== */
+  .demo-wrap {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-strong);
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(30, 34, 41, 0.06);
+    width: 420px;
+  }
+  .demo-textarea { padding: 13px 15px 4px; min-height: 40px; font-size: 13.5px; color: var(--text-3); }
+  .demo-tools { display: flex; align-items: center; gap: 4px; padding: 4px 9px 9px 11px; }
+  .bind-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 9px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: transparent; color: var(--text-2);
+    font-size: 11.5px; cursor: pointer;
+  }
+  .bind-chip .bc-arrow { font-size: 8px; opacity: 0.7; transform: rotate(180deg); }
+  .tool-ghost {
+    width: 30px; height: 30px; border: none; border-radius: 9px;
+    background: transparent; color: var(--text-3); font-size: 13.5px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .send-btn {
+    width: 32px; height: 32px; margin-left: auto;
+    border: none; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink); font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+
+  /* ===== 下拉面板公共 ===== */
+  .menu {
+    position: absolute; bottom: calc(100% + 8px); left: 0;
+    min-width: 258px; background: var(--bg-surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 6px; box-shadow: 0 8px 32px rgba(20, 24, 32, 0.14), 0 4px 12px rgba(20, 24, 32, 0.08);
+    display: flex; flex-direction: column; gap: 2px; z-index: 10;
+  }
+  .bm-label {
+    padding: 4px 10px 2px; font-size: 10px; font-weight: 650;
+    letter-spacing: 0.5px; color: var(--text-3);
+  }
+  .bm-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 7px;
+    background: transparent; border: none;
+    color: var(--text-2); font-size: 12px; text-align: left; cursor: pointer;
+    font-family: inherit;
+  }
+  .bm-item:hover { background: var(--bg-hover); color: var(--text-1); }
+  .bm-item i.lead { font-size: 12px; width: 14px; text-align: center; color: var(--text-3); }
+  .bm-time { margin-left: auto; flex-shrink: 0; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+  .bm-item.muted { color: var(--text-3); font-size: 11.5px; }
+  .bm-sep { height: 1px; background: var(--border); margin: 3px 4px; }
+
+  /* A 方案：当前项 */
+  .bm-item.current { background: var(--bg-active); color: var(--text-1); font-weight: 600; cursor: default; }
+  .bm-item.current .lead { color: var(--ok); }
+  .cur-tag {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 9.5px; font-weight: 650; color: var(--ok);
+    border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+    border-radius: 999px; padding: 1px 7px;
+  }
+
+  /* B 方案：状态条 + 切换区 */
+  .ws-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; margin: 2px 2px 3px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-hover);
+  }
+  .ws-row .n { font-size: 12px; font-weight: 600; color: var(--text-1); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-row .rm {
+    flex-shrink: 0; width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; border-radius: 6px; background: transparent;
+    color: var(--text-3); font-size: 10.5px; cursor: pointer;
+  }
+  .ws-row .rm:hover { background: var(--bg-surface); color: #b35900; }
+
+  /* C 方案：命令面板 */
+  .panel { min-width: 380px; padding: 0; overflow: hidden; }
+  .panel .search {
+    display: flex; align-items: center; gap: 9px;
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+  }
+  .panel .search i { font-size: 12px; color: var(--text-3); }
+  .panel .search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 13px; color: var(--text-1); font-family: inherit;
+  }
+  .panel .search input::placeholder { color: var(--text-3); }
+  .panel .list { padding: 6px; max-height: 240px; }
+  .panel .foot {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px; border-top: 1px solid var(--border);
+    font-size: 10.5px; color: var(--text-3);
+  }
+  .panel .foot .spacer { flex: 1; }
+  .panel .foot .fn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: none; background: transparent; color: var(--text-3);
+    font-size: 10.5px; cursor: pointer; font-family: inherit; padding: 2px 4px; border-radius: 5px;
+  }
+  .panel .foot .fn:hover { background: var(--bg-hover); color: var(--text-1); }
+  kbd {
+    font-family: var(--mono); font-size: 9.5px; color: var(--text-2);
+    background: var(--bg-hover); border: 1px solid var(--border-strong);
+    border-bottom-width: 2px; border-radius: 4px; padding: 0 5px;
+  }
+
+  /* 对比表 */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: 0.8px; color: var(--text-3); font-weight: 650; }
+  td b { color: var(--text-1); }
+  .tag {
+    display: inline-block; font-size: 10.5px; font-weight: 650;
+    border-radius: 999px; padding: 2px 10px; margin-right: 6px;
+  }
+  .tag.a { background: #eef0f3; color: var(--text-2); }
+  .tag.b { background: #e8f0fe; color: #1a56c4; }
+  .tag.c { background: #e6f4ea; color: #1e7a3c; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>选择工作区 · 三版方案</h1>
+  <p>核心修正：切换不需要先移除——当前工作区在选择列表中显性可见（勾选/徽标），点其他项即切换，「移除」降级为边缘操作。日间 · 石墨工程</p>
+</div>
+
+<!-- ============ 方案 A ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag a">方案 A</span> 当前项内联下拉 <small>改良现有面板 · 改动最小</small></div>
+  <div class="sec-sub">最近列表不再过滤当前项：当前项置顶 + 绿勾 +「使用中」徽标，点其他项即切换，移除弱化沉底。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="bind-chip"><i class="fas fa-folder-open"></i><span>qualia</span><i class="fas fa-chevron-down bc-arrow"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+          <div class="menu">
+            <div class="bm-label">最近打开</div>
+            <div class="bm-item current"><i class="fas fa-check lead"></i><span>qualia</span><span class="cur-tag">使用中</span></div>
+            <button class="bm-item"><i class="fas fa-folder lead"></i><span>qualia-docs</span><span class="bm-time">今天 14:32</span></button>
+            <button class="bm-item"><i class="fas fa-folder lead"></i><span>blog</span><span class="bm-time">昨天</span></button>
+            <div class="bm-sep"></div>
+            <button class="bm-item"><i class="fas fa-folder-plus lead"></i><span>浏览更多…</span></button>
+            <button class="bm-item muted"><i class="fas fa-link-slash lead"></i><span>移除工作区</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>当前项在列表<b>置顶可见</b>（绿勾 + 使用中徽标），点击无操作</li>
+        <li>点其他最近项 / 「浏览更多」=<b>直接切换</b>，无需先移除</li>
+        <li>「移除工作区」沉底并弱化为灰色次级项</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 改动最小（在现有面板上调整过滤与排序）</li>
+        <li class="good">＋ 切换语义自明：看得见当前在哪，选别的即切换</li>
+        <li class="bad">－ 移除与浏览仍同区混排，只是视觉弱化</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 方案 B ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag b">方案 B</span> 状态条 + 切换区 <small>语义分区 · 移除归位</small></div>
+  <div class="sec-sub">下拉分两段：顶部「当前工作区」状态条（移除是它右侧的小图标），下方「切换到」列表——移除是当前项的属性，切换才是主操作。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="bind-chip"><i class="fas fa-folder-open"></i><span>qualia</span><i class="fas fa-chevron-down bc-arrow"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+          <div class="menu">
+            <div class="ws-row">
+              <i class="fas fa-folder-open" style="font-size:12px;color:var(--text-2)"></i>
+              <span class="n">qualia</span>
+              <button class="rm" title="移除工作区（回到未设置）"><i class="fas fa-link-slash"></i></button>
+            </div>
+            <div class="bm-label">切换到</div>
+            <button class="bm-item"><i class="fas fa-folder lead"></i><span>qualia-docs</span><span class="bm-time">今天 14:32</span></button>
+            <button class="bm-item"><i class="fas fa-folder lead"></i><span>blog</span><span class="bm-time">昨天</span></button>
+            <button class="bm-item"><i class="fas fa-folder lead"></i><span>demo-app</span><span class="bm-time">3 天前</span></button>
+            <div class="bm-sep"></div>
+            <button class="bm-item"><i class="fas fa-folder-plus lead"></i><span>浏览更多…</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>顶部状态条 = 当前工作区概览（含完整路径悬停）</li>
+        <li><b>移除收缩为状态条右侧小图标</b>——是当前项的操作，不是列表项</li>
+        <li>「切换到」标题 + 纯净列表：点谁切谁，一步完成</li>
+        <li>「浏览更多」打开完整弹窗（目录浏览/搜索/新建）</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 语义最清晰：状态 / 切换 / 移除三者职责分离</li>
+        <li class="good">＋ 「切换到」标题直接回应用户心智（换工作区是主路径）</li>
+        <li class="bad">－ 面板稍高；移除图标较隐蔽（但这正是想要的弱化）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 方案 C ============ -->
+<div class="sec">
+  <div class="sec-title"><span class="tag c">方案 C</span> 命令面板式快速切换 <small>键盘友好 · 开发者审美</small></div>
+  <div class="sec-sub">chip 点击弹搜索面板：自动聚焦、输入即过滤、支持直接粘贴绝对路径直达、全程键盘操作。</div>
+  <div class="layout">
+    <div class="stage">
+      <div class="demo-wrap" style="width: 540px;">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="bind-chip"><i class="fas fa-folder-open"></i><span>qualia</span><i class="fas fa-chevron-down bc-arrow"></i></button>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+          <div class="menu panel">
+            <div class="search">
+              <i class="fas fa-magnifying-glass"></i>
+              <input type="text" placeholder="搜索工作区，或粘贴绝对路径直达…">
+            </div>
+            <div class="list">
+              <div class="bm-item current"><i class="fas fa-check lead"></i><span>qualia</span><span class="cur-tag">使用中</span></div>
+              <button class="bm-item"><i class="fas fa-folder lead"></i><span>qualia-docs</span><span class="bm-time">今天 14:32</span></button>
+              <button class="bm-item"><i class="fas fa-folder lead"></i><span>blog</span><span class="bm-time">昨天</span></button>
+              <button class="bm-item"><i class="fas fa-folder lead"></i><span>demo-app</span><span class="bm-time">3 天前</span></button>
+            </div>
+            <div class="foot">
+              <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+              <span><kbd>Enter</kbd> 切换</span>
+              <span><kbd>Esc</kbd> 关闭</span>
+              <span class="spacer"></span>
+              <button class="fn"><i class="fas fa-folder-plus"></i>浏览全部</button>
+              <button class="fn"><i class="fas fa-link-slash"></i>移除当前</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <h5>交互</h5>
+      <ul>
+        <li>打开即聚焦搜索框：输入过滤最近列表</li>
+        <li>输入<b>绝对路径 + Enter</b> = 直达绑定（目录不存在可按提示创建）</li>
+        <li><kbd>↑↓</kbd> 导航 / <kbd>Enter</kbd> 切换 / <kbd>Esc</kbd> 关闭；当前项置顶可勾选可见</li>
+        <li>「浏览全部」「移除当前」收进底部提示栏，键盘可达</li>
+      </ul>
+      <h5>优劣</h5>
+      <ul>
+        <li class="good">＋ 效率上限最高：搜索过滤 + 路径直达 + 全键盘</li>
+        <li class="good">＋ 与输入区 / 技能菜单同语言，工具感强</li>
+        <li class="bad">－ 实现成本最高（键盘导航 / 过滤 / 路径识别）</li>
+        <li class="bad">－ 面板较宽较高，视觉存在感强</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 对比 ============ -->
+<div class="sec">
+  <div class="sec-title">方案对比 <small>共通点：当前项在选择列表中显性可见，切换永远是主路径</small></div>
+  <div class="stage" style="padding: 8px 24px;">
+    <table>
+      <tr><th></th><th>方案 A · 内联当前项</th><th>方案 B · 状态条+切换区</th><th>方案 C · 命令面板</th></tr>
+      <tr><td><b>切换步数</b></td><td>chip → 点目标（2 步）</td><td>chip → 点目标（2 步）</td><td>chip → 输入/点目标（2 步，搜索可更快）</td></tr>
+      <tr><td><b>当前项展示</b></td><td>列表置顶勾选 + 徽标</td><td>顶部状态条（含移除）</td><td>列表置顶勾选 + 徽标</td></tr>
+      <tr><td><b>移除位置</b></td><td>底部弱化项</td><td>状态条右侧小图标</td><td>底部提示栏</td></tr>
+      <tr><td><b>键盘支持</b></td><td>—</td><td>—</td><td>↑↓ / Enter / Esc / 粘贴直达</td></tr>
+      <tr><td><b>实现成本</b></td><td><b>低</b>（调整现有面板）</td><td>低-中（新增状态条）</td><td>高（搜索/键盘/路径识别）</td></tr>
+      <tr><td><b>适用</b></td><td>想最小改动、快速修正语义</td><td>想语义分区最清晰（推荐）</td><td>想效率与工具感拉满</td></tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

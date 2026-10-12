@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库（Knowledge Base）UI 原型 · qualia-code</title>
+<!--
+  资料库 UI 原型 ｜ 默认日间（石墨工程），右上角可切夜间
+  变量与产品 index.css 对齐（浅色 = body.light-theme 定稿值；深色 = :root 定稿值）
+  场景：① 资料库主视图（解析三态） ② 空态引导 ③ 输入区引用 chips + 下拉 ④ 检索溯源消息流
+  入口设计：侧栏底部「设置」按钮上方新增「资料库」锚点（同款样式），点击 → 聊天区整栏切换
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+/* ===== 主题变量（与产品 index.css 对齐） ===== */
+:root {
+    /* 日间 = 石墨工程（产品 body.light-theme 值） */
+    --bg-app: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-sidebar: #eff2f5;
+    --bg-hover: #e9edf1;
+    --bg-active: #e4e9ee;
+    --bg-input: #ffffff;
+    --text-primary: #1f2328;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --border-color: #d0d7de;
+    --border-soft: #e4e9ee;
+    --shadow: 0 16px 40px rgba(31, 35, 40, 0.10);
+    --accent: #24292f;
+    --accent-light: #32383f;
+    --accent-ink: #ffffff;
+    --error: #cf222e;
+    --success: #1a7f37;
+    --warning: #9a6700;
+    --info: #0969da;
+    --radius-sm: 11px;
+    --radius-md: 16px;
+    --radius-full: 100px;
+    --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+}
+body.dark {
+    --bg-app: #080a10;
+    --bg-surface: rgba(19, 24, 32, 0.92);
+    --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --border-soft: rgba(255, 255, 255, 0.08);
+    --shadow: 0 32px 64px rgba(0, 0, 0, 0.7);
+    --accent: #e6edf3;
+    --accent-light: #f0f6fc;
+    --accent-ink: #0d1117;
+    --error: #f87171;
+    --success: #34d399;
+    --warning: #f59e0b;
+    --info: #60a5fa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-size: 13px;
+    transition: background 0.25s, color 0.25s;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ===== 原型顶部工具条（非产品 UI） ===== */
+.proto-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px;
+    background: rgba(127, 140, 155, 0.14);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-soft);
+}
+.proto-bar .tag { font-size: 11px; color: var(--text-secondary); margin-right: 6px; }
+.proto-tab {
+    font-size: 11.5px; padding: 4px 12px; border-radius: 7px;
+    border: 1px solid var(--border-soft); background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-family: inherit;
+}
+.proto-tab.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.proto-bar .spring { flex: 1; }
+.proto-theme {
+    font-size: 11.5px; padding: 4px 12px; border-radius: 7px;
+    border: 1px solid var(--border-soft); background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-family: inherit;
+}
+
+/* ===== 产品布局：侧栏 + 主区 ===== */
+.app { display: flex; height: 100vh; padding-top: 36px; }
+
+/* --- 侧栏 --- */
+.sidebar {
+    width: 232px; flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex; flex-direction: column;
+}
+.sidebar-brand {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 14px 12px; font-weight: 600; font-size: 13.5px;
+}
+.sidebar-brand i { color: var(--text-secondary); }
+.sidebar-title {
+    padding: 4px 14px 8px; font-size: 11px; color: var(--text-muted);
+    letter-spacing: 0.4px;
+}
+.sess { padding: 0 8px; flex: 1; }
+.sess-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 8px; color: var(--text-secondary);
+    font-size: 12px; margin-bottom: 2px;
+}
+.sess-item.on { background: var(--bg-active); color: var(--text-primary); }
+.sess-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.sidebar-footer { padding: 10px; border-top: 1px solid var(--border-color); }
+.foot-btn {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 8px 10px; border-radius: 9px; border: none; background: none;
+    color: var(--text-secondary); font-size: 12.5px; cursor: pointer;
+    font-family: inherit; text-align: left;
+}
+.foot-btn:hover, .foot-btn.on { background: var(--bg-hover); color: var(--text-primary); }
+.foot-btn i { width: 15px; text-align: center; font-size: 13px; }
+
+/* --- 主区 --- */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.scene { display: none; flex: 1; min-height: 0; }
+.scene.on { display: flex; }
+
+/* ===== 场景 1/2：资料库整栏视图 ===== */
+.kb-view { flex: 1; display: flex; min-height: 0; }
+
+/* 左列：库列表 */
+.kb-list {
+    width: 248px; flex-shrink: 0;
+    border-right: 1px solid var(--border-color);
+    display: flex; flex-direction: column;
+    background: var(--bg-sidebar);
+}
+.kb-list-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 14px 10px;
+}
+.kb-list-head .t { font-size: 13px; font-weight: 600; }
+.kb-list-head button {
+    width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--border-color);
+    background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.kb-cards { padding: 0 10px; flex: 1; overflow-y: auto; }
+.kb-card {
+    padding: 10px 11px; border-radius: 10px; cursor: pointer;
+    border: 1px solid transparent; margin-bottom: 4px;
+}
+.kb-card:hover { background: var(--bg-hover); }
+.kb-card.on { background: var(--bg-active); border-color: var(--border-color); }
+.kb-card .nm { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; }
+.kb-card .nm i { font-size: 11px; color: var(--text-muted); }
+.kb-card .nm .acts { margin-left: auto; display: none; gap: 2px; }
+.kb-card:hover .acts, .kb-card.on .acts { display: inline-flex; }
+.kb-card .nm .acts button {
+    width: 20px; height: 20px; border: none; background: none;
+    color: var(--text-muted); cursor: pointer; border-radius: 5px; font-size: 10px;
+}
+.kb-card .nm .acts button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.kb-card .meta { margin: 4px 0 0 18px; font-size: 11px; color: var(--text-muted); }
+.kb-new {
+    margin: 10px 10px 12px; padding: 8px;
+    border: 1px dashed var(--border-color); border-radius: 10px;
+    background: none; color: var(--text-secondary); font-size: 12px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: inherit;
+}
+.kb-new:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+/* 右列：文件区 */
+.kb-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.kb-detail-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border-color);
+}
+.kb-detail-head .nm { font-size: 14.5px; font-weight: 600; }
+.kb-detail-head .ds { font-size: 11.5px; color: var(--text-secondary); }
+.kb-detail-head .spring { flex: 1; }
+.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 13px; border-radius: 8px; font-size: 12px;
+    border: 1px solid var(--border-color); background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-family: inherit;
+}
+.btn:hover { color: var(--text-primary); border-color: var(--border-active); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary:hover { background: var(--accent-light); }
+
+/* 文件树 */
+.kb-tree { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.tree-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 8px; font-size: 12.5px;
+    cursor: default;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row .caret { width: 12px; color: var(--text-muted); font-size: 9px; }
+.tree-row .fic { width: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+.tree-row .nm2 { color: var(--text-primary); }
+.tree-row .st { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11px; }
+.st.ok { color: var(--success); }
+.st.parsing { color: var(--info); }
+.st.fail { color: var(--error); }
+.tree-row .size { font-size: 11px; color: var(--text-muted); width: 52px; text-align: right; }
+.tree-row .row-acts { display: none; gap: 2px; margin-left: 8px; }
+.tree-row:hover .row-acts { display: inline-flex; }
+.tree-row .row-acts button {
+    width: 22px; height: 22px; border: none; background: none;
+    color: var(--text-muted); cursor: pointer; border-radius: 6px; font-size: 10.5px;
+}
+.tree-row .row-acts button:hover { background: var(--bg-active); color: var(--text-primary); }
+.tree-row .row-acts button.danger:hover { color: var(--error); }
+.indent-1 { padding-left: 30px; }
+.indent-2 { padding-left: 52px; }
+
+/* 拖拽落区提示条 */
+.drop-hint {
+    margin: 10px 14px; padding: 14px;
+    border: 1.5px dashed var(--border-color); border-radius: 10px;
+    text-align: center; font-size: 11.5px; color: var(--text-muted);
+}
+.drop-hint.hot { border-color: var(--info); color: var(--info); background: rgba(9, 105, 218, 0.05); }
+
+/* ===== 场景 2：空态 ===== */
+.kb-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+.kb-empty .inner { text-align: center; max-width: 360px; }
+.kb-empty .ic { font-size: 34px; color: var(--text-muted); margin-bottom: 16px; }
+.kb-empty .t1 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.kb-empty .t2 { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 18px; }
+
+/* ===== 场景 3：对话引用 ===== */
+.chat-scene { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 22px 30px; }
+.msg { display: flex; margin-bottom: 18px; }
+.msg .avatar {
+    width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+    background: var(--bg-active); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text-secondary); margin-right: 10px;
+}
+.msg.user { justify-content: flex-end; }
+.msg .bubble {
+    max-width: 72%; padding: 10px 14px; border-radius: 12px;
+    font-size: 12.5px; line-height: 1.75;
+}
+.msg.ai .bubble { background: var(--bg-input); border: 1px solid var(--border-soft); border-top-left-radius: 4px; }
+.msg.user .bubble { background: var(--bg-active); border-top-right-radius: 4px; }
+.cite {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; color: var(--info);
+    background: rgba(9, 105, 218, 0.07);
+    border: 1px solid rgba(9, 105, 218, 0.18);
+    border-radius: 5px; padding: 0 6px; margin: 0 2px;
+    vertical-align: 1px; white-space: nowrap;
+}
+
+/* 输入区 */
+.chat-input { padding: 0 30px 20px; }
+.input-wrapper {
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: var(--radius-md); box-shadow: var(--shadow);
+    padding: 4px 6px 8px;
+}
+/* 引用 chips 行：资料库引用（常驻，会话级） */
+.ref-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 12px 0; }
+.ref-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 6px 3px 10px; border-radius: 7px;
+    font-size: 11px; line-height: 1.6;
+    color: var(--info);
+    background: rgba(9, 105, 218, 0.07);
+    border: 1px solid rgba(9, 105, 218, 0.25);
+}
+.ref-chip .x {
+    width: 15px; height: 15px; border: none; background: none;
+    color: inherit; cursor: pointer; font-size: 9px; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.ref-chip .x:hover { background: rgba(9, 105, 218, 0.14); }
+/* 对照：技能 chip（现有样式） */
+.skill-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 7px; font-size: 11px; line-height: 1.6;
+    background: rgba(127, 140, 155, 0.12); color: var(--text-primary);
+}
+.skill-chip i { font-size: 9px; color: var(--accent); }
+textarea.in {
+    width: 100%; border: none; background: none; resize: none;
+    font-family: inherit; font-size: 13px; color: var(--text-primary);
+    padding: 10px 12px 6px; outline: none; min-height: 44px;
+}
+.input-acts { display: flex; align-items: center; gap: 4px; padding: 0 6px; }
+.ia-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: none; background: none; color: var(--text-secondary);
+    font-size: 12px; padding: 5px 9px; border-radius: 7px; cursor: pointer;
+    font-family: inherit;
+}
+.ia-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ia-btn.on { color: var(--info); background: rgba(9, 105, 218, 0.08); }
+.ia-btn .spring { flex: 1; }
+.ia-send {
+    width: 28px; height: 28px; border-radius: 8px; border: none;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer; font-size: 11px;
+}
+
+/* 资料库引用下拉面板 */
+.kb-pop {
+    position: absolute; bottom: 76px; left: 30px; width: 300px;
+    background: var(--bg-surface); border: 1px solid var(--border-color);
+    border-radius: 12px; box-shadow: var(--shadow); padding: 6px; z-index: 50;
+}
+.kb-pop .ph { padding: 7px 10px 5px; font-size: 11px; color: var(--text-muted); }
+.kb-pop .it {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
+}
+.kb-pop .it:hover { background: var(--bg-hover); }
+.kb-pop .it .box {
+    width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0;
+    border: 1.5px solid var(--border-color);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--accent-ink);
+}
+.kb-pop .it.on .box { background: var(--accent); border-color: var(--accent); }
+.kb-pop .it .meta { margin-left: auto; font-size: 10.5px; color: var(--text-muted); }
+.kb-pop .foot { padding: 7px 10px 4px; font-size: 10.5px; color: var(--text-muted); border-top: 1px solid var(--border-soft); margin-top: 4px; }
+
+/* ===== 场景 4：检索溯源 ===== */
+.tool-card {
+    margin: 0 0 12px 36px; max-width: 640px;
+    border: 1px solid var(--border-soft); border-radius: 10px;
+    background: var(--bg-input); overflow: hidden; font-size: 12px;
+}
+.tool-card .tc-head {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    color: var(--text-secondary);
+}
+.tool-card .tc-head .kb-ic {
+    width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+    background: rgba(9, 105, 218, 0.10); color: var(--info);
+    display: flex; align-items: center; justify-content: center; font-size: 9px;
+}
+.tool-card .tc-head b { color: var(--text-primary); font-weight: 600; }
+.tool-card .tc-head .st2 { margin-left: auto; color: var(--success); font-size: 11px; }
+.tool-card .tc-body {
+    padding: 8px 12px 10px; border-top: 1px solid var(--border-soft);
+    font-family: var(--mono); font-size: 11px; color: var(--text-secondary); line-height: 1.8;
+}
+.tool-card .tc-body .k { color: var(--info); }
+</style>
+</head>
+<body>
+
+<!-- 原型工具条（非产品 UI） -->
+<div class="proto-bar">
+    <span class="tag">资料库原型</span>
+    <button class="proto-tab on" data-scene="s1" onclick="go('s1', this)">① 资料库视图</button>
+    <button class="proto-tab" data-scene="s2" onclick="go('s2', this)">② 空态引导</button>
+    <button class="proto-tab" data-scene="s3" onclick="go('s3', this)">③ 引用与下拉</button>
+    <button class="proto-tab" data-scene="s4" onclick="go('s4', this)">④ 检索溯源</button>
+    <span class="spring"></span>
+    <button class="proto-theme" onclick="toggleTheme()"><i class="fas fa-circle-half-stroke"></i> 日间 / 夜间</button>
+</div>
+
+<div class="app">
+    <!-- 侧栏：入口 = 底部「资料库」锚点（设置按钮上方，同款样式） -->
+    <aside class="sidebar">
+        <div class="sidebar-brand"><i class="fas fa-code"></i><span>Qualia Code</span></div>
+        <div class="sidebar-title">会话</div>
+        <div class="sess">
+            <div class="sess-item on"><span class="dot"></span>需求梳理 · v2</div>
+            <div class="sess-item"><span class="dot"></span>登录模块重构</div>
+            <div class="sess-item"><span class="dot"></span>附件解析排障</div>
+        </div>
+        <div class="sidebar-footer">
+            <button class="foot-btn on" id="entryKb"><i class="fas fa-database"></i><span>资料库</span></button>
+            <button class="foot-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <!-- ① 资料库主视图 -->
+        <div class="scene on" id="s1">
+            <div class="kb-view">
+                <div class="kb-list">
+                    <div class="kb-list-head">
+                        <span class="t">资料库</span>
+                        <button title="新建知识库"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div class="kb-cards">
+                        <div class="kb-card on">
+                            <div class="nm"><i class="fas fa-database"></i>产品文档
+                                <span class="acts">
+                                    <button title="重命名"><i class="fas fa-pen"></i></button>
+                                    <button title="删除"><i class="fas fa-trash-alt"></i></button>
+                                </span>
+                            </div>
+                            <div class="meta">12 文件 · 8.4 MB</div>
+                        </div>
+                        <div class="kb-card">
+                            <div class="nm"><i class="fas fa-database"></i>竞品调研
+                                <span class="acts">
+                                    <button title="重命名"><i class="fas fa-pen"></i></button>
+                                    <button title="删除"><i class="fas fa-trash-alt"></i></button>
+                                </span>
+                            </div>
+                            <div class="meta">3 文件 · 1.2 MB</div>
+                        </div>
+                    </div>
+                    <button class="kb-new"><i class="fas fa-plus"></i> 新建知识库</button>
+                </div>
+
+                <div class="kb-detail">
+                    <div class="kb-detail-head">
+                        <span class="nm">产品文档</span>
+                        <span class="ds">v2 产品需求与设计资料</span>
+                        <span class="spring"></span>
+                        <button class="btn"><i class="fas fa-folder-plus"></i> 新建文件夹</button>
+                        <button class="btn primary"><i class="fas fa-arrow-up-from-bracket"></i> 上传文件</button>
+                    </div>
+                    <div class="kb-tree">
+                        <div class="tree-row">
+                            <i class="caret fas fa-chevron-down"></i>
+                            <i class="fic fas fa-folder"></i><span class="nm2">需求说明</span>
+                        </div>
+                        <div class="tree-row indent-1">
+                            <i class="caret"></i>
+                            <i class="fic fas fa-file-pdf"></i><span class="nm2">PRD-v2.pdf</span>
+                            <span class="st ok"><i class="fas fa-check"></i>已解析</span>
+                            <span class="size">2.1 MB</span>
+                            <span class="row-acts">
+                                <button title="预览"><i class="far fa-eye"></i></button>
+                                <button title="删除" class="danger"><i class="fas fa-times"></i></button>
+                            </span>
+                        </div>
+                        <div class="tree-row indent-1">
+                            <i class="caret"></i>
+                            <i class="fic fas fa-file-lines"></i><span class="nm2">功能清单.md</span>
+                            <span class="st ok"><i class="fas fa-check"></i>已解析</span>
+                            <span class="size">18 KB</span>
+                            <span class="row-acts">
+                                <button title="预览"><i class="far fa-eye"></i></button>
+                                <button title="删除" class="danger"><i class="fas fa-times"></i></button>
+                            </span>
+                        </div>
+                        <div class="tree-row">
+                            <i class="caret fas fa-chevron-down"></i>
+                            <i class="fic fas fa-folder"></i><span class="nm2">会议纪要</span>
+                        </div>
+                        <div class="tree-row indent-1">
+                            <i class="caret"></i>
+                            <i class="fic fas fa-file-word"></i><span class="nm2">1012例会.docx</span>
+                            <span class="st parsing"><i class="fas fa-circle-notch fa-spin"></i>解析中</span>
+                            <span class="size">356 KB</span>
+                        </div>
+                        <div class="tree-row">
+                            <i class="caret"></i>
+                            <i class="fic fas fa-file-lines"></i><span class="nm2">架构设计说明.md</span>
+                            <span class="st fail" title="文件内容为空或格式损坏"><i class="fas fa-triangle-exclamation"></i>失败 · 重试</span>
+                            <span class="size">—</span>
+                            <span class="row-acts">
+                                <button title="重试"><i class="fas fa-rotate-right"></i></button>
+                                <button title="删除" class="danger"><i class="fas fa-times"></i></button>
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 拖拽落区提示：拖入文件时高亮（.hot 态） -->
+                    <div class="drop-hint"><i class="fas fa-arrow-up-from-bracket"></i>　拖拽文件到此处上传（支持 md / txt / pdf / docx，可多选）</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ② 空态引导 -->
+        <div class="scene" id="s2">
+            <div class="kb-view">
+                <div class="kb-list">
+                    <div class="kb-list-head"><span class="t">资料库</span></div>
+                    <div class="kb-cards"></div>
+                    <button class="kb-new"><i class="fas fa-plus"></i> 新建知识库</button>
+                </div>
+                <div class="kb-detail">
+                    <div class="kb-empty">
+                        <div class="inner">
+                            <div class="ic"><i class="fas fa-database"></i></div>
+                            <div class="t1">还没有知识库</div>
+                            <div class="t2">创建知识库并上传资料后，在对话中引用它，<br>回答会先检索库内内容，并标注来源文件与章节。</div>
+                            <button class="btn primary"><i class="fas fa-plus"></i> 新建知识库</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ③ 输入区引用 chips + 下拉多选 -->
+        <div class="scene" id="s3">
+            <div class="chat-scene">
+                <div class="chat-scroll">
+                    <div class="msg ai">
+                        <div class="avatar"><i class="fas fa-code"></i></div>
+                        <div class="bubble">当前工作区已绑定「qualia」项目，需求文档可以传到资料库里，提问时引用即可检索。</div>
+                    </div>
+                    <div class="msg user">
+                        <div class="bubble">v1 和 v2 的需求范围主要差异是什么？</div>
+                    </div>
+                </div>
+                <div class="chat-input" style="position: relative;">
+                    <!-- 资料库引用下拉（点输入区「资料库」按钮弹出，多选勾选） -->
+                    <div class="kb-pop">
+                        <div class="ph">引用资料库（可多选）</div>
+                        <div class="it on"><span class="box"><i class="fas fa-check"></i></span><i class="fas fa-database" style="color:var(--text-muted);font-size:11px;"></i>产品文档<span class="meta">12 文件</span></div>
+                        <div class="it on"><span class="box"><i class="fas fa-check"></i></span><i class="fas fa-database" style="color:var(--text-muted);font-size:11px;"></i>竞品调研<span class="meta">3 文件</span></div>
+                        <div class="it"><span class="box"></span><i class="fas fa-database" style="color:var(--text-muted);font-size:11px;"></i>会议纪要<span class="meta">0 文件</span></div>
+                        <div class="foot">勾选后 Agent 可检索该库资料并在回答中标注来源</div>
+                    </div>
+                    <div class="input-wrapper">
+                        <!-- 引用 chips 行：资料库（蓝灰描边）+ 技能（现有样式对照） -->
+                        <div class="ref-chips">
+                            <span class="ref-chip"><i class="fas fa-database"></i>产品文档<button class="x"><i class="fas fa-times"></i></button></span>
+                            <span class="ref-chip"><i class="fas fa-database"></i>竞品调研<button class="x"><i class="fas fa-times"></i></button></span>
+                            <span class="skill-chip"><i class="fas fa-bolt"></i>代码评审</span>
+                        </div>
+                        <textarea class="in" rows="1">v1 和 v2 的需求范围主要差异是什么？</textarea>
+                        <div class="input-acts">
+                            <button class="ia-btn"><i class="fas fa-bolt"></i> 技能</button>
+                            <button class="ia-btn on"><i class="fas fa-database"></i> 资料库</button>
+                            <span class="spring"></span>
+                            <button class="ia-send"><i class="fas fa-arrow-up"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ④ 检索溯源消息流 -->
+        <div class="scene" id="s4">
+            <div class="chat-scene">
+                <div class="chat-scroll">
+                    <div class="msg user">
+                        <div class="bubble">v1 和 v2 的需求范围主要差异是什么？</div>
+                    </div>
+                    <!-- knowledge_search 工具卡：走现有步骤流渲染，仅加图标映射 -->
+                    <div class="tool-card">
+                        <div class="tc-head">
+                            <span class="kb-ic"><i class="fas fa-database"></i></span>
+                            <span><b>检索资料库</b>　knowledge_search</span>
+                            <span class="st2"><i class="fas fa-check"></i> 命中 3 条</span>
+                        </div>
+                        <div class="tc-body">
+                            <span class="k">query</span> = "v1 v2 需求范围差异"<br>
+                            <span class="k">来源</span> = 产品文档 / 竞品调研
+                        </div>
+                    </div>
+                    <div class="msg ai">
+                        <div class="avatar"><i class="fas fa-code"></i></div>
+                        <div class="bubble">
+                            两版需求范围主要有三处差异：<br><br>
+                            ① <b>多会话并存</b>：v2 支持多项目会话共存与作用域划分，v1 为单工作区 <span class="cite"><i class="fas fa-file-lines"></i>PRD-v2.pdf · 第二章</span><br>
+                            ② <b>附件通道</b>：v2 引入统一附件体系与多模态直传，v1 仅文本输入 <span class="cite"><i class="fas fa-file-lines"></i>功能清单.md · 附件</span><br>
+                            ③ <b>权限模型</b>：v2 增加三档权限闸门与只读问答模式 <span class="cite"><i class="fas fa-file-lines"></i>PRD-v2.pdf · 第五章</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input">
+                    <div class="input-wrapper">
+                        <div class="ref-chips">
+                            <span class="ref-chip"><i class="fas fa-database"></i>产品文档<button class="x"><i class="fas fa-times"></i></button></span>
+                            <span class="ref-chip"><i class="fas fa-database"></i>竞品调研<button class="x"><i class="fas fa-times"></i></button></span>
+                        </div>
+                        <textarea class="in" rows="1" placeholder="继续提问…"></textarea>
+                        <div class="input-acts">
+                            <button class="ia-btn"><i class="fas fa-bolt"></i> 技能</button>
+                            <button class="ia-btn on"><i class="fas fa-database"></i> 资料库</button>
+                            <span class="spring"></span>
+                            <button class="ia-send"><i class="fas fa-arrow-up"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function go(id, btn) {
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('on'));
+    document.getElementById(id).classList.add('on');
+    document.querySelectorAll('.proto-tab').forEach(t => t.classList.remove('on'));
+    btn.classList.add('on');
+    // 场景 1/2 时侧栏「资料库」入口为激活态
+    document.getElementById('entryKb').classList.toggle('on', id === 's1' || id === 's2');
+}
+function toggleTheme() {
+    document.body.classList.toggle('dark');
+}
+</script>
+</body>
+</html>

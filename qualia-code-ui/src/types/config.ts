@@ -29,13 +29,27 @@ export interface AppConfig {
   mcpServers: McpServerConfig[]
   disabledSkills: string[]
   disabledTools: string[]
+  /** 派生工作区自定义存储位置；null = 默认 ~/.qualia/code/workspaces */
+  derivedWorkspaceDir: string | null
+  /** 派生工作区默认根路径（供输入框 placeholder 展示） */
+  defaultDerivedDir: string
   configFile: string
 }
 
 /** PUT /api/config 请求体：仅传需要更新的字段 */
 export type AppConfigPatch = Partial<
-  Pick<AppConfig, 'defaultModel' | 'models' | 'mcpServers' | 'disabledSkills' | 'disabledTools'>
+  Pick<AppConfig, 'defaultModel' | 'models' | 'mcpServers' | 'disabledSkills' | 'disabledTools' | 'derivedWorkspaceDir'>
 >
+
+/** PUT /api/config 响应：保存派生工作区存储位置时附带全量迁移统计 */
+export interface SaveConfigResult {
+  success: boolean
+  message: string
+  /** 全量迁移：已搬迁的派生工作区数（仅存储位置变更时返回） */
+  migrated?: number
+  /** 迁移失败数（文件占用中，下次会话解析自动重试） */
+  failed?: number
+}
 
 /** GET /api/config/model 响应 */
 export interface CurrentModel {

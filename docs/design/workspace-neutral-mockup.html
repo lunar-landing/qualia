@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作区选择 · 去沙箱概念设计稿</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  /* ===== 石墨工程 · 日间 ===== */
+  :root {
+    --bg-app: #f4f5f7;
+    --bg-surface: #ffffff;
+    --bg-input: #ffffff;
+    --bg-hover: #eef0f3;
+    --border: #e3e6ea;
+    --border-strong: #d4d8de;
+    --text-1: #1e2229;
+    --text-2: #4b5260;
+    --text-3: #8a91a0;
+    --accent: #17191d;
+    --accent-ink: #ffffff;
+    --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+  .page-head p { color: var(--text-3); font-size: 12.5px; margin-top: 4px; }
+
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-2); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    margin-bottom: 20px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+
+  /* 展示台 */
+  .stage {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+  }
+  .stage + .note { margin-top: 10px; }
+  .note { font-size: 12px; color: var(--text-3); }
+  .note b { color: var(--text-2); font-weight: 600; }
+
+  /* ===== 输入区复刻（1:1） ===== */
+  .demo-input-hold { max-width: 640px; margin: 0 auto; }
+  .demo-hint {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 13px; margin-bottom: 7px;
+    border: 1px dashed var(--border-strong); border-radius: 9px;
+    font-size: 11.5px; color: var(--text-3);
+  }
+  .demo-hint i { font-size: 11px; }
+  .demo-hint .bh-text { flex: 1; }
+  .demo-hint .bh-action {
+    flex-shrink: 0; padding: 3px 10px; border: none; border-radius: 6px;
+    background: transparent; color: var(--accent);
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }
+  .demo-hint .bh-action:hover { background: var(--bg-hover); }
+  .demo-wrap {
+    position: relative;
+    background: var(--bg-input);
+    border: 1.5px solid var(--border-strong);
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(30, 34, 41, 0.06);
+  }
+  .demo-textarea {
+    padding: 13px 15px 4px; min-height: 52px;
+    font-size: 13.5px; color: var(--text-3);
+  }
+  .demo-tools { display: flex; align-items: center; gap: 4px; padding: 4px 9px 9px 11px; }
+
+  /* chip：未设置 = 虚线引导态 */
+  .bind-hold { position: relative; display: inline-flex; }
+  .bind-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 9px;
+    border: 1px dashed var(--border-strong); border-radius: 8px;
+    background: transparent; color: var(--text-3);
+    font-size: 11.5px; cursor: pointer;
+  }
+  .bind-chip:hover { background: var(--bg-hover); color: var(--text-1); }
+  .bind-chip.bound { border-color: transparent; background: transparent; color: var(--text-2); }
+  .bind-chip.bound:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  /* chip：已绑定 = 无边框位置指示器（非下拉框） */
+  .chip-bound-demo { border-color: transparent; background: transparent; color: var(--text-2); }
+
+  /* 上拉菜单 */
+  .bind-menu {
+    position: absolute; bottom: calc(100% + 8px); left: 0;
+    min-width: 252px; background: var(--bg-surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 6px; box-shadow: 0 8px 32px rgba(20, 24, 32, 0.14), 0 4px 12px rgba(20, 24, 32, 0.08);
+    display: flex; flex-direction: column; gap: 2px; z-index: 10;
+  }
+  .bm-current {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 8px 10px; border-bottom: 1px solid var(--border); margin-bottom: 3px;
+  }
+  .bm-current i { font-size: 12px; width: 14px; text-align: center; margin-top: 2px; color: var(--text-3); }
+  .bm-current .n { font-size: 12px; font-weight: 550; color: var(--text-1); }
+  .bm-current .p { font-size: 10.5px; color: var(--text-3); font-family: var(--mono); word-break: break-all; }
+  .bm-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 7px;
+    background: transparent; border: none;
+    color: var(--text-2); font-size: 12px; text-align: left; cursor: pointer;
+    font-family: inherit;
+  }
+  .bm-item:hover { background: var(--bg-hover); color: var(--text-1); }
+  .bm-item i { font-size: 12px; width: 14px; text-align: center; color: var(--text-3); }
+  .bm-label {
+    padding: 4px 10px 2px; font-size: 10px; font-weight: 650;
+    letter-spacing: 0.5px; color: var(--text-3); opacity: 0.85;
+  }
+  .bm-item.recent .bm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bm-item.recent .bm-time {
+    flex-shrink: 0; margin-left: auto; font-size: 10px;
+    color: var(--text-3); font-family: var(--mono);
+  }
+  .bm-item.current {
+    background: var(--bg-hover); color: var(--text-1);
+    font-weight: 600; cursor: default;
+  }
+  .bm-item.current .lead-ok { color: #2da44e; }
+  .cur-tag {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 9.5px; font-weight: 650; color: #2da44e;
+    border: 1px solid rgba(45, 164, 78, 0.35);
+    border-radius: 999px; padding: 1px 7px;
+  }
+  .bm-item.muted { color: var(--text-3); font-size: 11.5px; }
+  .bm-sep { height: 1px; background: var(--border); margin: 3px 4px; }
+
+  .tool-ghost {
+    width: 30px; height: 30px; border: none; border-radius: 9px;
+    background: transparent; color: var(--text-3); font-size: 13.5px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .send-btn {
+    width: 32px; height: 32px; margin-left: auto;
+    border: none; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink); font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+
+  /* ===== 会话列表 ===== */
+  .conv-demo { width: 252px; border-right: 1px solid var(--border); padding-right: 18px; }
+  .cg {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px 4px; font-size: 10.5px; font-weight: 650;
+    color: var(--text-3); letter-spacing: 0.4px;
+  }
+  .cg .cg-add { margin-left: auto; display: none; }
+  .cg:hover .cg-add { display: inline-flex; }
+  .cg .cg-add {
+    width: 16px; height: 16px; align-items: center; justify-content: center;
+    border-radius: 5px; border: none; background: transparent;
+    color: var(--text-3); font-size: 9px; cursor: pointer;
+  }
+  .cg .cg-add:hover { background: var(--bg-hover); color: var(--text-1); }
+  .conv-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 8px; font-size: 12.5px; color: var(--text-2);
+  }
+  .conv-row:hover { background: var(--bg-hover); }
+  .conv-row.on { background: #e9ebee; color: var(--text-1); font-weight: 550; }
+  .conv-row .session-time { margin-left: auto; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+
+  /* ===== 面板文件 Tab 空态 ===== */
+  .panel-demo { width: 320px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .panel-head h4 { font-size: 12.5px; font-weight: 650; }
+  .panel-tabs { display: flex; gap: 2px; }
+  .panel-tabs span { padding: 3px 8px; font-size: 10.5px; color: var(--text-3); border-radius: 6px; }
+  .panel-tabs span.on { background: var(--bg-hover); color: var(--text-1); font-weight: 600; }
+  .pf-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 46px 20px; color: var(--text-3); font-size: 12px;
+  }
+  .pf-empty i { font-size: 22px; opacity: 0.55; }
+  .pf-empty .pf-bind {
+    margin-top: 4px; padding: 5px 14px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--bg-surface); color: var(--text-1);
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }
+  .pf-empty .pf-bind:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  /* ===== 对照表 ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: 0.8px; color: var(--text-3); font-weight: 650; }
+  td.old { color: var(--text-3); text-decoration: line-through; text-decoration-color: rgba(138, 145, 160, 0.5); }
+  td.new { color: var(--text-1); font-weight: 550; }
+  td.key { font-family: var(--mono); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>工作区选择 · 去沙箱概念</h1>
+  <p>未设置工作区 = 中性「未设置」态，不再出现「沙箱 / 绑定」术语；入口文案统一为「选择工作区」。日间 · 石墨工程</p>
+</div>
+
+<!-- ============ A. 输入区 ============ -->
+<div class="sec">
+  <div class="sec-title">A · 输入区 <small>未设置态（引导条 + chip 虚线）/ 已设置态（chip 实底 + 菜单展开）</small></div>
+  <div class="stage">
+    <div class="demo-input-hold" style="margin-bottom: 40px;">
+      <div class="demo-hint">
+        <i class="fas fa-folder-plus"></i>
+        <span class="bh-text">未设置工作区，文件改动保存在会话目录</span>
+        <button class="bh-action">选择</button>
+      </div>
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <div class="bind-hold">
+            <button class="bind-chip">
+              <i class="fas fa-folder-plus"></i>
+              <span>选择工作区</span>
+            </button>
+          </div>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="tool-ghost"><i class="fas fa-robot"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-input-hold">
+      <div class="demo-wrap">
+        <div class="demo-textarea">输入消息…</div>
+        <div class="demo-tools">
+          <button class="bind-chip chip-bound-demo" style="position: relative;">
+            <i class="fas fa-folder-open"></i>
+            <span>qualia</span>
+          </button>
+          <div class="bind-menu">
+            <div class="bm-label">最近打开</div>
+            <div class="bm-item current"><i class="fas fa-check lead-ok"></i><span class="bm-name">qualia</span><span class="cur-tag">使用中</span></div>
+            <button class="bm-item recent"><i class="fas fa-folder"></i><span class="bm-name">qualia-docs</span><span class="bm-time">今天 14:32</span></button>
+            <button class="bm-item recent"><i class="fas fa-folder"></i><span class="bm-name">blog</span><span class="bm-time">昨天</span></button>
+            <div class="bm-sep"></div>
+            <button class="bm-item"><i class="fas fa-folder-plus"></i><span>浏览更多…</span></button>
+            <button class="bm-item muted"><i class="fas fa-link-slash"></i><span>移除工作区</span></button>
+          </div>
+          <button class="tool-ghost"><i class="fas fa-paperclip"></i></button>
+          <button class="tool-ghost"><i class="fas fa-robot"></i></button>
+          <button class="send-btn"><i class="fas fa-arrow-up"></i></button>
+        </div>
+      </div>
+      <p class="note" style="margin-top: 12px;">
+        <b>下拉面板承载高频操作</b>（方案 A）：当前项置顶可见（绿勾 + 使用中徽标），点其他最近项即切换——无需先移除；
+        「浏览更多…」打开完整选择弹窗（目录浏览 / 搜索 / 创建并打开）；「移除工作区」弱化沉底，是边缘操作而非切换前置。
+      </p>
+    </div>
+  </div>
+  <p class="note"><b>要点</b>：chip 未设置态由「◇ 沙箱」改为「选择工作区」（动作语义，可点）；沙箱图标 fa-cube 全部换为 fa-folder-plus；下拉面板承载最近打开/移除工作区，浏览更多才打开完整选择弹窗。</p>
+</div>
+
+<!-- ============ B. 会话列表 ============ -->
+<div class="sec">
+  <div class="sec-title">B · 会话列表 <small>沙箱组 → 「未分组」，仍置顶，无装饰符</small></div>
+  <div class="stage" style="display: flex; gap: 28px;">
+    <div class="conv-demo">
+      <div class="cg">未分组</div>
+      <div class="conv-row"><i class="fas fa-comment fa-2xs" style="opacity:.5"></i>调试 bind 路由<span class="session-time">14:32</span></div>
+      <div class="conv-row on"><i class="fas fa-comment fa-2xs" style="opacity:.5"></i>新会话<span class="session-time">10:05</span></div>
+      <div class="cg">qualia
+        <button class="cg-add" title="在此项目下新建会话"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="conv-row"><i class="fas fa-comment fa-2xs" style="opacity:.5"></i>工作区重构方案<span class="session-time">昨天</span></div>
+      <div class="conv-row"><i class="fas fa-comment fa-2xs" style="opacity:.5"></i>修复 chip 样式<span class="session-time">周一</span></div>
+      <div class="cg">qualia-docs</div>
+      <div class="conv-row"><i class="fas fa-comment fa-2xs" style="opacity:.5"></i>部署脚本排查<span class="session-time">10/2</span></div>
+    </div>
+    <div style="flex: 1; font-size: 12.5px; color: var(--text-2); align-self: center;">
+      <p style="margin-bottom: 8px;"><b>「◇ 沙箱」→「未分组」</b>：去掉 ◇ 装饰符与沙箱术语，纯中性命名，悬停提示「未设置工作区的会话」。</p>
+      <p>分组逻辑不变：未分组置顶，项目组按最近活跃排序，组悬停出现「＋」。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ C. 面板文件 Tab ============ -->
+<div class="sec">
+  <div class="sec-title">C · 工作区面板 · 文件 Tab <small>未设置态空态</small></div>
+  <div class="stage">
+    <div class="panel-demo">
+      <div class="panel-head">
+        <h4>未设置工作区</h4>
+        <div class="panel-tabs"><span class="on">文件</span><span>审查</span><span>终端</span><span>浏览器</span></div>
+      </div>
+      <div class="pf-empty">
+        <i class="fas fa-folder-plus"></i>
+        <span>选择工作区后，在此浏览项目文件</span>
+        <button class="pf-bind">选择工作区</button>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>要点</b>：面板标题未设置时显示「未设置工作区」（原「沙箱」）；空态图标与按钮文案同步中性化。</p>
+</div>
+
+<!-- ============ D. 文案对照 ============ -->
+<div class="sec">
+  <div class="sec-title">D · 文案对照 <small>「绑定 / 沙箱」术语全面退场</small></div>
+  <div class="stage" style="padding: 8px 24px;">
+    <table>
+      <tr><th>位置</th><th>旧</th><th>新</th></tr>
+      <tr><td class="key">input.chipSandbox → chipNone</td><td class="old">◇ 沙箱</td><td class="new">选择工作区</td></tr>
+      <tr><td class="key">input.bindTitle / bindAction</td><td class="old">绑定工作区</td><td class="new">选择工作区</td></tr>
+      <tr><td class="key">input.sandboxHint → wsHint</td><td class="old">当前为派生沙箱：文件改动不会落在项目目录</td><td class="new">未设置工作区，文件改动保存在会话目录</td></tr>
+      <tr><td class="key">input.sandboxPathNote → wsPathNote</td><td class="old">文件改动存放在会话沙箱（.qualia 会话目录内）</td><td class="new">尚未选择工作区</td></tr>
+      <tr><td class="key">input.unbind</td><td class="old">解绑（回到沙箱）</td><td class="new">移除工作区</td></tr>
+      <tr><td class="key">input 新增 wsNone</td><td class="old">—</td><td class="new">未设置工作区（菜单状态行）</td></tr>
+      <tr><td class="key">conversation.sandboxGroup → ungrouped</td><td class="old">◇ 沙箱</td><td class="new">未分组</td></tr>
+      <tr><td class="key">conversation.sandboxTip → ungroupedTip</td><td class="old">未绑定工作区的会话，文件改动存放在会话沙箱中</td><td class="new">未设置工作区的会话</td></tr>
+      <tr><td class="key">wsPanel.sandboxTitle → noWorkspace</td><td class="old">沙箱</td><td class="new">未设置工作区</td></tr>
+      <tr><td class="key">wsPanel.filesEmpty</td><td class="old">未绑定工作区，绑定后在此浏览项目文件</td><td class="new">选择工作区后，在此浏览项目文件</td></tr>
+      <tr><td class="key">switcher.bindFoot</td><td class="old">选定后写入当前会话的绑定；其他会话不受影响</td><td class="new">选定后仅对当前会话生效；其他会话不受影响</td></tr>
+      <tr><td class="key">switcher.streamingBusy</td><td class="old">有对话正在进行，请等待完成后再变更绑定</td><td class="new">有对话正在进行，请等待完成后再更换工作区</td></tr>
+      <tr><td class="key">switcher.switchFailedWith</td><td class="old">绑定失败：{msg}</td><td class="new">设置工作区失败：{msg}</td></tr>
+      <tr><td class="key">wsPanel.sandboxNote</td><td class="old" style="text-decoration:none; color:var(--text-2)">沙箱预览（iframe srcdoc 技术描述）</td><td class="new" style="font-weight:400">保留不动</td></tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

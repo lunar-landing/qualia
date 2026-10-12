@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listWorkspaceFiles } from '@/api/config'
+import { useSessionStore } from '@/stores/session'
 import { useWorkspaceStore, type FileBadgeKind } from '@/stores/workspace'
 import { normPath } from '@/utils/steps'
 import { fileIcon } from '@/utils/fileMeta'
@@ -58,7 +59,7 @@ async function toggle() {
   // 懒加载子目录
   loading.value = true
   try {
-    kids.value = await listWorkspaceFiles(props.file.path)
+    kids.value = await listWorkspaceFiles(props.file.path, useSessionStore().currentSessionId)
   } catch (e) {
     kidError.value = e instanceof Error ? e.message : t('treeNode.loadFailed')
   } finally {

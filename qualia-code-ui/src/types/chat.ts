@@ -25,11 +25,27 @@ export interface StreamEvent {
   usage?: Record<string, number>
 }
 
+/** 会话上下文视图数据（输入框信号条，GET /api/chat/context） */
+export interface ContextInfo {
+  /** 历史消息估算占用（字符数×2，对齐后端 ContextManager 口径），供信号条点亮比例 */
+  usedTokens: number
+  /** 对话轮数（assistant 消息数） */
+  turnCount: number
+  /** 全会话真实 token 消耗（assistant 消息 totalTokens 累加） */
+  sessionTotalTokens: number
+  /** 当前模型上下文窗口上限（模型配置可选字段，未配置不返回 → 前端按默认值估算） */
+  contextWindow?: number
+}
+
 /** 会话信息（后端 SessionInfo） */
 export interface ChatSession {
   id: string
   title: string
   createdAt: number
+  /** 绑定工作区绝对路径；null/缺省 = 派生沙箱（~/.qualia/code/workspaces/{sid}，可配置位置） */
+  workspace?: string | null
+  /** 工作区锁定：已绑定且已有对话，后端拒绝换绑/解绑（后端计算回传） */
+  locked?: boolean
 }
 
 /** 历史消息内附件引用（core 层 Attachment record 序列化） */

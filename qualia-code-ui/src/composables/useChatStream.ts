@@ -26,7 +26,7 @@ const consuming = new Set<string>()
 export function useChatStream() {
   /** 全局 Composer 实例：useI18n() 仅限 setup 栈内，而 tryConsumeQueue 会在 SSE 回调/按钮点击等非 setup 上下文重建本工厂 */
   const { t } = i18n.global
-  /** 发送消息：无会话时先创建；带附件走 POST 通道，纯文本走 EventSource */
+  /** 发送消息：无会话时先创建；带附件或超长文本走 POST 通道，短文本走 EventSource */
   async function send(text: string, pending: PendingAttachment[] = []) {
     const sessionStore = useSessionStore()
     const chat = useChatStore()

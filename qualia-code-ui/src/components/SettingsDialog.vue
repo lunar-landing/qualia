@@ -4,12 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { getAgentMd, getConfig, installMarketSkill, listSkills, listTools, revealSkillFolder, saveAgentMd, searchMarketSkills } from '@/api/config'
 import { renderMarkdown } from '@/utils/markdown'
 import { useConfigStore } from '@/stores/config'
-import type { MarketSkillInfo, ModelConfig, ModelType, McpTransport, SkillInfo, ToolInfo } from '@/types'
+import type { AppConfigPatch, MarketSkillInfo, ModelConfig, ModelType, McpTransport, SkillInfo, ToolInfo } from '@/types'
 
 /**
  * 全局配置弹窗（~/.qualia/qualia-code.json，与工作区无关）。
- * 「模型 / MCP / 技能 / 工具」四个 Tab；模型 Tab 为卡片网格 + 编辑子弹窗，
- * 弹窗内保存仅写本地草稿，持久化统一由「保存配置」完成（旧 settings.js 平移）。
+ * 「模型 / MCP / 技能 / 工具 / 系统」Tab；模型 Tab 为卡片网格 + 编辑子弹窗。
+ * 即时保存：改什么保存什么，各配置块变更后直接持久化，无草稿与整体保存按钮。
  * 组件由父级 v-if 控制挂载，每次打开重新拉取（apiKey 因此总以掩码回显）。
  */
 const emit = defineEmits<{ close: [] }>()
@@ -51,12 +51,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'settings.categoryOther',
 }
 
+/** 产品版本（与根 pom.xml <revision> 保持同步；纯静态展示，后端暂无版本接口） */
+const APP_VERSION = '0.1.0'
+
 const TABS = [
   { id: 'models', icon: 'fa-robot', label: 'settings.tabModels' },
   { id: 'mcp', icon: 'fa-server', label: 'settings.tabMcp' },
   { id: 'skills', icon: 'fa-shapes', label: 'settings.tabSkills' },
   { id: 'tools', icon: 'fa-wrench', label: 'settings.tabTools' },
   { id: 'app', icon: 'fa-gears', label: 'settings.tabApp' },
+  { id: 'about', icon: 'fa-circle-info', label: 'settings.tabAbout' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
@@ -69,7 +73,7 @@ interface McpDraft {
   headers: { k: string; v: string }[]
 }
 
-// ===== 草稿状态（保存前不落库）=====
+// ===== 配置状态（各块变更后即时持久化，无草稿）=====
 const loading = ref(true)
 const loadError = ref(false)
 const activeTab = ref<TabId>('models')
@@ -99,6 +103,15 @@ const agentMdSaving = ref(false)
 const agentMdTip = ref('')
 const agentMdEditing = ref(false)
 const agentMdSaved = ref('')
+// ===== 系统 Tab：派生工作区存储位置（独立保存；保存后后端全量迁移已有派生工作区） =====
+const derivedDir = ref('')
+const defaultDerivedDir = ref('')
+/** 载入时的已保存值（派生目录脏判断基准） */
+const derivedDirSaved = ref('')
+const derivedSaving = ref(false)
+const derivedTip = ref('')
+const derivedTipOk = ref(false)
+const derivedDirty = computed(() => derivedDir.value.trim() !== derivedDirSaved.value)
 /** 预览模式：markdown 渲染结果 */
 const agentMdPreviewHtml = computed(() => renderMarkdown(agentMd.value || ''))
 /** 进入编辑：快照当前内容，取消时可回滚 */
@@ -137,12 +150,14 @@ onMounted(async () => {
     }))
     disabledSkills.value = [...(cfg.disabledSkills ?? [])]
     disabledTools.value = [...(cfg.disabledTools ?? [])]
+    derivedDir.value = cfg.derivedWorkspaceDir ?? ''
+    derivedDirSaved.value = derivedDir.value
+    defaultDerivedDir.value = cfg.defaultDerivedDir ?? ''
   } catch {
     loadError.value = true
   } finally {
     loading.value = false
   }
-  snapshot.value = dumpDraft()
   // 技能与工具为独立接口，拉取失败不阻断配置展示
   try {
     skills.value = await listSkills()
@@ -204,11 +219,13 @@ function maskKey(k: string): string {
 // ===== 模型列表操作 =====
 function setDefaultModel(i: number) {
   defaultIndex.value = i
+  persistModels()
 }
 function delModel(i: number) {
   models.value.splice(i, 1)
   if (defaultIndex.value === i) defaultIndex.value = models.value.length > 0 ? 0 : -1
   else if (defaultIndex.value > i) defaultIndex.value--
+  persistModels()
 }
 
 // ===== 模型编辑子弹窗 =====
@@ -266,6 +283,7 @@ function saveEditDialog() {
     models.value.push(d)
     if (defaultIndex.value < 0) defaultIndex.value = models.value.length - 1
   }
+  persistModels()
   closeEditDialog()
 }
 function delInDialog() {
@@ -281,6 +299,7 @@ function delInDialog() {
 // ===== MCP =====
 function addMcp() {
   mcpServers.value.push({ name: '', transport: 'streamable-http', url: '', headers: [], enabled: true })
+  schedulePersistMcp()
 }
 
 // ===== 技能 / 工具开关 =====
@@ -293,6 +312,7 @@ function skillScripts(s: SkillInfo): string[] {
 function toggleSkill(name: string, enabled: boolean) {
   if (enabled) disabledSkills.value = disabledSkills.value.filter((n) => n !== name)
   else if (!disabledSkills.value.includes(name)) disabledSkills.value.push(name)
+  persist({ disabledSkills: [...disabledSkills.value] })
 }
 async function onDeleteSkill(s: SkillInfo) {
   if (!window.confirm(t('settings.uninstallConfirm', { name: s.name }))) return
@@ -300,6 +320,7 @@ async function onDeleteSkill(s: SkillInfo) {
     await config.deleteSkill(s.dir || s.name) // 按目录名删除 + 重新拉取技能列表
     skills.value = [...config.skills]
     disabledSkills.value = disabledSkills.value.filter((n) => n !== s.name)
+    persist({ disabledSkills: [...disabledSkills.value] })
   } catch (e) {
     window.alert(t('settings.deleteFailed', { msg: e instanceof Error ? e.message : String(e) }))
   }
@@ -352,6 +373,7 @@ function toolEnabled(name: string): boolean {
 function toggleTool(name: string, enabled: boolean) {
   if (enabled) disabledTools.value = disabledTools.value.filter((n) => n !== name)
   else if (!disabledTools.value.includes(name)) disabledTools.value.push(name)
+  persist({ disabledTools: [...disabledTools.value] })
 }
 const toolGroups = computed(() => {
   const groups: { cat: string; label: string; tools: ToolInfo[] }[] = []
@@ -374,6 +396,7 @@ const searchKw = ref('')
 const NAV_GROUPS = [
   { key: 'svc', label: 'settings.groupService', items: ['models', 'mcp', 'app'] },
   { key: 'ext', label: 'settings.groupExtend', items: ['skills', 'tools'] },
+  { key: 'misc', label: 'settings.groupMisc', items: ['about'] },
 ] as const
 const metaOf = (id: TabId) => TABS.find((x) => x.id === id)!
 const navGroups = computed(() => {
@@ -400,7 +423,8 @@ function jumpSearch() {
 
 /** 内容区节标题行（标题 + 动态副标题） */
 const secMeta = computed(() => {
-  if (loading.value || loadError.value) return null
+  // 关于页为纯静态内容，不受配置加载状态影响，始终可看
+  if (activeTab.value !== 'about' && (loading.value || loadError.value)) return null
   switch (activeTab.value) {
     case 'models': {
       const d = models.value[defaultIndex.value]?.name || models.value[defaultIndex.value]?.model || '—'
@@ -418,35 +442,18 @@ const secMeta = computed(() => {
       return { title: t('settings.tabSkills'), sub: skills.value.length ? t('settings.secSkillsSub', { n: skills.value.length }) : '' }
     case 'app':
       return { title: t('settings.tabApp'), sub: t('settings.secAppSub') }
+    case 'about':
+      return { title: t('settings.tabAbout'), sub: t('settings.secAboutSub') }
     default:
       return { title: t('settings.tabTools'), sub: tools.value.length ? t('settings.secToolsSub', { n: tools.value.length }) : '' }
   }
 })
 
-/** 未保存更改：与载入快照对比（草稿式保存的脏标记） */
-const snapshot = ref('')
-function dumpDraft(): string {
-  return JSON.stringify({
-    models: models.value,
-    mcp: mcpServers.value,
-    ds: disabledSkills.value,
-    dt: disabledTools.value,
-    di: defaultIndex.value,
-  })
-}
-const isDirty = computed(() => snapshot.value !== '' && dumpDraft() !== snapshot.value)
-
-// ===== 保存 =====
+// ===== 即时保存：改什么保存什么（无草稿、无整体保存按钮，反馈走底部轻提示） =====
 const saving = ref(false)
 const saveState = ref<'idle' | 'busy' | 'ok' | 'err'>('idle')
 const saveMsg = ref('')
 let flashTimer: number | undefined
-const saveBtnText = computed(() => {
-  if (saveState.value === 'busy') return t('settings.saving')
-  if (saveState.value === 'err') return saveMsg.value || t('settings.saveFailed')
-  if (saveState.value === 'ok') return saveMsg.value || t('settings.saved')
-  return t('settings.saveConfig')
-})
 function flash(text: string, ok: boolean) {
   saveState.value = ok ? 'ok' : 'err'
   saveMsg.value = text
@@ -457,19 +464,25 @@ function flash(text: string, ok: boolean) {
   }, 1800)
 }
 
-async function onSave() {
-  // 校验失败时切到对应 Tab 提示
-  if (models.value.some((m) => !String(m.name ?? '').trim())) {
-    activeTab.value = 'models'
-    flash(t('settings.modelNameRequired'), false)
-    return
+/** 持久化部分配置字段；成功后 store 回读同步顶栏模型选择 */
+async function persist(patch: AppConfigPatch, okText = t('settings.saved')) {
+  if (saving.value) return
+  saving.value = true
+  saveState.value = 'busy'
+  saveMsg.value = t('settings.saving')
+  try {
+    const res = await config.save(patch)
+    if (res.success) flash(okText, true)
+    else flash(res.message || t('settings.saveFailed'), false)
+  } catch {
+    flash(t('settings.saveFailed'), false)
+  } finally {
+    saving.value = false
   }
-  if (mcpServers.value.some((s) => !String(s.name ?? '').trim())) {
-    activeTab.value = 'mcp'
-    flash(t('settings.mcpNameRequired'), false)
-    return
-  }
-  const payload = {
+}
+
+function modelsPayload(): AppConfigPatch {
+  return {
     defaultModel: defaultIndex.value >= 0 ? String(models.value[defaultIndex.value]?.name ?? '').trim() : '',
     // 各字段统一 String() 兜底，避免历史/新增对象缺字段时 trim 崩溃
     models: models.value.map((m) => ({
@@ -480,6 +493,17 @@ async function onSave() {
       baseUrl: String(m.baseUrl || '').trim(),
       apiKey: String(m.apiKey || '').trim(),
     })),
+  }
+}
+
+/** 模型列表/默认模型变更后立即持久化（名称未填完时跳过，编辑子弹窗校验通过后才会保存） */
+function persistModels() {
+  if (models.value.some((m) => !String(m.name ?? '').trim())) return
+  persist(modelsPayload())
+}
+
+function mcpPayload(): AppConfigPatch {
+  return {
     mcpServers: mcpServers.value.map((s) => ({
       name: String(s.name || '').trim(),
       transport: s.transport,
@@ -491,23 +515,52 @@ async function onSave() {
         return o
       }, {}),
     })),
-    disabledSkills: [...disabledSkills.value],
-    disabledTools: [...disabledTools.value],
   }
-  saving.value = true
-  saveState.value = 'busy'
+}
+
+/** MCP 行内编辑防抖持久化（输入过程中不逐键请求） */
+let mcpTimer: number | undefined
+function schedulePersistMcp() {
+  window.clearTimeout(mcpTimer)
+  mcpTimer = window.setTimeout(() => persist(mcpPayload()), 600)
+}
+function delMcp(i: number) {
+  mcpServers.value.splice(i, 1)
+  persist(mcpPayload())
+}
+
+/** 保存派生工作区存储位置（独立动作）：后端写配置并全量迁移已有派生工作区 */
+async function saveDerivedDir() {
+  if (derivedSaving.value || !derivedDirty.value) return
+  derivedSaving.value = true
+  derivedTip.value = ''
   try {
-    const res = await config.save(payload) // 成功后 store 回读并重置模型选择（等价旧 refreshModelSelector）
+    const res = await config.save({ derivedWorkspaceDir: derivedDir.value.trim() || null })
     if (res.success) {
-      emit('close') // 组件卸载，下次打开重新拉取（apiKey 回显掩码）
+      derivedDirSaved.value = derivedDir.value.trim()
+      const failed = res.failed ?? 0
+      const migrated = res.migrated ?? 0
+      derivedTip.value = failed > 0
+        ? t('settings.derivedMigratePartial', { m: migrated, f: failed })
+        : migrated > 0 ? t('settings.derivedMigrated', { m: migrated }) : t('settings.saved')
+      derivedTipOk.value = failed === 0
     } else {
-      flash(res.message || t('settings.saveFailed'), false)
+      derivedTip.value = res.message || t('settings.saveFailed')
+      derivedTipOk.value = false
     }
-  } catch {
-    flash(t('settings.saveFailed'), false)
+  } catch (e) {
+    derivedTip.value = e instanceof Error ? e.message : String(e)
+    derivedTipOk.value = false
   } finally {
-    saving.value = false
+    derivedSaving.value = false
   }
+}
+
+/** 恢复默认位置：清空输入并立即保存（后端把旧自定义根下的工作区迁回默认根） */
+async function resetDerivedDir() {
+  if (derivedSaving.value) return
+  derivedDir.value = ''
+  await saveDerivedDir()
 }
 
 // ===== 全局监听：Esc 分层关闭 / 点击下拉外部收起 =====
@@ -531,6 +584,7 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocClick)
   window.clearTimeout(flashTimer)
   window.clearTimeout(errTimer)
+  window.clearTimeout(mcpTimer)
 })
 </script>
 
@@ -571,7 +625,34 @@ onUnmounted(() => {
               <div class="sec-title">{{ secMeta.title }}</div>
               <div class="sec-sub">{{ secMeta.sub }}</div>
             </div>
-            <div v-if="loading" class="set-empty"><i class="fas fa-sliders-h"></i><span>{{ t('settings.loading') }}</span></div>
+            <!-- 关于 Tab：品牌信息 + 版本 + 协议（纯静态，置于链首优先于加载/错误态） -->
+            <template v-if="activeTab === 'about'">
+              <div class="about-hero">
+                <div class="about-logo">
+                  <!-- 品牌符号：四角星火花（与欢迎页 / 切换器一致） -->
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z" />
+                  </svg>
+                </div>
+                <div class="about-name">Qualia Code</div>
+                <div class="about-slogan">{{ t('switcher.brandSlogan') }}</div>
+                <span class="about-ver">v{{ APP_VERSION }}</span>
+              </div>
+              <div class="about-desc">{{ t('settings.aboutDesc') }}</div>
+              <div class="about-info">
+                <div class="about-row">
+                  <span class="about-k">{{ t('settings.aboutLicense') }}</span>
+                  <span class="about-v">Apache License 2.0</span>
+                </div>
+                <div class="about-row">
+                  <span class="about-k">{{ t('settings.aboutTech') }}</span>
+                  <span class="about-v">Java 17 · Spring Boot 3 · Vue 3 · MCP</span>
+                </div>
+              </div>
+              <div class="about-foot">{{ t('settings.aboutCopyright') }}</div>
+            </template>
+
+            <div v-else-if="loading" class="set-empty"><i class="fas fa-sliders-h"></i><span>{{ t('settings.loading') }}</span></div>
             <div v-else-if="loadError" class="set-empty">
               <i class="fas fa-exclamation-circle"></i><span>{{ t('settings.loadFailed') }}</span>
             </div>
@@ -620,39 +701,39 @@ onUnmounted(() => {
                   </div>
                   <div class="set-hrow">
                     <label>{{ t('settings.nameLabel') }}</label>
-                    <input v-model="s.name" :placeholder="t('settings.namePlaceholder')" />
+                    <input v-model="s.name" :placeholder="t('settings.namePlaceholder')" @input="schedulePersistMcp" />
                   </div>
                   <div class="set-hrow">
                     <label>{{ t('settings.transport') }}</label>
-                    <select v-model="s.transport">
+                    <select v-model="s.transport" @change="schedulePersistMcp">
                       <option v-for="tr in TRANSPORTS" :key="tr" :value="tr">{{ tr }}</option>
                     </select>
                   </div>
                   <div class="set-hrow">
                     <label>{{ t('settings.urlLabel') }}</label>
-                    <input v-model="s.url" placeholder="http(s)://..." />
+                    <input v-model="s.url" placeholder="http(s)://..." @input="schedulePersistMcp" />
                   </div>
                   <div class="set-hrow top">
                     <label>Headers</label>
                     <div class="set-hrow-fields">
                       <div v-for="(h, j) in s.headers" :key="j" class="set-kv">
-                        <input v-model="h.k" :placeholder="t('settings.headerName')" />
-                        <input v-model="h.v" :placeholder="t('settings.headerValue')" />
-                        <button class="set-kv-del" :title="t('common.delete')" @click="s.headers.splice(j, 1)">
+                        <input v-model="h.k" :placeholder="t('settings.headerName')" @input="schedulePersistMcp" />
+                        <input v-model="h.v" :placeholder="t('settings.headerValue')" @input="schedulePersistMcp" />
+                        <button class="set-kv-del" :title="t('common.delete')" @click="s.headers.splice(j, 1); schedulePersistMcp()">
                           <i class="fas fa-times"></i>
                         </button>
                       </div>
-                      <button class="set-add-btn mini" @click="s.headers.push({ k: '', v: '' })">
+                      <button class="set-add-btn mini" @click="s.headers.push({ k: '', v: '' }); schedulePersistMcp()">
                         <i class="fas fa-plus"></i> {{ t('settings.addHeader') }}
                       </button>
                     </div>
                   </div>
                   <div class="set-card-footer">
-                    <button class="set-card-del" :title="t('common.delete')" @click="mcpServers.splice(i, 1)">
+                    <button class="set-card-del" :title="t('common.delete')" @click="delMcp(i)">
                       <i class="far fa-trash-alt"></i> {{ t('common.delete') }}
                     </button>
                     <label class="toggle-switch" :title="s.enabled ? t('settings.disableTip') : t('settings.enableTip')">
-                      <input v-model="s.enabled" type="checkbox" />
+                      <input v-model="s.enabled" type="checkbox" @change="schedulePersistMcp" />
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
@@ -774,8 +855,32 @@ onUnmounted(() => {
               </template>
             </template>
 
-            <!-- 应用 Tab：AGENT.md 预览/编辑双模式（保存即热生效） -->
+            <!-- 系统 Tab：派生工作区存储位置 + AGENT.md 预览/编辑双模式 -->
             <template v-else-if="activeTab === 'app'">
+              <!-- 派生工作区存储位置：独立保存动作，保存后后端立即全量迁移已有派生工作区 -->
+              <div class="sys-derived">
+                <div class="sys-derived-head">
+                  <span class="sys-derived-title"><i class="fas fa-folder-tree"></i>{{ t('settings.appDerivedTitle') }}</span>
+                  <span class="sys-derived-actions">
+                    <button v-if="derivedDirSaved" class="sys-derived-reset" :disabled="derivedSaving" @click="resetDerivedDir">
+                      <i class="fas fa-rotate-left"></i> {{ t('settings.appDerivedReset') }}
+                    </button>
+                    <button class="sys-derived-save" :disabled="derivedSaving || !derivedDirty" @click="saveDerivedDir">
+                      <i class="fas" :class="derivedSaving ? 'fa-circle-notch fa-spin' : 'fa-check'"></i>
+                      {{ derivedSaving ? t('settings.derivedSaving') : t('settings.appDerivedSave') }}
+                    </button>
+                  </span>
+                </div>
+                <input
+                  v-model="derivedDir"
+                  class="sys-derived-input"
+                  :placeholder="t('settings.appDerivedPlaceholder', { dir: defaultDerivedDir })"
+                  spellcheck="false"
+                  @keydown.enter="saveDerivedDir"
+                />
+                <div class="sys-derived-hint">{{ t('settings.appDerivedHint') }}</div>
+                <div v-if="derivedTip" class="sys-derived-tip" :class="{ err: !derivedTipOk }">{{ derivedTip }}</div>
+              </div>
               <div class="app-md-hint">
                 <i class="fas fa-circle-info"></i>
                 <span>{{ t('settings.appHint') }}<code>~/.qualia/code/AGENT.md</code></span>
@@ -830,16 +935,15 @@ onUnmounted(() => {
               </template>
             </template>
           </div>
-          <div class="settings-footer">
-            <span v-if="isDirty && saveState === 'idle'" class="dirty"><span class="pt"></span>{{ t('settings.dirty') }}</span>
-            <span class="spring"></span>
-            <button class="sf-btn" @click="emit('close')">{{ t('common.cancel') }}</button>
-            <button class="sf-btn primary" :class="{ saved: saveState === 'ok', err: saveState === 'err' }" :disabled="saving" @click="onSave">
-              {{ saveBtnText }}
-            </button>
-          </div>
         </div>
       </div>
+      <!-- 即时保存反馈：底部居中轻提示（改什么保存什么，无整体保存按钮） -->
+      <transition name="toast">
+        <div v-if="saveMsg" class="save-toast" :class="saveState">
+          <i class="fas" :class="saveState === 'busy' ? 'fa-circle-notch fa-spin' : saveState === 'ok' ? 'fa-check' : 'fa-triangle-exclamation'"></i>
+          <span>{{ saveMsg }}</span>
+        </div>
+      </transition>
     </div>
 
     <!-- 模型编辑子弹窗（叠于设置弹窗之上） -->
@@ -940,6 +1044,7 @@ onUnmounted(() => {
     justify-content: center;
 }
 .settings-dialog {
+    position: relative;
     width: min(1040px, calc(100vw - 48px));
     height: min(82vh, 774px);
     background: var(--bg-surface);
@@ -1362,6 +1467,107 @@ body.light-theme .model-edit-dialog {
 .app-md-tip {
     font-size: 11.5px;
     color: var(--text-secondary);
+}
+
+/* ===== 系统 Tab：派生工作区存储位置 ===== */
+.sys-derived {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-input);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+.sys-derived-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 9px;
+}
+.sys-derived-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.sys-derived-title i {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.sys-derived-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.sys-derived-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+.sys-derived-reset:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.sys-derived-input {
+    width: 100%;
+    padding: 8px 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    outline: none;
+}
+.sys-derived-input:focus {
+    border-color: var(--accent);
+}
+.sys-derived-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+.sys-derived-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.sys-derived-save:hover {
+    background: var(--accent-light);
+}
+.sys-derived-save:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.sys-derived-tip {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--success);
+    word-break: break-all;
+}
+.sys-derived-tip.err {
+    color: var(--error);
 }
 .market-search {
     display: flex;
@@ -1925,29 +2131,39 @@ body.light-theme .model-edit-dialog {
     line-height: 1.6;
     margin-bottom: 5px;
 }
-.settings-footer {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 14px;
-    border-top: 1px solid var(--border-color);
-}
-.settings-footer .spring {
-    flex: 1;
-}
-.dirty {
+/* 即时保存反馈：底部居中轻提示（替代旧整体保存按钮区） */
+.save-toast {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    font-size: 11.5px;
-    color: var(--text-secondary);
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+    z-index: 30;
+    pointer-events: none;
 }
-.dirty .pt {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--warning);
+.save-toast.ok {
+    color: var(--success);
+}
+.save-toast.err {
+    color: var(--error);
+}
+.toast-enter-active,
+.toast-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
 }
 .sf-btn {
     font-family: inherit;
@@ -1973,17 +2189,6 @@ body.light-theme .model-edit-dialog {
 }
 .sf-btn.primary:hover {
     background: var(--accent-light);
-}
-.sf-btn.primary.saved {
-    background: var(--success);
-    border-color: var(--success);
-    color: #ffffff;
-}
-/* 保存/校验失败：背景平滑过渡到错误色，与 .med-save.err 同款反馈 */
-.sf-btn.primary.err {
-    background: var(--error);
-    border-color: var(--error);
-    color: #ffffff;
 }
 .sf-btn.primary:disabled {
     opacity: 0.6;
@@ -2395,5 +2600,94 @@ body.light-theme .med-field input:focus {
 .tool-note strong {
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+/* ===== 关于 Tab：品牌居中 + 信息行（纯静态展示，视觉复用 hero-logo 渐变徽章） ===== */
+.about-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 30px 0 16px;
+}
+.about-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    background: var(--bg-avatar-codex);
+    color: var(--accent-ink);
+    box-shadow: 0 8px 28px rgba(230, 237, 243, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+body.light-theme .about-logo {
+    box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18);
+}
+.about-logo svg {
+    width: 26px;
+    height: 26px;
+}
+.about-name {
+    margin-top: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text-primary);
+}
+.about-slogan {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.about-ver {
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 2px 10px;
+}
+.about-desc {
+    max-width: 440px;
+    margin: 0 auto 18px;
+    text-align: center;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: var(--text-secondary);
+}
+.about-info {
+    max-width: 440px;
+    margin: 0 auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-input);
+    overflow: hidden;
+}
+.about-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 14px;
+    font-size: 12px;
+}
+.about-row + .about-row {
+    border-top: 1px solid var(--border-color);
+}
+.about-k {
+    color: var(--text-muted);
+}
+.about-v {
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: right;
+}
+.about-foot {
+    margin-top: 18px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 </style>

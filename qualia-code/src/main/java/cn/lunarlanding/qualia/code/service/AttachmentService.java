@@ -261,19 +261,22 @@ public class AttachmentService {
         return findLegacyImage(sessionId, fileName);
     }
 
-    /** 旧版图片直传方案的落盘目录（.qualia/images/{sessionId}，仅历史会话兼容回显用） */
+    /** 旧版图片直传方案的落盘目录（.qualia/images/{sessionId}，仅历史会话兼容回显用；无镜像工作区时返回 null） */
     private Path legacyImagesDir(String sessionId) {
-        return WebApplication.getCurrentWorkspace()
-                .resolve(".qualia").resolve("images").resolve(sessionId);
+        Path workspace = WebApplication.getCurrentWorkspace();
+        return workspace == null
+                ? null
+                : workspace.resolve(".qualia").resolve("images").resolve(sessionId);
     }
 
     /** 回退查找旧版落盘目录中的图片；文件名经清洗防路径穿越，不存在返回 null */
     private ImagePayload findLegacyImage(String sessionId, String fileName) {
         String safe = sanitizeFileName(fileName);
-        if (safe == null) {
+        Path base = legacyImagesDir(sessionId);
+        if (safe == null || base == null) {
             return null;
         }
-        Path file = legacyImagesDir(sessionId).resolve(safe);
+        Path file = base.resolve(safe);
         if (!Files.isRegularFile(file)) {
             return null;
         }

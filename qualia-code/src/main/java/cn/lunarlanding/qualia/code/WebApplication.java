@@ -1,5 +1,6 @@
 package cn.lunarlanding.qualia.code;
 
+import cn.lunarlanding.qualia.code.service.ChatService;
 import cn.lunarlanding.qualia.code.service.WorkspaceHistory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -17,7 +18,9 @@ import java.util.Map;
 public class WebApplication {
 
     private static ConfigurableApplicationContext context;
-    private static Path currentWorkspace;
+
+    /** 启动参数工作区（仅作首个会话激活前的镜像兜底；会话激活后镜像跟随活跃会话绑定） */
+    private static Path startupWorkspace;
 
     /**
      * 启动 Web 应用（阻塞，CLI/web 子命令使用：主线程保活直到 Ctrl+C）
@@ -50,7 +53,7 @@ public class WebApplication {
      * @param port          服务端口
      */
     public static void startAsync(Path workspacePath, int port) {
-        currentWorkspace = workspacePath;
+        startupWorkspace = workspacePath;
         if (workspacePath != null) {
             WorkspaceHistory.record(workspacePath);
         }
@@ -63,6 +66,8 @@ public class WebApplication {
         // 附件上传上限：默认仅 1MB，需覆盖业务上限（图片 5MB / 文档 20MB）；单请求单文件，请求总量留表单字段余量
         props.put("spring.servlet.multipart.max-file-size", "20MB");
         props.put("spring.servlet.multipart.max-request-size", "25MB");
+        // 请求行+头总限额：Tomcat 默认 8KB，长消息/大 Cookie 会触发 431；前端长消息已降级 POST，此为兜底
+        props.put("server.max-http-request-header-size", "64KB");
 
         // 在新线程中启动 Spring Boot
         Thread springThread = new Thread(() -> {
@@ -85,17 +90,13 @@ public class WebApplication {
     }
 
     /**
-     * 获取当前工作区路径
+     * 获取当前工作区路径（镜像语义）：优先返回 ChatService 活跃实例的 Agent 根目录
+     * （跟随活跃会话绑定）；无活跃实例时回落启动参数工作区，均无则 null。
+     * 终端 cwd / 附件旧图回显 / 配置读取等调用点零改动，自动跟随会话激活。
      */
     public static Path getCurrentWorkspace() {
-        return currentWorkspace;
-    }
-
-    /**
-     * 运行期切换当前工作区（仅更新路径引用，服务重建由 ChatService.switchWorkspace 负责）
-     */
-    public static void setCurrentWorkspace(Path workspacePath) {
-        currentWorkspace = workspacePath;
+        Path active = ChatService.activeRoot();
+        return active != null ? active : startupWorkspace;
     }
 
     /**

@@ -61,7 +61,7 @@ interface ThoughtSeg {
 interface ChipItem {
   key: string
   step: AgentStep
-  result: { ok: boolean; content: string } | null
+  result: { ok: boolean; content: string; duration?: number } | null
 }
 interface ChipsSeg {
   kind: 'chips'
@@ -92,7 +92,12 @@ const segments = computed<Seg[]>(() => {
       pending = item
     } else if (step.stepType === 'OBSERVATION' || step.stepType === 'ERROR') {
       if (pending && pending.result === null) {
-        pending.result = { ok: step.stepType === 'OBSERVATION', content: step.content || '' }
+        pending.result = {
+          ok: step.stepType === 'OBSERVATION',
+          content: step.content || '',
+          // 工具耗时：OBSERVATION 与 ACTION 时间差（历史消息与实时流同一口径）
+          duration: Math.max(0, step.timestamp - pending.step.timestamp),
+        }
       }
       pending = null
     }
@@ -120,7 +125,7 @@ function imageSrc(att: HistoryAttachment): string {
   return att.dataUrl || historyImageUrl(props.sid, att.name)
 }
 
-// ===== 详情展开：每 chip 独立 toggle（多开支持，对齐旧版）；展开中输出到达自动刷新（响应式） =====
+// ===== 详情展开：每 chip 独立 toggle（多开支持）；默认全部收起，点击注脚行展开/收起 =====
 const openChips = ref(new Set<string>())
 function toggleChip(key: string) {
   const next = new Set(openChips.value)
@@ -128,24 +133,6 @@ function toggleChip(key: string) {
   else next.add(key)
   openChips.value = next
 }
-
-// 详情默认展开（旧版 ToolChip.open(chip)：实时与历史一致，点击 chip 可单独收起）
-watch(
-  () => segments.value.flatMap((s) => (s.kind === 'chips' ? s.chips.map((c) => c.key) : [])),
-  (keys) => {
-    if (!keys.length) return
-    const next = new Set(openChips.value)
-    let changed = false
-    keys.forEach((k) => {
-      if (!next.has(k)) {
-        next.add(k)
-        changed = true
-      }
-    })
-    if (changed) openChips.value = next
-  },
-  { immediate: true },
-)
 </script>
 
 <template>
@@ -202,6 +189,7 @@ watch(
       >
         <i class="fas fa-chevron-right tt-chevron"></i>
         <span class="tt-text">{{ t('chat.thoughtProcess') }}</span>
+        <span class="tt-count">· {{ summaryCount }}</span>
       </div>
 
       <div class="act-flow" :class="{ collapsed: !isLive && !flowOpen }">
@@ -220,6 +208,7 @@ watch(
                 :result="chip.result"
                 :live="isLive"
                 :active="openChips.has(chip.key)"
+                :duration="chip.result?.duration"
                 @toggle="toggleChip(chip.key)"
               />
             </div>

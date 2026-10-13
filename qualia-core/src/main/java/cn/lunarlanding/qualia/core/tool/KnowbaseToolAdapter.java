@@ -37,7 +37,7 @@ public class KnowbaseToolAdapter extends FunctionTool {
         this.setName(toolName);
         this.setDescription(desc);
         this.setParameters(new Parameter[]{
-                new Parameter("query", "string", "检索查询语句，描述你想查找的内容", true)
+                new Parameter("query", "检索查询语句，描述你想查找的内容", "string", true)
         });
 
         this.ragflowTool = new RagflowTool(

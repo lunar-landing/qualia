@@ -13,7 +13,8 @@ import cn.lunarlanding.qualia.core.model.chat.ChatMessage;
 import cn.lunarlanding.qualia.core.model.chat.Attachment;
 import cn.lunarlanding.qualia.core.model.chat.ChatUsage;
 import cn.lunarlanding.qualia.core.model.chat.ContentPart;
-import cn.lunarlanding.qualia.core.model.chat.conf.ResponseFormatType;
+import cn.lunarlanding.qualia.core.model.chat.ToolCallPayload;
+import cn.lunarlanding.qualia.core.model.chat.ToolSpec;
 import cn.lunarlanding.qualia.core.mcp.client.McpClient;
 import cn.lunarlanding.qualia.core.mcp.client.McpClientParameters;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -29,7 +30,6 @@ import cn.lunarlanding.qualia.core.memory.impl.MemMemory;
 import cn.lunarlanding.qualia.core.agent.context.ContextManager;
 import cn.lunarlanding.qualia.core.constant.Constant;
 import cn.lunarlanding.qualia.core.skill.Skill;
-import cn.lunarlanding.qualia.core.tool.ToolCall;
 import cn.lunarlanding.qualia.core.tool.impl.skill.SkillSelector;
 import cn.lunarlanding.qualia.core.tool.impl.skill.SkillLoader;
 import cn.lunarlanding.qualia.core.tool.impl.skill.SkillReferenceReader;
@@ -48,6 +48,7 @@ import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,8 +57,8 @@ import java.util.stream.Collectors;
 
 /**
  * ReActAgent 是一个基于反应式思维链的智能体实现
- * 使用单个 ChatModel，通过调用时指定 ResponseFormatType 区分输出格式
- * 它能够根据输入执行工具并做出决策
+ * 使用单个 ChatModel 的原生 function calling 协议（tools/tool_calls）驱动思考-行动-观察循环；
+ * 无工具调用的 content 直接作为最终回答（单循环制）
  */
 public class ReActAgent implements Agent {
 
@@ -548,188 +549,244 @@ public class ReActAgent implements Agent {
             return;
         }
 
-        // 流式调用 LLM
-        String response = streamChat(messages, usageAccumulator);
-        ChatMessage assistantMessage = ChatMessage.assistant(response);
-        messages.add(assistantMessage);
-
-        // 推送 THOUGHT 步骤
-        AgentStep thoughtStep = new AgentStep();
-        thoughtStep.setStepType(AgentStep.StepType.THOUGHT);
-        thoughtStep.setContent(response);
-        allSteps.add(thoughtStep);
-
-        AgentResponse thoughtResponse = new AgentResponse();
-        thoughtResponse.setResponseType("step");
-        thoughtResponse.addStep(thoughtStep);
-        emitter.next(thoughtResponse);
-
-        // 解析工具调用请求（支持多 action）
-        List<ToolCall> toolRequests = parseToolRequests(response);
-
-        if (!toolRequests.isEmpty()) {
-
-            // 收集所有工具执行结果
-            StringBuilder combinedResult = new StringBuilder();
-
-            for (ToolCall toolRequest : toolRequests) {
-
-                FunctionTool tool = findToolByName(toolRequest.toolName());
-
-                if (tool == null) {
-                    // 工具可能被动态移除或模型幻觉出工具名：作为观察结果反馈给模型自行纠正，不终止会话
-                    String missingToolMsg = "错误：工具 '" + toolRequest.toolName()
-                            + "' 不存在或已被移除。可用工具：" + availableToolNames(readOnly);
-                    combinedResult.append("【").append(toolRequest.toolName()).append("】\n")
-                            .append(missingToolMsg).append("\n");
-
-                    AgentStep missingToolStep = new AgentStep();
-                    missingToolStep.setStepType(AgentStep.StepType.OBSERVATION);
-                    missingToolStep.setContent(missingToolMsg);
-                    allSteps.add(missingToolStep);
-
-                    AgentResponse missingToolResponse = new AgentResponse();
-                    missingToolResponse.setResponseType("step");
-                    missingToolResponse.addStep(missingToolStep);
-                    emitter.next(missingToolResponse);
-                    continue;
+        // 本次请求可用的工具签名（与执行侧 readOnly 过滤一致）
+        List<ToolSpec> toolSpecs = new ArrayList<>();
+        for (FunctionTool tool : getAvailableTools(readOnly)) {
+            toolSpecs.add(tool.toToolSpec());
+        }
+    
+        // 原生 function calling：一条流两用——tool_calls 分片按 index 聚合；
+        // 未出现工具调用的 content 即最终回答，实时透传（单循环制）
+        StringBuilder contentBuffer = new StringBuilder();
+        StringBuilder thinkingBuffer = new StringBuilder();
+        StringBuilder answerBuffer = new StringBuilder();
+        LinkedHashMap<Integer, ToolCallPayload> callAggregator = new LinkedHashMap<>();
+        boolean[] sawToolCalls = {false};
+        final ChatUsage[] streamUsage = {null};
+    
+        model.chatStream(messages, toolSpecs).doOnNext(token -> {
+    
+            // 捕获 token 用量（最后一条chunk包含）
+            if (token.getUsage() != null) {
+                streamUsage[0] = token.getUsage();
+            }
+    
+            if (token.getChoices() == null || token.getChoices().isEmpty()) {
+                return;
+            }
+    
+            ChatMessage msg = token.getChoices().get(0).getMessage();
+            if (msg == null) {
+                return;
+            }
+    
+            // 累积思考内容（thinking 模型）
+            String thinking = msg.getReasoningContent();
+            if (thinking != null && !thinking.isEmpty()) {
+                thinkingBuffer.append(thinking);
+            }
+    
+            // 工具调用分片：按 index 聚合（id/name/arguments 可能分片到达）
+            if (msg.getToolCalls() != null && !msg.getToolCalls().isEmpty()) {
+                sawToolCalls[0] = true;
+                for (ToolCallPayload delta : msg.getToolCalls()) {
+                    Integer idx = delta.getIndex() != null ? delta.getIndex() : 0;
+                    ToolCallPayload acc = callAggregator.get(idx);
+                    if (acc == null) {
+                        acc = new ToolCallPayload();
+                        acc.setIndex(idx);
+                        acc.setId(delta.getId());
+                        acc.setName(delta.getName());
+                        acc.setArguments(delta.getArguments() == null ? "" : delta.getArguments());
+                        callAggregator.put(idx, acc);
+                    } else {
+                        if (delta.getId() != null && !delta.getId().isEmpty()) {
+                            acc.setId(delta.getId());
+                        }
+                        if (delta.getName() != null && !delta.getName().isEmpty()) {
+                            acc.setName(delta.getName());
+                        }
+                        if (delta.getArguments() != null) {
+                            acc.appendArguments(delta.getArguments());
+                        }
+                    }
                 }
-
-                // 只读问答模式兜底：非只读工具已从 prompt 移除，模型幻觉调用时
+                return;
+            }
+    
+            // 未出现工具调用的 content = 最终回答，实时透传
+            String content = msg.getContent();
+            if (content != null && !content.isEmpty()) {
+                contentBuffer.append(content);
+                if (!sawToolCalls[0]) {
+                    answerBuffer.append(content);
+                    AgentResponse partialResponse = new AgentResponse();
+                    partialResponse.setResponseType("answer");
+                    partialResponse.setReasoningContent(thinkingBuffer.toString());
+                    partialResponse.setAnswer(answerBuffer.toString());
+                    emitter.next(partialResponse);
+                }
+            }
+        }).blockLast();
+    
+        // 累加本次流式调用的 token 用量
+        if (streamUsage[0] != null) {
+            accumulateUsage(usageAccumulator, streamUsage[0]);
+        }
+    
+        List<ToolCallPayload> toolCalls = new ArrayList<>(callAggregator.values());
+    
+        // 无工具调用：content 即最终回答，收尾（单循环制，省去二次回答轮）
+        if (toolCalls.isEmpty()) {
+            finishAnswer(emitter, contentBuffer.toString(), thinkingBuffer.toString(),
+                    allSteps, sessionId, usageAccumulator, startTime);
+            return;
+        }
+    
+        // 个别端点分片缺失 id 时合成，保证 assistant.tool_calls 与 tool 消息一致
+        for (int i = 0; i < toolCalls.size(); i++) {
+            ToolCallPayload call = toolCalls.get(i);
+            if (call.getId() == null || call.getId().isEmpty()) {
+                call.setId("call_" + i);
+            }
+        }
+    
+        // ===== 工具轮 =====
+        
+        // 意图说明在流中先于 tool_calls 到达，已按 answer 增量透传进回答区；
+        // 确认是工具轮后发空 answer 增量撤回，改以 THOUGHT 步骤展示
+        if (answerBuffer.length() > 0) {
+            AgentResponse retract = new AgentResponse();
+            retract.setResponseType("answer");
+            retract.setAnswer("");
+            emitter.next(retract);
+        }
+        
+        // 推送 THOUGHT 步骤（模型发起调用前的意图说明，可能为空）
+        if (contentBuffer.length() > 0) {
+            AgentStep thoughtStep = new AgentStep();
+            thoughtStep.setStepType(AgentStep.StepType.THOUGHT);
+            thoughtStep.setContent(contentBuffer.toString());
+            allSteps.add(thoughtStep);
+    
+            AgentResponse thoughtResponse = new AgentResponse();
+            thoughtResponse.setResponseType("step");
+            thoughtResponse.addStep(thoughtStep);
+            emitter.next(thoughtResponse);
+        }
+    
+        // 助手消息（带 tool_calls）入列；协议要求后续紧跟每个调用对应的 tool 消息
+        messages.add(ChatMessage.assistantWithToolCalls(toolCalls));
+    
+        for (ToolCallPayload call : toolCalls) {
+            String toolName = call.getName();
+            Map<String, Object> args = parseToolArguments(call.getArguments());
+            FunctionTool tool = (toolName == null || toolName.isEmpty()) ? null : findToolByName(toolName);
+            String resultForModel;
+            String observationContent;
+    
+            if (toolName == null || toolName.isEmpty()) {
+                resultForModel = "错误：工具调用缺少名称，请重新调用。";
+                observationContent = resultForModel;
+            } else if (args == null) {
+                // 参数非 JSON（推理端极少见）：作为观察结果反馈给模型自行纠正，不终止会话
+                resultForModel = "错误：工具 '" + toolName + "' 的参数不是有效 JSON，请检查参数格式后重新调用。";
+                observationContent = resultForModel;
+            } else if (tool == null) {
+                // 工具可能被动态移除或模型幻觉出工具名：反馈可用工具，模型自行纠正
+                resultForModel = "错误：工具 '" + toolName + "' 不存在或已被移除。可用工具：" + availableToolNames(readOnly);
+                observationContent = resultForModel;
+            } else if (readOnly && !tool.isReadOnly()) {
+                // 只读问答模式兜底：非只读工具不进 tools 列表，模型幻觉调用时
                 // 以错误观察反馈（对齐「拒绝不是报错」语义），模型自行纠正，会话不中断
-                if (readOnly && !tool.isReadOnly()) {
-                    String blockedMsg = "错误：当前处于只读问答模式，工具 '" + toolRequest.toolName()
-                            + "' 不可用。请仅使用查询类工具完成任务；如需修改文件或执行命令，"
-                            + "请提示用户切换回智能体模式。";
-                    combinedResult.append("【").append(toolRequest.toolName()).append("】\n")
-                            .append(blockedMsg).append("\n");
-
-                    AgentStep blockedStep = new AgentStep();
-                    blockedStep.setStepType(AgentStep.StepType.OBSERVATION);
-                    blockedStep.setContent(blockedMsg);
-                    allSteps.add(blockedStep);
-
-                    AgentResponse blockedResponse = new AgentResponse();
-                    blockedResponse.setResponseType("step");
-                    blockedResponse.addStep(blockedStep);
-                    emitter.next(blockedResponse);
-                    continue;
-                }
-
+                resultForModel = "错误：当前处于只读问答模式，工具 '" + toolName
+                        + "' 不可用。请仅使用查询类工具完成任务；如需修改文件或执行命令，"
+                        + "请提示用户切换回智能体模式。";
+                observationContent = resultForModel;
+            } else {
                 AgentStep actionStep = new AgentStep();
                 actionStep.setStepType(AgentStep.StepType.ACTION);
-                actionStep.setContent("调用工具: " + toolRequest.toolName());
-                actionStep.setToolName(toolRequest.toolName());
-                actionStep.setToolArgs(toolRequest.arguments());
+                actionStep.setContent("调用工具: " + toolName);
+                actionStep.setToolName(toolName);
+                actionStep.setToolArgs(args);
                 allSteps.add(actionStep);
-
+    
                 AgentResponse actionResponse = new AgentResponse();
                 actionResponse.setResponseType("step");
                 actionResponse.addStep(actionStep);
                 emitter.next(actionResponse);
-
-                // 执行工具
-                String toolResult = tool.execute(toolRequest.arguments());
-
-                AgentStep observationStep = new AgentStep();
-                observationStep.setStepType(AgentStep.StepType.OBSERVATION);
-                observationStep.setContent(toolResult);
-                allSteps.add(observationStep);
-
-                AgentResponse observationResponse = new AgentResponse();
-                observationResponse.setResponseType("step");
-                observationResponse.addStep(observationStep);
-                emitter.next(observationResponse);
-
-                // 合并结果
-                if (combinedResult.length() > 0) {
-                    combinedResult.append("\n");
-                }
-
-                combinedResult.append("【").append(toolRequest.toolName()).append("】\n");
-                combinedResult.append(flattenRagflowJson(toolResult));
+    
+                // 执行工具；观察步骤保留原始结果（来源提取依赖结构化 JSON），模型侧用展平文本
+                String toolResult = tool.execute(args);
+                observationContent = toolResult;
+                resultForModel = flattenRagflowJson(toolResult);
             }
-
-            // 更新消息（合并所有结果，使用 system 角色避免 DeepSeek 等严格校验 tool_calls 协议）
-            ChatMessage toolResultMessage = ChatMessage.system("工具执行结果:\n" + combinedResult.toString());
-            messages.add(toolResultMessage);
-
-            // 递归继续下一轮
-            iterationCount.incrementAndGet();
-            runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator, detectedLanguage, readOnly);
-
-        } else {
-
-            // 构建最终回答消息（携带本次请求检测到的语言）
-            List<ChatMessage> finalAnswerMessages = buildFinalAnswerMessages(messages, allSteps, detectedLanguage);
-            StringBuilder finalAnswerBuffer = new StringBuilder();
-            StringBuilder thinkingBuffer = new StringBuilder();
-            final ChatUsage[] streamUsage = {null};
-
-            model.chatStream(finalAnswerMessages).doOnNext(token -> {
-
-                // 捕获 token 用量（最后一条chunk包含）
-                if (token.getUsage() != null) {
-                    streamUsage[0] = token.getUsage();
-                }
-
-                if (token.getChoices() == null || token.getChoices().isEmpty()) {
-                    return;
-                }
-
-                ChatChoice choice = token.getChoices().get(0);
-                String thinking = choice.getMessage() != null ? choice.getMessage().getReasoningContent() : null;
-
-                // 累积思考内容
-                if (thinking != null && !thinking.isEmpty()) {
-                    thinkingBuffer.append(thinking);
-                }
-
-                // 处理最终回答内容
-                String content = choice.getMessage() != null ? choice.getMessage().getContent() : null;
-                if (content != null && !content.isEmpty()) {
-                    finalAnswerBuffer.append(content);
-                }
-
-                // 统一发送 answer 类型的响应，包含 reasoningContent 和 answer
-                AgentResponse partialResponse = new AgentResponse();
-                partialResponse.setResponseType("answer");
-                partialResponse.setReasoningContent(thinkingBuffer.toString());
-                partialResponse.setAnswer(finalAnswerBuffer.toString());
-                emitter.next(partialResponse);
-
-            }).blockLast();
-
-            // 将最后一步的 usage 累加到总量
-            if (streamUsage[0] != null) {
-                accumulateUsage(usageAccumulator, streamUsage[0]);
+    
+            // 真实执行结果或错误反馈均推送 OBSERVATION 步骤
+            AgentStep observationStep = new AgentStep();
+            observationStep.setStepType(AgentStep.StepType.OBSERVATION);
+            observationStep.setContent(observationContent);
+            allSteps.add(observationStep);
+    
+            AgentResponse observationResponse = new AgentResponse();
+            observationResponse.setResponseType("step");
+            observationResponse.addStep(observationStep);
+            emitter.next(observationResponse);
+    
+            // 每个调用独立以 tool 消息回传（tool_call_id 关联，兼容 DeepSeek 等严格校验）
+            messages.add(ChatMessage.tool(resultForModel, call.getId()));
+        }
+    
+        // 递归继续下一轮
+        iterationCount.incrementAndGet();
+        runIteration(emitter, messages, iterationCount, startTime, allSteps, sessionId, usageAccumulator, detectedLanguage, readOnly);
+    }
+    
+    /**
+     * 收尾：保存记忆并推送最终回答（单循环制下由无工具调用的 content 直出）
+     */
+    private void finishAnswer(FluxSink<AgentResponse> emitter, String finalAnswer, String reasoningContent,
+                              List<AgentStep> allSteps, String sessionId, int[] usageAccumulator, long startTime) {
+        // 构建最终累计 usage
+        ChatUsage totalUsage = new ChatUsage(usageAccumulator[0], usageAccumulator[1], usageAccumulator[2]);
+    
+        long durationMs = System.currentTimeMillis() - startTime;
+    
+        if (contextManager.getMemory() != null) {
+            contextManager.getMemory().addAssistantMessage(sessionId, finalAnswer, new ArrayList<>(allSteps), reasoningContent, totalUsage, durationMs);
+        }
+    
+        // 推送最终响应
+        AgentResponse finalResponse = new AgentResponse();
+        finalResponse.setResponseType("answer");
+        finalResponse.setAnswer(finalAnswer);
+        finalResponse.setReasoningContent(reasoningContent);
+        finalResponse.setDurationMs(durationMs);
+        finalResponse.setUsage(totalUsage);
+        finalResponse.setSources(KnowledgeSourceUtil.fromSteps(allSteps));
+        finalResponse.setSuccess(true);
+        emitter.next(finalResponse);
+    
+        emitter.complete();
+    }
+    
+    /**
+     * 解析工具调用参数 JSON 为 Map，失败返回 null（由执行侧以错误观察反馈模型自纠）
+     */
+    private Map<String, Object> parseToolArguments(String arguments) {
+        if (arguments == null || arguments.trim().isEmpty()) {
+            return new HashMap<>();
+        }
+        try {
+            JSONObject json = JSON.parseObject(arguments.trim());
+            Map<String, Object> argsMap = new HashMap<>();
+            for (String key : json.keySet()) {
+                argsMap.put(key, json.get(key));
             }
-
-            // 构建最终累计 usage
-            ChatUsage totalUsage = new ChatUsage(usageAccumulator[0], usageAccumulator[1], usageAccumulator[2]);
-
-            // 保存完整答案
-            String finalAnswer = finalAnswerBuffer.toString();
-            String reasoningContent = thinkingBuffer.toString();
-
-            long durationMs = System.currentTimeMillis() - startTime;
-
-            if (contextManager.getMemory() != null) {
-                contextManager.getMemory().addAssistantMessage(sessionId, finalAnswer, new ArrayList<>(allSteps), reasoningContent, totalUsage, durationMs);
-            }
-
-            // 推送最终响应
-            AgentResponse finalResponse = new AgentResponse();
-            finalResponse.setResponseType("answer");
-            finalResponse.setAnswer(finalAnswer);
-            finalResponse.setReasoningContent(reasoningContent);
-            finalResponse.setDurationMs(durationMs);
-            finalResponse.setUsage(totalUsage);
-            finalResponse.setSources(KnowledgeSourceUtil.fromSteps(allSteps));
-            finalResponse.setSuccess(true);
-            emitter.next(finalResponse);
-
-            emitter.complete();
+            return argsMap;
+        } catch (Exception e) {
+            logger.warn("工具参数 JSON 解析失败: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -741,30 +798,6 @@ public class ReActAgent implements Agent {
     private String processToolResult(String toolName, String rawResult, String originalQuestion, String currentThought, int[] usageAccumulator) {
         // 直接返回原始结果，不做分块总结
         return rawResult;
-    }
-
-    private String streamChat(List<ChatMessage> messages, int[] usageAccumulator) {
-        // 推理阶段使用 JSON 格式
-        StringBuilder buffer = new StringBuilder();
-        final ChatUsage[] lastUsage = {null};
-        model.chatStream(messages, ResponseFormatType.JSON_OBJECT).doOnNext(token -> {
-            if (token.getUsage() != null) {
-                lastUsage[0] = token.getUsage();
-            }
-            if (token.getChoices() != null && !token.getChoices().isEmpty()) {
-                String content = token.getChoices().get(0).getMessage().getContent();
-                if (content != null) {
-                    buffer.append(content);
-                }
-            }
-        }).blockLast();
-
-        // 累加思考阶段的 token 用量
-        if (lastUsage[0] != null) {
-            accumulateUsage(usageAccumulator, lastUsage[0]);
-        }
-
-        return buffer.toString().replace("```json", "").replace("```", "");
     }
 
     /**
@@ -809,38 +842,6 @@ public class ReActAgent implements Agent {
         return null;
     }
 
-    private List<ChatMessage> buildFinalAnswerMessages(List<ChatMessage> messages, List<AgentStep> allSteps, String detectedLanguage) {
-
-        List<ChatMessage> finalAnswerMessages = new ArrayList<>();
-        String langHint = detectedLanguage != null ? detectedLanguage : "";
-        String timeHint = buildCurrentTimeHint();
-        finalAnswerMessages.add(ChatMessage.system(this.systemPrompt
-                + (langHint.isEmpty() ? "" : "\n\n" + langHint)
-                + "\n\n" + timeHint));
-
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            ChatMessage msg = messages.get(i);
-            if ("user".equals(msg.getRole())) {
-                finalAnswerMessages.add(msg);
-                break;
-            }
-        }
-
-        StringBuilder contextBuilder = new StringBuilder();
-        contextBuilder.append("模型思考过程：\n");
-
-        for (AgentStep step : allSteps) {
-            if (step.getStepType() == AgentStep.StepType.THOUGHT) {
-                contextBuilder.append(extractThoughtContent(step.getContent())).append("\n");
-            } else if (step.getStepType() == AgentStep.StepType.OBSERVATION) {
-                contextBuilder.append("工具调用结果：").append(flattenRagflowJson(step.getContent())).append("\n");
-            }
-        }
-
-        finalAnswerMessages.add(ChatMessage.system(contextBuilder.toString()));
-        return finalAnswerMessages;
-    }
-
     /**
      * 将 RagflowTool 返回的结构化 JSON 转为纯文本段落（供 LLM 上下文使用）。
      * 非 ragflow 格式则原样返回。
@@ -869,27 +870,6 @@ public class ReActAgent implements Agent {
             // 非 JSON 格式，直接返回原文
         }
         return content;
-    }
-
-    /**
-     * 安全提取 THOUGHT 步骤中的思考内容。
-     * 模型可能不输出严格的 JSON 格式，需要容错处理。
-     */
-    private String extractThoughtContent(String content) {
-        if (content == null || content.isEmpty()) {
-            return "";
-        }
-        // 尝试按 JSON 解析提取 thought 字段
-        try {
-            JSONObject obj = JSONObject.parseObject(content);
-            if (obj.containsKey("thought") && obj.get("thought") != null) {
-                return obj.getString("thought");
-            }
-        } catch (Exception e) {
-            // JSON 解析失败，回退到原始内容
-        }
-        // 回退：直接使用原始内容（去除可能的 JSON 外壳）
-        return content.trim();
     }
 
     /**
@@ -945,7 +925,7 @@ public class ReActAgent implements Agent {
     }
 
     /**
-     * 构建系统提示词，包含当前可用工具信息和可用技能信息
+     * 构建系统提示词（行为约定与只读模式约束；工具签名由请求 tools 数组承载）
      */
     private String buildSystemPrompt(String detectedLanguage, boolean readOnly) {
         StringBuilder prompt = new StringBuilder();
@@ -967,95 +947,8 @@ public class ReActAgent implements Agent {
                   .append("如任务需要改动，给出具体建议改法，并提示用户切换回智能体模式执行。\n");
         }
 
-        // ===== 1. 拼接工具列表 =====
-        List<FunctionTool> availableTools = getAvailableTools(readOnly);
-
-        if (!availableTools.isEmpty()) {
-            prompt.append("## 工具列表\n\n");
-            for (int i = 0; i < availableTools.size(); i++) {
-                prompt.append(i + 1).append(". ");
-                prompt.append(availableTools.get(i).toPrompt());
-                prompt.append("\n");
-            }
-        } else {
-            prompt.append("## 工具列表\n\n");
-            prompt.append("空\n");
-        }
-
         return prompt.toString();
     }
-
-    /**
-     * 解析模型响应中的工具调用请求（支持多 action）
-     *
-     * @param response LLM 响应内容
-     * @return 工具执行请求列表，空列表表示无工具调用
-     */
-    private List<ToolCall> parseToolRequests(String response) {
-        List<ToolCall> requests = new ArrayList<>();
-        try {
-
-            response = response.replace("```json", "").replace("```", "");
-            JSONObject jsonResponse = JSON.parseObject(response.trim());
-
-            String type = jsonResponse.getString("type");
-            if (!"action".equals(type)) {
-                return requests; // 空 list，表示无工具调用
-            }
-
-            // 格式1：多 actions（优先）
-            JSONArray actionsArray = jsonResponse.getJSONArray("actions");
-            if (actionsArray != null && !actionsArray.isEmpty()) {
-                for (int i = 0; i < actionsArray.size(); i++) {
-                    JSONObject action = actionsArray.getJSONObject(i);
-                    ToolCall request = parseSingleAction(action);
-                    if (request != null) {
-                        requests.add(request);
-                    }
-                }
-                return requests;
-            }
-
-            // 格式2：单 action（向后兼容）
-            JSONObject singleAction = jsonResponse.getJSONObject("action");
-            if (singleAction != null) {
-                ToolCall request = parseSingleAction(singleAction);
-                if (request != null) {
-                    requests.add(request);
-                }
-            }
-
-        } catch (Exception e) {
-            logger.error("解析工具调用请求失败: {}", e.getMessage());
-        }
-        return requests;
-    }
-
-    /**
-     * 解析单个 action
-     *
-     * @param action JSON 对象
-     * @return 工具执行请求，解析失败返回 null
-     */
-    private ToolCall parseSingleAction(JSONObject action) {
-        if (action == null) {
-            return null;
-        }
-        String toolName = action.getString("name");
-        if (toolName == null || toolName.isEmpty()) {
-            return null;
-        }
-        JSONObject arguments = action.getJSONObject("arguments");
-
-        Map<String, Object> argsMap = new HashMap<>();
-        if (arguments != null) {
-            for (String key : arguments.keySet()) {
-                argsMap.put(key, arguments.get(key));
-            }
-        }
-        return new ToolCall(toolName, argsMap);
-    }
-
 
     public Memory getMemory() {
         return contextManager.getMemory();

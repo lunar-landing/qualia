@@ -16,6 +16,7 @@ public class ChatMessage {
     private String reasoningContent;  // 深度思考内容
     private String toolCallId;  // 工具调用ID（tool角色必填）
     private List<ContentPart> contentParts;  // 多模态内容块（非空时优先序列化）
+    private List<ToolCallPayload> toolCalls;  // 助手消息携带的工具调用（function calling 协议）
 
     public ChatMessage() {}
 
@@ -74,6 +75,14 @@ public class ChatMessage {
         this.toolCallId = toolCallId;
     }
 
+    public List<ToolCallPayload> getToolCalls() {
+        return toolCalls;
+    }
+
+    public void setToolCalls(List<ToolCallPayload> toolCalls) {
+        this.toolCalls = toolCalls;
+    }
+
     /**
      * 创建携带多模态内容块的用户消息（文字 + 图片等），content 为各文字块拼接，便于记忆与日志使用
      */
@@ -130,6 +139,15 @@ public class ChatMessage {
     public static ChatMessage tool(String content, String toolCallId) {
         ChatMessage msg = new ChatMessage("tool", content);
         msg.setToolCallId(toolCallId);
+        return msg;
+    }
+
+    /**
+     * 创建携带工具调用的助手消息（function calling 协议；content 可为空）
+     */
+    public static ChatMessage assistantWithToolCalls(List<ToolCallPayload> toolCalls) {
+        ChatMessage msg = new ChatMessage("assistant", null);
+        msg.toolCalls = toolCalls;
         return msg;
     }
 

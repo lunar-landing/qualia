@@ -86,6 +86,10 @@ public class MaterialService {
                                int words, String original, String error) {
     }
 
+    /** 智能体写入回执：created=新建（false=覆盖已有），path=库内相对路径，words=正文字数 */
+    public record WriteResult(boolean created, String path, int words) {
+    }
+
     // ===== 库 CRUD =====
 
     /** 资料库存储根目录 */
@@ -258,6 +262,53 @@ public class MaterialService {
         stripFrontmatter(Files.readString(file, StandardCharsets.UTF_8), meta);
         meta.put("updatedAt", LocalDateTime.now().format(TS));
         atomicWrite(file, buildFrontmatter(meta, content == null ? "" : content));
+    }
+
+    /**
+     * 智能体写入文章（material_write）：path 相对 articles/，逐段清洗防越界（'.'/'..' 拒绝），
+     * 父目录自动创建；已存在则保留 frontmatter 仅更新正文与 updatedAt，
+     * 新建注入系统元信息（author=agent）。返回新建/覆盖回执。
+     */
+    public WriteResult writeArticle(String id, String path, String content) throws IOException {
+        if (path == null || path.isBlank()) {
+            throw new IllegalArgumentException("路径不能为空");
+        }
+        StringBuilder joined = new StringBuilder();
+        for (String seg : path.split("/")) {
+            if (seg.isBlank()) {
+                continue;
+            }
+            String s = sanitizeName(seg);
+            if (s.equals(".") || s.equals("..")) {
+                throw new IllegalArgumentException("非法路径: " + path);
+            }
+            if (joined.length() > 0) {
+                joined.append('/');
+            }
+            joined.append(s);
+        }
+        String clean = joined.toString();
+        if (!clean.endsWith(".md")) {
+            clean = clean + ".md";
+        }
+        Path articles = requireKb(id).resolve("articles");
+        Files.createDirectories(articles);
+        Path file = articles.resolve(clean).normalize();
+        if (!file.startsWith(articles) || file.equals(articles)) {
+            throw new IllegalArgumentException("非法路径: " + path);
+        }
+        String body = content == null ? "" : content;
+        Map<String, String> meta = new LinkedHashMap<>();
+        boolean created = !Files.exists(file);
+        if (created) {
+            meta.put("title", stripMdExtension(file.getFileName().toString()));
+            meta.put("author", "agent");
+        } else {
+            stripFrontmatter(Files.readString(file, StandardCharsets.UTF_8), meta);
+        }
+        meta.put("updatedAt", LocalDateTime.now().format(TS));
+        atomicWrite(file, buildFrontmatter(meta, body));
+        return new WriteResult(created, relativizeArticle(file, id), countWords(body));
     }
 
     /** 重命名节点（文章或文件夹）；文章同步刷新 frontmatter.title */

@@ -3,9 +3,11 @@ package cn.lunarlanding.qualia.code.service;
 import cn.lunarlanding.qualia.code.CodeAgentConfig;
 import cn.lunarlanding.qualia.code.CodeAgentMcpServerConfig;
 import cn.lunarlanding.qualia.code.CodeAgentModelConfig;
+import cn.lunarlanding.qualia.code.tool.MaterialCreateKbTool;
 import cn.lunarlanding.qualia.code.tool.MaterialListTool;
 import cn.lunarlanding.qualia.code.tool.MaterialReadTool;
 import cn.lunarlanding.qualia.code.tool.MaterialTreeTool;
+import cn.lunarlanding.qualia.code.tool.MaterialWriteTool;
 import cn.lunarlanding.qualia.core.agent.CallOptions;
 import cn.lunarlanding.qualia.core.agent.HarnessAgent;
 import cn.lunarlanding.qualia.core.agent.spec.AgentResponse;
@@ -59,7 +61,9 @@ public class ChatService {
             + "可使用 material_* 工具查阅本机资料库（wiki 式目录 + 整篇文章，不切块）：\n"
             + "material_list 发现库 → material_tree 浏览目录 → material_read 整篇阅读。\n"
             + "当用户提及「资料 / 文档 / wiki」、询问既有约定，或任务需要背景知识时，"
-            + "优先检索资料库再回答；引用内容时注明来源文章路径。";
+            + "优先检索资料库再回答；引用内容时注明来源文章路径。\n"
+            + "沉淀文档：material_create_kb 建库、material_write 写入文章（path 为库内相对路径，"
+            + "支持子目录）；用户要求保存或整理内容进资料库时主动使用。";
 
     private static ChatService instance;
 
@@ -326,18 +330,21 @@ public class ChatService {
     }
 
     /**
-     * 注册资料库只读检索工具（material_list / material_tree / material_read），
+     * 注册资料库工具（检索三件套 + 写侧 material_create_kb / material_write），
      * 并在系统提示词追加使用指引。须在 disableTools() 之前调用，
-     * 使既有 disabledTools 配置对 material_* 同样生效；三工具均 isReadOnly，
-     * 只读问答模式自动保留。写入工具（material_write）为后续项。
+     * 使既有 disabledTools 配置对 material_* 同样生效。检索三件套只读
+     * （问答模式保留），material_create_kb / material_write 为写侧工具，
+     * 只读问答模式自动拦截。
      */
     private void registerMaterialTools() {
         MaterialService materials = MaterialService.getInstance();
         agent.addTool(new MaterialListTool(materials));
         agent.addTool(new MaterialTreeTool(materials));
         agent.addTool(new MaterialReadTool(materials));
+        agent.addTool(new MaterialCreateKbTool(materials));
+        agent.addTool(new MaterialWriteTool(materials));
         agent.setSystemPrompt(agent.getSystemPrompt() + MATERIAL_GUIDE);
-        logger.info("资料库工具已注册（material_list / material_tree / material_read）");
+        logger.info("资料库工具已注册（material_list / material_tree / material_read / material_create_kb / material_write）");
     }
 
     /** 根据配置禁用工具 */

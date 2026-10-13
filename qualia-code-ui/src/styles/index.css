@@ -332,6 +332,9 @@ body.light-theme .sidebar-brand i {
 }
 
 .sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin-top: auto;
     padding-top: 6px;
     border-top: 1px solid var(--border-color);
@@ -1192,6 +1195,19 @@ body.light-theme .chat-float-actions {
 }
 .think-toggle:hover {
     color: var(--text-primary);
+}
+.think-toggle .tt-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+/* 摘要条尾部步数计数（对齐终端版 t-think-toggle「· N」形态） */
+.think-toggle .tt-count {
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
 }
 .think-toggle .tt-chevron {
     font-size: 10px;

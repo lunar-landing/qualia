@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>执行步骤流输出重设计 · 思考流式输出与回答区策略 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    :root {
+        --page: #f6f7f9;
+        --panel: #ffffff;
+        --panel-2: #fafbfc;
+        --border: #e2e6ec;
+        --line: rgba(20,28,46,0.08);
+        --text-1: #24292f;
+        --text-2: #57606a;
+        --text-3: #8c959f;
+        --accent: #3b6fd4;
+        --accent-soft: rgba(59,111,212,0.09);
+        --bg-hover: #f0f2f5;
+        --code-bg: #f2f4f7;
+        --ok: #059669;
+        --run: #2563eb;
+        --err: #dc2626;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    body.dark {
+        --page: #0b0d12;
+        --panel: #12161f;
+        --panel-2: #161b26;
+        --border: #232b3a;
+        --line: rgba(255,255,255,0.07);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #5b6376;
+        --accent: #7aa2f7;
+        --accent-soft: rgba(122,162,247,0.12);
+        --bg-hover: #1a2030;
+        --code-bg: #10141c;
+        --ok: #34d399;
+        --run: #60a5fa;
+        --err: #f87171;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        padding-bottom: 90px;
+        transition: background 0.25s, color 0.25s;
+    }
+    .mono { font-family: var(--mono); }
+
+    /* ===== 顶栏 ===== */
+    .topbar {
+        position: sticky; top: 0; z-index: 50;
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+    }
+    .topbar h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+    .topbar .sub { font-size: 12px; color: var(--text-3); }
+    .topbar .spacer { flex: 1; }
+    .theme-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 12px; color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    }
+    .theme-btn:hover { color: var(--text-1); border-color: var(--text-3); }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 30px 28px 0; }
+    .sec-head { display: flex; align-items: baseline; gap: 12px; margin: 34px 0 6px; }
+    .sec-head h2 { font-size: 17px; font-weight: 600; }
+    .sec-head .tag {
+        font-size: 10.5px; font-weight: 600; font-family: var(--mono);
+        padding: 2px 9px; border-radius: 100px; border: 1px solid var(--border); color: var(--text-2);
+    }
+    .sec-head .tag.rec { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .sec-desc { font-size: 12.5px; line-height: 1.7; color: var(--text-2); margin-bottom: 18px; max-width: 900px; }
+    .sec-desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 链路表 ===== */
+    .proto {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+        padding: 18px 22px; overflow-x: auto;
+    }
+    .proto table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 760px; }
+    .proto th, .proto td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+    .proto th { color: var(--text-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+    .proto td { color: var(--text-2); }
+    .proto td:first-child { white-space: nowrap; }
+    .evt { font-family: var(--mono); font-size: 11.5px; color: var(--text-1); }
+    .evt.new { color: var(--accent); }
+    .evt.new::after { content: '新增'; margin-left: 7px; font-size: 9.5px; color: var(--accent); border: 1px solid var(--accent); border-radius: 100px; padding: 0 6px; vertical-align: 1px; }
+    .evt.del { color: var(--text-3); text-decoration: line-through; }
+    .evt.del::after { content: '删除'; margin-left: 7px; font-size: 9.5px; color: var(--err); border: 1px solid var(--err); border-radius: 100px; padding: 0 6px; vertical-align: 1px; text-decoration: none; }
+
+    /* ===== 对话容器 ===== */
+    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
+    @media (max-width: 1080px) { .trio { grid-template-columns: 1fr; } }
+    .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 900px) { .duo { grid-template-columns: 1fr; } }
+
+    .stage-label {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11px; color: var(--text-3); margin: 0 0 8px 2px;
+        font-family: var(--mono); letter-spacing: 0.4px;
+    }
+    .stage-label .t { color: var(--accent); }
+
+    .chat {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 14px; padding: 16px 16px 18px;
+        display: flex; flex-direction: column; gap: 12px; height: 100%;
+    }
+    .msg-user { align-self: flex-end; max-width: 86%; }
+    .msg-user .ububble {
+        background: var(--accent-soft); color: var(--text-1);
+        border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+        padding: 8px 13px; border-radius: 14px 14px 4px 14px;
+        font-size: 12.5px; line-height: 1.6;
+    }
+    .msg-ai { display: flex; gap: 9px; }
+    .avatar {
+        flex: 0 0 24px; width: 24px; height: 24px; border-radius: 7px;
+        background: var(--accent-soft); color: var(--accent);
+        display: flex; align-items: center; justify-content: center; font-size: 10.5px;
+        border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    }
+    .act-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+    /* 活动条（沿用 v1 单行设计） */
+    .pipe-bar {
+        display: flex; align-items: center; gap: 9px;
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 10px; padding: 7px 11px; cursor: pointer;
+    }
+    .pipe-bar .spin { color: var(--run); font-size: 10.5px; }
+    .pipe-bar .doing { font-size: 11.5px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pipe-bar .doing b { font-weight: 600; }
+    .pipe-bar .meta { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 9px; }
+    .pipe-bar .cnt { font-size: 10px; font-family: var(--mono); color: var(--text-3); }
+    .pipe-bar .chev { font-size: 9px; color: var(--text-3); }
+
+    /* ===== 思考流式行（本稿核心组件） ===== */
+    .tl-thinking {
+        display: flex; align-items: flex-start; gap: 8px;
+        font-size: 12px; line-height: 1.65; color: var(--text-2);
+    }
+    .tl-thinking .spin { color: var(--run); font-size: 10.5px; margin-top: 4px; flex-shrink: 0; }
+    .tl-thinking .txt::after {
+        content: '▍'; color: var(--accent); margin-left: 1px;
+        animation: blink 0.9s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* 定格后的意图句 */
+    .tl-thought-done { font-size: 12px; line-height: 1.65; color: var(--text-2); }
+
+    /* 工具行 */
+    .tl-tool {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 10.5px; font-family: var(--mono); color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 4px 9px;
+        max-width: 100%;
+    }
+    .tl-tool i.ch { font-size: 10px; color: var(--accent); flex-shrink: 0; }
+    .tl-tool .arg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+    .tl-tool .st { margin-left: auto; flex-shrink: 0; font-size: 9.5px; }
+    .tl-tool .st.ok { color: var(--ok); }
+    .tl-tool .st.run { color: var(--run); }
+
+    /* 回答气泡 */
+    .bubble {
+        background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 4px 12px 12px 12px; padding: 10px 13px;
+        font-size: 12.5px; line-height: 1.7; color: var(--text-1);
+    }
+    .bubble .dim { color: var(--text-3); }
+
+    /* 回答区空态标记 */
+    .answer-vacant {
+        display: flex; align-items: center; gap: 8px;
+        border: 1px dashed var(--border); border-radius: 10px;
+        padding: 9px 12px; font-size: 11px; color: var(--text-3);
+    }
+    .answer-vacant i { font-size: 10px; }
+    .answer-vacant.ok i, .answer-vacant.ok { color: var(--ok); }
+
+    /* 落位动画示意 */
+    .land-arrow { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+    .land-arrow i { color: var(--accent); }
+
+    /* ===== 策略表 ===== */
+    .notes {
+        margin-top: 34px; background: var(--panel); border: 1px solid var(--border);
+        border-radius: 14px; padding: 20px 24px;
+    }
+    .notes h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    table.cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .cmp th, .cmp td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+    .cmp th { color: var(--text-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cmp td:first-child { color: var(--text-1); font-weight: 500; white-space: nowrap; }
+    .cmp td { color: var(--text-2); }
+    .rec-line { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12.5px; color: var(--text-1); line-height: 1.6; }
+    .rec-line i { color: var(--accent); }
+    .rec-line b { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>执行步骤流输出重设计</h1>
+    <span class="sub">思考流式输出到步骤区 · 回答区执行期间保持干净</span>
+    <div class="spacer"></div>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark')">
+        <i class="fas fa-circle-half-stroke"></i><span>切换主题</span>
+    </button>
+</div>
+
+<div class="wrap">
+
+    <!-- ================= 事件链路 ================= -->
+    <div class="sec-head">
+        <h2>SSE 事件链路调整</h2>
+        <span class="tag">协议增量</span>
+    </div>
+    <p class="sec-desc">
+        核心变更：<b>content 增量不再透传为 answer 事件</b>（废除「闪现回答区再撤回」），改为新增 <b>thinking</b> 事件——
+        每轮意图思考以<b>累积全量</b>推给前端，步骤区的思考行实时打字；THOUGHT step 事件照常在工具调用确认后到达（定格思考行）；
+        answer 事件只在<b>最终回答</b>时发出。回答区在整个执行期间为空，直到最终回答落位。
+    </p>
+    <div class="proto">
+        <table>
+            <tr><th>事件</th><th>载荷</th><th>触发时机</th><th>前端去向</th></tr>
+            <tr>
+                <td><span class="evt new">thinking</span></td>
+                <td><span class="mono">thought</span>：本轮意图累积全量</td>
+                <td>流中每个 content 增量到达时</td>
+                <td>步骤区「当前轮思考行」替换渲染（打字机）</td>
+            </tr>
+            <tr>
+                <td><span class="evt">step · THOUGHT</span></td>
+                <td>完整步骤（不变）</td>
+                <td>流结束且确认 tool_calls 非空</td>
+                <td>思考行定格（去 spinner），随后 ACTION 步骤入列</td>
+            </tr>
+            <tr>
+                <td><span class="evt">step · ACTION / OBSERVATION</span></td>
+                <td>完整步骤（不变）</td>
+                <td>工具执行前后（不变）</td>
+                <td>工具行 / 结果（不变）</td>
+            </tr>
+            <tr>
+                <td><span class="evt">answer</span></td>
+                <td>最终回答全量</td>
+                <td>流结束且无 tool_calls（本轮 content 即回答）</td>
+                <td>回答气泡落位（方案一）或回答轮二次流式（方案二）</td>
+            </tr>
+            <tr>
+                <td><span class="evt del">answer 透传 + 空 answer 撤回</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td>废除：意图不再经过回答区</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ================= 多轮执行场景 ================= -->
+    <div class="sec-head">
+        <h2>场景一 · 多轮工具执行（三帧）</h2>
+        <span class="tag rec">回答区执行期间恒为空</span>
+    </div>
+    <p class="sec-desc">
+        意图思考在<b>步骤区思考行</b>逐字流式（spinner + 光标），工具调用确认后定格为 THOUGHT 步骤，spinner 转移到工具行。
+        回答区在整个执行期间只显示空态占位（或不显示）。
+    </p>
+    <div class="trio">
+        <!-- 帧 A -->
+        <div>
+            <div class="stage-label">帧 A <span class="t">T+0.8s</span> 轮 1 思考流式中</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="tl-thinking">
+                            <i class="fas fa-circle-notch fa-spin spin"></i>
+                            <span class="txt">先查看资料库列表，确认目标库是否存在</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空（无任何透传）</div>
+            </div>
+        </div>
+        <!-- 帧 B -->
+        <div>
+            <div class="stage-label">帧 B <span class="t">T+2.4s</span> 轮 1 定格 · 轮 2 流式中</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="pipe-bar">
+                            <i class="fas fa-circle-notch fa-spin spin"></i>
+                            <span class="doing">正在<b>写入文章</b></span>
+                            <span class="meta"><span class="cnt">3 步 · 2 轮</span><i class="fas fa-chevron-right chev"></i></span>
+                        </div>
+                        <div class="tl-thought-done">先查看资料库列表，确认目标库是否存在</div>
+                        <div class="tl-tool">
+                            <i class="ch fas fa-database"></i>资料库列表
+                            <span class="st ok"><i class="fas fa-check"></i></span>
+                        </div>
+                        <div class="tl-thinking">
+                            <i class="fas fa-circle-notch fa-spin spin"></i>
+                            <span class="txt">目标库「团队规范」存在，将部署经验写入新文章</span>
+                        </div>
+                        <div class="tl-tool">
+                            <i class="ch fas fa-file-pen"></i>写入文章
+                            <span class="arg mono">ops/deploy-checklist.md</span>
+                            <span class="st run"><i class="fas fa-circle-notch fa-spin"></i></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空（无任何透传）</div>
+            </div>
+        </div>
+        <!-- 帧 C -->
+        <div>
+            <div class="stage-label">帧 C <span class="t">T+9s</span> 完成落位</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="pipe-bar">
+                            <i class="fas fa-chevron-right chev" style="margin-left: 2px;"></i>
+                            <span class="doing" style="color: var(--text-2);">思考与执行完成</span>
+                            <span class="meta"><span class="cnt">5 步 · 2 轮 · 8.4s</span><i class="fas fa-chevron-right chev"></i></span>
+                        </div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size: 11px;">ops/deploy-checklist.md</span>，包含回滚步骤与环境变量清单。</div>
+                    </div>
+                </div>
+                <div class="answer-vacant"><i class="fas fa-angles-down"></i>最终回答在此刻落位（此前恒空）</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 直接回答场景 ================= -->
+    <div class="sec-head">
+        <h2>场景二 · 直接回答（无工具）与回答落位策略</h2>
+        <span class="tag">关键取舍</span>
+    </div>
+    <p class="sec-desc">
+        流式协议下「本轮 content 是意图还是最终回答」要等流结束才能确认，因此两种方案都让文本<b>先在思考行打完</b>，差别在最终回答的呈现方式。
+    </p>
+    <div class="duo">
+        <!-- 方案一 -->
+        <div>
+            <div class="stage-label">方案一 <span class="t">落位（推荐）</span> 单循环 · 零额外调用</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">qualia 的会话记忆存在哪</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="tl-thinking" style="opacity: 0.45;">
+                            <span class="txt" style="animation: none;">会话记忆持久化在 ~/.qualia/code/sessions/ 下…</span>
+                        </div>
+                        <div class="land-arrow"><i class="fas fa-arrow-down"></i>流结束 · 无 tool_calls → 思考行淡出，全文落位回答气泡</div>
+                        <div class="bubble">会话记忆持久化在 <span class="mono" style="font-size: 11px;">~/.qualia/code/sessions/</span> 下，按会话 ID 分目录存储，包含消息与 ReAct 步骤，重启后随会话回显恢复。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 方案二 -->
+        <div>
+            <div class="stage-label">方案二 <span class="t">回答轮二次流式</span> 多一次 LLM 调用</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">qualia 的会话记忆存在哪</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="tl-thinking" style="opacity: 0.45;">
+                            <span class="txt" style="animation: none;">（判定轮：无工具调用，content 丢弃不展示）</span>
+                        </div>
+                        <div class="land-arrow"><i class="fas fa-arrow-down"></i>进入回答轮重调 LLM → answer 增量流式</div>
+                        <div class="bubble">会话记忆持久化在 <span class="mono" style="font-size: 11px;">~/.qualia/code/sessions/</span> 下<span class="dim">▍</span>（真打字机，逐字出现）</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= notes ================= -->
+    <div class="notes">
+        <h3>策略对比与落地映射</h3>
+        <table class="cmp">
+            <tr><th>维度</th><th>方案一 · 落位</th><th>方案二 · 回答轮二次流式</th></tr>
+            <tr><td>回答区污染</td><td colspan="2" style="color: var(--ok);">均彻底解决：意图思考只流经步骤区，回答区直到最终回答才出现内容</td></tr>
+            <tr><td>最终回答呈现</td><td>思考行打完后瞬时落位（无二次打字）</td><td>回答轮重新生成，回答区真打字机</td></tr>
+            <tr><td>调用成本</td><td>零额外调用（content 即回答）</td><td>每次回答多一次 LLM 调用（判定轮作废）</td></tr>
+            <tr><td>回答质量</td><td>与思考行文本完全一致</td><td>回答轮可携带「回答风格」约束，可微调措辞</td></tr>
+            <tr><td>改动面</td><td>后端：answer 透传/撤回逻辑 → thinking 事件；前端：思考行组件 + 落位</td><td>后端：thinking 事件 + 恢复回答轮（buildFinalAnswerMessages 回归）；前端同左</td></tr>
+        </table>
+        <div class="rec-line"><i class="fas fa-star"></i>推荐 <b>方案一（落位）</b>：直接回答是最高频场景，为它多付一次调用且内容重复生成不划算；思考行用次要色、回答气泡用主色，落位即视觉层级转换，配合 150ms 淡入足够自然。若实测觉得「直接回答必须二次打字机」，再升级方案二（协议兼容，仅后端加回回答轮）。</div>
+    </div>
+
+</div>
+
+</body>
+</html>

@@ -5,7 +5,7 @@ import { argStr, domainOf, shortScriptName, truncate, WEB_SEARCH_SOURCES, type T
 import type { AgentStep } from '@/types'
 
 /**
- * 工具调用 chip（图标 + 动词 + 参数摘要 + 状态）。
+ * 工具调用注脚行（极简形态：图标 + 动词 + 参数摘要 + 耗时 + 状态点）。
  * 详情块由宿主（MessageItem）在 chips 组下方按需渲染 ChipDetail；
  * 联网搜索族 / web_fetch 的元信息见 WEB_SEARCH_TOOLS 与 webFetchMeta（详情视图 ChipDetailWeb）
  */
@@ -17,6 +17,8 @@ const props = defineProps<{
   live: boolean
   /** 详情展开态（宿主持有，与详情块显隐联动） */
   active: boolean
+  /** 工具耗时 ms（宿主按 OBSERVATION 与 ACTION 时间差计算）；无数据不显示 */
+  duration?: number
 }>()
 
 const emit = defineEmits<{ toggle: [] }>()
@@ -95,63 +97,97 @@ const state = computed(() => {
   if (props.result) return props.result.ok ? 'ok' : 'err'
   return props.live ? 'run' : 'ok'
 })
+
+// 耗时徽标：<1s 显示 ms，否则一位小数秒；无数据/0ms 不显示
+const durationText = computed(() => {
+  const d = props.duration
+  if (d == null || d <= 0) return ''
+  return d < 1000 ? `${d}ms` : `${(d / 1000).toFixed(1)}s`
+})
 </script>
 
 <template>
   <button class="tool-chip" :class="{ active }" :title="toolName" @click.stop="emit('toggle')">
-    <i class="chip-ico fas" :class="meta.icon"></i>{{ meta.verb }}
+    <i class="chip-ico fas" :class="meta.icon"></i>
+    <span class="chip-verb">{{ meta.verb }}</span>
     <span v-if="argText" class="chip-arg">{{ argText }}</span>
-    <span class="chip-st" :class="state">
-      <i v-if="state === 'run'" class="fas fa-circle-notch fa-spin"></i>
-      <i v-else-if="state === 'err'" class="fas fa-xmark"></i>
-      <i v-else class="fas fa-check"></i>
-    </span>
+    <span v-if="durationText" class="chip-ms">{{ durationText }}</span>
+    <span class="chip-st" :class="state"></span>
   </button>
 </template>
 
 <style>
-/* ===== chip 本体与详情块（旧 tool-chip.js 自包含样式平移；tc-/chip-/sk- 前缀全局防冲突） ===== */
+/* ===== chip 本体（极简注脚行：去卡片壳，hover 浮现底色暗示可点开）与详情块；tc-/chip-/sk- 前缀全局防冲突 ===== */
 .tool-chip {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 7px;
   font-size: 11px;
   font-weight: 500;
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-secondary);
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
-  padding: 4px 10px;
-  border-radius: 7px;
+  background: transparent;
+  border: none;
+  padding: 2px 8px 2px 0;
+  border-radius: 5px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s;
   max-width: 100%;
   white-space: nowrap;
+  text-align: left;
 }
 .tool-chip:hover,
 .tool-chip.active {
-  border-color: var(--border-active);
-  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 .tool-chip .chip-ico {
-  font-size: 10.5px;
-  color: var(--accent-light);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  align-self: center;
+}
+.tool-chip .chip-verb {
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 .tool-chip .chip-arg {
+  font-size: 10.5px;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
-.tool-chip .chip-st { font-size: 10px; flex-shrink: 0; }
-.tool-chip .chip-st.ok { color: #34d399; }
-.tool-chip .chip-st.run { color: #60a5fa; }
-.tool-chip .chip-st.err { color: #f87171; }
+.tool-chip .chip-ms {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+/* 状态：5px 色点；run 为旋转圆环 */
+.tool-chip .chip-st {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+}
+.tool-chip .chip-st.ok { background: #34d399; }
+.tool-chip .chip-st.err { background: #f87171; }
+.tool-chip .chip-st.run {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+  border: 1.5px solid #60a5fa;
+  border-top-color: transparent;
+  animation: chip-spin 0.8s linear infinite;
+}
+@keyframes chip-spin {
+  to { transform: rotate(360deg); }
+}
 /* 浅色主题下状态色加深，保证白底对比度 */
-body.light-theme .tool-chip .chip-st.ok { color: #059669; }
-body.light-theme .tool-chip .chip-st.run { color: #2563eb; }
-body.light-theme .tool-chip .chip-st.err { color: #dc2626; }
+body.light-theme .tool-chip .chip-st.ok { background: #059669; }
+body.light-theme .tool-chip .chip-st.run { border-color: #2563eb; border-top-color: transparent; }
+body.light-theme .tool-chip .chip-st.err { background: #dc2626; }
 
 /* chips 组块：chips 行 + 各 chip 展开的详情块（详情撑满组宽，对齐旧 DOM 锚点插入位置） */
 .chips-block {

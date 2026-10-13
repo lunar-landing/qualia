@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>执行步骤展示重设计 · tool-chip 默认收起 / 执行流水线 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    :root {
+        --page: #f6f7f9;
+        --panel: #ffffff;
+        --panel-2: #fafbfc;
+        --border: #e2e6ec;
+        --line: rgba(20,28,46,0.08);
+        --text-1: #24292f;
+        --text-2: #57606a;
+        --text-3: #8c959f;
+        --accent: #3b6fd4;
+        --accent-soft: rgba(59,111,212,0.09);
+        --bg-hover: #f0f2f5;
+        --code-bg: #f2f4f7;
+        --ok: #059669;
+        --run: #2563eb;
+        --err: #dc2626;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    body.dark {
+        --page: #0b0d12;
+        --panel: #12161f;
+        --panel-2: #161b26;
+        --border: #232b3a;
+        --line: rgba(255,255,255,0.07);
+        --text-1: #e4e9f2;
+        --text-2: #8f97ae;
+        --text-3: #5b6376;
+        --accent: #7aa2f7;
+        --accent-soft: rgba(122,162,247,0.12);
+        --bg-hover: #1a2030;
+        --code-bg: #10141c;
+        --ok: #34d399;
+        --run: #60a5fa;
+        --err: #f87171;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page);
+        color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        padding-bottom: 90px;
+        transition: background 0.25s, color 0.25s;
+    }
+    .mono { font-family: var(--mono); }
+
+    /* ===== 顶栏 ===== */
+    .topbar {
+        position: sticky; top: 0; z-index: 50;
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+    }
+    .topbar h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+    .topbar .sub { font-size: 12px; color: var(--text-3); }
+    .topbar .spacer { flex: 1; }
+    .theme-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 12px; color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    }
+    .theme-btn:hover { color: var(--text-1); border-color: var(--text-3); }
+
+    /* ===== 布局 ===== */
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 30px 28px 0; }
+    .sec-head { display: flex; align-items: baseline; gap: 12px; margin: 34px 0 6px; }
+    .sec-head h2 { font-size: 17px; font-weight: 600; }
+    .sec-head .tag {
+        font-size: 10.5px; font-weight: 600; font-family: var(--mono);
+        padding: 2px 9px; border-radius: 100px; border: 1px solid var(--border); color: var(--text-2);
+    }
+    .sec-head .tag.rec { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .sec-desc { font-size: 12.5px; line-height: 1.7; color: var(--text-2); margin-bottom: 18px; max-width: 860px; }
+    .sec-desc b { color: var(--text-1); font-weight: 600; }
+
+    .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 1080px) { .duo { grid-template-columns: 1fr; } }
+
+    .stage-label { font-size: 11px; color: var(--text-3); margin: 0 0 8px 2px; font-family: var(--mono); letter-spacing: 0.4px; }
+
+    /* ===== 对话容器（模拟消息流） ===== */
+    .chat {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 14px; padding: 18px 18px 20px;
+        display: flex; flex-direction: column; gap: 14px;
+    }
+    .msg-user { align-self: flex-end; max-width: 78%; }
+    .msg-user .ububble {
+        background: var(--accent-soft); color: var(--text-1);
+        border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+        padding: 9px 14px; border-radius: 14px 14px 4px 14px;
+        font-size: 13px; line-height: 1.6;
+    }
+    .msg-ai { display: flex; gap: 10px; max-width: 100%; }
+    .avatar {
+        flex: 0 0 26px; width: 26px; height: 26px; border-radius: 8px;
+        background: var(--accent-soft); color: var(--accent);
+        display: flex; align-items: center; justify-content: center; font-size: 11px;
+        border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    }
+    .act-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+
+    /* ===== 现状（问题示意） ===== */
+    .flow-legacy { display: flex; flex-direction: column; gap: 7px; }
+    .lg-thought { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+    .tool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tool-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; font-weight: 500; font-family: var(--mono);
+        color: var(--text-2); background: var(--bg-hover);
+        border: 1px solid var(--border); padding: 4px 10px; border-radius: 7px;
+        max-width: 100%; white-space: nowrap;
+    }
+    .tool-chip i.ch { font-size: 10.5px; color: var(--accent); }
+    .tool-chip .st { font-size: 10px; }
+    .tool-chip .st.ok { color: var(--ok); }
+    .tool-chip .st.run { color: var(--run); }
+    .tc-detail {
+        background: var(--bg-hover); border: 1px solid var(--border); border-radius: 9px;
+        padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .tc-code {
+        font-family: var(--mono); font-size: 10.5px; line-height: 1.65;
+        white-space: pre-wrap; word-break: break-word; color: var(--text-2);
+        background: var(--code-bg); border: 1px solid var(--border);
+        border-radius: 7px; padding: 8px 10px; max-height: 120px; overflow: hidden;
+    }
+    .legacy-flag {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11.5px; color: var(--err);
+        margin-top: 2px;
+    }
+    .legacy-flag i { font-size: 11px; }
+
+    /* ===== 方案 A：chips 默认收起 ===== */
+    .hint-line { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-3); }
+    .hint-line i { font-size: 10px; }
+
+    /* ===== 方案 B：执行流水线 ===== */
+    /* 活动条（执行中默认态：单行） */
+    .pipe-bar {
+        display: flex; align-items: center; gap: 9px;
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 10px; padding: 8px 12px; cursor: pointer;
+        transition: border-color 0.15s;
+    }
+    .pipe-bar:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+    .pipe-bar .spin { color: var(--run); font-size: 11px; }
+    .pipe-bar .doing { font-size: 12px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pipe-bar .doing b { font-weight: 600; }
+    .pipe-bar .meta { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+    .pipe-bar .cnt { font-size: 10.5px; font-family: var(--mono); color: var(--text-3); }
+    .pipe-bar .chev { font-size: 9px; color: var(--text-3); transition: transform 0.15s; }
+    .pipe-bar.open .chev { transform: rotate(90deg); }
+
+    /* 摘要条（完成态） */
+    .pipe-bar.done .spin { color: var(--text-3); }
+    .pipe-bar.done .doing { color: var(--text-2); }
+
+    /* 时间线 */
+    .timeline { display: flex; flex-direction: column; gap: 0; padding: 2px 0 0 7px; position: relative; }
+    .timeline::before {
+        content: ''; position: absolute; left: 7px; top: 10px; bottom: 12px;
+        width: 1px; background: var(--line);
+    }
+    .tl-round { display: flex; gap: 12px; position: relative; padding-bottom: 12px; }
+    .tl-round:last-child { padding-bottom: 0; }
+    .tl-dot {
+        flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%;
+        border: 2px solid var(--text-3); background: var(--panel);
+        margin-top: 4px; position: relative; z-index: 1;
+    }
+    .tl-round.running .tl-dot { border-color: var(--run); box-shadow: 0 0 0 3px color-mix(in srgb, var(--run) 18%, transparent); }
+    .tl-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .tl-intent { font-size: 12px; line-height: 1.6; color: var(--text-2); }
+    .tl-round.running .tl-intent { color: var(--text-1); }
+
+    /* 时间线内的工具行（默认收起，点击展开详情） */
+    .tl-tool {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11px; font-family: var(--mono); color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 5px 10px; cursor: pointer;
+        max-width: 520px; transition: border-color 0.15s;
+    }
+    .tl-tool:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text-1); }
+    .tl-tool i.ch { font-size: 10.5px; color: var(--accent); flex-shrink: 0; }
+    .tl-tool .verb { font-weight: 500; }
+    .tl-tool .arg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+    .tl-tool .st { margin-left: auto; flex-shrink: 0; font-size: 10px; }
+    .tl-tool .st.ok { color: var(--ok); }
+    .tl-tool .st.run { color: var(--run); }
+    .tl-tool .chev { flex-shrink: 0; font-size: 8.5px; color: var(--text-3); }
+
+    /* 工具行展开详情（参数 + 结果，限高） */
+    .tl-detail {
+        background: var(--code-bg); border: 1px solid var(--border);
+        border-radius: 8px; padding: 8px 11px; max-width: 520px;
+        display: flex; flex-direction: column; gap: 6px;
+    }
+    .tl-detail .lab { font-size: 9.5px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-3); }
+    .tl-detail .code {
+        font-family: var(--mono); font-size: 10.5px; line-height: 1.65;
+        white-space: pre-wrap; word-break: break-word; color: var(--text-2);
+    }
+    .tl-detail .code.result { max-height: 96px; overflow: hidden; position: relative; }
+    .tl-detail .fade {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 34px;
+        background: linear-gradient(transparent, var(--code-bg));
+        display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
+    }
+    .tl-detail .more {
+        font-size: 10px; color: var(--text-3); background: none; border: none; cursor: pointer;
+        font-family: var(--mono);
+    }
+    .tl-detail .more:hover { color: var(--accent); }
+
+    /* 回答气泡 */
+    .bubble {
+        background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 4px 14px 14px 14px; padding: 11px 14px;
+        font-size: 13px; line-height: 1.7; color: var(--text-1);
+    }
+    .bubble .dim { color: var(--text-2); }
+
+    /* ===== notes ===== */
+    .notes {
+        margin-top: 34px; background: var(--panel); border: 1px solid var(--border);
+        border-radius: 14px; padding: 20px 24px;
+    }
+    .notes h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+    th { color: var(--text-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td:first-child { color: var(--text-1); font-weight: 500; white-space: nowrap; }
+    td { color: var(--text-2); }
+    .rec-line { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12.5px; color: var(--text-1); }
+    .rec-line i { color: var(--accent); }
+    .rec-line b { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>执行步骤展示重设计</h1>
+    <span class="sub">tool-chip 默认收起 · 执行流水线 · 适配原生 function calling 轮次结构</span>
+    <div class="spacer"></div>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark')">
+        <i class="fas fa-circle-half-stroke"></i><span>切换主题</span>
+    </button>
+</div>
+
+<div class="wrap">
+
+    <!-- ================= 方案 A ================= -->
+    <div class="sec-head">
+        <h2>方案 A · chips 默认收起</h2>
+        <span class="tag">最小改动</span>
+    </div>
+    <p class="sec-desc">
+        保留现有结构（意图行 + chips 行），仅移除「详情自动展开」的 watch —— <b>chip 默认只显示图标 + 动词 + 参数摘要 + 状态点</b>，
+        点击才展开 tc-detail。执行中 chip 以行内 spinner 表达进行中。改动点仅一处（MessageItem 的 openChips 自动展开逻辑删除）。
+    </p>
+    <div class="duo">
+        <div>
+            <div class="stage-label">现状 · 详情自动全展开</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">看看 ChatService 里工具是怎么注册的，然后给注册流程加个注释</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="flow-legacy">
+                            <div class="lg-thought">先查看 ChatService 的工具注册段，了解现有结构</div>
+                            <div class="tool-chips">
+                                <span class="tool-chip"><i class="ch fas fa-magnifying-glass"></i>搜索 registerTool<span class="st ok"><i class="fas fa-check"></i></span></span>
+                            </div>
+                            <div class="tc-detail">
+                                <div class="tc-code">pattern: registerTool
+path: src/main/java/.../ChatService.java
+──────
+268:    private void registerBuiltinTools() {
+269:        tools.add(new ReadTool(workspace));</div>
+                            </div>
+                            <div class="tool-chips">
+                                <span class="tool-chip"><i class="ch fas fa-magnifying-glass"></i>读取 ChatService.java<span class="st ok"><i class="fas fa-check"></i></span></span>
+                            </div>
+                            <div class="tc-detail">
+                                <div class="tc-code">package cn.lunarlanding.qualia.code.service;
+
+import cn.lunarlanding.qualia.core.tool.FunctionTool;
+…（持续堆叠，回答被顶出视口）</div>
+                            </div>
+                            <div class="tool-chips">
+                                <span class="tool-chip"><i class="ch fas fa-pen"></i>编辑 ChatService.java<span class="st run"><i class="fas fa-circle-notch fa-spin"></i></span></span>
+                            </div>
+                            <div class="tc-detail">
+                                <div class="tc-code" style="color: var(--text-3);">执行中 · 详情块同样常驻展开…</div>
+                            </div>
+                        </div>
+                        <div class="legacy-flag"><i class="fas fa-triangle-exclamation"></i>每步详情常驻展开，多轮执行时步骤区占据大半屏，回答区被顶出视野</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="stage-label">方案 A · 详情默认收起，点击展开</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">看看 ChatService 里工具是怎么注册的，然后给注册流程加个注释</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="flow-legacy">
+                            <div class="lg-thought">先查看 ChatService 的工具注册段，了解现有结构</div>
+                            <div class="tool-chips">
+                                <span class="tool-chip"><i class="ch fas fa-magnifying-glass"></i>搜索 registerTool<span class="st ok"><i class="fas fa-check"></i></span></span>
+                                <span class="tool-chip"><i class="ch fas fa-magnifying-glass"></i>读取 ChatService.java<span class="st ok"><i class="fas fa-check"></i></span></span>
+                                <span class="tool-chip"><i class="ch fas fa-pen"></i>编辑 ChatService.java<span class="st run"><i class="fas fa-circle-notch fa-spin"></i></span></span>
+                            </div>
+                        </div>
+                        <div class="hint-line"><i class="fas fa-hand-pointer"></i>chips 同行排列、详情全部收起 —— 只有点击的 chip 展开其详情块；步骤区高度稳定，回答区始终可见</div>
+                        <div class="bubble"><span class="dim">（回答区始终保持在视口内…）</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 方案 B ================= -->
+    <div class="sec-head">
+        <h2>方案 B · 执行流水线</h2>
+        <span class="tag rec">推荐</span>
+    </div>
+    <p class="sec-desc">
+        步骤区重构为<b>「单行活动条 ⇄ 时间线」</b>两态，按原生 function calling 的轮次组织：
+        执行中默认收起为<b>单行活动条</b>（当前动作 + 进度计数）；点击展开<b>时间线</b>——每轮以意图句为节拍，工具行默认收起、行内展开详情；
+        完成后自动折叠为<b>摘要条</b>（升级现有 think-toggle，附步数与耗时）。SSE 协议零改动，纯前端重组。
+    </p>
+
+    <div class="duo">
+        <div>
+            <div class="stage-label">状态 1 · 执行中默认态（单行活动条）</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="pipe-bar open">
+                            <i class="fas fa-circle-notch fa-spin spin"></i>
+                            <span class="doing">正在<b>搜索 registerTool</b></span>
+                            <span class="meta"><span class="cnt">4 步 · 2 轮</span><i class="fas fa-chevron-right chev"></i></span>
+                        </div>
+                        <div class="hint-line"><i class="fas fa-hand-pointer"></i>回答区紧贴单行活动条；「正在 + 当前动作」实时跟随工具切换</div>
+                        <div class="bubble"><span class="dim">（执行期间回答区不被推走）</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stage-label" style="margin-top: 22px;">状态 3 · 完成态（自动折叠为摘要条）</div>
+            <div class="chat">
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="pipe-bar done">
+                            <i class="fas fa-chevron-right chev" style="margin-left: 2px;"></i>
+                            <span class="doing">思考与执行完成</span>
+                            <span class="meta"><span class="cnt">5 步 · 2 轮 · 8.4s</span><i class="fas fa-chevron-right chev"></i></span>
+                        </div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size: 11.5px;">ops/deploy-checklist.md</span>，包含回滚步骤与环境变量清单。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="stage-label">状态 2 · 展开时间线（点击活动条 / 执行中自动跟随）</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="pipe-bar open">
+                            <i class="fas fa-circle-notch fa-spin spin"></i>
+                            <span class="doing">正在<b>搜索 registerTool</b></span>
+                            <span class="meta"><span class="cnt">4 步 · 2 轮</span><i class="fas fa-chevron-right chev" style="transform: rotate(90deg);"></i></span>
+                        </div>
+
+                        <div class="timeline">
+                            <!-- 轮 1 -->
+                            <div class="tl-round">
+                                <div class="tl-dot"></div>
+                                <div class="tl-body">
+                                    <div class="tl-intent">先查看现有工具的注册方式，确认资料库工具是否已接入</div>
+                                    <div class="tl-tool">
+                                        <i class="ch fas fa-magnifying-glass"></i><span class="verb">搜索</span>
+                                        <span class="arg">registerMaterialTools</span>
+                                        <span class="st ok"><i class="fas fa-check"></i></span>
+                                        <i class="fas fa-chevron-right chev" style="transform: rotate(90deg);"></i>
+                                    </div>
+                                    <div class="tl-detail">
+                                        <div class="lab">参数</div>
+                                        <div class="code">pattern: registerMaterialTools</div>
+                                        <div class="lab">结果</div>
+                                        <div class="code result">ChatService.java
+268:    private void registerMaterialTools() {
+269:        agent.addTool(new MaterialListTool(materials));
+270:        agent.addTool(new MaterialReadTool(materials));
+271:        agent.addTool(new MaterialTreeTool(materials));
+272:        agent.addTool(new MaterialCreateKbTool(materials));
+273:        agent.addTool(new MaterialWriteTool(materials));
+…</div>
+                                        <button class="more">展开全部 <i class="fas fa-angles-down"></i></button>
+                                    </div>
+                                    <div class="tl-tool">
+                                        <i class="ch fas fa-magnifying-glass"></i><span class="verb">读取</span>
+                                        <span class="arg">ChatService.java</span>
+                                        <span class="st ok"><i class="fas fa-check"></i></span>
+                                        <i class="fas fa-chevron-right chev"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 轮 2（进行中） -->
+                            <div class="tl-round running">
+                                <div class="tl-dot"></div>
+                                <div class="tl-body">
+                                    <div class="tl-intent">确认注册方式后，将部署经验写入资料库的新文章</div>
+                                    <div class="tl-tool">
+                                        <i class="ch fas fa-database"></i><span class="verb">写入文章</span>
+                                        <span class="arg">团队规范 / ops/deploy-checklist.md</span>
+                                        <span class="st ok"><i class="fas fa-check"></i></span>
+                                        <i class="fas fa-chevron-right chev"></i>
+                                    </div>
+                                    <div class="tl-tool">
+                                        <i class="ch fas fa-magnifying-glass"></i><span class="verb">搜索</span>
+                                        <span class="arg">registerTool</span>
+                                        <span class="st run"><i class="fas fa-circle-notch fa-spin"></i></span>
+                                        <i class="fas fa-chevron-right chev"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hint-line"><i class="fas fa-hand-pointer"></i>意图句为轮次节拍；一轮多工具（并行 tool_calls）纵向排列；工具行点击行内展开详情，结果默认限高 + 渐隐</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= notes ================= -->
+    <div class="notes">
+        <h3>取舍与落地映射</h3>
+        <table>
+            <tr><th>维度</th><th>方案 A · chips 默认收起</th><th>方案 B · 执行流水线</th></tr>
+            <tr><td>信息密度</td><td>chips 行 + 意图行仍随轮次线性增长</td><td>执行中恒定一行；细节按需展开</td></tr>
+            <tr><td>轮次表达</td><td>无（segments 平铺）</td><td>意图句为节拍 + 竖向时间线，贴合 tool_calls 多轮/并行结构</td></tr>
+            <tr><td>改动面</td><td>删 openChips 自动展开 watch（约 15 行）</td><td>MessageItem 步骤区重组 + 活动条/时间线样式；ToolChip 详情组件复用</td></tr>
+            <tr><td>后端</td><td colspan="2">均零改动（SSE 步骤流不变；THOUGHT 短句天然适合做时间线节拍）</td></tr>
+        </table>
+        <div class="rec-line"><i class="fas fa-star"></i>推荐 <b>方案 B</b>，并以方案 A 为兜底共识：时间线内工具行同样默认收起——即 B 包含 A 的核心诉求；落地顺序建议先 A 后 B，A 的改动在 B 中完全保留。</div>
+    </div>
+
+</div>
+
+</body>
+</html>

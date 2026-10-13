@@ -98,13 +98,18 @@ public class ChatCompletions implements ChatModel {
         }
     }
 
+    protected JSONObject buildRequestBody(List<ChatMessage> messages, boolean stream, ResponseFormatType formatType) {
+        return buildRequestBody(messages, stream, formatType, null);
+    }
+
     /**
-     * 构建请求体
+     * 构建请求体（可携带工具签名）
      *
-     * <p>消息序列化：带 {@code contentParts} 的消息按 OpenAI 多模态规范输出 content 数组
+     * <p>tools 非空时序列化为 OpenAI function calling 的 tools 数组并指定 tool_choice=auto；
+     * 消息序列化：带 {@code contentParts} 的消息按 OpenAI 多模态规范输出 content 数组
      * （如图片直传视觉模型），纯文本消息保持字符串形态，两者在同一请求中可混合。</p>
      */
-    protected JSONObject buildRequestBody(List<ChatMessage> messages, boolean stream, ResponseFormatType formatType) {
+    protected JSONObject buildRequestBody(List<ChatMessage> messages, boolean stream, ResponseFormatType formatType, List<ToolSpec> tools) {
         List<Map<String, Object>> messageMaps = new ArrayList<>();
         for (ChatMessage message : messages) {
             Map<String, Object> msgMap = new java.util.HashMap<>();
@@ -128,6 +133,21 @@ public class ChatCompletions implements ChatModel {
             // tool 角色必须包含 tool_call_id
             if ("tool".equals(message.getRole()) && message.getToolCallId() != null) {
                 msgMap.put("tool_call_id", message.getToolCallId());
+            }
+            // 助手消息携带的工具调用（function calling 协议）
+            if (message.getToolCalls() != null && !message.getToolCalls().isEmpty()) {
+                List<Map<String, Object>> calls = new ArrayList<>();
+                for (ToolCallPayload call : message.getToolCalls()) {
+                    Map<String, Object> fn = new java.util.HashMap<>();
+                    fn.put("name", call.getName());
+                    fn.put("arguments", call.getArguments());
+                    Map<String, Object> callMap = new java.util.HashMap<>();
+                    callMap.put("id", call.getId());
+                    callMap.put("type", "function");
+                    callMap.put("function", fn);
+                    calls.add(callMap);
+                }
+                msgMap.put("tool_calls", calls);
             }
             messageMaps.add(msgMap);
         }
@@ -154,6 +174,22 @@ public class ChatCompletions implements ChatModel {
 
         if (topP != null) {
             requestBody.put("top_p", topP);
+        }
+
+        if (tools != null && !tools.isEmpty()) {
+            List<Map<String, Object>> toolMaps = new ArrayList<>();
+            for (ToolSpec spec : tools) {
+                Map<String, Object> fn = new java.util.HashMap<>();
+                fn.put("name", spec.getName());
+                fn.put("description", spec.getDescription());
+                fn.put("parameters", JSON.parseObject(spec.getParametersSchema()));
+                Map<String, Object> toolMap = new java.util.HashMap<>();
+                toolMap.put("type", "function");
+                toolMap.put("function", fn);
+                toolMaps.add(toolMap);
+            }
+            requestBody.put("tools", toolMaps);
+            requestBody.put("tool_choice", "auto");
         }
 
         return requestBody;
@@ -213,16 +249,35 @@ public class ChatCompletions implements ChatModel {
 
                     String content = "";
                     String reasoningContent = null;
+                    List<ToolCallPayload> deltaCalls = null;
                     if (choice.containsKey("delta")) {
                         var delta = choice.getJSONObject("delta");
                         content = delta.getString("content");
                         reasoningContent = delta.getString("reasoning_content");
+                        // 工具调用分片（function calling 协议，arguments 按 index 聚合由调用方完成）
+                        var callsJson = delta.getJSONArray("tool_calls");
+                        if (callsJson != null && !callsJson.isEmpty()) {
+                            deltaCalls = new ArrayList<>();
+                            for (int i = 0; i < callsJson.size(); i++) {
+                                var callJson = callsJson.getJSONObject(i);
+                                ToolCallPayload call = new ToolCallPayload();
+                                call.setId(callJson.getString("id"));
+                                call.setIndex(callJson.getInteger("index"));
+                                var fnJson = callJson.getJSONObject("function");
+                                if (fnJson != null) {
+                                    call.setName(fnJson.getString("name"));
+                                    call.setArguments(fnJson.getString("arguments"));
+                                }
+                                deltaCalls.add(call);
+                            }
+                        }
                     }
 
                     Integer index = choice.getInteger("index");
                     String finishReason = choice.getString("finish_reason");
 
                     ChatMessage msg = new ChatMessage("assistant", content, reasoningContent);
+                    msg.setToolCalls(deltaCalls);
                     ChatChoice choiceObj = new ChatChoice(index, msg, finishReason);
                     response.setChoices(List.of(choiceObj));
                 }
@@ -263,19 +318,28 @@ public class ChatCompletions implements ChatModel {
     @Override
     public Flux<ChatResponse> chatStream(String message) {
         List<ChatMessage> messages = List.of(ChatMessage.user(message));
-        return chatStream(messages, null);
+        return chatStream(messages, (ResponseFormatType) null);
     }
 
     @Override
     public Flux<ChatResponse> chatStream(List<ChatMessage> messages) {
-        return chatStream(messages, null);
+        return chatStream(messages, (ResponseFormatType) null);
     }
 
     @Override
     public Flux<ChatResponse> chatStream(List<ChatMessage> messages, ResponseFormatType formatType) {
+        return doChatStream(messages, formatType, null);
+    }
+
+    @Override
+    public Flux<ChatResponse> chatStream(List<ChatMessage> messages, List<ToolSpec> tools) {
+        return doChatStream(messages, null, tools);
+    }
+
+    private Flux<ChatResponse> doChatStream(List<ChatMessage> messages, ResponseFormatType formatType, List<ToolSpec> tools) {
         return Flux.<ChatResponse>create(sink -> {
             try {
-                JSONObject requestBody = buildRequestBody(messages, true, formatType);
+                JSONObject requestBody = buildRequestBody(messages, true, formatType, tools);
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(baseUrl))
@@ -300,6 +364,7 @@ public class ChatCompletions implements ChatModel {
                                         if (partialResponse != null) {
                                             boolean hasContent = false;
                                             boolean hasReasoning = false;
+                                            boolean hasToolCalls = false;
                                             boolean hasUsage = partialResponse.getUsage() != null;
                                             if (partialResponse.getChoices() != null && !partialResponse.getChoices().isEmpty()) {
                                                 ChatChoice choice = partialResponse.getChoices().get(0);
@@ -308,9 +373,11 @@ public class ChatCompletions implements ChatModel {
                                                     hasContent = c != null && !c.isEmpty();
                                                     String r = choice.getMessage().getReasoningContent();
                                                     hasReasoning = r != null && !r.isEmpty();
+                                                    List<ToolCallPayload> calls = choice.getMessage().getToolCalls();
+                                                    hasToolCalls = calls != null && !calls.isEmpty();
                                                 }
                                             }
-                                            if (hasContent || hasReasoning || hasUsage) {
+                                            if (hasContent || hasReasoning || hasToolCalls || hasUsage) {
                                                 sink.next(partialResponse);
                                             }
                                         }

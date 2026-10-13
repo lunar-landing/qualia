@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料入口图标候选 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    /* 与 index.css 同源变量（日间默认，可切夜间） */
+    :root {
+        --bg-app: #ffffff;
+        --bg-sidebar: #eff2f5;
+        --bg-hover: #e9edf1;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border-color: #d0d7de;
+        --accent: #24292f;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    body.dark {
+        --bg-app: #080a10;
+        --bg-sidebar: rgba(255, 255, 255, 0.02);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border-color: rgba(255, 255, 255, 0.05);
+        --accent: #e6edf3;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--bg-app); color: var(--text-primary);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        padding-bottom: 60px;
+        transition: background .2s, color .2s;
+    }
+    .topbar {
+        display: flex; align-items: center; gap: 14px;
+        padding: 13px 28px; border-bottom: 1px solid var(--border-color);
+    }
+    .topbar h1 { font-size: 14.5px; font-weight: 600; }
+    .topbar .sub { font-size: 11.5px; color: var(--text-secondary); }
+    .topbar .spacer { flex: 1; }
+    .theme-btn {
+        font-size: 11.5px; color: var(--text-secondary);
+        background: var(--bg-hover); border: 1px solid var(--border-color);
+        border-radius: 7px; padding: 5px 11px; cursor: pointer; font-family: inherit;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 26px 28px 0; }
+    .sec-desc { font-size: 12px; line-height: 1.7; color: var(--text-secondary); margin: 6px 0 18px; }
+
+    /* ===== 真实 sidebar-footer + settings-btn 样式还原 ===== */
+    .sidebar {
+        width: 232px; background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-color);
+        padding: 12px 10px;
+    }
+    .sidebar-footer {
+        display: flex; flex-direction: column; gap: 4px;
+        margin-top: auto; padding-top: 6px;
+        border-top: 1px solid var(--border-color);
+    }
+    .settings-btn {
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; padding: 9px 11px;
+        background: transparent; border: none; border-radius: 7px;
+        color: var(--text-secondary); font-size: 12.5px; font-weight: 500;
+        cursor: pointer; font-family: inherit; text-align: left;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+    .settings-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .settings-btn i { width: 15px; text-align: center; font-size: 13px; }
+
+    /* ===== 候选列表 ===== */
+    .opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 760px) { .opt-grid { grid-template-columns: 1fr; } }
+    .opt {
+        border: 1px solid var(--border-color); border-radius: 11px;
+        padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .opt .head { display: flex; align-items: center; gap: 8px; }
+    .opt .head .cls { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-left: auto; }
+    .opt .head .tag {
+        font-size: 9.5px; font-family: var(--mono); color: var(--text-secondary);
+        border: 1px solid var(--border-color); border-radius: 100px; padding: 1px 7px;
+    }
+    .opt .head .tag.rec { color: var(--accent); border-color: var(--accent); }
+    .opt .demo {
+        background: var(--bg-sidebar); border-radius: 9px; padding: 6px 8px;
+        display: flex; flex-direction: column;
+    }
+    .opt .demo .settings-footer-mini {
+        border-top: 1px solid var(--border-color); padding-top: 4px; margin-top: 4px;
+    }
+    .opt .note { font-size: 11px; line-height: 1.6; color: var(--text-secondary); min-height: 34px; }
+    .opt .note b { color: var(--text-primary); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>资料入口图标候选</h1>
+    <span class="sub">sidebar-footer · settings-btn 实际尺寸渲染</span>
+    <div class="spacer"></div>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark')"><span>夜间主题</span></button>
+</div>
+
+<div class="wrap">
+    <p class="sec-desc">
+        现状 <code class="mono" style="font-size:10.5px;">fa-book-open</code>（翻开的书）与设置按钮的「工具感」气质略有出入，且语义偏向「阅读」而非「资料库资产」。
+        以下六个候选均为 FontAwesome 6.7.2 Free solid，直接用真实按钮样式渲染（图标 + 「资料」文案，15px 图标位）。
+    </p>
+
+    <div class="opt-grid">
+        <!-- 现状对照 -->
+        <div class="opt">
+            <div class="head"><span class="tag">现状</span><span class="cls mono">fa-book-open</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-book-open"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note">翻开的书：阅读语义强，与「设置」的齿轮/滑杆工具感不对称。</div>
+        </div>
+
+        <!-- 候选 1 -->
+        <div class="opt">
+            <div class="head"><span class="tag rec">候选 1 · 推荐</span><span class="cls mono">fa-layer-group</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-layer-group"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>层叠组</b>：多文档聚合「库」的意象，几何风格与滑杆齿轮一致，去具象化最贴合现有灰阶气质。</div>
+        </div>
+
+        <!-- 候选 2 -->
+        <div class="opt">
+            <div class="head"><span class="tag">候选 2</span><span class="cls mono">fa-book-bookmark</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-book-bookmark"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>书签书</b>：知识沉淀/收藏语义，比翻开的书更「资产化」，仍是书系延续现状认知。</div>
+        </div>
+
+        <!-- 候选 3 -->
+        <div class="opt">
+            <div class="head"><span class="tag">候选 3</span><span class="cls mono">fa-library</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-library"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>图书馆</b>：资料库的本义直译，建筑轮廓辨识度高；但体量偏「重」，小尺寸下细节略糊。</div>
+        </div>
+
+        <!-- 候选 4 -->
+        <div class="opt">
+            <div class="head"><span class="tag">候选 4</span><span class="cls mono">fa-folder-tree</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-folder-tree"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>文件树</b>：强调结构化浏览（Wiki 树形目录），但与工作区文件面板语义易混。</div>
+        </div>
+
+        <!-- 候选 5 -->
+        <div class="opt">
+            <div class="head"><span class="tag">候选 5</span><span class="cls mono">fa-box-archive</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-box-archive"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>档案盒</b>：归档资产意象，几何简洁；「归档」或暗示只读陈旧，与持续写入的资料库略有偏差。</div>
+        </div>
+
+        <!-- 候选 6 -->
+        <div class="opt">
+            <div class="head"><span class="tag">候选 6</span><span class="cls mono">fa-book</span></div>
+            <div class="demo"><div class="settings-footer-mini">
+                <button class="settings-btn"><i class="fas fa-book"></i><span>资料</span></button>
+                <button class="settings-btn"><i class="fas fa-sliders-h"></i><span>设置</span></button>
+            </div></div>
+            <div class="note"><b>闭书</b>：现状的最小变更版，比翻开的书收敛安静；语义变化不大。</div>
+        </div>
+    </div>
+
+    <p class="sec-desc" style="margin-top: 18px;">
+        另有 <code class="mono" style="font-size:10.5px;">fa-database</code>（数据库）语义也贴合，但与执行步骤里资料库工具的 chip 图标撞车（同一产品内「入口」与「动作」同图），不建议。
+    </p>
+</div>
+
+</body>
+</html>

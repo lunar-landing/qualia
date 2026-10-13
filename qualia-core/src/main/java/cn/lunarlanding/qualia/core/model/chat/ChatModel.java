@@ -58,6 +58,20 @@ public interface ChatModel {
     Flux<ChatResponse> chatStream(List<ChatMessage> messages, ResponseFormatType formatType);
 
     /**
+     * 流式聊天调用（带工具签名，原生 function calling 协议）
+     *
+     * <p>模型自主决定调用工具（tool_calls）或直接回答（content），
+     * 流式分片中的 tool_calls 按 index 聚合由调用方完成。</p>
+     *
+     * @param messages 包含历史对话的消息列表
+     * @param tools 可用工具签名列表，null/空表示不传工具
+     * @return 流式响应的 Flux
+     */
+    default Flux<ChatResponse> chatStream(List<ChatMessage> messages, List<ToolSpec> tools) {
+        return chatStream(messages);
+    }
+
+    /**
      * 设置基础URL
      */
     void baseUrl(String baseUrl);

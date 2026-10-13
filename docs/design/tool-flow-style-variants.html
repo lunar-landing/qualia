@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>执行步骤样式四款设计 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    :root {
+        --page: #f6f7f9; --panel: #ffffff; --panel-2: #fafbfc;
+        --border: #e2e6ec; --line: rgba(20,28,46,0.08);
+        --text-1: #24292f; --text-2: #57606a; --text-3: #8c959f;
+        --accent: #3b6fd4; --accent-soft: rgba(59,111,212,0.09);
+        --bg-hover: #f0f2f5;
+        --ok: #059669; --run: #2563eb; --err: #dc2626;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    body.dark {
+        --page: #0b0d12; --panel: #12161f; --panel-2: #161b26;
+        --border: #232b3a; --line: rgba(255,255,255,0.07);
+        --text-1: #e4e9f2; --text-2: #8f97ae; --text-3: #5b6376;
+        --accent: #7aa2f7; --accent-soft: rgba(122,162,247,0.12);
+        --bg-hover: #1a2030;
+        --ok: #34d399; --run: #60a5fa; --err: #f87171;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        background: var(--page); color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        padding-bottom: 80px;
+        transition: background .25s, color .25s;
+    }
+    .mono { font-family: var(--mono); }
+    i.fa-solid, i.fas { font-size: 1em; }
+
+    /* ===== 顶栏 ===== */
+    .topbar {
+        position: sticky; top: 0; z-index: 50;
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 28px;
+        background: color-mix(in srgb, var(--page) 82%, transparent);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+    }
+    .topbar h1 { font-size: 15px; font-weight: 600; }
+    .topbar .sub { font-size: 12px; color: var(--text-3); }
+    .topbar .spacer { flex: 1; }
+    .theme-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 12px; color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 6px 12px; cursor: pointer;
+    }
+    .theme-btn:hover { color: var(--text-1); border-color: var(--text-3); }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 28px 0; }
+    .sec-head { display: flex; align-items: baseline; gap: 12px; margin: 38px 0 6px; }
+    .sec-head h2 { font-size: 17px; font-weight: 600; }
+    .sec-head h2 .no {
+        font-family: var(--mono); font-size: 12px; color: var(--accent);
+        margin-right: 6px;
+    }
+    .sec-head .tag {
+        font-size: 10.5px; font-weight: 600; font-family: var(--mono);
+        padding: 2px 9px; border-radius: 100px; border: 1px solid var(--border); color: var(--text-2);
+    }
+    .sec-head .tag.rec { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .sec-desc { font-size: 12.5px; line-height: 1.7; color: var(--text-2); margin-bottom: 16px; max-width: 920px; }
+    .sec-desc b { color: var(--text-1); font-weight: 600; }
+
+    /* ===== 总览 ===== */
+    .ov-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 1080px) { .ov-grid { grid-template-columns: repeat(2, 1fr); } }
+    .ov-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 13px;
+        padding: 15px 16px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .ov-card .name { font-size: 13.5px; font-weight: 600; }
+    .ov-card .name .no { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-right: 6px; }
+    .ov-card .desc { font-size: 11.5px; line-height: 1.6; color: var(--text-2); flex: 1; }
+    .ov-card .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .ov-chip {
+        font-size: 10px; font-family: var(--mono); color: var(--text-3);
+        border: 1px solid var(--border); border-radius: 100px; padding: 1.5px 8px;
+    }
+
+    /* ===== 双帧布局 ===== */
+    .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+    @media (max-width: 940px) { .duo { grid-template-columns: 1fr; } }
+    .stage-label {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11px; color: var(--text-3); margin: 0 0 8px 2px;
+        font-family: var(--mono); letter-spacing: .4px;
+    }
+    .stage-label .t { color: var(--accent); }
+    .verdict {
+        display: flex; gap: 18px; margin-top: 12px;
+        font-size: 11.5px; line-height: 1.65; color: var(--text-2);
+    }
+    .verdict .pro b, .verdict .con b { font-weight: 600; }
+    .verdict .pro i { color: var(--ok); margin-right: 5px; font-size: 10px; }
+    .verdict .con i { color: var(--err); margin-right: 5px; font-size: 10px; }
+    .verdict .pro, .verdict .con { flex: 1; }
+
+    /* ===== 对话容器 ===== */
+    .chat {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 14px; padding: 15px 16px 16px;
+        display: flex; flex-direction: column; gap: 11px; height: 100%;
+    }
+    .msg-user { align-self: flex-end; max-width: 86%; }
+    .ububble {
+        background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+        padding: 7px 12px; border-radius: 14px 14px 4px 14px;
+        font-size: 12px; line-height: 1.6;
+    }
+    .msg-ai { display: flex; gap: 9px; }
+    .avatar {
+        flex: 0 0 24px; width: 24px; height: 24px; border-radius: 7px;
+        background: var(--accent-soft); color: var(--accent);
+        display: flex; align-items: center; justify-content: center; font-size: 10.5px;
+        border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    }
+    .act-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .bubble {
+        background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 4px 12px 12px 12px; padding: 9px 12px;
+        font-size: 12px; line-height: 1.7;
+    }
+    .answer-vacant {
+        display: flex; align-items: center; gap: 8px;
+        border: 1px dashed var(--border); border-radius: 10px;
+        padding: 7px 11px; font-size: 10.5px; color: var(--text-3);
+    }
+    .answer-vacant i { font-size: 9.5px; }
+    .answer-vacant.ok, .answer-vacant.ok i { color: var(--ok); }
+    @keyframes blink { 50% { opacity: 0; } }
+    .cursor::after { content: '▍'; color: var(--accent); margin-left: 1px; animation: blink .9s steps(1) infinite; }
+    .spin-i { animation: fas-spin 1s linear infinite; display: inline-block; }
+    @keyframes fas-spin { to { transform: rotate(360deg); } }
+
+    /* =========================================================
+       款 1 · 极简行内流 Minimal
+       ========================================================= */
+    .s1 { display: flex; flex-direction: column; gap: 2px; }
+    .s1-thought { font-size: 12px; line-height: 1.8; color: var(--text-2); }
+    .s1-row {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 12px; line-height: 1.9; color: var(--text-1);
+    }
+    .s1-row .dot {
+        flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--ok); margin-left: 1px;
+    }
+    .s1-row .dot.run {
+        background: transparent; border: 1.5px solid var(--run);
+        border-top-color: transparent; animation: fas-spin .8s linear infinite;
+    }
+    .s1-row .verb { color: var(--text-1); }
+    .s1-row .arg { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .s1-row .ms { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; color: var(--text-3); }
+    .s1.sum { border-top: 1px solid var(--line); padding-top: 9px; margin-top: 3px; opacity: .55; }
+    .s1-sumbar {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11.5px; color: var(--text-2); cursor: pointer;
+    }
+    .s1-sumbar i { font-size: 9px; color: var(--text-3); }
+    .s1-sumbar .cnt { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+    /* =========================================================
+       款 2 · 时间线节点 Timeline
+       ========================================================= */
+    .s2 { position: relative; padding-left: 17px; display: flex; flex-direction: column; gap: 10px; }
+    .s2::before {
+        content: ''; position: absolute; left: 3.5px; top: 7px; bottom: 7px;
+        width: 1px; background: var(--border);
+    }
+    .s2-round { position: relative; display: flex; flex-direction: column; gap: 6px; }
+    .s2-round::before {
+        content: ''; position: absolute; left: -17px; top: 5px;
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--accent); border: 1.5px solid var(--panel);
+        box-shadow: 0 0 0 1px var(--accent);
+    }
+    .s2-round.cur::before { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 1px var(--accent); }
+        50% { box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+    .s2-round.done::before { background: var(--text-3); box-shadow: 0 0 0 1px var(--text-3); }
+    .s2-round .cap { font-size: 10px; font-family: var(--mono); color: var(--text-3); letter-spacing: .5px; }
+    .s2-thought { font-size: 12px; line-height: 1.65; color: var(--text-2); }
+    .s2-tool {
+        display: flex; align-items: center; gap: 8px; max-width: 100%;
+        font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 8px; padding: 4px 9px; cursor: pointer;
+    }
+    .s2-tool i.ch { font-size: 10px; color: var(--accent); flex-shrink: 0; }
+    .s2-tool .arg { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .s2-tool .st { margin-left: auto; flex-shrink: 0; font-size: 9.5px; }
+    .s2-tool .st.ok { color: var(--ok); }
+    .s2-tool .st.run { color: var(--run); }
+    .s2-sumbar {
+        display: flex; align-items: center; gap: 8px; cursor: pointer;
+        background: var(--bg-hover); border: 1px solid var(--border);
+        border-radius: 9px; padding: 6px 11px;
+        font-size: 11.5px; color: var(--text-2);
+    }
+    .s2-sumbar i.chv { font-size: 9px; color: var(--text-3); }
+    .s2-sumbar .cnt { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+    /* =========================================================
+       款 3 · 终端日志 Terminal
+       ========================================================= */
+    .s3-term {
+        background: #0d1117; border: 1px solid #232b3a; border-radius: 11px;
+        overflow: hidden; font-family: var(--mono);
+    }
+    .s3-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 12px; background: #161b26;
+        border-bottom: 1px solid #232b3a;
+        font-size: 10px; color: #8f97ae; letter-spacing: .4px;
+    }
+    .s3-head .dots { display: flex; gap: 4px; }
+    .s3-head .dots span { width: 7px; height: 7px; border-radius: 50%; background: #2d3648; }
+    .s3-head .ttl { color: #8f97ae; }
+    .s3-head .stat { margin-left: auto; color: #5b6376; }
+    .s3-body { padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 3px; }
+    .s3-line { display: flex; gap: 9px; font-size: 10.5px; line-height: 1.75; color: #c9d1e0; align-items: baseline; }
+    .s3-line .ts { color: #5b6376; flex-shrink: 0; font-size: 9.5px; }
+    .s3-line .pfx { color: #7aa2f7; flex-shrink: 0; }
+    .s3-line .txt { min-width: 0; }
+    .s3-line .txt.dim { color: #8f97ae; }
+    .s3-line .txt .path { color: #7aa2f7; }
+    .s3-line .tail { margin-left: auto; flex-shrink: 0; color: #34d399; font-size: 9.5px; }
+    .s3-line .tail.run { color: #60a5fa; }
+    .s3-line.cur .txt::after { content: '▍'; color: #7aa2f7; animation: blink .9s steps(1) infinite; }
+    .s3-line.folded { color: #5b6376; }
+
+    /* =========================================================
+       款 4 · 徽章胶囊 Capsule
+       ========================================================= */
+    .s4 { display: flex; flex-direction: column; gap: 9px; }
+    .s4-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .s4-capsule {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; color: var(--text-1);
+        border: 1px solid var(--border); background: var(--bg-hover);
+        border-radius: 100px; padding: 4px 11px; cursor: pointer;
+        max-width: 100%;
+    }
+    .s4-capsule i.ch { font-size: 10px; color: var(--accent); }
+    .s4-capsule .st { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .s4-capsule .st.ok { background: var(--ok); }
+    .s4-capsule .st.run {
+        background: transparent; border: 1.5px solid var(--run);
+        border-top-color: transparent; animation: fas-spin .8s linear infinite;
+    }
+    .s4-capsule.run { border-color: color-mix(in srgb, var(--run) 42%, var(--border)); }
+    .s4-thought { font-size: 12px; line-height: 1.65; color: var(--text-2); }
+    .s4-stats {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: var(--mono); font-size: 10px; color: var(--text-3);
+        border: 1px dashed var(--border); border-radius: 100px; padding: 3px 10px;
+    }
+
+    /* ===== 对比表 ===== */
+    .notes { margin-top: 38px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; }
+    .notes h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    table.cmp { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .cmp th, .cmp td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+    .cmp th { color: var(--text-3); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+    .cmp td:first-child { color: var(--text-1); font-weight: 500; white-space: nowrap; }
+    .cmp td { color: var(--text-2); }
+    .cmp td .hl { color: var(--accent); font-weight: 500; }
+    .rec-line { display: flex; gap: 9px; margin-top: 14px; font-size: 12.5px; color: var(--text-1); line-height: 1.7; }
+    .rec-line i { color: var(--accent); margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>执行步骤样式四款设计</h1>
+    <span class="sub">统一行为协议（思考流式·完成折叠）· 四种视觉形态</span>
+    <div class="spacer"></div>
+    <button class="theme-btn" onclick="document.body.classList.toggle('dark')">
+        <i class="fas fa-circle-half-stroke"></i><span>切换主题</span>
+    </button>
+</div>
+
+<div class="wrap">
+
+    <!-- ============ 总览 ============ -->
+    <div class="sec-head">
+        <h2>四款总览</h2>
+        <span class="tag">同一场景横向对比</span>
+    </div>
+    <p class="sec-desc">
+        四款共用同一行为底座：<b>思考流式行</b>（thinking 事件打字）→ <b>工具行</b>（默认收起单行）→ <b>完成态折叠摘要</b>。
+        差异只在视觉形态与信息密度。场景统一为「把部署经验整理进资料库」（2 轮 · 2 工具）。
+    </p>
+    <div class="ov-grid">
+        <div class="ov-card">
+            <div class="name"><span class="no">01</span>极简行内流</div>
+            <div class="desc">无边框纯文本行，状态点 + 动词 + 耗时。最轻量，几乎隐形。</div>
+            <div class="chips"><span class="ov-chip">密度低</span><span class="ov-chip">噪音最小</span><span class="ov-chip">改动最小</span></div>
+        </div>
+        <div class="ov-card">
+            <div class="name"><span class="no">02</span>时间线节点</div>
+            <div class="desc">左竖线 + 轮次节点，思考句挂在节点下，轮次结构一目了然。</div>
+            <div class="chips"><span class="ov-chip">轮次感强</span><span class="ov-chip">结构清晰</span><span class="ov-chip">推荐</span></div>
+        </div>
+        <div class="ov-card">
+            <div class="name"><span class="no">03</span>终端日志</div>
+            <div class="desc">深色内嵌面板 + 时间戳行，每事件一行日志。开发者审美。</div>
+            <div class="chips"><span class="ov-chip">密度最高</span><span class="ov-chip">IDE 气质</span><span class="ov-chip">深色固定</span></div>
+        </div>
+        <div class="ov-card">
+            <div class="name"><span class="no">04</span>徽章胶囊</div>
+            <div class="desc">圆角胶囊横排，思考句穿插其间。紧凑活泼，动作连读感。</div>
+            <div class="chips"><span class="ov-chip">横向省高</span><span class="ov-chip">轻快</span><span class="ov-chip">接近现状</span></div>
+        </div>
+    </div>
+
+    <!-- ============ 款 1 ============ -->
+    <div class="sec-head">
+        <h2><span class="no">01</span>极简行内流</h2>
+        <span class="tag">Minimal</span>
+    </div>
+    <p class="sec-desc">每个动作一行内联文本，无卡片无边框：状态点 + 中文名 + 参数淡色。思考句就是普通段落。适合「步骤不该抢戏」的哲学——多轮执行时高度增长最慢。</p>
+    <div class="duo">
+        <div>
+            <div class="stage-label">执行中 <span class="t">T+2.4s</span></div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s1">
+                            <div class="s1-thought">先查看资料库列表，确认目标库是否存在</div>
+                            <div class="s1-row"><span class="dot"></span><span class="verb">资料库列表</span><span class="ms">210ms</span></div>
+                            <div class="s1-thought">目标库「团队规范」存在，将部署经验写入新文章<span class="cursor"></span></div>
+                            <div class="s1-row"><span class="dot run"></span><span class="verb">写入文章</span><span class="arg mono">ops/deploy-checklist.md</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空</div>
+            </div>
+        </div>
+        <div>
+            <div class="stage-label">完成态 <span class="t">T+9s</span> 折叠摘要行</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s1 sum">
+                            <div class="s1-thought">先查看资料库列表，确认目标库是否存在</div>
+                            <div class="s1-row"><span class="dot"></span><span class="verb">资料库列表</span><span class="ms">210ms</span></div>
+                            <div class="s1-thought">目标库「团队规范」存在，将部署经验写入新文章</div>
+                            <div class="s1-row"><span class="dot"></span><span class="verb">写入文章</span><span class="arg mono">ops/deploy-checklist.md</span><span class="ms">1.2s</span></div>
+                        </div>
+                        <div class="s1-sumbar"><i class="fas fa-chevron-right"></i>思考与执行完成<span class="cnt">5 步 · 2 轮 · 8.4s</span></div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size:10.5px;">ops/deploy-checklist.md</span>。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="verdict">
+        <div class="pro"><i class="fas fa-plus"></i><b>优</b>：视觉噪音最小；高度增长最慢；实现最简（现有 chip 去壳）。</div>
+        <div class="con"><i class="fas fa-minus"></i><b>劣</b>：轮次边界弱（思考句与工具行平级）；无容器感，长列表扫读定位稍吃力。</div>
+    </div>
+
+    <!-- ============ 款 2 ============ -->
+    <div class="sec-head">
+        <h2><span class="no">02</span>时间线节点</h2>
+        <span class="tag rec">推荐</span>
+    </div>
+    <p class="sec-desc">左侧竖线串起<b>轮次节点</b>：实心蓝 = 进行中（脉冲光晕）、灰 = 已完成。思考句与工具行挂在节点下，<b>「第几轮想什么、做了什么」一眼可读</b>。工具行默认收起单行，点击行内展开详情。</p>
+    <div class="duo">
+        <div>
+            <div class="stage-label">执行中 <span class="t">T+2.4s</span></div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s2">
+                            <div class="s2-round done">
+                                <div class="cap">轮 1</div>
+                                <div class="s2-thought">先查看资料库列表，确认目标库是否存在</div>
+                                <div class="s2-tool"><i class="ch fas fa-database"></i>资料库列表<span class="st ok"><i class="fas fa-check"></i></span></div>
+                            </div>
+                            <div class="s2-round cur">
+                                <div class="cap">轮 2</div>
+                                <div class="s2-thought">目标库「团队规范」存在，将部署经验写入新文章<span class="cursor"></span></div>
+                                <div class="s2-tool"><i class="ch fas fa-file-pen"></i>写入文章<span class="arg">ops/deploy-checklist.md</span><span class="st run"><i class="fas fa-circle-notch fa-spin"></i></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空</div>
+            </div>
+        </div>
+        <div>
+            <div class="stage-label">完成态 <span class="t">T+9s</span> 折叠摘要条</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s2-sumbar"><i class="chv fas fa-chevron-right"></i>思考与执行完成<span class="cnt">5 步 · 2 轮 · 8.4s</span></div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size:10.5px;">ops/deploy-checklist.md</span>，包含回滚步骤与环境变量清单。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="verdict">
+        <div class="pro"><i class="fas fa-plus"></i><b>优</b>：轮次表达最强，多轮长任务的叙事结构与 LLM 执行逻辑同构；进行中节点脉冲提供「活着」的反馈；折叠摘要条与现有 think-toggle 平滑衔接。</div>
+        <div class="con"><i class="fas fa-minus"></i><b>劣</b>：左侧留白 17px；节点/竖线需要一套新样式（但结构可完全复用现有 segments 分组）。</div>
+    </div>
+
+    <!-- ============ 款 3 ============ -->
+    <div class="sec-head">
+        <h2><span class="no">03</span>终端日志</h2>
+        <span class="tag">Terminal</span>
+    </div>
+    <p class="sec-desc">深色内嵌终端面板，每个事件一行：<span class="mono" style="font-size:11px;">时间戳 ▸ 事件</span>，右缘对齐状态/耗时。两种主题下面板均为深色（与代码块气质一致）。信息密度最高，适合「看过程本身就是信息」的用户。</p>
+    <div class="duo">
+        <div>
+            <div class="stage-label">执行中 <span class="t">T+2.4s</span></div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s3-term">
+                            <div class="s3-head">
+                                <span class="dots"><span></span><span></span><span></span></span>
+                                <span class="ttl">agent</span>
+                                <span class="stat">2 轮 · running</span>
+                            </div>
+                            <div class="s3-body">
+                                <div class="s3-line"><span class="ts">+0.8s</span><span class="pfx">▸</span><span class="txt dim">先查看资料库列表，确认目标库是否存在</span></div>
+                                <div class="s3-line"><span class="ts">+1.0s</span><span class="pfx">▸</span><span class="txt">kb.list</span><span class="tail">ok 210ms</span></div>
+                                <div class="s3-line cur"><span class="ts">+2.1s</span><span class="pfx">▸</span><span class="txt dim">目标库「团队规范」存在，写入新文章</span></div>
+                                <div class="s3-line"><span class="ts">+2.3s</span><span class="pfx">▸</span><span class="txt">kb.write <span class="path">ops/deploy-checklist.md</span></span><span class="tail run">run</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空</div>
+            </div>
+        </div>
+        <div>
+            <div class="stage-label">完成态 <span class="t">T+9s</span> 折叠为一行头</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s3-term">
+                            <div class="s3-head" style="cursor: pointer;">
+                                <span class="dots"><span></span><span></span><span></span></span>
+                                <span class="ttl">agent · 思考与执行完成</span>
+                                <span class="stat">5 events · 2 轮 · 8.4s ▸</span>
+                            </div>
+                            <div class="s3-body">
+                                <div class="s3-line folded"><span class="ts">…</span><span class="pfx">·</span><span class="txt">点击头部展开完整日志</span></div>
+                            </div>
+                        </div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size:10.5px;">ops/deploy-checklist.md</span>。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="verdict">
+        <div class="pro"><i class="fas fa-plus"></i><b>优</b>：密度最高、事件时序精确（相对时间戳）；与 IDE / 终端气质统一，开发者亲和力强；完成态折叠后只剩一行头部，极度克制。</div>
+        <div class="con"><i class="fas fa-minus"></i><b>劣</b>：深色面板嵌入浅色对话区视觉较重；非技术用户可能觉得「像报错」；意图句与命令混排等宽字略硬。</div>
+    </div>
+
+    <!-- ============ 款 4 ============ -->
+    <div class="sec-head">
+        <h2><span class="no">04</span>徽章胶囊</h2>
+        <span class="tag">Capsule</span>
+    </div>
+    <p class="sec-desc">动作收敛为<b>圆角胶囊横排</b>（图标 + 短名 + 状态点），思考句作为普通文本段落在胶囊之间穿插。<b>横向排列省高度</b>——同轮多个工具一行放下，是四款中纵向最紧凑的执行中形态。</p>
+    <div class="duo">
+        <div>
+            <div class="stage-label">执行中 <span class="t">T+2.4s</span></div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s4">
+                            <div class="s4-thought">先查看资料库列表，确认目标库是否存在</div>
+                            <div class="s4-row">
+                                <span class="s4-capsule"><i class="ch fas fa-database"></i>资料库列表<span class="st ok"></span></span>
+                            </div>
+                            <div class="s4-thought">目标库「团队规范」存在，将部署经验写入新文章<span class="cursor"></span></div>
+                            <div class="s4-row">
+                                <span class="s4-capsule run"><i class="ch fas fa-file-pen"></i>写入文章<span class="st run"></span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="answer-vacant ok"><i class="fas fa-circle-check"></i>回答区 · 空</div>
+            </div>
+        </div>
+        <div>
+            <div class="stage-label">完成态 <span class="t">T+9s</span> 胶囊淡化 + 统计</div>
+            <div class="chat">
+                <div class="msg-user"><div class="ububble">把这次的部署经验整理进资料库</div></div>
+                <div class="msg-ai">
+                    <div class="avatar"><i class="fas fa-robot"></i></div>
+                    <div class="act-col">
+                        <div class="s4" style="opacity:.55;">
+                            <div class="s4-row">
+                                <span class="s4-capsule"><i class="ch fas fa-database"></i>资料库列表<span class="st ok"></span></span>
+                                <span class="s4-capsule"><i class="ch fas fa-file-pen"></i>写入文章<span class="st ok"></span></span>
+                                <span class="s4-stats"><i class="fas fa-check" style="font-size:8.5px;"></i>5 步 · 2 轮 · 8.4s</span>
+                            </div>
+                        </div>
+                        <div class="bubble">已将部署经验写入「团队规范」资料库：<span class="mono" style="font-size:10.5px;">ops/deploy-checklist.md</span>，包含回滚步骤与环境变量清单。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="verdict">
+        <div class="pro"><i class="fas fa-plus"></i><b>优</b>：执行中纵向高度最省（多工具同轮一行）；与现有 chip 体系延续性最强（只改壳不改详情组件）；视觉轻快不严肃。</div>
+        <div class="con"><i class="fas fa-minus"></i><b>劣</b>：胶囊不承载参数摘要，定位具体动作需点开；轮次边界同样偏弱（靠思考句分隔）；横向 wrap 在窄屏退化为纵向。</div>
+    </div>
+
+    <!-- ============ 对比 ============ -->
+    <div class="notes">
+        <h3>四款对比</h3>
+        <table class="cmp">
+            <tr><th>维度</th><th>01 极简行内流</th><th>02 时间线节点</th><th>03 终端日志</th><th>04 徽章胶囊</th></tr>
+            <tr><td>信息密度</td><td>低（一行一事）</td><td>中</td><td><span class="hl">最高（时间戳+耗时）</span></td><td>中（横向紧凑）</td></tr>
+            <tr><td>轮次表达</td><td>弱</td><td><span class="hl">最强（节点+竖线）</span></td><td>中（时间序隐含）</td><td>弱（思考句分隔）</td></tr>
+            <tr><td>执行中高度</td><td>低</td><td>中</td><td>中高（面板头+体）</td><td><span class="hl">最低（横排）</span></td></tr>
+            <tr><td>视觉重量</td><td><span class="hl">最轻</span></td><td>轻</td><td>重（深色面板）</td><td>轻</td></tr>
+            <tr><td>完成态折叠</td><td>摘要行（半透明）</td><td>摘要条（描边）</td><td>仅剩面板头</td><td>胶囊淡化+统计徽章</td></tr>
+            <tr><td>实现改动面</td><td><span class="hl">最小</span>（chip 去壳）</td><td>中（新增节点/竖线样式）</td><td>大（新面板体系+深色固定）</td><td><span class="hl">小</span>（chip 改胶囊壳）</td></tr>
+            <tr><td>适合偏好</td><td>安静克制</td><td><span class="hl">结构叙事（推荐）</span></td><td>极客/时序敏感</td><td>紧凑轻快</td></tr>
+        </table>
+        <div class="rec-line">
+            <i class="fas fa-star"></i>
+            <span>推荐 <b>02 时间线节点</b>：唯一能显式表达「轮」的形态，与新 function calling 协议的轮次结构天然同构；折叠摘要条直接升级现有 think-toggle；详情组件全部复用。若偏好更轻的存在感，<b>01</b> 是最小改动方案；喜欢开发者审美选 <b>03</b>（可与 02 的轮次节点结合成「终端面板 + 左侧轮轨」混合形态）。选定后我出对应的落地改动清单。</span>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

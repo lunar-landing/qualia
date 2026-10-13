@@ -1197,7 +1197,20 @@
                         try {
                             const data = JSON.parse(event.data);
 
-                            if (data.responseType === 'answer' && data.answer) {
+                            if (data.responseType === 'answer' && !data.answer) {
+                                // 空 answer = 撤回工具轮前透传的意图说明：
+                                // 删除普通气泡（THOUGHT 步骤将以活动容器重建）或清空回答区
+                                state.fullAnswer = '';
+                                if (state.activityEl) {
+                                    if (state.plainBubble) {
+                                        state.activityEl.remove();
+                                        state.activityEl = null;
+                                        state.plainBubble = false;
+                                    } else {
+                                        setActivityAnswer(state.activityEl, '');
+                                    }
+                                }
+                            } else if (data.responseType === 'answer' && data.answer) {
                                 // 最终答案：写入活动容器同列；无步骤时走普通气泡
                                 state.fullAnswer = data.answer;
                                 // 当前可见会话才操作 DOM

@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
         :title="t('materials.title')"
         @click="materials.toggleView()"
       >
-        <i class="fas fa-book-open"></i>
+        <i class="fas fa-book"></i>
         <span>{{ t('materials.entry') }}</span>
       </button>
       <div class="settings-anchor" ref="anchorRef">

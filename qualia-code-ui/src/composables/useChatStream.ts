@@ -145,12 +145,15 @@ function handleEvent(sid: string, evt: StreamEvent) {
   const st = chat.streamBySession[sid]
   if (!st || (st.status !== 'connecting' && st.status !== 'streaming' && st.status !== 'answering')) return
 
-  if (evt.responseType === 'answer' && evt.answer) {
-    // 最终答案：写入活动消息；无步骤时降级为普通气泡
-    st.fullAnswer = evt.answer
-    chat.patchMessage(sid, st.msgId, { content: evt.answer })
-    if (st.steps.length === 0) st.plainBubble = true
-    st.status = 'answering'
+  if (evt.responseType === 'answer') {
+    // 最终答案：写入活动消息（空 answer = 撤回工具轮前透传的意图说明，清空回答区）；
+    // 有实质内容时无步骤才降级普通气泡并进入回答中状态
+    st.fullAnswer = evt.answer ?? ''
+    chat.patchMessage(sid, st.msgId, { content: evt.answer ?? '' })
+    if (evt.answer) {
+      if (st.steps.length === 0) st.plainBubble = true
+      st.status = 'answering'
+    }
   } else if (evt.responseType === 'step' && evt.steps?.length) {
     const step = evt.steps[0]
     if (!step) return

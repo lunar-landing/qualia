@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
     <!-- 右缘拖拽调宽手柄（198 ~ 视口余量，不持久化；≤820px 隐藏并复位） -->
     <div class="side-resizer" @mousedown="startResize"></div>
     <div class="sidebar-brand">
-      <i class="fas fa-code"></i>
+      <i class="fas fa-feather"></i>
       <span>Qualia Code</span>
     </div>
 

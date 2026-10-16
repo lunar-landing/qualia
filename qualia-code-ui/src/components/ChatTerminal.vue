@@ -6,21 +6,26 @@ import type { StreamState } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useConfigStore } from '@/stores/config'
+import { usePreviewStore } from '@/stores/preview'
 import { useChatStream, tryConsumeQueue } from '@/composables/useChatStream'
 import { useThrottledRef } from '@/composables/useThrottledRef'
 import { useLightbox } from '@/composables/useLightbox'
-import { extractThought, stepFilePath } from '@/utils/steps'
+import { useTheme } from '@/composables/theme'
+import { extractThought, stepFilePath, changeKeyOf, baseName } from '@/utils/steps'
 import { argStr, domainOf, shortScriptName, type ToolArgs } from '@/utils/chip'
 import { splitSkillMessage } from '@/utils/skillSlash'
 import { renderMarkdown } from '@/utils/markdown'
 import hljs from 'highlight.js/lib/common'
-import { nowTimeStr } from '@/utils/format'
+import { buildMarkdownPage, isMarkdownFile } from '@/utils/markdownPage'
+import { fmtTokens, nowTimeStr } from '@/utils/format'
 import { historyImageUrl, uploadAttachment } from '@/api/attachment'
+import { getContextInfo } from '@/api/chat'
+import { readFileContent } from '@/api/config'
 import WelcomeHero from '@/components/WelcomeHero.vue'
 import ChipDetail from '@/components/ChipDetail.vue'
 import FilePreview from '@/components/FilePreview.vue'
 import QueuedPanel from '@/components/QueuedPanel.vue'
-import type { AgentStep, ChatMessage, HistoryAttachment, PendingAttachment } from '@/types'
+import type { AgentStep, ChatMessage, ContextInfo, HistoryAttachment, PendingAttachment } from '@/types'
 
 /**
  * 终端形态聊天区（ChatArea 的 REPL/CLI 隐喻变体，对齐 terminal-chat-theme-mockup）：
@@ -39,6 +44,8 @@ const chat = useChatStore()
 const sessionStore = useSessionStore()
 const ws = useWorkspaceStore()
 const config = useConfigStore()
+const previewStore = usePreviewStore()
+const { isLight } = useTheme()
 const { send, stop } = useChatStream()
 const { open: openLightbox } = useLightbox()
 
@@ -233,6 +240,7 @@ watch(
     ws.closeFilePreview()
     stick.value = true
     if (s) void chat.ensureHistory(s)
+    refreshCtx()
     void nextTick(() => {
       highlightCode()
       scrollToBottom()
@@ -254,9 +262,10 @@ const fileEl = ref<HTMLInputElement | null>(null)
 const pending = ref<PendingAttachment[]>([])
 const processing = computed(() => (sid.value ? chat.isProcessing(sid.value) : false))
 
-// 流结束补一次高亮包装（流式期间跳过，见上方 messages watch）
-watch(processing, (p) => {
-  if (!p) {
+// 流结束补一次高亮包装（流式期间跳过，见上方 messages watch）；流收尾同步刷新上下文占用（对齐气泡版边沿刷新）
+watch(processing, (now, prev) => {
+  if (!now) {
+    if (prev) refreshCtx()
     void nextTick(() => {
       highlightCode()
       if (stick.value) scrollToBottom()
@@ -264,6 +273,149 @@ watch(processing, (p) => {
   }
 })
 const modelLabel = computed(() => config.selectedModel || config.defaultModel || '')
+
+// ===== 上下文占用（对齐气泡版 InputArea.refreshCtx：切会话拉取，流收尾边沿刷新；终端风以文本指示呈现） =====
+const ctx = ref<ContextInfo | null>(null)
+async function refreshCtx() {
+  if (!sid.value) {
+    ctx.value = null
+    return
+  }
+  try {
+    ctx.value = await getContextInfo(sid.value)
+  } catch {
+    /* 静默：指示取数失败不提示 */
+  }
+}
+/** 未配置窗口时的估算基准（与 ContextMeter.DEFAULT_WINDOW 同口径） */
+const DEFAULT_CTX_WINDOW = 128000
+const ctxPct = computed(() => {
+  if (!ctx.value) return 0
+  const win = ctx.value.contextWindow ?? DEFAULT_CTX_WINDOW
+  return Math.min(100, Math.round((ctx.value.usedTokens / win) * 100))
+})
+const ctxTitle = computed(() =>
+  ctx.value
+    ? `${t('input.ctxTurns', { n: ctx.value.turnCount })} · ${t('input.ctxTotal', { n: fmtTokens(ctx.value.sessionTotalTokens) })}`
+    : '',
+)
+
+// ===== 消息尾部变更清单（终端风 git-status：A/M/D 色标；派生口径对齐气泡版 ChangedFiles） =====
+interface ChangedFile {
+  path: string
+  op: 'write' | 'edit' | 'delete'
+}
+const OP_MARK: Record<ChangedFile['op'], string> = { write: 'A', edit: 'M', delete: 'D' }
+
+/** 文件终态 op：末步 delete > 含 edit > write */
+function changedOpOf(steps: AgentStep[]): ChangedFile['op'] {
+  if (steps[steps.length - 1]?.toolName === 'delete') return 'delete'
+  return steps.some((s) => s.toolName === 'edit') ? 'edit' : 'write'
+}
+
+const changedFilesOf = (msg: ChatMessage): ChangedFile[] => {
+  const byPath = new Map<string, AgentStep[]>()
+  for (const s of msg.steps ?? []) {
+    const key = changeKeyOf(s)
+    if (!key) continue
+    const list = byPath.get(key)
+    if (list) list.push(s)
+    else byPath.set(key, [s])
+  }
+  return [...byPath].map(([path, steps]) => ({ path, op: changedOpOf(steps) }))
+}
+
+/** 预览路由对齐 ChangedFiles.open：html/md → 浏览器 Tab（md 转阅读页），失败回落预览层，其余直接预览层 */
+async function openChanged(f: ChangedFile) {
+  const htmlLike = /\.html?$/i.test(f.path)
+  const mdLike = isMarkdownFile(f.path)
+  if (!htmlLike && !mdLike) {
+    ws.openFilePreview(f.path)
+    return
+  }
+  try {
+    const res = await readFileContent(f.path, sid.value)
+    if (res.type === 'text') {
+      const content = String(res.content ?? '')
+      previewStore.openHtml(
+        mdLike ? buildMarkdownPage(content, isLight.value) : content,
+        baseName(f.path),
+        f.path,
+      )
+      return
+    }
+  } catch {
+    /* 读取失败回落预览层 */
+  }
+  ws.openFilePreview(f.path)
+}
+
+// ===== 工作区绑定菜单（对齐气泡版 InputArea：最近列表快速换绑，浏览更多开全局选择弹窗；终端风复用 --model 菜单体系） =====
+const wsMenuOpen = ref(false)
+const wsHoldEl = ref<HTMLElement | null>(null)
+const bound = computed(() => (sid.value ? ws.current : null))
+/** 锁定：已产生对话（后端 locked 标记）——菜单不可弹，仅 title 提示 */
+const wsLocked = computed(() => !!sessionStore.currentSession?.locked)
+const wsBinding = ref(false)
+
+function toggleWsMenu() {
+  if (processing.value || wsLocked.value) return
+  wsMenuOpen.value = !wsMenuOpen.value
+  if (wsMenuOpen.value) void ws.refresh().catch(() => {})
+}
+
+/** 最近打开列表：当前项置顶（勾选），不在历史中时补合成条目，上限 5（对齐气泡版） */
+const recentQuick = computed(() => {
+  const curPath = ws.current?.path ?? ''
+  const cur = curPath.toLowerCase()
+  const items = ws.recent.filter((it) => it.exists !== false)
+  const head =
+    curPath && !items.some((it) => it.path.toLowerCase() === cur)
+      ? [{ path: curPath, name: ws.current!.name, lastOpened: new Date().toISOString() }]
+      : []
+  const ordered = [
+    ...items.filter((it) => it.path.toLowerCase() === cur),
+    ...items.filter((it) => it.path.toLowerCase() !== cur),
+  ]
+  return [...head, ...ordered].slice(0, 5)
+})
+
+const isCurrent = (path: string): boolean =>
+  path.toLowerCase() === (ws.current?.path ?? '').toLowerCase()
+
+/** 快速换绑最近项目：无会话先静默创建；错误 alert 透传 */
+async function pickRecent(path: string) {
+  if (wsBinding.value) return
+  wsBinding.value = true
+  try {
+    if (!sid.value) await sessionStore.createSession()
+    await sessionStore.bindSession(sessionStore.currentSessionId!, path)
+    wsMenuOpen.value = false
+  } catch (e) {
+    alert(e instanceof Error ? e.message : String(e))
+  } finally {
+    wsBinding.value = false
+  }
+}
+
+function openWsPicker() {
+  wsMenuOpen.value = false
+  ws.openPicker()
+}
+
+/** 解除绑定：删 binding.json 回未设置态；错误 alert 透传 */
+async function unbind() {
+  if (!sid.value || wsBinding.value) return
+  wsBinding.value = true
+  try {
+    await sessionStore.bindSession(sid.value, null)
+    wsMenuOpen.value = false
+  } catch (e) {
+    alert(e instanceof Error ? e.message : String(e))
+  } finally {
+    wsBinding.value = false
+  }
+}
 
 // ===== V3 模型 pill：点击弹出菜单切换（config.selectModel 仅前端选中，随请求携带，不落后端配置） =====
 const modelOpen = ref(false)
@@ -319,13 +471,18 @@ const onWindowKey = (e: KeyboardEvent) => {
   if (e.key === 'Escape' && processing.value) stop()
 }
 
-// document 级关闭：模型菜单外部点击 / esc 关闭（对齐 flyout 委托模式）
+// document 级关闭：模型/工作区菜单外部点击 / esc 关闭（对齐 flyout 委托模式）
 function onDocClick(e: MouseEvent) {
   if (modelWrapEl.value?.contains(e.target as Node)) return
+  if (wsHoldEl.value?.contains(e.target as Node)) return
   modelOpen.value = false
+  wsMenuOpen.value = false
 }
 function onDocKeyMenu(e: KeyboardEvent) {
-  if (e.key === 'Escape') modelOpen.value = false
+  if (e.key === 'Escape') {
+    modelOpen.value = false
+    wsMenuOpen.value = false
+  }
 }
 
 onMounted(() => {
@@ -495,6 +652,22 @@ const imageSrc = (att: HistoryAttachment): string => att.dataUrl || historyImage
               <div class="md" v-html="mdOf(m)"></div>
               <span v-if="isLive(m)" class="cursor"></span>
             </div>
+
+            <!-- 消息尾部变更清单（git-status 风：A/M/D 色标，非删除行点击预览） -->
+            <div v-if="changedFilesOf(m).length" class="t-changed">
+              <div class="t-changed-head">:: {{ t('terminal.filesChanged', { n: changedFilesOf(m).length }) }}</div>
+              <div
+                v-for="f in changedFilesOf(m)"
+                :key="f.path"
+                class="t-changed-row"
+                :class="{ link: f.op !== 'delete' }"
+                :title="f.op !== 'delete' ? f.path : ''"
+                @click="f.op !== 'delete' && openChanged(f)"
+              >
+                <span class="op" :class="f.op">{{ OP_MARK[f.op] }}</span>
+                <span class="pth">{{ f.path }}</span>
+              </div>
+            </div>
           </div>
         </template>
 
@@ -546,6 +719,38 @@ const imageSrc = (att: HistoryAttachment): string => att.dataUrl || historyImage
           </button>
           <span class="tc-hint"><span class="key">⏎</span>{{ t('terminal.send') }}</span>
           <span class="tc-spring"></span>
+          <span
+            v-if="ctx && ctx.turnCount > 0"
+            class="tc-ctx"
+            :class="{ hot: ctxPct >= 80 }"
+            :title="ctxTitle"
+          >ctx {{ ctxPct }}%</span>
+          <div ref="wsHoldEl" class="tc-model-wrap">
+            <button
+              class="tc-model"
+              :title="wsLocked ? t('input.lockedTip') : bound ? bound.path : t('input.bindTitle')"
+              @click="toggleWsMenu"
+            >
+              --workspace {{ bound ? bound.name : 'none' }} <span class="tc-tri">▾</span>
+            </button>
+            <div v-show="wsMenuOpen" class="tc-model-menu tc-ws-menu">
+              <template v-if="recentQuick.length">
+                <div class="tc-ws-label">{{ t('input.recentWorkspaces') }}</div>
+                <button
+                  v-for="it in recentQuick"
+                  :key="it.path"
+                  class="tc-model-item"
+                  :class="{ on: isCurrent(it.path) }"
+                  :title="it.path"
+                  @click="!isCurrent(it.path) && pickRecent(it.path)"
+                >{{ it.name }}</button>
+              </template>
+              <button class="tc-model-item" @click="openWsPicker">{{ t('input.browseMore') }}</button>
+              <button v-if="bound" class="tc-model-item" :disabled="wsBinding" @click="unbind">
+                {{ t('input.unbind') }}
+              </button>
+            </div>
+          </div>
           <div ref="modelWrapEl" class="tc-model-wrap">
             <button class="tc-model" :title="t('terminal.modelSwitch')" @click="modelOpen = !modelOpen">
               --model {{ modelLabel || t('terminal.modelDefault') }} <span class="tc-tri">▾</span>
@@ -1210,6 +1415,62 @@ body.light-theme .term-chat .tc-model-item:hover { background: rgba(31, 35, 40, 
 .term-chat .tc-btn:hover { background: rgba(126, 231, 135, 0.24); }
 .term-chat .tc-btn.stop { background: rgba(255, 123, 114, 0.14); color: var(--t-red); }
 .term-chat .tc-btn.stop:hover { background: rgba(255, 123, 114, 0.24); }
+
+/* 消息尾部变更清单（git-status 风：A/M/D 色标，非删除行点击预览） */
+.term-chat .t-changed {
+  margin: 10px 0 6px 22px;
+}
+.term-chat .t-changed-head {
+  color: var(--t-faint);
+  font-size: 11.5px;
+  margin-bottom: 2px;
+}
+.term-chat .t-changed-row {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  font-size: 12px;
+  min-width: 0;
+}
+.term-chat .t-changed-row .op {
+  flex-shrink: 0;
+  font-weight: 700;
+  width: 1.2em;
+}
+.term-chat .t-changed-row .op.write { color: var(--terminal-success); }
+.term-chat .t-changed-row .op.edit { color: var(--t-amber); }
+.term-chat .t-changed-row .op.delete { color: var(--t-red); }
+.term-chat .t-changed-row .pth {
+  color: var(--terminal-idle);
+  word-break: break-all;
+}
+.term-chat .t-changed-row.link { cursor: pointer; }
+.term-chat .t-changed-row.link .pth { color: var(--t-blue); }
+.term-chat .t-changed-row.link:hover .pth {
+  color: var(--terminal-success);
+  text-decoration: underline;
+}
+
+/* 底栏上下文占用：文本指示，≥80% 转琥珀提醒 */
+.term-chat .tc-ctx {
+  color: var(--t-faint);
+  white-space: nowrap;
+  cursor: default;
+}
+.term-chat .tc-ctx.hot { color: var(--t-amber); }
+
+/* 工作区菜单：复用模型菜单体系，改为左对齐贴按钮 + 分组标签行 */
+.term-chat .tc-ws-menu {
+  right: auto;
+  left: 0;
+  min-width: 240px;
+}
+.term-chat .tc-ws-label {
+  padding: 4px 9px 2px;
+  font-size: 10px;
+  color: var(--t-faint);
+  letter-spacing: 0.4px;
+}
 
 /* 日间按钮底色（低饱和同色系） */
 body.light-theme .term-chat .tc-btn { background: rgba(15, 123, 79, 0.1); }

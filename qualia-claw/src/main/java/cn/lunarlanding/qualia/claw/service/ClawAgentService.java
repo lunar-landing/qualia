@@ -19,6 +19,8 @@ import cn.lunarlanding.qualia.core.model.chat.impl.DeepSeekChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.MimoChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.MimoTokenPlanChatModel;
 import cn.lunarlanding.qualia.core.model.chat.impl.OpenAIChatModel;
+import cn.lunarlanding.qualia.core.model.chat.impl.ZhipuChatModel;
+import cn.lunarlanding.qualia.core.model.chat.impl.ZhipuCodingPlanChatModel;
 import cn.lunarlanding.qualia.core.skill.Skill;
 import cn.lunarlanding.qualia.core.skill.loader.DirectorySkillLoader;
 import org.slf4j.Logger;
@@ -302,6 +304,13 @@ public class ClawAgentService {
             }
             if (lowerProvider.contains("deepseek")) {
                 return new DeepSeekChatModel(apiKey);
+            }
+            // 智谱模型：根据type区分按量付费 vs 令牌计划（Coding Plan）
+            if (lowerProvider.contains("zhipu") || lowerProvider.contains("bigmodel") || lowerProvider.contains("glm")) {
+                if ("token-plan".equals(type)) {
+                    return new ZhipuCodingPlanChatModel(apiKey);
+                }
+                return new ZhipuChatModel(apiKey);
             }
         }
         // 默认使用通用OpenAI兼容实现

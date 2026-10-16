@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>长期记忆 · 界面展示 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    :root {
+        --page: #f6f7f9; --side: #f0f2f5; --panel: #ffffff; --panel-2: #fafbfc;
+        --border: #e2e6ec; --line: rgba(31,35,40,0.08);
+        --text-1: #1f2328; --text-2: #57657a; --text-3: #8c959f;
+        --bg-hover: #e9edf1;
+        --ok: #059669; --warn: #b45309; --err: #dc2626;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        background: var(--page); color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        overflow: hidden;
+    }
+    .mono { font-family: var(--mono); }
+    button { font-family: inherit; }
+
+    /* ===== 顶部说明条 ===== */
+    .note {
+        display: flex; align-items: center; gap: 12px;
+        padding: 7px 16px; background: #1f2328; color: #c9d1d9;
+        font-size: 11px; height: 34px;
+    }
+    .note .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+    .note .spring { flex: 1; }
+    .note .jump {
+        background: transparent; border: 1px solid #30363d; color: #c9d1d9;
+        font-size: 11px; border-radius: 6px; padding: 3px 11px; cursor: pointer;
+    }
+    .note .jump:hover { border-color: #8c959f; color: #fff; }
+
+    /* ===== 应用框架 ===== */
+    .app { display: flex; height: calc(100vh - 34px); }
+
+    /* ===== 侧边栏 ===== */
+    .sidebar {
+        width: 248px; flex-shrink: 0;
+        background: var(--side); border-right: 1px solid var(--border);
+        display: flex; flex-direction: column;
+    }
+    .sb-head { padding: 13px 13px 9px; display: flex; align-items: center; gap: 9px; }
+    .sb-head .logo {
+        width: 24px; height: 24px; border-radius: 7px; background: var(--text-1);
+        color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 10px;
+    }
+    .sb-head .nm { font-size: 12.5px; font-weight: 600; }
+    .new-btn {
+        margin: 2px 13px 10px; padding: 7px 0;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+        font-size: 12px; color: var(--text-1); cursor: pointer; width: calc(100% - 26px);
+    }
+    .new-btn:hover { background: var(--panel-2); }
+    .new-btn i { margin-right: 6px; font-size: 10.5px; color: var(--text-3); }
+    .sb-list { flex: 1; overflow-y: auto; padding: 0 8px 10px; }
+    .grp { font-size: 10px; color: var(--text-3); padding: 11px 9px 4px; font-family: var(--mono); letter-spacing: .4px; }
+    .sitem {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 9px; border-radius: 7px; font-size: 12px; color: var(--text-2);
+        cursor: pointer; white-space: nowrap; overflow: hidden;
+    }
+    .sitem:hover { background: var(--bg-hover); }
+    .sitem.on { background: var(--bg-hover); color: var(--text-1); }
+    .sitem .tt { overflow: hidden; text-overflow: ellipsis; }
+    .sitem .tm { margin-left: auto; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); }
+    .sb-foot {
+        border-top: 1px solid var(--border); padding: 8px;
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .fbtn {
+        display: flex; align-items: center; gap: 9px;
+        padding: 8px 10px; border-radius: 7px; border: none; background: transparent;
+        color: var(--text-2); font-size: 12.5px; cursor: pointer; text-align: left; width: 100%;
+    }
+    .fbtn i { width: 15px; text-align: center; font-size: 13px; }
+    .fbtn:hover { background: var(--bg-hover); color: var(--text-1); }
+    .fbtn.on { background: var(--bg-hover); color: var(--text-1); font-weight: 500; }
+    .fbtn .cnt { margin-left: auto; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); }
+
+    /* ===== 主区 ===== */
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--page); }
+    .view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .view[hidden] { display: none; }
+
+    /* ===== 视图 A：记忆面板 ===== */
+    .mp-head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 15px 26px 13px; border-bottom: 1px solid var(--line);
+    }
+    .mp-head h2 { font-size: 15px; font-weight: 600; }
+    .mp-head .cnt { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+    .mp-head .spring { flex: 1; }
+    .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); cursor: pointer; user-select: none; }
+    .switch .track {
+        width: 30px; height: 17px; border-radius: 100px; background: var(--bg-hover);
+        border: 1px solid var(--border); position: relative; transition: background .15s, border-color .15s;
+    }
+    .switch .knob {
+        position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+        border-radius: 50%; background: var(--text-3); transition: left .15s, background .15s;
+    }
+    .switch.on .track { background: color-mix(in srgb, var(--ok) 28%, transparent); border-color: var(--ok); }
+    .switch.on .knob { left: 15px; background: var(--ok); }
+    .ghost-btn {
+        background: transparent; border: 1px solid var(--border); border-radius: 7px;
+        padding: 4.5px 12px; font-size: 11.5px; color: var(--text-2); cursor: pointer;
+    }
+    .ghost-btn:hover { color: var(--err); border-color: var(--err); }
+    .mp-body { flex: 1; overflow-y: auto; padding: 4px 26px 24px; }
+    .mp-inner { max-width: 860px; }
+    .mem-sec { margin-top: 12px; }
+    .mem-sec-h {
+        display: flex; align-items: baseline; gap: 9px; padding: 6px 4px;
+        font-family: var(--mono); font-size: 10.5px; color: var(--text-3); letter-spacing: .5px;
+    }
+    .mem-sec-h .n { border: 1px solid var(--border); border-radius: 100px; padding: 0 8px; font-size: 9.5px; }
+    .mem-sec-h .desc { font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; letter-spacing: 0; }
+    .mem-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 9px;
+        display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+    }
+    .mem-card + .mem-card { margin-top: 6px; }
+    .mem-card:hover { border-color: #cdd5de; }
+    .mem-card .id { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+    .mem-card .txt { flex: 1; font-size: 12.5px; line-height: 1.6; min-width: 0; }
+    .mem-card .tm { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+    .mem-card .del {
+        flex-shrink: 0; background: none; border: none; cursor: pointer;
+        color: var(--text-3); font-size: 11px; padding: 3px 5px; border-radius: 5px;
+        opacity: 0; transition: opacity .12s;
+    }
+    .mem-card:hover .del { opacity: 1; }
+    .mem-card .del:hover { color: var(--err); background: var(--bg-hover); }
+    .mp-foot {
+        padding: 9px 26px; border-top: 1px solid var(--line);
+        font-size: 11px; color: var(--text-3); display: flex; gap: 7px; align-items: center;
+    }
+    .disabled-note {
+        display: none; margin: 14px 4px 0; padding: 14px 16px;
+        border: 1px dashed var(--border); border-radius: 11px;
+        font-size: 12px; color: var(--text-3); line-height: 1.8; text-align: center;
+    }
+    body.mem-off .mem-sec { display: none; }
+    body.mem-off .disabled-note { display: block; }
+
+    /* ===== 视图 B：对话场景 ===== */
+    .chat-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 26px; border-bottom: 1px solid var(--line);
+        font-size: 12px; color: var(--text-2);
+    }
+    .chat-head i { color: var(--text-3); font-size: 11px; }
+    .chat-scroll { flex: 1; overflow-y: auto; }
+    .chat-inner { max-width: 800px; margin: 0 auto; padding: 22px 26px 30px; display: flex; flex-direction: column; gap: 18px; }
+    .m-user { align-self: flex-end; max-width: 82%; }
+    .ububble {
+        background: var(--bg-hover); padding: 9px 14px;
+        border-radius: 14px 14px 4px 14px; font-size: 13px; line-height: 1.65;
+    }
+    .m-ai { display: flex; gap: 10px; }
+    .avatar {
+        flex: 0 0 26px; width: 26px; height: 26px; border-radius: 8px;
+        background: var(--side); border: 1px solid var(--border); color: var(--text-2);
+        display: flex; align-items: center; justify-content: center; font-size: 11px;
+    }
+    .ai-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    /* 执行步骤流：极简注脚流 */
+    .flow { border-left: 1px solid var(--line); margin: 2px 0 2px 5px; padding-left: 14px; display: flex; flex-direction: column; gap: 2px; }
+    .think {
+        display: inline-flex; align-items: center; gap: 7px; width: fit-content;
+        font-size: 11px; color: var(--text-3); padding: 3px 8px 3px 0; cursor: pointer;
+    }
+    .think i { font-size: 9px; }
+    .tchip {
+        display: flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%;
+        font-size: 11.5px; padding: 3px 9px 3px 0; border-radius: 5px; cursor: pointer;
+    }
+    .tchip:hover { background: var(--bg-hover); }
+    .tchip .dot { flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+    .tchip .nm { font-family: var(--mono); font-size: 11px; color: var(--text-1); }
+    .tchip .arg { color: var(--text-3); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
+    .tchip .ms { font-family: var(--mono); font-size: 9.5px; color: var(--text-3); }
+    .abubble { font-size: 13px; line-height: 1.75; }
+    .abubble code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; }
+    /* 输入区 */
+    .input-bar { padding: 12px 26px 16px; }
+    .input-wrap {
+        max-width: 800px; margin: 0 auto; background: var(--panel);
+        border: 1px solid var(--border); border-radius: 12px;
+        padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .input-wrap .ph { font-size: 12.5px; color: var(--text-3); padding: 0 4px; }
+    .input-foot { display: flex; align-items: center; gap: 8px; }
+    .input-foot .spring { flex: 1; }
+    .send {
+        width: 28px; height: 28px; border-radius: 8px; border: none;
+        background: var(--text-1); color: var(--panel); font-size: 11px; cursor: pointer;
+    }
+    .scene-tag {
+        align-self: center; font-size: 10px; font-family: var(--mono); color: var(--text-3);
+        border: 1px dashed var(--border); border-radius: 100px; padding: 2px 12px; margin-top: 4px;
+    }
+</style>
+</head>
+<body>
+
+<div class="note">
+    <span class="dot"></span>
+    <span>界面落位：侧边栏「记忆」入口 → 主区整栏面板；对话中记忆读写走现有执行步骤注脚流（无新增组件）</span>
+    <span class="spring"></span>
+    <button class="jump" onclick="showView('memory')">看记忆面板</button>
+    <button class="jump" onclick="showView('chat')">看对话中的记忆</button>
+</div>
+
+<div class="app">
+
+    <!-- ============ 侧边栏 ============ -->
+    <aside class="sidebar">
+        <div class="sb-head">
+            <div class="logo"><i class="fas fa-feather"></i></div>
+            <div class="nm">Qualia</div>
+        </div>
+        <button class="new-btn"><i class="fas fa-plus"></i>新会话</button>
+        <div class="sb-list">
+            <div class="grp">今天</div>
+            <div class="sitem on" onclick="showView('chat')"><span class="tt">长期记忆功能设计</span><span class="tm">14:20</span></div>
+            <div class="sitem"><span class="tt">终端模式变更清单适配</span><span class="tm">11:05</span></div>
+            <div class="grp">昨天</div>
+            <div class="sitem"><span class="tt">执行步骤样式重设计</span><span class="tm">昨天</span></div>
+            <div class="sitem"><span class="tt">工具调用协议改造</span><span class="tm">昨天</span></div>
+            <div class="grp">更早</div>
+            <div class="sitem"><span class="tt">资料库首页方案</span><span class="tm">10-09</span></div>
+        </div>
+        <div class="sb-foot">
+            <button class="fbtn" onclick="showView('chat')"><i class="fas fa-comments"></i>会话</button>
+            <button class="fbtn"><i class="fas fa-book"></i>资料</button>
+            <button class="fbtn on" id="btn-memory" onclick="showView('memory')"><i class="fas fa-brain"></i>记忆<span class="cnt" id="foot-cnt">4</span></button>
+            <button class="fbtn"><i class="fas fa-sliders-h"></i>设置</button>
+        </div>
+    </aside>
+
+    <!-- ============ 主区 ============ -->
+    <main class="main">
+
+        <!-- 视图 A：记忆面板 -->
+        <section class="view" id="view-memory">
+            <div class="mp-head">
+                <h2>长期记忆</h2>
+                <span class="cnt" id="head-cnt">4 / 200 条</span>
+                <span class="spring"></span>
+                <span class="switch on" id="mem-switch" onclick="toggleSwitch()"><span class="track"><span class="knob"></span></span><span id="sw-label">启用记忆</span></span>
+                <button class="ghost-btn"><i class="fas fa-trash-can" style="margin-right:5px;"></i>清空全部</button>
+            </div>
+            <div class="mp-body">
+                <div class="mp-inner">
+                    <div class="mem-sec">
+                        <div class="mem-sec-h">角色定位 <span class="n">1</span><span class="desc">我是谁 · 智能体应扮演的角色</span></div>
+                        <div class="mem-card">
+                            <span class="id">m-000</span>
+                            <span class="txt">把用户当作资深后端开发者，回答可直接使用专业术语</span>
+                            <span class="tm">10-11</span>
+                            <button class="del" title="删除此条" onclick="delRow(this)"><i class="fas fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                    <div class="mem-sec">
+                        <div class="mem-sec-h">事实记忆 <span class="n">2</span><span class="desc">项目与环境等客观事实</span></div>
+                        <div class="mem-card">
+                            <span class="id">m-001</span>
+                            <span class="txt">用户环境是 Windows + PowerShell，shell 命令避免 bash 语法</span>
+                            <span class="tm">10-13</span>
+                            <button class="del" title="删除此条" onclick="delRow(this)"><i class="fas fa-trash-can"></i></button>
+                        </div>
+                        <div class="mem-card">
+                            <span class="id">m-002</span>
+                            <span class="txt">qualia 项目后端构建用 mvn，不用 gradle</span>
+                            <span class="tm">10-13</span>
+                            <button class="del" title="删除此条" onclick="delRow(this)"><i class="fas fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                    <div class="mem-sec">
+                        <div class="mem-sec-h">偏好记忆 <span class="n">1</span><span class="desc">沟通与工作方式的倾向</span></div>
+                        <div class="mem-card">
+                            <span class="id">m-003</span>
+                            <span class="txt">技术方案先给精简结论，确认后再展开细节</span>
+                            <span class="tm">10-12</span>
+                            <button class="del" title="删除此条" onclick="delRow(this)"><i class="fas fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                    <div class="disabled-note">记忆已停用 —— 智能体不再读取也不再写入。开启后历史条目自动恢复生效。</div>
+                </div>
+            </div>
+            <div class="mp-foot">
+                <i class="fas fa-circle-info"></i>
+                记忆在每次对话自动生效（角色定位最优先注入）；当前对话指令始终优先。对话中说「记住…」即可新增。
+            </div>
+        </section>
+
+        <!-- 视图 B：对话中的记忆 -->
+        <section class="view" id="view-chat" hidden>
+            <div class="chat-head">
+                <i class="fas fa-comments"></i>Qualia · 新会话
+            </div>
+            <div class="chat-scroll">
+                <div class="chat-inner">
+
+                    <div class="scene-tag">场景一 · 说「记住」——写入走执行步骤注脚流</div>
+                    <div class="m-user"><div class="ububble">记住：我们项目的前端包管理用 pnpm，别用 npm</div></div>
+                    <div class="m-ai">
+                        <div class="avatar"><i class="fas fa-robot"></i></div>
+                        <div class="ai-col">
+                            <div class="flow">
+                                <div class="think"><i class="fas fa-chevron-down"></i>已思考 1.2s</div>
+                                <div class="tchip" title="memory_save(content=前端包管理用 pnpm..., type=fact)">
+                                    <span class="dot"></span>
+                                    <span class="nm">记住</span>
+                                    <span class="arg">「前端包管理用 pnpm，别用 npm」</span>
+                                    <span class="ms">8ms</span>
+                                </div>
+                            </div>
+                            <div class="abubble">好的，已存入事实记忆。之后涉及前端依赖安装或脚本执行，我会默认按 pnpm 处理。</div>
+                        </div>
+                    </div>
+
+                    <div class="scene-tag">场景二 · 新会话自动生效——回答自然运用记忆</div>
+                    <div class="m-user"><div class="ububble">帮我看看 CI 流程哪里可以加速</div></div>
+                    <div class="m-ai">
+                        <div class="avatar"><i class="fas fa-robot"></i></div>
+                        <div class="ai-col">
+                            <div class="flow">
+                                <div class="think"><i class="fas fa-chevron-right"></i>已思考 2.8s</div>
+                            </div>
+                            <div class="abubble">
+                                看了 ci.yml，有两个可优化点：<br>
+                                1. 后端目前每次全量 <code>mvn package</code>，可加 <code>-T 1C</code> 并行构建并缓存 <code>~/.m2</code>；<br>
+                                2. 前端依赖安装换了 pnpm 后，把缓存目录从 <code>~/.npm</code> 改为 <code>~/.pnpm-store</code>，命中率高很多。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="scene-tag">场景三 · 说「忘掉」——删除同样走注脚流</div>
+                    <div class="m-user"><div class="ububble">pnpm 那条先忘掉吧，我们还没定</div></div>
+                    <div class="m-ai">
+                        <div class="avatar"><i class="fas fa-robot"></i></div>
+                        <div class="ai-col">
+                            <div class="flow">
+                                <div class="tchip" title="memory_delete(id=m-004)">
+                                    <span class="dot"></span>
+                                    <span class="nm">忘掉</span>
+                                    <span class="arg">m-004 · 「前端包管理用 pnpm…」</span>
+                                    <span class="ms">5ms</span>
+                                </div>
+                            </div>
+                            <div class="abubble">已删除。等你确定包管理方案后再告诉我即可。</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="input-bar">
+                <div class="input-wrap">
+                    <div class="ph">输入消息，或说「记住…」保存长期记忆…</div>
+                    <div class="input-foot">
+                        <span class="spring"></span>
+                        <button class="send"><i class="fas fa-arrow-up"></i></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<script>
+    function showView(v) {
+        document.getElementById('view-memory').hidden = v !== 'memory';
+        document.getElementById('view-chat').hidden = v !== 'chat';
+        document.getElementById('btn-memory').classList.toggle('on', v === 'memory');
+        document.querySelectorAll('.sitem')[0].classList.toggle('on', v === 'chat');
+    }
+    function toggleSwitch() {
+        const sw = document.getElementById('mem-switch');
+        const off = sw.classList.toggle('on') === false;
+        document.body.classList.toggle('mem-off', off);
+        document.getElementById('sw-label').textContent = off ? '已停用' : '启用记忆';
+    }
+    function delRow(btn) {
+        const card = btn.closest('.mem-card');
+        card.style.opacity = '0';
+        setTimeout(() => {
+            card.remove();
+            const n = document.querySelectorAll('.mem-card').length;
+            document.getElementById('head-cnt').textContent = n + ' / 200 条';
+            document.getElementById('foot-cnt').textContent = n;
+        }, 160);
+    }
+</script>
+
+</body>
+</html>

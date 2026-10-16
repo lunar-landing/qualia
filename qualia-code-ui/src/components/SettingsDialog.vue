@@ -21,16 +21,17 @@ const MODEL_TYPES: { id: ModelType; label: string }[] = [
   { id: 'pay-as-you-go', label: 'settings.typePayAsYouGo' },
   { id: 'token-plan', label: 'settings.typeTokenPlan' },
 ]
-const MODEL_PRESETS: Record<string, { label: string; models: string[]; types: ModelType[] }> = {
+const MODEL_PRESETS: Record<string, { label: string; models: string[]; types: ModelType[]; baseUrls: Partial<Record<ModelType, string>> }> = {
   dashscope: {
     label: 'settings.presetDashscope',
     models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus'],
     types: ['pay-as-you-go'],
+    baseUrls: { 'pay-as-you-go': 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
   },
-  deepseek: { label: 'settings.presetDeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'], types: ['pay-as-you-go'] },
-  xiaomi: { label: 'settings.presetXiaomi', models: ['MiMo'], types: ['pay-as-you-go', 'token-plan'] },
-  zhipu: { label: 'settings.presetZhipu', models: ['glm-4.6', 'glm-4.5', 'glm-4.5-air'], types: ['pay-as-you-go', 'token-plan'] },
-  openai: { label: 'settings.presetOpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'], types: ['pay-as-you-go'] },
+  deepseek: { label: 'settings.presetDeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'], types: ['pay-as-you-go'], baseUrls: { 'pay-as-you-go': 'https://api.deepseek.com/v1' } },
+  xiaomi: { label: 'settings.presetXiaomi', models: ['MiMo'], types: ['pay-as-you-go', 'token-plan'], baseUrls: { 'pay-as-you-go': 'https://api.xiaomimimo.com/v1', 'token-plan': 'https://token-plan-cn.xiaomimimo.com/v1' } },
+  zhipu: { label: 'settings.presetZhipu', models: ['glm-4.6', 'glm-4.5', 'glm-4.5-air'], types: ['pay-as-you-go', 'token-plan'], baseUrls: { 'pay-as-you-go': 'https://open.bigmodel.cn/api/paas/v4', 'token-plan': 'https://open.bigmodel.cn/api/coding/paas/v4' } },
+  openai: { label: 'settings.presetOpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'], types: ['pay-as-you-go'], baseUrls: { 'pay-as-you-go': 'https://api.openai.com/v1' } },
 }
 const TRANSPORTS: McpTransport[] = ['streamable-http', 'http-sse', 'stdio']
 const PROVIDER_DOT_CLASS: Record<string, string> = {
@@ -236,16 +237,14 @@ const editDraft = ref<ModelConfig | null>(null)
 const dlgKeyVisible = ref(false)
 const dlgErr = ref(false)
 const providerOpen = ref(false)
+const providerCustom = ref(false) // true = 厂商自由输入模式（自定义端点/新厂商）
 let errTimer: number | undefined
 
-const providerIds = computed(() => {
-  const ids = Object.keys(MODEL_PRESETS)
-  const p = editDraft.value?.provider
-  // 配置中出现预设外的厂商标识时附加为选项，避免回显丢失
-  return p && !ids.includes(p) ? [...ids, p] : ids
-})
+const providerIds = computed(() => Object.keys(MODEL_PRESETS))
 const allowedTypes = computed<ModelType[] | null>(() => MODEL_PRESETS[editDraft.value?.provider ?? '']?.types ?? null)
 const modelOptions = computed(() => MODEL_PRESETS[editDraft.value?.provider ?? '']?.models ?? [])
+// 预设厂商按服务类型对应的系统默认端点（与后端各 ChatModel 实现对齐，仅展示）
+const presetBaseUrl = computed(() => MODEL_PRESETS[editDraft.value?.provider ?? '']?.baseUrls?.[editDraft.value?.type ?? 'pay-as-you-go'] ?? '')
 const dlgSaveText = computed(() => (dlgErr.value ? t('settings.nameRequired') : t('common.save')))
 
 function openEditDialog(i: number) {
@@ -254,6 +253,8 @@ function openEditDialog(i: number) {
   editDraft.value = i >= 0 && models.value[i]
     ? { ...models.value[i]! }
     : { name: '', provider: 'dashscope', type: 'pay-as-you-go', model: firstModel, baseUrl: '', apiKey: '' }
+  // 预设外厂商（历史自定义配置）回显为自由输入模式
+  providerCustom.value = !providerIds.value.includes(editDraft.value.provider)
   dlgKeyVisible.value = false
   providerOpen.value = false
 }
@@ -261,15 +262,22 @@ function closeEditDialog() {
   editDraft.value = null
   providerOpen.value = false
 }
-/** 切换厂商：模型回显该厂商首个常用模型，类型越界时归一化 */
+/** 切换厂商：自定义项进入自由输入模式；预设厂商回显首个常用模型，类型越界时归一化 */
 function selectProvider(pid: string) {
   const d = editDraft.value
   if (!d) return
+  providerOpen.value = false
+  if (pid === '__custom__') {
+    providerCustom.value = true
+    return
+  }
+  providerCustom.value = false
   d.provider = pid
+  // 预设厂商 baseUrl 由系统托管，丢弃自定义模式下误输入的值
+  d.baseUrl = ''
   const p = MODEL_PRESETS[pid]
   d.model = p && p.models.length ? p.models[0]! : ''
   if (p && p.types && !p.types.includes(d.type)) d.type = p.types[0]!
-  providerOpen.value = false
 }
 function saveEditDialog() {
   const d = editDraft.value
@@ -280,6 +288,8 @@ function saveEditDialog() {
     errTimer = window.setTimeout(() => { dlgErr.value = false }, 1600)
     return
   }
+  // 厂商自由输入时空值兜底，避免配置中出现空 provider
+  d.provider = String(d.provider ?? '').trim() || 'custom'
   if (editIndex.value >= 0) models.value[editIndex.value] = d
   else {
     models.value.push(d)
@@ -631,9 +641,9 @@ onUnmounted(() => {
             <template v-if="activeTab === 'about'">
               <div class="about-hero">
                 <div class="about-logo">
-                  <!-- 品牌符号：四角星火花（与欢迎页 / 切换器一致） -->
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2c1 6 4 9 10 10-6 1-9 4-10 10-1-6-4-9-10-10 6-1 9-4 10-10z" />
+                  <!-- 产品 logo：羽毛（与欢迎页 / 切换器一致，fa-feather / CC BY 4.0） -->
+                  <svg viewBox="0 0 512 512" fill="currentColor">
+                    <path d="M278.5 215.6L23 471c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l57-57 68 0c49.7 0 97.9-14.4 139-41c11.1-7.2 5.5-23-7.8-23c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l81-24.3c2.5-.8 4.8-2.1 6.7-4l22.4-22.4c10.1-10.1 2.9-27.3-11.3-27.3l-32.2 0c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l112-33.6c4-1.2 7.4-3.9 9.3-7.7C506.4 207.6 512 184.1 512 160c0-41-16.3-80.3-45.3-109.3l-5.5-5.5C432.3 16.3 393 0 352 0s-80.3 16.3-109.3 45.3L139 149C91 197 64 262.1 64 330l0 55.3L253.6 195.8c6.2-6.2 16.4-6.2 22.6 0c5.4 5.4 6.1 13.6 2.2 19.8z" />
                   </svg>
                 </div>
                 <div class="about-name">Qualia Code</div>
@@ -981,7 +991,16 @@ onUnmounted(() => {
           <div class="med-row">
             <div class="med-field">
               <label>{{ t('settings.provider') }}</label>
-              <div class="custom-select" :class="{ open: providerOpen }">
+              <div v-if="providerCustom" class="custom-select med-provider-row">
+                <input
+                  v-model="editDraft.provider" class="med-provider-input mono"
+                  :placeholder="t('settings.providerPlaceholder')" @click.stop
+                />
+                <button type="button" class="med-provider-swap" @click="selectProvider('dashscope')">
+                  <i class="fas fa-list"></i> {{ t('settings.providerPick') }}
+                </button>
+              </div>
+              <div v-else class="custom-select" :class="{ open: providerOpen }">
                 <div class="custom-select-trigger" @click="providerOpen = !providerOpen">
                   <span class="trigger-text">{{ providerLabel(editDraft.provider) }}</span>
                   <i class="fas fa-chevron-down trigger-arrow"></i>
@@ -994,6 +1013,9 @@ onUnmounted(() => {
                     <span class="option-text">{{ providerLabel(pid) }}</span>
                     <i class="fas fa-check check-icon"></i>
                   </div>
+                  <div class="custom-option med-option-custom" :class="{ active: false }" @click="selectProvider('__custom__')">
+                    <span class="option-text"><i class="fas fa-pen"></i> {{ t('settings.providerCustom') }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1004,6 +1026,14 @@ onUnmounted(() => {
                 <option v-for="v in modelOptions" :key="v" :value="v"></option>
               </datalist>
             </div>
+          </div>
+          <div v-if="providerCustom" class="med-field">
+            <label>Base URL<span class="hint">{{ t('settings.baseUrlHint') }}</span></label>
+            <input v-model="editDraft.baseUrl" class="mono" :placeholder="t('settings.baseUrlPlaceholder')" />
+          </div>
+          <div v-else class="med-baseurl-note">
+            <i class="fas fa-cog"></i> {{ t('settings.baseUrlNote') }}
+            <span v-if="editDraft.baseUrl || presetBaseUrl" class="mono">{{ editDraft.baseUrl || presetBaseUrl }}</span>
           </div>
           <div class="med-field">
             <label>API Key<span class="hint">{{ t('settings.apiKeyHint') }}</span></label>
@@ -1016,10 +1046,6 @@ onUnmounted(() => {
                 {{ dlgKeyVisible ? t('settings.hide') : t('settings.show') }}
               </button>
             </div>
-          </div>
-          <div class="med-baseurl-note">
-            <i class="fas fa-cog"></i> {{ t('settings.baseUrlNote') }}
-            <span v-if="editDraft.baseUrl" class="mono">{{ editDraft.baseUrl }}</span>
           </div>
         </div>
         <div class="med-foot">
@@ -2033,7 +2059,7 @@ body.light-theme .model-edit-dialog {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 200px;
+    max-height: 260px;
     overflow-y: auto;
 }
 .custom-select.open .custom-select-dropdown {
@@ -2208,7 +2234,10 @@ body.light-theme .model-edit-dialog {
 }
 .model-edit-dialog {
     width: min(480px, calc(100vw - 64px));
+    min-height: min(450px, calc(100vh - 80px));
     max-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     background: var(--bg-surface);
     backdrop-filter: blur(24px);
@@ -2257,6 +2286,7 @@ body.light-theme .model-edit-dialog {
 .med-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
     gap: 13px;
     padding: 14px 16px 4px;
 }
@@ -2359,6 +2389,33 @@ body.light-theme .med-field input:focus {
 .med-key-toggle:hover {
     color: var(--accent);
 }
+/* 厂商自由输入模式：文本框 + 切回选择按钮 */
+.med-provider-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.med-provider-input {
+    flex: 1;
+    min-width: 0;
+}
+.med-provider-swap {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: inherit;
+    padding: 0 2px;
+    white-space: nowrap;
+}
+.med-provider-swap:hover {
+    color: var(--accent);
+}
 .med-baseurl-note {
     display: flex;
     align-items: center;
@@ -2375,6 +2432,15 @@ body.light-theme .med-field input:focus {
     font-size: 10px;
     color: var(--text-secondary);
     word-break: break-all;
+}
+.custom-option.med-option-custom {
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 8px 8px;
+}
+.custom-option.med-option-custom .option-text i {
+    font-size: 10px;
+    margin-right: 2px;
 }
 .med-foot {
     display: flex;

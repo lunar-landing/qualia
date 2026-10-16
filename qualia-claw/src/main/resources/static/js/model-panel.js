@@ -25,6 +25,7 @@
     let draft = null;       // 弹窗编辑中的临时副本，点「保存」才写回并即时保存
     let defaultSnapshot = -1; // 打开弹窗前的默认下标（「取消」时还原默认选择）
     let dlgKeyVisible = false; // 弹窗内 API Key 明文显示状态
+    let providerCustom = false; // true = 厂商自由输入模式（自定义端点/新厂商）
 
     // 服务类型：决定对接协议（当前仅开放按量付费）
     const MODEL_TYPES = [
@@ -32,27 +33,37 @@
         { id: 'token-plan', label: '令牌计划' }
     ];
 
-    // 厂商预设（OpenAI 兼容协议，baseUrl 由后端自动管理）
+    // 厂商预设（OpenAI 兼容协议，baseUrl 由后端自动管理；baseUrls 按服务类型对应系统默认端点，仅展示）
     const MODEL_PRESETS = {
         dashscope: {
-            label: '通义千问（阿里云百炼）',
+            label: '阿里云百炼',
             models: ['qwen3.7-plus', 'qwen-max-latest', 'qwen-plus-latest', 'qwen3-coder-plus'],
-            types: ['pay-as-you-go']
+            types: ['pay-as-you-go'],
+            baseUrls: { 'pay-as-you-go': 'https://dashscope.aliyuncs.com/compatible-mode/v1' }
         },
         deepseek: {
             label: 'DeepSeek',
             models: ['deepseek-chat', 'deepseek-reasoner'],
-            types: ['pay-as-you-go']
+            types: ['pay-as-you-go'],
+            baseUrls: { 'pay-as-you-go': 'https://api.deepseek.com/v1' }
         },
         xiaomi: {
             label: '小米MiMo',
             models: ['MiMo'],
-            types: ['pay-as-you-go', 'token-plan']
+            types: ['pay-as-you-go', 'token-plan'],
+            baseUrls: { 'pay-as-you-go': 'https://api.xiaomimimo.com/v1', 'token-plan': 'https://token-plan-cn.xiaomimimo.com/v1' }
+        },
+        zhipu: {
+            label: '智谱开放平台',
+            models: ['glm-4.6', 'glm-4.5', 'glm-4.5-air'],
+            types: ['pay-as-you-go', 'token-plan'],
+            baseUrls: { 'pay-as-you-go': 'https://open.bigmodel.cn/api/paas/v4', 'token-plan': 'https://open.bigmodel.cn/api/coding/paas/v4' }
         },
         openai: {
             label: 'OpenAI',
             models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
-            types: ['pay-as-you-go']
+            types: ['pay-as-you-go'],
+            baseUrls: { 'pay-as-you-go': 'https://api.openai.com/v1' }
         }
     };
 
@@ -199,6 +210,7 @@
         .md-dot-dashscope { background: linear-gradient(145deg, #615ced, #8a7cf0); }
         .md-dot-deepseek { background: linear-gradient(145deg, #2f6bff, #5c9bff); }
         .md-dot-xiaomi { background: linear-gradient(145deg, #ff8a00, #ffb340); }
+        .md-dot-zhipu { background: linear-gradient(145deg, #2354e6, #5a8bff); }
         .md-dot-openai { background: linear-gradient(145deg, #30333e, #5a5f70); }
         .md-dot-custom { background: var(--text-muted); }
         .md-badge-default {
@@ -360,7 +372,7 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
-            max-height: 200px;
+            max-height: 260px;
             overflow-y: auto;
         }
         .md-cs.open .md-cs-dropdown {
@@ -432,7 +444,10 @@
         .med-overlay.open { display: flex; }
         .med-dialog {
             width: min(480px, calc(100vw - 64px));
+            min-height: min(450px, calc(100vh - 80px));
             max-height: calc(100vh - 80px);
+            display: flex;
+            flex-direction: column;
             overflow-y: auto;
             background: var(--bg-surface);
             backdrop-filter: blur(24px);
@@ -476,6 +491,7 @@
         .med-body {
             display: flex;
             flex-direction: column;
+            flex: 1;
             gap: 13px;
             padding: 14px 16px 4px;
         }
@@ -559,6 +575,28 @@
             font-family: inherit;
         }
         .med-key-toggle:hover { color: var(--accent); }
+        /* 厂商自由输入模式：文本框 + 切回选择按钮 */
+        .med-provider-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .med-provider-row input { flex: 1; min-width: 0; }
+        .med-provider-swap {
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 10.5px;
+            color: var(--text-muted);
+            font-family: inherit;
+            padding: 0 2px;
+            white-space: nowrap;
+        }
+        .med-provider-swap:hover { color: var(--accent); }
         .med-baseurl-note {
             display: flex;
             align-items: center;
@@ -575,6 +613,14 @@
             font-size: 10px;
             color: var(--text-secondary);
             word-break: break-all;
+        }
+        .md-cs-option.md-option-custom {
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+        }
+        .md-cs-option.md-option-custom .option-text i {
+            font-size: 10px;
+            margin-right: 2px;
         }
         .med-foot {
             display: flex;
@@ -743,6 +789,7 @@
         dashscope: 'md-dot-dashscope',
         deepseek: 'md-dot-deepseek',
         xiaomi: 'md-dot-xiaomi',
+        zhipu: 'md-dot-zhipu',
         openai: 'md-dot-openai'
     };
 
@@ -758,12 +805,12 @@
         }
         if (dialogIndex === null || !draft) { overlay.classList.remove('open'); return; }
         const d = draft;
-        const providerIds = Object.keys(MODEL_PRESETS);
-        // 配置中出现预设外的厂商标识时附加为选项，避免回显丢失
-        const pids = providerIds.includes(d.provider) ? providerIds : providerIds.concat(d.provider);
+        const pids = Object.keys(MODEL_PRESETS);
         const preset = MODEL_PRESETS[d.provider] || {};
         const allowedTypes = preset.types || null;
         const modelOpts = (preset.models || []).map(v => `<option value="${escAttr(v)}"></option>`).join('');
+        // 预设厂商按服务类型对应的系统默认端点（与后端各 ChatModel 实现对齐，仅展示）
+        const presetBaseUrl = (preset.baseUrls || {})[d.type] || '';
         overlay.innerHTML = `
             <div class="med-dialog">
                 <div class="med-head">
@@ -789,6 +836,12 @@
                     <div class="med-row">
                         <div class="med-field">
                             <label>厂商</label>
+                            ${providerCustom || !MODEL_PRESETS[d.provider] ? `
+                            <div class="med-provider-row">
+                                <input class="mono" value="${escAttr(d.provider)}" placeholder="如 ollama / vllm / siliconflow" data-field="provider">
+                                <button type="button" class="med-provider-swap" data-act="providerToSelect"><i class="fas fa-list"></i> 改为选择</button>
+                            </div>
+                            ` : `
                             <div class="md-cs" data-field="provider">
                                 <div class="md-cs-trigger">
                                     <span class="trigger-text">${esc(preset.label || d.provider)}</span>
@@ -801,8 +854,12 @@
                                             <i class="fas fa-check check-icon"></i>
                                         </div>
                                     `).join('')}
+                                    <div class="md-cs-option md-option-custom" data-value="__custom__">
+                                        <span class="option-text"><i class="fas fa-pen"></i> 自定义…</span>
+                                    </div>
                                 </div>
                             </div>
+                            `}
                         </div>
                         <div class="med-field">
                             <label>模型标识</label>
@@ -810,16 +867,23 @@
                             <datalist id="mdDlgModelOpts">${modelOpts}</datalist>
                         </div>
                     </div>
+                    ${(providerCustom || !MODEL_PRESETS[d.provider]) ? `
+                    <div class="med-field">
+                        <label>Base URL<span class="hint">留空使用厂商默认端点</span></label>
+                        <input class="mono" value="${escAttr(d.baseUrl)}" placeholder="https://…（OpenAI 兼容端点）" data-field="baseUrl">
+                    </div>
+                    ` : `
+                    <div class="med-baseurl-note">
+                        <i class="fas fa-cog"></i> baseUrl 由系统按厂商自动管理
+                        ${(d.baseUrl || presetBaseUrl) ? `<span class="mono">${esc(d.baseUrl || presetBaseUrl)}</span>` : ''}
+                    </div>
+                    `}
                     <div class="med-field">
                         <label>API Key<span class="hint">含 **** 时保持原值不变</span></label>
                         <div class="med-key-wrap">
                             <input id="mdDlgKeyInput" type="${dlgKeyVisible ? 'text' : 'password'}" value="${escAttr(d.apiKey)}" placeholder="输入 API Key" data-field="apiKey">
                             <button type="button" class="med-key-toggle" data-act="toggleKey">${dlgKeyVisible ? '隐藏' : '显示'}</button>
                         </div>
-                    </div>
-                    <div class="med-baseurl-note">
-                        <i class="fas fa-cog"></i> baseUrl 由系统按厂商自动管理
-                        ${d.baseUrl ? `<span class="mono">${esc(d.baseUrl)}</span>` : ''}
                     </div>
                 </div>
                 <div class="med-foot">
@@ -835,6 +899,7 @@
         dialogIndex = null;
         draft = null;
         dlgKeyVisible = false;
+        providerCustom = false;
         renderEditDialog();
     }
 
@@ -853,6 +918,7 @@
                         model: MODEL_PRESETS.dashscope.models[0],
                         baseUrl: '', apiKey: ''
                     };
+                    providerCustom = false;
                     defaultSnapshot = defaultIndex;
                     dlgKeyVisible = false;
                     renderEditDialog();
@@ -862,6 +928,8 @@
                     if (idx === null || !models[idx]) return;
                     dialogIndex = idx;
                     draft = { ...models[idx] };
+                    // 预设外厂商（历史自定义配置）回显为自由输入模式
+                    providerCustom = !MODEL_PRESETS[draft.provider];
                     defaultSnapshot = defaultIndex;
                     dlgKeyVisible = false;
                     renderEditDialog();
@@ -913,12 +981,19 @@
                 cs.classList.toggle('open');
                 return;
             }
-            // 自定义下拉：选择厂商（模型回显首个常用模型，类型越界时归一化）
+            // 自定义下拉：选择厂商（自定义项进入自由输入模式；预设厂商回显首个常用模型，类型越界时归一化）
             const option = e.target.closest('.md-cs-option');
             if (option) {
                 if (!draft) return;
                 const value = option.dataset.value;
+                if (value === '__custom__') {
+                    providerCustom = true;
+                    renderEditDialog();
+                    return;
+                }
                 draft.provider = value;
+                // 预设厂商 baseUrl 由系统托管，丢弃自定义模式下误输入的值
+                draft.baseUrl = '';
                 const p = MODEL_PRESETS[value];
                 if (p && p.models.length) draft.model = p.models[0];
                 if (p && p.types && !p.types.includes(draft.type)) draft.type = p.types[0];
@@ -950,6 +1025,19 @@
                     act.textContent = dlgKeyVisible ? '隐藏' : '显示';
                     break;
                 }
+                case 'providerToSelect':
+                    // 自由输入切回预设选择：重置为首个预设厂商并回显其模型/类型
+                    if (!draft) return;
+                    providerCustom = false;
+                    draft.provider = Object.keys(MODEL_PRESETS)[0];
+                    draft.baseUrl = '';
+                    {
+                        const p = MODEL_PRESETS[draft.provider];
+                        if (p && p.models.length) draft.model = p.models[0];
+                        if (p && p.types && !p.types.includes(draft.type)) draft.type = p.types[0];
+                    }
+                    renderEditDialog();
+                    break;
                 case 'saveDialog': {
                     if (dialogIndex === null || !draft) return;
                     const btn = document.getElementById('mdDlgSaveBtn');
@@ -959,6 +1047,8 @@
                         setTimeout(() => { btn.classList.remove('err'); btn.textContent = '保存'; }, 1600);
                         return;
                     }
+                    // 厂商自由输入时空值兜底，避免配置中出现空 provider
+                    draft.provider = String(draft.provider || '').trim() || 'custom';
                     const committed = { ...draft };
                     if (dialogIndex >= 0) models[dialogIndex] = committed;
                     else {

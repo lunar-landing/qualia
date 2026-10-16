@@ -27,7 +27,7 @@ function openCreate() {
   dialogOpen.value = true
 }
 
-function openRename(kb: MaterialInfo) {
+function openEdit(kb: MaterialInfo) {
   editing.value = kb
   formName.value = kb.name
   formDesc.value = kb.description
@@ -39,7 +39,7 @@ async function submitDialog() {
   submitting.value = true
   try {
     if (editing.value) {
-      await materials.renameKb(editing.value.id, formName.value.trim())
+      await materials.updateKb(editing.value.id, formName.value.trim(), formDesc.value.trim())
     } else {
       await materials.createKb(formName.value.trim(), formDesc.value.trim())
     }
@@ -87,7 +87,7 @@ function updatedText(kb: MaterialInfo): string {
             <div class="fic"><i class="fas fa-book-open"></i></div>
             <div class="nm" :title="kb.name">{{ kb.name }}</div>
             <span class="acts">
-              <button :title="t('common.rename')" @click.stop="openRename(kb)">
+              <button :title="t('materials.editKb')" @click.stop="openEdit(kb)">
                 <i class="fas fa-pen"></i>
               </button>
               <button :title="t('common.delete')" class="danger" @click.stop="removeKb(kb)">
@@ -126,13 +126,11 @@ function updatedText(kb: MaterialInfo): string {
     <Teleport to="body">
       <div v-if="dialogOpen" class="dlg-mask" @click.self="dialogOpen = false">
         <div class="dlg">
-          <div class="dlg-title">{{ editing ? t('materials.renameKb') : t('materials.createTitle') }}</div>
+          <div class="dlg-title">{{ editing ? t('materials.editKb') : t('materials.createTitle') }}</div>
           <label class="dlg-label">{{ t('materials.nameLabel') }}</label>
           <input v-model="formName" class="dlg-input" :placeholder="t('materials.namePlaceholder')" @keyup.enter="submitDialog" />
-          <template v-if="!editing">
-            <label class="dlg-label">{{ t('materials.descLabel') }}</label>
-            <input v-model="formDesc" class="dlg-input" :placeholder="t('materials.descPlaceholder')" @keyup.enter="submitDialog" />
-          </template>
+          <label class="dlg-label">{{ t('materials.descLabel') }}</label>
+          <input v-model="formDesc" class="dlg-input" :placeholder="t('materials.descPlaceholder')" @keyup.enter="submitDialog" />
           <div class="dlg-acts">
             <button class="btn" @click="dialogOpen = false">{{ t('common.cancel') }}</button>
             <button class="btn primary" :disabled="!formName.trim() || submitting" @click="submitDialog">

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>长期记忆 · 图视图设计 · Qualia</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+    :root {
+        --page: #f6f7f9; --side: #f0f2f5; --panel: #ffffff; --panel-2: #fafbfc;
+        --border: #e2e6ec; --line: rgba(31,35,40,0.08);
+        --text-1: #1f2328; --text-2: #57657a; --text-3: #8c959f;
+        --bg-hover: #e9edf1;
+        --ok: #059669; --err: #dc2626;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        background: var(--page); color: var(--text-1);
+        font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        overflow: hidden;
+    }
+    .mono { font-family: var(--mono); }
+    button, input { font-family: inherit; }
+
+    .note {
+        display: flex; align-items: center; gap: 12px;
+        padding: 7px 16px; background: #1f2328; color: #c9d1d9;
+        font-size: 11px; height: 34px;
+    }
+    .note .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+    .note .spring { flex: 1; }
+
+    .app { display: flex; height: calc(100vh - 34px); }
+
+    /* ===== 侧边栏（同 memory-ui-mockup） ===== */
+    .sidebar {
+        width: 248px; flex-shrink: 0;
+        background: var(--side); border-right: 1px solid var(--border);
+        display: flex; flex-direction: column;
+    }
+    .sb-head { padding: 13px 13px 9px; display: flex; align-items: center; gap: 9px; }
+    .sb-head .logo {
+        width: 24px; height: 24px; border-radius: 7px; background: var(--text-1);
+        color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 10px;
+    }
+    .sb-head .nm { font-size: 12.5px; font-weight: 600; }
+    .new-btn {
+        margin: 2px 13px 10px; padding: 7px 0;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+        font-size: 12px; color: var(--text-1); cursor: pointer; width: calc(100% - 26px);
+    }
+    .new-btn i { margin-right: 6px; font-size: 10.5px; color: var(--text-3); }
+    .sb-list { flex: 1; overflow-y: auto; padding: 0 8px 10px; }
+    .grp { font-size: 10px; color: var(--text-3); padding: 11px 9px 4px; font-family: var(--mono); }
+    .sitem {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 9px; border-radius: 7px; font-size: 12px; color: var(--text-2);
+        cursor: pointer; white-space: nowrap; overflow: hidden;
+    }
+    .sitem:hover { background: var(--bg-hover); }
+    .sitem.on { background: var(--bg-hover); color: var(--text-1); }
+    .sitem .tt { overflow: hidden; text-overflow: ellipsis; }
+    .sb-foot { border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .fbtn {
+        display: flex; align-items: center; gap: 9px;
+        padding: 8px 10px; border-radius: 7px; border: none; background: transparent;
+        color: var(--text-2); font-size: 12.5px; cursor: pointer; text-align: left; width: 100%;
+    }
+    .fbtn i { width: 15px; text-align: center; font-size: 13px; }
+    .fbtn:hover { background: var(--bg-hover); color: var(--text-1); }
+    .fbtn.on { background: var(--bg-hover); color: var(--text-1); font-weight: 500; }
+    .fbtn .cnt { margin-left: auto; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); }
+
+    /* ===== 主区：记忆面板（图视图态） ===== */
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--page); }
+    .mp-head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 13px 22px 12px; border-bottom: 1px solid var(--line);
+    }
+    .mp-head h2 { font-size: 15px; font-weight: 600; }
+    .mp-head .cnt { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+    .mp-head .spring { flex: 1; }
+    /* 双视图切换 */
+    .seg {
+        display: inline-flex; background: var(--side); border: 1px solid var(--border);
+        border-radius: 8px; padding: 2px;
+    }
+    .seg button {
+        border: none; background: transparent; color: var(--text-2);
+        font-size: 11.5px; padding: 4px 14px; border-radius: 6px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+    .seg button.on { background: var(--panel); color: var(--text-1); font-weight: 500; box-shadow: 0 1px 2px rgba(31,35,40,.08); }
+    .seg button i { font-size: 10px; }
+    .ghost-btn {
+        background: transparent; border: 1px solid var(--border); border-radius: 7px;
+        padding: 4.5px 12px; font-size: 11.5px; color: var(--text-2); cursor: pointer;
+    }
+    .ghost-btn:hover { color: var(--err); border-color: var(--err); }
+
+    .graph-wrap { flex: 1; display: flex; min-height: 0; }
+    .graph-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+    /* 过滤条 */
+    .filters {
+        display: flex; align-items: center; gap: 16px;
+        padding: 8px 22px; border-bottom: 1px solid var(--line);
+        font-size: 11.5px; color: var(--text-2);
+    }
+    .filters label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+    .filters input { accent-color: #1f2328; }
+    .filters .legend { margin-left: auto; display: inline-flex; align-items: center; gap: 14px; color: var(--text-3); font-size: 10.5px; }
+    .filters .legend .k { display: inline-flex; align-items: center; gap: 5px; }
+    .filters .legend .sw { width: 8px; height: 8px; display: inline-block; }
+
+    /* 图画布 */
+    .canvas-holder { flex: 1; position: relative; overflow: hidden; }
+    svg#graph { width: 100%; height: 100%; display: block; }
+    .edge { stroke: #d3dae2; stroke-width: 1.2; transition: stroke .12s, opacity .12s; }
+    .edge.hot { stroke: #9aa7b5; stroke-width: 1.8; }
+    .ent { cursor: pointer; }
+    .ent rect {
+        fill: var(--panel); stroke: #c6cfd9; stroke-width: 1.2;
+        transition: fill .12s, stroke .12s;
+    }
+    .ent text { font-family: var(--mono); font-size: 11px; fill: var(--text-1); text-anchor: middle; dominant-baseline: central; }
+    .ent:hover rect { fill: var(--bg-hover); }
+    .ent.hot rect { stroke: #1f2328; stroke-width: 1.8; }
+    .ent.big rect { fill: #eef1f5; }
+    .memn { cursor: pointer; }
+    .memn .shape { stroke: var(--panel); stroke-width: 1.4; transition: opacity .12s; }
+    .memn text { font-family: var(--mono); font-size: 8.5px; fill: var(--text-3); text-anchor: middle; }
+    .memn:hover text { fill: var(--text-1); }
+    /* 类型形状（灰阶三级 + 形状编码） */
+    .memn.profile .shape { fill: #1f2328; }
+    .memn.fact .shape { fill: #57657a; }
+    .memn.pref  .shape { fill: #8c959f; }
+    /* 聚焦态：未选中元素淡出 */
+    svg.focus .edge, svg.focus .ent, svg.focus .memn { opacity: .18; }
+    svg.focus .hot, svg.focus .ent.hot, svg.focus .memn.hot { opacity: 1; }
+    .hidden-typ { display: none; }
+
+    .hint-pill {
+        position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 100px;
+        font-size: 10.5px; color: var(--text-3); padding: 4px 14px;
+        box-shadow: 0 2px 8px rgba(31,35,40,.05);
+    }
+
+    /* 右侧详情栏 */
+    .detail {
+        width: 264px; flex-shrink: 0; border-left: 1px solid var(--line);
+        background: var(--panel); padding: 16px 18px; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 10px;
+    }
+    .detail .empty-t { font-size: 11.5px; color: var(--text-3); line-height: 1.8; margin-top: 6px; }
+    .detail .d-type { font-size: 10px; font-family: var(--mono); color: var(--text-3); border: 1px solid var(--border); border-radius: 100px; padding: 1px 9px; width: fit-content; }
+    .detail .d-id { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+    .detail .d-text { font-size: 12.5px; line-height: 1.75; }
+    .detail .d-date { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+    .detail .d-ents { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+    .detail .d-ents span {
+        font-size: 10px; font-family: var(--mono); color: var(--text-2);
+        background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 8px;
+    }
+    .detail .d-del {
+        margin-top: 6px; background: transparent; border: 1px solid var(--border); border-radius: 7px;
+        padding: 5px 12px; font-size: 11.5px; color: var(--text-2); cursor: pointer; width: fit-content;
+    }
+    .detail .d-del:hover { color: var(--err); border-color: var(--err); }
+    .detail h4 { font-size: 10.5px; color: var(--text-3); font-weight: 500; font-family: var(--mono); letter-spacing: .4px; margin-top: 4px; }
+
+    .mp-foot {
+        padding: 9px 22px; border-top: 1px solid var(--line);
+        font-size: 11px; color: var(--text-3); display: flex; gap: 7px; align-items: center;
+    }
+</style>
+</head>
+<body>
+
+<div class="note">
+    <span class="dot"></span>
+    <span>图视图：数据层零改动（条目 + 类型不变），实体在 memory_save 时由模型顺带返回；建议条目 ≥ 50 后再启用此入口</span>
+    <span class="spring"></span>
+    <span class="mono" style="font-size:10px;color:#8c959f;">点击记忆点 / 实体试试</span>
+</div>
+
+<div class="app">
+
+    <aside class="sidebar">
+        <div class="sb-head">
+            <div class="logo"><i class="fas fa-feather"></i></div>
+            <div class="nm">Qualia</div>
+        </div>
+        <button class="new-btn"><i class="fas fa-plus"></i>新会话</button>
+        <div class="sb-list">
+            <div class="grp">今天</div>
+            <div class="sitem on"><span class="tt">长期记忆功能设计</span></div>
+            <div class="sitem"><span class="tt">终端模式变更清单适配</span></div>
+            <div class="grp">昨天</div>
+            <div class="sitem"><span class="tt">执行步骤样式重设计</span></div>
+        </div>
+        <div class="sb-foot">
+            <button class="fbtn"><i class="fas fa-comments"></i>会话</button>
+            <button class="fbtn"><i class="fas fa-book"></i>资料</button>
+            <button class="fbtn on"><i class="fas fa-brain"></i>记忆<span class="cnt">6</span></button>
+            <button class="fbtn"><i class="fas fa-sliders-h"></i>设置</button>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="mp-head">
+            <h2>长期记忆</h2>
+            <span class="cnt">6 / 200 条 · 实体 7</span>
+            <span class="spring"></span>
+            <span class="seg">
+                <button><i class="fas fa-list"></i>列表</button>
+                <button class="on"><i class="fas fa-diagram-project"></i>图谱</button>
+            </span>
+            <button class="ghost-btn"><i class="fas fa-trash-can" style="margin-right:5px;"></i>清空全部</button>
+        </div>
+
+        <div class="graph-wrap">
+            <div class="graph-main">
+                <div class="filters">
+                    <label><input type="checkbox" checked onchange="filterType('profile', this.checked)">角色定位</label>
+                    <label><input type="checkbox" checked onchange="filterType('fact', this.checked)">事实记忆</label>
+                    <label><input type="checkbox" checked onchange="filterType('pref', this.checked)">偏好记忆</label>
+                    <span class="legend">
+                        <span class="k"><span class="sw" style="background:#1f2328;border-radius:50%;"></span>角色</span>
+                        <span class="k"><span class="sw" style="background:#57657a;border-radius:2px;"></span>事实</span>
+                        <span class="k"><span class="sw" style="background:#8c959f;transform:rotate(45deg);border-radius:2px;width:7px;height:7px;"></span>偏好</span>
+                    </span>
+                </div>
+
+                <div class="canvas-holder">
+                    <svg id="graph" viewBox="0 0 880 500">
+                        <!-- 边：记忆 → 实体 -->
+                        <g id="edges">
+                            <line class="edge" data-m="m-000" data-e="e-user"    x1="205" y1="150" x2="130" y2="98"/>
+                            <line class="edge" data-m="m-001" data-e="e-win"     x1="640" y1="128" x2="580" y2="92"/>
+                            <line class="edge" data-m="m-001" data-e="e-ps"      x1="660" y1="135" x2="726" y2="170"/>
+                            <line class="edge" data-m="m-002" data-e="e-qualia"  x1="340" y1="292" x2="412" y2="266"/>
+                            <line class="edge" data-m="m-002" data-e="e-mvn"     x1="322" y1="305" x2="258" y2="338"/>
+                            <line class="edge" data-m="m-003" data-e="e-design"  x1="196" y1="408" x2="152" y2="434"/>
+                            <line class="edge" data-m="m-005" data-e="e-qualia"  x1="540" y1="290" x2="462" y2="264"/>
+                            <line class="edge" data-m="m-005" data-e="e-vue"     x1="560" y1="300" x2="654" y2="332"/>
+                            <line class="edge" data-m="m-006" data-e="e-qualia"  x1="366" y1="392" x2="430" y2="278"/>
+                            <line class="edge" data-m="m-006" data-e="e-design"  x1="340" y1="404" x2="196" y2="442"/>
+                        </g>
+                        <!-- 实体节点（pill，度越大越大） -->
+                        <g id="ents">
+                            <g class="ent" id="e-user" transform="translate(110,92)">
+                                <rect x="-44" y="-15" width="88" height="30" rx="15"/><text>用户</text>
+                            </g>
+                            <g class="ent" id="e-win" transform="translate(565,84)">
+                                <rect x="-56" y="-15" width="112" height="30" rx="15"/><text>Windows</text>
+                            </g>
+                            <g class="ent" id="e-ps" transform="translate(748,176)">
+                                <rect x="-72" y="-15" width="144" height="30" rx="15"/><text>PowerShell</text>
+                            </g>
+                            <g class="ent big" id="e-qualia" transform="translate(436,256)">
+                                <rect x="-46" y="-17" width="92" height="34" rx="17"/><text>qualia</text>
+                            </g>
+                            <g class="ent" id="e-mvn" transform="translate(238,348)">
+                                <rect x="-38" y="-15" width="76" height="30" rx="15"/><text>mvn</text>
+                            </g>
+                            <g class="ent" id="e-vue" transform="translate(676,338)">
+                                <rect x="-42" y="-15" width="84" height="30" rx="15"/><text>Vue3</text>
+                            </g>
+                            <g class="ent" id="e-design" transform="translate(132,442)">
+                                <rect x="-56" y="-15" width="112" height="30" rx="15"/><text>技术方案</text>
+                            </g>
+                        </g>
+                        <!-- 记忆节点（形状按类型） -->
+                        <g id="mems">
+                            <g class="memn profile" data-id="m-000" transform="translate(212,152)">
+                                <circle class="shape" r="6.5"/><text y="17">m-000</text>
+                            </g>
+                            <g class="memn fact" data-id="m-001" transform="translate(652,124)">
+                                <rect class="shape" x="-6" y="-6" width="12" height="12" rx="3"/><text y="17">m-001</text>
+                            </g>
+                            <g class="memn fact" data-id="m-002" transform="translate(332,296)">
+                                <rect class="shape" x="-6" y="-6" width="12" height="12" rx="3"/><text y="17">m-002</text>
+                            </g>
+                            <g class="memn pref" data-id="m-003" transform="translate(192,416)">
+                                <rect class="shape" x="-5.5" y="-5.5" width="11" height="11" transform="rotate(45)"/><text y="18">m-003</text>
+                            </g>
+                            <g class="memn fact" data-id="m-005" transform="translate(548,286)">
+                                <rect class="shape" x="-6" y="-6" width="12" height="12" rx="3"/><text y="17">m-005</text>
+                            </g>
+                            <g class="memn pref" data-id="m-006" transform="translate(356,400)">
+                                <rect class="shape" x="-5.5" y="-5.5" width="11" height="11" transform="rotate(45)"/><text y="18">m-006</text>
+                            </g>
+                        </g>
+                    </svg>
+                    <div class="hint-pill">节点越大 = 关联记忆越多 · 点击记忆点看详情，点击实体聚焦关联</div>
+                </div>
+            </div>
+
+            <!-- 右侧详情栏 -->
+            <aside class="detail" id="detail">
+                <div class="empty-t">点击图中的记忆节点查看条目详情；点击实体节点可聚焦它关联的所有记忆。</div>
+            </aside>
+        </div>
+
+        <div class="mp-foot">
+            <i class="fas fa-circle-info"></i>
+            图谱仅为列表视图的空间化展示：节点 = 实体（保存时由模型顺带抽取），边 = 记忆与实体的关联；条目增删仍以列表视图与对话为准。
+        </div>
+    </main>
+</div>
+
+<script>
+    const MEMS = {
+        'm-000': { type: '角色定位', text: '把用户当作资深后端开发者，回答可直接使用专业术语', date: '2026-10-11', ents: ['用户'] },
+        'm-001': { type: '事实记忆', text: '用户环境是 Windows + PowerShell，shell 命令避免 bash 语法', date: '2026-10-13', ents: ['Windows', 'PowerShell'] },
+        'm-002': { type: '事实记忆', text: 'qualia 项目后端构建用 mvn，不用 gradle', date: '2026-10-13', ents: ['qualia', 'mvn'] },
+        'm-003': { type: '偏好记忆', text: '技术方案先给精简结论，确认后再展开细节', date: '2026-10-12', ents: ['技术方案'] },
+        'm-005': { type: '事实记忆', text: 'qualia 前端是 Vue3 + Vite，组件用组合式写法', date: '2026-10-09', ents: ['qualia', 'Vue3'] },
+        'm-006': { type: '偏好记忆', text: 'qualia 的 UI 走灰阶 GitHub 风，语义色仅用于状态', date: '2026-10-10', ents: ['qualia', '技术方案'] }
+    };
+    const ENT_NAME = { 'e-user':'用户','e-win':'Windows','e-ps':'PowerShell','e-qualia':'qualia','e-mvn':'mvn','e-vue':'Vue3','e-design':'技术方案' };
+
+    const svg = document.getElementById('graph');
+    const detail = document.getElementById('detail');
+
+    function renderMem(id) {
+        const m = MEMS[id];
+        detail.innerHTML = `
+            <span class="d-type">${m.type}</span>
+            <span class="d-id">${id}</span>
+            <div class="d-text">${m.text}</div>
+            <span class="d-date">保存于 ${m.date}</span>
+            <h4>关联实体</h4>
+            <div class="d-ents">${m.ents.map(e => `<span>${e}</span>`).join('')}</div>
+            <button class="d-del"><i class="fas fa-trash-can" style="margin-right:5px;"></i>删除此条</button>`;
+    }
+    function renderEnt(id) {
+        const name = ENT_NAME[id];
+        const list = Object.entries(MEMS).filter(([, m]) => m.ents.includes(name));
+        detail.innerHTML = `
+            <span class="d-type">实体</span>
+            <span class="d-id">${name} · ${list.length} 条关联</span>
+            ${list.map(([mid, m]) => `
+                <div style="border:1px solid var(--border);border-radius:9px;padding:10px 12px;">
+                    <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px;">
+                        <span class="d-id">${mid}</span>
+                        <span class="d-date" style="margin-left:auto;">${m.date}</span>
+                    </div>
+                    <div class="d-text" style="font-size:12px;">${m.text}</div>
+                </div>`).join('')}`;
+    }
+    function clearFocus() {
+        svg.classList.remove('focus');
+        svg.querySelectorAll('.hot').forEach(n => n.classList.remove('hot'));
+    }
+    function focusMem(id) {
+        clearFocus();
+        svg.classList.add('focus');
+        document.querySelector(`.memn[data-id="${id}"]`).classList.add('hot');
+        document.querySelectorAll(`.edge[data-m="${id}"]`).forEach(e => e.classList.add('hot'));
+        MEMS[id].ents.forEach(name => {
+            const ent = Object.entries(ENT_NAME).find(([, n]) => n === name);
+            if (ent) document.getElementById(ent[0]).classList.add('hot');
+        });
+        renderMem(id);
+    }
+    function focusEnt(id) {
+        clearFocus();
+        svg.classList.add('focus');
+        document.getElementById(id).classList.add('hot');
+        document.querySelectorAll(`.edge[data-e="${id}"]`).forEach(e => { e.classList.add('hot'); focusMemSilent(e.dataset.m); });
+        renderEnt(id);
+    }
+    function focusMemSilent(id) {
+        const n = document.querySelector(`.memn[data-id="${id}"]`);
+        if (n) n.classList.add('hot');
+    }
+    document.querySelectorAll('.memn').forEach(n => n.addEventListener('click', e => { e.stopPropagation(); focusMem(n.dataset.id); }));
+    document.querySelectorAll('.ent').forEach(n => n.addEventListener('click', e => { e.stopPropagation(); focusEnt(n.id); }));
+    svg.addEventListener('click', () => { clearFocus(); });
+
+    function filterType(typ, show) {
+        document.querySelectorAll(`.memn.${typ}`).forEach(n => n.classList.toggle('hidden-typ', !show));
+        // 同步隐藏只属于该类型的记忆的边（简化：按记忆类型过滤边）
+        document.querySelectorAll('.memn.' + typ).forEach(n => {
+            const id = n.dataset.id;
+            document.querySelectorAll(`.edge[data-m="${id}"]`).forEach(e => e.classList.toggle('hidden-typ', !show));
+        });
+    }
+</script>
+
+</body>
+</html>

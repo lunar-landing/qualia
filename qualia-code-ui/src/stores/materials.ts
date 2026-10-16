@@ -86,9 +86,9 @@ export const useMaterialsStore = defineStore('materials', {
       await this.enterKb(info.id)
     },
 
-    async renameKb(id: string, name: string) {
-      // 重命名入口仅在列表页，刷新列表即可
-      await updateMaterial(id, { name })
+    async updateKb(id: string, name: string, description: string) {
+      // 编辑入口仅在列表页，刷新列表即可；description 传空串即清空
+      await updateMaterial(id, { name, description })
       await this.loadList()
     },
 

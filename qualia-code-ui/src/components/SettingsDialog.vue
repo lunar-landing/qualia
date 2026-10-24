@@ -4,6 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { getAgentMd, getConfig, installMarketSkill, listSkills, listTools, revealSkillFolder, saveAgentMd, searchMarketSkills } from '@/api/config'
 import { renderMarkdown } from '@/utils/markdown'
 import { useConfigStore } from '@/stores/config'
+import { useTheme } from '@/composables/theme'
+import { useChatView } from '@/composables/chatView'
+import { setLocale } from '@/i18n'
 import type { AppConfigPatch, MarketSkillInfo, ModelConfig, ModelType, McpTransport, SkillInfo, ToolInfo } from '@/types'
 
 /**
@@ -13,7 +16,7 @@ import type { AppConfigPatch, MarketSkillInfo, ModelConfig, ModelType, McpTransp
  * 组件由父级 v-if 控制挂载，每次打开重新拉取（apiKey 因此总以掩码回显）。
  */
 const emit = defineEmits<{ close: [] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const config = useConfigStore()
 
 // ===== 预设（对齐旧 MODEL_TYPES / MODEL_PRESETS；label 存字典 key，渲染时翻译保证切语言同步）=====
@@ -63,6 +66,7 @@ const TABS = [
   { id: 'skills', icon: 'fa-shapes', label: 'settings.tabSkills' },
   { id: 'tools', icon: 'fa-wrench', label: 'settings.tabTools' },
   { id: 'app', icon: 'fa-gears', label: 'settings.tabApp' },
+  { id: 'personalize', icon: 'fa-palette', label: 'settings.tabPersonalize' },
   { id: 'about', icon: 'fa-circle-info', label: 'settings.tabAbout' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -308,10 +312,45 @@ function delInDialog() {
   closeEditDialog()
 }
 
-// ===== MCP =====
-function addMcp() {
-  mcpServers.value.push({ name: '', transport: 'streamable-http', url: '', headers: [], enabled: true })
-  schedulePersistMcp()
+// ===== MCP：列表维持行内编辑防抖保存；新增改走子弹窗（参考模型 Tab 交互） =====
+const mcpEditIndex = ref(-1) // -1 表示新增（弹窗当前仅用于新增）
+const mcpDraft = ref<McpDraft | null>(null)
+const mcpErr = ref(false)
+const mcpTpOpen = ref(false)
+let mcpErrTimer: number | undefined
+const mcpSaveText = computed(() => (mcpErr.value ? t('settings.nameRequired') : t('common.save')))
+/** stdio 传输的地址即启动命令，placeholder 随传输方式切换 */
+const mcpUrlPlaceholder = computed(() =>
+  mcpDraft.value?.transport === 'stdio' ? 'npx -y @modelcontextprotocol/server-xxx' : 'http(s)://...',
+)
+
+function openMcpDialog(i: number) {
+  mcpEditIndex.value = i
+  const cur = i >= 0 ? mcpServers.value[i] : undefined
+  mcpDraft.value = cur
+    ? { ...cur, headers: cur.headers.map((h) => ({ ...h })) }
+    : { name: '', transport: 'streamable-http', url: '', enabled: true, headers: [] }
+  mcpTpOpen.value = false
+}
+function closeMcpDialog() {
+  mcpDraft.value = null
+  mcpTpOpen.value = false
+}
+/** 校验对齐模型弹窗：名称为空时保存钮变红字提示，1.6s 后恢复 */
+function saveMcpDialog() {
+  const d = mcpDraft.value
+  if (!d) return
+  if (!String(d.name ?? '').trim()) {
+    mcpErr.value = true
+    window.clearTimeout(mcpErrTimer)
+    mcpErrTimer = window.setTimeout(() => { mcpErr.value = false }, 1600)
+    return
+  }
+  d.name = String(d.name).trim()
+  if (mcpEditIndex.value >= 0) mcpServers.value[mcpEditIndex.value] = d
+  else mcpServers.value.push(d)
+  persist(mcpPayload())
+  closeMcpDialog()
 }
 
 // ===== 技能 / 工具开关 =====
@@ -405,10 +444,13 @@ const toolGroups = computed(() => {
 
 // ===== D2 IDE 设置风：导航分组搜索 + 数量徽章 + 未保存指示 =====
 const searchKw = ref('')
+// ===== 个性 Tab：外观 / 视图 / 语言（纯本地偏好即时生效，localStorage 持久化，不依赖配置加载态） =====
+const { isLight, toggleTheme } = useTheme()
+const { view: chatView, setView: setChatView } = useChatView()
 const NAV_GROUPS = [
   { key: 'svc', label: 'settings.groupService', items: ['models', 'mcp', 'app'] },
   { key: 'ext', label: 'settings.groupExtend', items: ['skills', 'tools'] },
-  { key: 'misc', label: 'settings.groupMisc', items: ['about'] },
+  { key: 'misc', label: 'settings.groupMisc', items: ['personalize', 'about'] },
 ] as const
 const metaOf = (id: TabId) => TABS.find((x) => x.id === id)!
 const navGroups = computed(() => {
@@ -435,8 +477,8 @@ function jumpSearch() {
 
 /** 内容区节标题行（标题 + 动态副标题） */
 const secMeta = computed(() => {
-  // 关于页为纯静态内容，不受配置加载状态影响，始终可看
-  if (activeTab.value !== 'about' && (loading.value || loadError.value)) return null
+  // 关于页与个性页为纯本地内容，不受配置加载状态影响，始终可看
+  if (activeTab.value !== 'about' && activeTab.value !== 'personalize' && (loading.value || loadError.value)) return null
   switch (activeTab.value) {
     case 'models': {
       const d = models.value[defaultIndex.value]?.name || models.value[defaultIndex.value]?.model || '—'
@@ -454,6 +496,8 @@ const secMeta = computed(() => {
       return { title: t('settings.tabSkills'), sub: skills.value.length ? t('settings.secSkillsSub', { n: skills.value.length }) : '' }
     case 'app':
       return { title: t('settings.tabApp'), sub: t('settings.secAppSub') }
+    case 'personalize':
+      return { title: t('settings.tabPersonalize'), sub: t('settings.secPersonalizeSub') }
     case 'about':
       return { title: t('settings.tabAbout'), sub: t('settings.secAboutSub') }
     default:
@@ -578,6 +622,10 @@ async function resetDerivedDir() {
 // ===== 全局监听：Esc 分层关闭 / 点击下拉外部收起 =====
 function onDocKey(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
+  if (mcpDraft.value) {
+    closeMcpDialog()
+    return
+  }
   if (editDraft.value) {
     closeEditDialog()
     return
@@ -585,7 +633,10 @@ function onDocKey(e: KeyboardEvent) {
   emit('close')
 }
 function onDocClick(e: MouseEvent) {
-  if (!(e.target as HTMLElement | null)?.closest('.custom-select')) providerOpen.value = false
+  if (!(e.target as HTMLElement | null)?.closest('.custom-select')) {
+    providerOpen.value = false
+    mcpTpOpen.value = false
+  }
 }
 onMounted(() => {
   document.addEventListener('keydown', onDocKey)
@@ -597,6 +648,7 @@ onUnmounted(() => {
   window.clearTimeout(flashTimer)
   window.clearTimeout(errTimer)
   window.clearTimeout(mcpTimer)
+  window.clearTimeout(mcpErrTimer)
 })
 </script>
 
@@ -637,7 +689,7 @@ onUnmounted(() => {
               <div class="sec-title">{{ secMeta.title }}</div>
               <div class="sec-sub">{{ secMeta.sub }}</div>
             </div>
-            <!-- 关于 Tab：品牌信息 + 版本 + 协议（纯静态，置于链首优先于加载/错误态） -->
+            <!-- 关于 Tab：品牌信息 + 版本徽章（纯静态，置于链首优先于加载/错误态） -->
             <template v-if="activeTab === 'about'">
               <div class="about-hero">
                 <div class="about-logo">
@@ -646,22 +698,66 @@ onUnmounted(() => {
                     <path d="M278.5 215.6L23 471c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l57-57 68 0c49.7 0 97.9-14.4 139-41c11.1-7.2 5.5-23-7.8-23c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l81-24.3c2.5-.8 4.8-2.1 6.7-4l22.4-22.4c10.1-10.1 2.9-27.3-11.3-27.3l-32.2 0c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l112-33.6c4-1.2 7.4-3.9 9.3-7.7C506.4 207.6 512 184.1 512 160c0-41-16.3-80.3-45.3-109.3l-5.5-5.5C432.3 16.3 393 0 352 0s-80.3 16.3-109.3 45.3L139 149C91 197 64 262.1 64 330l0 55.3L253.6 195.8c6.2-6.2 16.4-6.2 22.6 0c5.4 5.4 6.1 13.6 2.2 19.8z" />
                   </svg>
                 </div>
-                <div class="about-name">Qualia Code</div>
+                <div class="about-name-row">
+                  <span class="about-name">Qualia Code</span>
+                  <span class="about-ver">v{{ APP_VERSION }}</span>
+                </div>
                 <div class="about-slogan">{{ t('switcher.brandSlogan') }}</div>
-                <span class="about-ver">v{{ APP_VERSION }}</span>
-              </div>
-              <div class="about-desc">{{ t('settings.aboutDesc') }}</div>
-              <div class="about-info">
-                <div class="about-row">
-                  <span class="about-k">{{ t('settings.aboutLicense') }}</span>
-                  <span class="about-v">Apache License 2.0</span>
-                </div>
-                <div class="about-row">
-                  <span class="about-k">{{ t('settings.aboutTech') }}</span>
-                  <span class="about-v">Java 17 · Spring Boot 3 · Vue 3 · MCP</span>
-                </div>
+                <p class="about-desc">{{ t('settings.aboutDesc') }}</p>
               </div>
               <div class="about-foot">{{ t('settings.aboutCopyright') }}</div>
+            </template>
+
+            <!-- 个性 Tab：外观 / 视图 / 语言（纯本地偏好，更改即时生效，不依赖配置加载态） -->
+            <template v-else-if="activeTab === 'personalize'">
+              <div class="pref-card">
+                <div class="pref-info">
+                  <span class="pref-title"><i class="fas fa-circle-half-stroke"></i>{{ t('settings.appearance') }}</span>
+                  <span class="pref-desc">{{ t('settings.appearanceDesc') }}</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" :checked="isLight" tabindex="-1" @change="toggleTheme()" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <!-- 视图行：标题描述在上，双缩略图在下等宽并排（微缩预览所见即所选） -->
+              <div class="pref-card pref-view">
+                <div class="pref-info">
+                  <span class="pref-title"><i class="fas fa-tv"></i>{{ t('settings.viewMode') }}</span>
+                  <span class="pref-desc">{{ t('settings.viewModeDesc') }}</span>
+                </div>
+                <div class="view-thumbs" role="radiogroup" :aria-label="t('settings.viewMode')">
+                  <button type="button" class="view-thumb" role="radio" :aria-checked="chatView === 'bubble'" :class="{ on: chatView === 'bubble' }" @click="setChatView('bubble')">
+                    <span class="vt-preview vtp-bubble" aria-hidden="true">
+                      <i class="vt-line l-a"></i>
+                      <i class="vt-user-bubble"></i>
+                      <i class="vt-line l-b"></i>
+                      <i class="vt-input"></i>
+                    </span>
+                    <span class="vt-label"><i class="fas fa-check"></i>{{ t('settings.viewBubble') }}</span>
+                  </button>
+                  <button type="button" class="view-thumb" role="radio" :aria-checked="chatView === 'terminal'" :class="{ on: chatView === 'terminal' }" @click="setChatView('terminal')">
+                    <span class="vt-preview vtp-term" aria-hidden="true">
+                      <span class="vt-trow"><i class="vt-ps"></i><i class="vt-seg s-a"></i></span>
+                      <span class="vt-trow indent"><i class="vt-seg s-b"></i></span>
+                      <span class="vt-trow"><i class="vt-ps"></i><i class="vt-seg s-c"></i></span>
+                      <span class="vt-trow indent"><i class="vt-seg s-d"></i></span>
+                      <span class="vt-trow"><i class="vt-ps"></i><i class="vt-caret"></i></span>
+                    </span>
+                    <span class="vt-label"><i class="fas fa-check"></i>{{ t('settings.viewTerminal') }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="pref-card">
+                <div class="pref-info">
+                  <span class="pref-title"><i class="fas fa-language"></i>{{ t('settings.language') }}</span>
+                  <span class="pref-desc">{{ t('settings.languageDesc') }}</span>
+                </div>
+                <div class="med-seg pref-seg">
+                  <button type="button" :class="{ on: locale === 'zh-CN' }" @click="setLocale('zh-CN')">中文</button>
+                  <button type="button" :class="{ on: locale === 'en' }" @click="setLocale('en')">English</button>
+                </div>
+              </div>
             </template>
 
             <div v-else-if="loading" class="set-empty"><i class="fas fa-sliders-h"></i><span>{{ t('settings.loading') }}</span></div>
@@ -703,7 +799,7 @@ onUnmounted(() => {
               <div v-if="!models.length" class="set-env-item">{{ t('settings.noModels') }}</div>
             </template>
 
-            <!-- MCP Tab -->
+            <!-- MCP Tab：列表沿用行内编辑样式；新增走弹窗（参考模型 Tab 交互） -->
             <template v-else-if="activeTab === 'mcp'">
               <div>
                 <div v-if="!mcpServers.length" class="set-env-item">{{ t('settings.noMcp') }}</div>
@@ -750,7 +846,7 @@ onUnmounted(() => {
                     </label>
                   </div>
                 </div>
-                <button class="set-add-btn" @click="addMcp"><i class="fas fa-plus"></i> {{ t('settings.addMcp') }}</button>
+                <button class="set-add-btn" @click="openMcpDialog(-1)"><i class="fas fa-plus"></i> {{ t('settings.addMcp') }}</button>
               </div>
             </template>
 
@@ -1053,6 +1149,70 @@ onUnmounted(() => {
           <button type="button" class="mc-btn ghost" @click="closeEditDialog">{{ t('common.cancel') }}</button>
           <button type="button" class="mc-btn primary med-save" :class="{ err: dlgErr }" @click="saveEditDialog">
             {{ dlgSaveText }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP 编辑子弹窗（叠于设置弹窗之上，与模型编辑同规格三段式） -->
+    <div v-if="mcpDraft" class="model-edit-overlay open" @click.self="closeMcpDialog">
+      <div class="model-edit-dialog">
+        <div class="med-head">
+          <h4>
+            <i class="fas fa-server"></i>
+            {{ t('settings.addMcp') }}
+          </h4>
+          <button class="med-close" :title="t('common.close')" @click="closeMcpDialog"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="med-body">
+          <div class="med-row">
+            <div class="med-field">
+              <label>{{ t('settings.nameLabel') }}</label>
+              <input v-model="mcpDraft.name" :placeholder="t('settings.namePlaceholder')" />
+            </div>
+            <div class="med-field">
+              <label>{{ t('settings.transport') }}</label>
+              <div class="custom-select" :class="{ open: mcpTpOpen }">
+                <div class="custom-select-trigger" @click="mcpTpOpen = !mcpTpOpen">
+                  <span class="trigger-text">{{ mcpDraft.transport }}</span>
+                  <i class="fas fa-chevron-down trigger-arrow"></i>
+                </div>
+                <div class="custom-select-dropdown">
+                  <div
+                    v-for="tr in TRANSPORTS" :key="tr" class="custom-option"
+                    :class="{ active: mcpDraft.transport === tr }" @click="mcpDraft.transport = tr; mcpTpOpen = false"
+                  >
+                    <span class="option-text mono">{{ tr }}</span>
+                    <i class="fas fa-check check-icon"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="med-field">
+            <label>{{ t('settings.urlLabel') }}<span v-if="mcpDraft.transport === 'stdio'" class="hint">{{ t('settings.stdioHint') }}</span></label>
+            <input v-model="mcpDraft.url" class="mono" :placeholder="mcpUrlPlaceholder" spellcheck="false" />
+          </div>
+          <div class="med-field">
+            <label>Headers</label>
+            <div class="mcp-kv-list">
+              <div v-for="(h, j) in mcpDraft.headers" :key="j" class="set-kv">
+                <input v-model="h.k" :placeholder="t('settings.headerName')" spellcheck="false" />
+                <input v-model="h.v" :placeholder="t('settings.headerValue')" spellcheck="false" />
+                <button class="set-kv-del" :title="t('common.delete')" @click="mcpDraft.headers.splice(j, 1)">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <button type="button" class="mc-btn ghost mcp-kv-add" @click="mcpDraft.headers.push({ k: '', v: '' })">
+                <i class="fas fa-plus"></i> {{ t('settings.addHeader') }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="med-foot">
+          <button type="button" class="mc-btn ghost" @click="closeMcpDialog">{{ t('common.cancel') }}</button>
+          <button type="button" class="mc-btn primary med-save" :class="{ err: mcpErr }" @click="saveMcpDialog">
+            {{ mcpSaveText }}
           </button>
         </div>
       </div>
@@ -1938,6 +2098,19 @@ body.light-theme .model-edit-dialog {
 .model-card.add-card p {
     font-size: 11.5px;
 }
+/* MCP 弹窗 Headers 行列表（kv 行复用 set-kv 规格） */
+.mcp-kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.mcp-kv-add {
+    align-self: flex-start;
+}
+.custom-option .mono {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+}
 .set-row {
     display: flex;
     flex-direction: column;
@@ -2536,7 +2709,7 @@ body.light-theme .med-field input:focus {
     bottom: 0;
     background-color: var(--text-muted);
     transition: background-color 0.2s;
-    border-radius: 8px;
+    border-radius: 999px;
 }
 .toggle-slider:before {
     position: absolute;
@@ -2547,7 +2720,7 @@ body.light-theme .med-field input:focus {
     bottom: 2px;
     background-color: var(--white);
     transition: transform 0.2s;
-    border-radius: 6px;
+    border-radius: 50%;
 }
 /* 亮绿选中态：深浅主题统一，不做深绿 */
 .toggle-switch input:checked + .toggle-slider {
@@ -2555,6 +2728,193 @@ body.light-theme .med-field input:focus {
 }
 .toggle-switch input:checked + .toggle-slider:before {
     transform: translateX(18px);
+}
+
+/* ===== 个性 Tab：外观 / 视图 / 语言设置行（卡片行 + 右侧控件）===== */
+.pref-card {
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    background: var(--bg-input);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 9px;
+}
+.pref-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.pref-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.pref-title i {
+    width: 14px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.pref-desc {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+}
+.pref-seg {
+    width: 168px;
+    flex-shrink: 0;
+}
+/* 视图选项：双缩略图等宽并排，所见即所选（微缩预览取用真实视图的主题变量） */
+/* 视图行纵向布局：标题/描述在上，缩略图选项在下占满整行 */
+.pref-view {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+.view-thumbs {
+    width: 100%;
+    max-width: 560px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+.view-thumb {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px 9px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.view-thumb:hover {
+    border-color: var(--text-muted);
+}
+/* 选中态：accent 描边 + 勾选标记；置后声明覆盖 hover 边框 */
+.view-thumb.on {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+    background: var(--bg-hover);
+}
+.vt-preview {
+    height: 112px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 10px;
+}
+.vt-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+.vt-label i {
+    display: none;
+    font-size: 10px;
+}
+.view-thumb.on .vt-label {
+    color: var(--accent);
+    font-weight: 600;
+}
+.view-thumb.on .vt-label i {
+    display: inline-block;
+}
+/* 气泡微缩：左文本行 + 右用户气泡 + 底部输入条（对齐 ChatArea 真实形态） */
+.vtp-bubble {
+    background: var(--bg-hover);
+}
+.vt-line {
+    display: block;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--text-muted);
+    opacity: 0.55;
+}
+.vtp-bubble .l-a {
+    width: 58%;
+}
+.vtp-bubble .l-b {
+    width: 66%;
+}
+.vt-user-bubble {
+    align-self: flex-end;
+    width: 46%;
+    height: 13px;
+    border-radius: 7px 7px 2px 7px;
+    background: var(--bg-bubble-user);
+    border: 1px solid rgba(177, 186, 196, 0.16);
+}
+.vt-input {
+    margin-top: auto;
+    height: 15px;
+    border-radius: 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+}
+/* 终端微缩：恒定深底 + 绿色提示符 + 闪烁光标（对齐 ChatTerminal，深浅主题同貌） */
+.vtp-term {
+    background: var(--terminal-bg);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.vt-trow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.vt-trow.indent {
+    padding-left: 10px;
+}
+.vt-ps {
+    flex-shrink: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    background: var(--terminal-success);
+}
+.vt-seg {
+    height: 5px;
+    border-radius: 2.5px;
+    background: var(--terminal-idle);
+    opacity: 0.5;
+}
+.vtp-term .s-a {
+    width: 52%;
+}
+.vtp-term .s-b {
+    width: 40%;
+}
+.vtp-term .s-c {
+    width: 30%;
+}
+.vtp-term .s-d {
+    width: 45%;
+}
+.vt-caret {
+    width: 7px;
+    height: 8px;
+    border-radius: 1px;
+    background: var(--terminal-text);
+    animation: vt-blink 1.1s steps(2, start) infinite;
+}
+@keyframes vt-blink {
+    to {
+        visibility: hidden;
+    }
 }
 .set-card.disabled {
     opacity: 0.5;
@@ -2670,7 +3030,7 @@ body.light-theme .med-field input:focus {
     font-weight: 600;
 }
 
-/* ===== 关于 Tab：品牌居中 + 信息行（纯静态展示，视觉复用 hero-logo 渐变徽章） ===== */
+/* ===== 关于 Tab：品牌居中 + 版本徽章（纯静态展示，视觉复用 hero-logo 渐变徽章） ===== */
 .about-hero {
     display: flex;
     flex-direction: column;
@@ -2696,19 +3056,20 @@ body.light-theme .about-logo {
     width: 26px;
     height: 26px;
 }
-.about-name {
+/* 名称与版本徽章同行，节省纵向空间 */
+.about-name-row {
     margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.about-name {
     font-size: 17px;
     font-weight: 700;
     letter-spacing: -0.3px;
     color: var(--text-primary);
 }
-.about-slogan {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
 .about-ver {
-    margin-top: 6px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 10.5px;
     color: var(--text-secondary);
@@ -2717,43 +3078,21 @@ body.light-theme .about-logo {
     border-radius: 999px;
     padding: 2px 10px;
 }
+.about-slogan {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
 .about-desc {
-    max-width: 440px;
-    margin: 0 auto 18px;
+    max-width: 430px;
+    margin: 5px auto 0;
     text-align: center;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.75;
     color: var(--text-secondary);
 }
-.about-info {
-    max-width: 440px;
-    margin: 0 auto;
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    background: var(--bg-input);
-    overflow: hidden;
-}
-.about-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 9px 14px;
-    font-size: 12px;
-}
-.about-row + .about-row {
-    border-top: 1px solid var(--border-color);
-}
-.about-k {
-    color: var(--text-muted);
-}
-.about-v {
-    color: var(--text-primary);
-    font-weight: 500;
-    text-align: right;
-}
 .about-foot {
-    margin-top: 18px;
+    margin-top: auto;
+    padding-top: 10px;
     text-align: center;
     font-size: 11px;
     color: var(--text-muted);

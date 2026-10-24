@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库 · 双页新设计原型</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<!--
+  资料库两个页面的全新设计（替换现有卡片网格 + Hero 封面页方案）
+  A    列表页：书架行式（色带书脊 + 类型构成微缩 + 等宽元信息）
+  A0   列表空态 / 新建弹窗
+  B1   详情页 · 目录首页（封面带 + 编号双列文章）
+  B2   详情页 · 整篇阅读（正文 + 侧边 TOC）
+  B3   详情页 · 源码编辑
+  G    设计 token 与规格说明
+  语言：近白石墨日间（#ffffff / #f6f8fa / #d0d7de / #24292f），accent 面积 <5%，
+  类型图标着色为唯一彩源；夜间同结构换色不换布局。
+-->
+<style>
+:root{
+  --bg:#ffffff; --bg-side:#f6f8fa; --bg-hover:#eef1f4; --bg-active:#e7ecf1;
+  --text-1:#1f2328; --text-2:#59636e; --text-3:#8c959f;
+  --border:#d0d7de; --border-2:#e1e7ec; --hair:rgba(31,35,40,.06);
+  --accent:#24292f; --accent-2:#3d444d; --accent-ink:#ffffff;
+  --info:#0969da; --error:#cf222e; --success:#1a7f37;
+  --ic-pdf:#e5615c; --ic-word:#5b9bd5; --ic-md:#519aba; --ic-html:#d9704a;
+  --seg:#eff2f5; --seg-on:#ffffff; --seg-shadow:0 1px 2px rgba(31,35,40,.10);
+  --lift:0 1px 2px rgba(31,35,40,.04), 0 8px 24px rgba(31,35,40,.07);
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+body.dark{
+  --bg:#080a10; --bg-side:rgba(255,255,255,.025); --bg-hover:rgba(255,255,255,.05);
+  --bg-active:rgba(230,237,243,.10);
+  --text-1:#e4e9f2; --text-2:#98a2b8; --text-3:#5b6478;
+  --border:rgba(255,255,255,.08); --border-2:rgba(255,255,255,.05); --hair:rgba(255,255,255,.05);
+  --accent:#e6edf3; --accent-2:#f0f6fc; --accent-ink:#0d1117;
+  --info:#60a5fa; --error:#f87171; --success:#34d399;
+  --seg:rgba(255,255,255,.04); --seg-on:rgba(230,237,243,.14); --seg-shadow:0 1px 3px rgba(0,0,0,.5);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text-1);padding:20px 28px 60px;transition:background .2s,color .2s;-webkit-font-smoothing:antialiased}
+
+/* ===== 页头 / 场景导航 ===== */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.top h1{font-size:18px;font-weight:700;letter-spacing:.2px}
+.top .sub{font-size:11.5px;color:var(--text-2)}
+.nav{margin-left:auto;display:flex;gap:3px;padding:3px;border:1px solid var(--border);border-radius:10px;background:var(--seg);flex-wrap:wrap}
+.nav button{border:none;background:transparent;color:var(--text-2);font-size:12px;font-family:inherit;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;transition:.15s}
+.nav button:hover{color:var(--text-1)}
+.nav button.on{background:var(--seg-on);color:var(--text-1);font-weight:600;box-shadow:var(--seg-shadow)}
+.theme-btn{border:1px solid var(--border);background:transparent;color:var(--text-2);font-size:12px;padding:7px 13px;border-radius:9px;cursor:pointer;font-family:inherit}
+.theme-btn:hover{color:var(--text-1);border-color:var(--text-3)}
+.scene{display:none}
+.scene.on{display:block}
+.fhead{display:flex;align-items:center;gap:10px;margin:20px 0 10px;flex-wrap:wrap}
+.fhead b{font-size:14px;font-weight:700}
+.fhead .fd{font-size:11.5px;color:var(--text-2)}
+.tag{font-family:var(--mono);font-size:10px;color:var(--text-2);border:1px solid var(--border);border-radius:20px;padding:2px 9px}
+.anno{margin-top:12px;font-size:12px;line-height:1.9;color:var(--text-2);max-width:1040px}
+.anno b{color:var(--text-1);font-weight:600}
+.anno .pk{font-family:var(--mono);font-size:10.5px;color:var(--info)}
+.win{position:relative;border:1px solid var(--border);border-radius:14px;background:var(--bg);overflow:hidden;box-shadow:var(--lift)}
+.spring{flex:1}
+
+/* ===== 通用控件 ===== */
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border:1px solid transparent;border-radius:8px;font-size:12px;font-family:inherit;background:transparent;color:var(--text-2);cursor:pointer;white-space:nowrap;transition:.15s}
+.btn:hover{background:var(--bg-hover);color:var(--text-1)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{background:var(--accent-2)}
+.btn.ghost{border-color:var(--border)}
+.btn.ghost:hover{border-color:var(--text-3)}
+.ib{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--text-3);border-radius:7px;cursor:pointer;font-size:11px;transition:.15s}
+.ib:hover{background:var(--bg-hover);color:var(--text-1)}
+.ib.danger:hover{color:var(--error);background:color-mix(in srgb,var(--error) 10%,transparent)}
+.seg{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--seg)}
+.seg button{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border:none;border-radius:6px;background:transparent;color:var(--text-2);font-size:11.5px;font-family:inherit;cursor:pointer;transition:.15s}
+.seg button i{font-size:9.5px}
+.seg button:hover{color:var(--text-1)}
+.seg button.on{background:var(--seg-on);color:var(--text-1);font-weight:600;box-shadow:var(--seg-shadow)}
+
+/* ============ A 列表页 · 书架行式 ============ */
+.list{display:flex;flex-direction:column;min-height:540px}
+.list-head{padding:22px 26px 14px;border-bottom:1px solid var(--border-2)}
+.list-head .l1{display:flex;align-items:baseline;gap:12px}
+.list-head h2{font-size:20px;font-weight:700;letter-spacing:.3px}
+.list-head .sum{font-family:var(--mono);font-size:11px;color:var(--text-3)}
+.list-head .l2{display:flex;align-items:center;gap:10px;margin-top:14px}
+.search{display:flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg-side);color:var(--text-3);font-size:12px;min-width:236px}
+.search input{border:none;outline:none;background:transparent;color:var(--text-1);font:inherit;flex:1;min-width:0}
+.search kbd{font-family:var(--mono);font-size:9.5px;border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text-3)}
+.sortsel{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-2);font-size:11.5px;cursor:pointer}
+.shelf-list{padding:8px 12px 22px}
+.sb{position:relative;display:grid;grid-template-columns:5px minmax(0,1fr) auto auto 54px;align-items:center;gap:16px;padding:15px 12px 15px 0;border-radius:12px;cursor:pointer;transition:.18s}
+.sb + .sb{box-shadow:0 -1px 0 var(--hair)}
+.sb:hover{background:var(--bg-hover);box-shadow:none}
+.sb:hover + .sb{box-shadow:none}
+.sb .spine{width:5px;height:38px;border-radius:0 4px 4px 0;background:var(--c,var(--text-3));opacity:.85;transition:.18s}
+.sb:hover .spine{height:46px;opacity:1}
+.sb .nm{font-size:14.5px;font-weight:650;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb .ds{margin-top:4px;font-size:11.5px;color:var(--text-2);line-height:1.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:620px}
+.sb .empty-ds{color:var(--text-3);font-style:normal}
+.sb .mix{display:flex;align-items:center;gap:3px}
+.sb .mix .t{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--text-2);padding:3px 7px;border-radius:6px;background:var(--bg-side);border:1px solid var(--border-2)}
+.sb .mix .t i{font-size:9.5px}
+.sb .mix .t.p i{color:var(--ic-pdf)} .sb .mix .t.w i{color:var(--ic-word)}
+.sb .mix .t.m i{color:var(--ic-md)} .sb .mix .t.h i{color:var(--ic-html)}
+.sb .meta{font-family:var(--mono);font-size:10.5px;color:var(--text-3);text-align:right;white-space:nowrap}
+.sb .meta b{color:var(--text-2);font-weight:600}
+.sb .ov{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:2px;opacity:0;transition:.18s}
+.sb:hover .ov{opacity:1}
+.sb .ov .bg{width:28px;height:28px;border-radius:7px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--text-2)}
+.sb .ov .bg:hover{color:var(--text-1);border-color:var(--text-3)}
+.sb .ov .bg.danger:hover{color:var(--error);border-color:color-mix(in srgb,var(--error) 45%,transparent)}
+.sb .ov .go{width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:11px}
+.sb:hover .ov .go{color:var(--text-1)}
+
+/* ============ A0 空态 + 弹窗 ============ */
+.blank{min-height:540px;display:flex;align-items:center;justify-content:center;padding:30px}
+.blank .in{text-align:center;max-width:470px}
+.blank .mark{width:70px;height:70px;margin:0 auto 18px;border-radius:20px;border:1px solid var(--border);background:var(--bg-side);display:flex;align-items:center;justify-content:center;position:relative}
+.blank .mark i{font-size:26px;color:var(--accent)}
+.blank .mark::after{content:'';position:absolute;left:50%;transform:translateX(-50%);bottom:-1px;width:34px;height:3px;border-radius:3px;background:var(--accent)}
+.blank h3{font-size:16px;font-weight:700;letter-spacing:.3px}
+.blank p{margin-top:8px;font-size:12px;color:var(--text-2);line-height:1.8}
+.blank .flow{display:flex;align-items:center;justify-content:center;gap:8px;margin:22px 0 24px;flex-wrap:wrap}
+.blank .flow .n{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-2);border:1px solid var(--border);border-radius:20px;padding:6px 13px;background:var(--bg-side)}
+.blank .flow .n b{font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600}
+.blank .flow .ar{font-size:9px;color:var(--text-3)}
+.mask{position:absolute;inset:0;background:rgba(15,20,28,.35);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.dlg{width:392px;border:1px solid var(--border);border-radius:14px;background:var(--bg);box-shadow:var(--lift);padding:18px 20px 16px}
+.dlg .dt{font-size:14.5px;font-weight:700;letter-spacing:.2px}
+.dlg .dd{margin-top:5px;font-size:11.5px;color:var(--text-2);line-height:1.7}
+.dlg label{display:block;margin:14px 0 5px;font-size:10.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
+.dlg input{width:100%;height:32px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text-1);font-size:12.5px;font-family:inherit;outline:none}
+.dlg input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,35,40,.08)}
+body.dark .dlg input:focus{box-shadow:0 0 0 3px rgba(230,237,243,.12)}
+.dlg .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border-2)}
+
+/* ============ B 详情页框架 ============ */
+.kb{display:flex;min-height:560px}
+.tree-col{width:270px;flex-shrink:0;border-right:1px solid var(--border-2);background:var(--bg-side);display:flex;flex-direction:column}
+.tree-col .th{display:flex;align-items:center;gap:8px;height:48px;padding:0 12px 0 16px;border-bottom:1px solid var(--border-2)}
+.tree-col .th .lb{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3)}
+.tree-col .th .spring{flex:1}
+.tree-col .th .gsep{width:1px;height:14px;background:var(--border);margin:0 2px}
+.tree-col .fr{padding:10px 12px}
+.tree-col .fr .si{display:flex;align-items:center;gap:7px;height:28px;padding:0 9px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text-3);font-size:11.5px}
+.tree-col .fr .si input{flex:1;min-width:0;border:none;outline:none;background:transparent;color:var(--text-1);font:inherit}
+.tree{flex:1;overflow-y:auto;padding:2px 8px 16px}
+.tr{position:relative;display:flex;align-items:center;gap:7px;height:30px;padding:0 8px;border-radius:7px;font-size:12px;color:var(--text-2);cursor:pointer;transition:.14s}
+.tr:hover{background:var(--bg-hover);color:var(--text-1)}
+.tr.on{background:var(--bg-active);color:var(--text-1);font-weight:600}
+.tr.on::before{content:'';position:absolute;left:-8px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--accent)}
+.tr .car{width:12px;font-size:8.5px;color:var(--text-3);text-align:center;flex-shrink:0}
+.tr .fi{font-size:11px;flex-shrink:0}
+.tr .fi.p{color:var(--ic-pdf)} .tr .fi.w{color:var(--ic-word)}
+.tr .fi.m{color:var(--ic-md)} .tr .fi.h{color:var(--ic-html)}
+.tr .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tr .cnt{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--text-3)}
+.tr.dir{color:var(--text-1);font-weight:600}
+.lv1{margin-left:19px;box-shadow:inset 2px 0 0 var(--hair)}
+.tree .up{display:flex;align-items:center;gap:7px;height:30px;padding:0 8px;margin-top:4px;border:1px dashed var(--border);border-radius:7px;font-size:11px;color:var(--info)}
+.reader{flex:1;display:flex;flex-direction:column;min-width:0}
+.rd-head{display:flex;align-items:center;gap:10px;height:48px;padding:0 18px;border-bottom:1px solid var(--border-2)}
+.crumb{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-3);min-width:0}
+.crumb .lk{cursor:pointer;white-space:nowrap}
+.crumb .lk:hover{color:var(--text-1)}
+.crumb .sp{font-size:8px}
+.crumb .cur{color:var(--text-1);font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-body{flex:1;overflow-y:auto;min-height:0}
+
+/* ============ B1 目录首页 ============ */
+.home{padding:0 0 40px}
+.cover{position:relative;padding:26px 30px 22px;background:linear-gradient(180deg,var(--bg-side),var(--bg));border-bottom:1px solid var(--border-2)}
+.cover .row{display:flex;align-items:flex-start;gap:16px}
+.cover .bk{width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:var(--lift)}
+.cover h2{font-size:22px;font-weight:700;letter-spacing:.4px;line-height:1.25}
+.cover .ds{margin-top:6px;font-size:12px;color:var(--text-2);line-height:1.75;max-width:640px}
+.cover .stats{display:flex;gap:0;margin-top:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg);max-width:560px}
+.cover .stats .s{flex:1;padding:9px 14px;border-right:1px solid var(--border-2)}
+.cover .stats .s:last-child{border-right:none}
+.cover .stats .k{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
+.cover .stats .v{margin-top:2px;font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text-1)}
+.cover .stats .v small{font-size:10px;font-weight:500;color:var(--text-3);margin-left:2px}
+.grp{padding:24px 30px 0}
+.grp-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.grp-h i{font-size:11px;color:var(--text-3)}
+.grp-h .t{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-2)}
+.grp-h .n{font-family:var(--mono);font-size:9.5px;color:var(--text-3);border:1px solid var(--border);border-radius:20px;padding:1px 7px}
+.grp-h .rule{flex:1;height:1px;background:var(--border-2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.cd{position:relative;display:flex;gap:12px;padding:14px 15px;border:1px solid var(--border-2);border-radius:11px;background:var(--bg);cursor:pointer;transition:.18s}
+.cd:hover{border-color:var(--border);box-shadow:var(--lift);transform:translateY(-1px)}
+.cd .idx{font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:.5px;padding-top:2px;flex-shrink:0;min-width:16px}
+.cd:hover .idx{color:var(--accent)}
+.cd .cb{min-width:0}
+.cd .ct{display:flex;align-items:center;gap:7px}
+.cd .ct i{font-size:11px;flex-shrink:0}
+.cd .ct i.p{color:var(--ic-pdf)} .cd .ct i.w{color:var(--ic-word)}
+.cd .ct i.m{color:var(--ic-md)} .cd .ct i.h{color:var(--ic-html)}
+.cd .cn{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd .cs{margin-top:5px;font-size:11px;color:var(--text-2);line-height:1.65;height:36px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cd .cm{margin-top:9px;font-family:var(--mono);font-size:9.5px;color:var(--text-3);letter-spacing:.3px}
+.home-empty{margin:28px 30px 0;padding:34px 20px;border:1px dashed var(--border);border-radius:12px;text-align:center;background:var(--bg-side)}
+.home-empty i.big{font-size:22px;color:var(--text-3)}
+.home-empty .t{margin:10px 0 16px;font-size:12.5px;color:var(--text-2)}
+
+/* ============ B2 整篇阅读 ============ */
+.read{display:grid;grid-template-columns:minmax(0,700px) 176px;gap:30px;justify-content:center;padding:26px 30px 70px;align-items:start}
+.art h1{font-size:25px;font-weight:700;letter-spacing:.3px;line-height:1.35}
+.art .am{display:flex;align-items:center;gap:14px;margin:12px 0 20px;font-family:var(--mono);font-size:10.5px;color:var(--text-3);padding-bottom:16px;border-bottom:1px solid var(--border-2)}
+.art .am .orig{display:inline-flex;align-items:center;gap:5px;color:var(--info);cursor:pointer}
+.art .am .orig i{font-size:10px}
+.art .body{font-size:14px;line-height:1.85;color:var(--text-1)}
+.art .body h2{margin:26px 0 10px;font-size:17px;font-weight:700;letter-spacing:.2px}
+.art .body h2::before{content:'';display:block;width:22px;height:2px;background:var(--accent);border-radius:2px;margin-bottom:9px}
+.art .body p{margin:10px 0}
+.art .body ul{margin:10px 0 10px 20px}
+.art .body li{margin:5px 0}
+.art .body code{font-family:var(--mono);font-size:12px;background:var(--bg-active);border-radius:4px;padding:1px 5px}
+.art .body pre{margin:14px 0;padding:14px 16px;border:1px solid var(--border-2);border-radius:10px;background:var(--bg-side);overflow-x:auto}
+.art .body pre code{background:none;padding:0;font-size:11.5px;line-height:1.7}
+.art .body blockquote{margin:14px 0;padding:2px 0 2px 14px;border-left:2px solid var(--accent);color:var(--text-2)}
+.toc{position:sticky;top:0;border-left:1px solid var(--border-2);padding-left:14px}
+.toc .tt{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.toc a{display:block;font-size:11.5px;color:var(--text-2);padding:5px 0;cursor:pointer;line-height:1.45;transition:.14s}
+.toc a:hover{color:var(--text-1)}
+.toc a.sub{padding-left:12px;font-size:11px;color:var(--text-3)}
+.toc a.act{color:var(--accent);font-weight:600}
+
+/* ============ B3 源码编辑 ============ */
+.edit{display:flex;flex-direction:column;height:100%;min-height:470px}
+.ed-bar{display:flex;align-items:center;gap:4px;padding:8px 18px;border-bottom:1px solid var(--border-2);background:var(--bg-side)}
+.ed-bar .gsep{width:1px;height:15px;background:var(--border);margin:0 6px}
+.ed-area{flex:1;display:grid;grid-template-columns:34px minmax(0,1fr);overflow:hidden}
+.ed-ln{padding:14px 0;text-align:right;font-family:var(--mono);font-size:11.5px;line-height:1.8;color:var(--text-3);background:var(--bg-side);border-right:1px solid var(--border-2);user-select:none}
+.ed-ln div{padding-right:9px}
+.ed-code{padding:14px 18px;font-family:var(--mono);font-size:12px;line-height:1.8;white-space:pre-wrap;color:var(--text-1);overflow:auto}
+.ed-code .h{color:var(--info);font-weight:600}
+.ed-code .b{color:var(--text-1);font-weight:600}
+.ed-code .q{color:var(--text-3);font-style:italic}
+.ed-status{display:flex;align-items:center;gap:16px;height:30px;padding:0 18px;border-top:1px solid var(--border-2);background:var(--bg-side);font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
+.ed-status .dot{width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;margin-right:6px}
+
+/* ============ G 规格 ============ */
+.spec{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:6px}
+.sp{border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.sp h4{font-size:12.5px;font-weight:700;letter-spacing:.3px;margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--border-2)}
+.sw{display:flex;flex-wrap:wrap;gap:8px}
+.sw .c{width:60px}
+.sw .c .b{height:34px;border-radius:8px;border:1px solid var(--border-2)}
+.sw .c .l{margin-top:5px;font-family:var(--mono);font-size:9px;color:var(--text-3);text-align:center}
+.sp ul{list-style:none;font-size:11.5px;line-height:2;color:var(--text-2)}
+.sp li b{color:var(--text-1);font-weight:600;font-family:var(--mono);font-size:10.5px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div><h1>资料库 · 双页新设计</h1><div class="sub">A 列表（书架行式） · B 详情（封面带 + 编号文章 + 阅读 / 编辑）</div></div>
+  <nav class="nav" id="nav">
+    <button class="on" data-s="sa">A 列表页</button>
+    <button data-s="sb">A0 空态 · 弹窗</button>
+    <button data-s="sc">B1 目录首页</button>
+    <button data-s="sd">B2 整篇阅读</button>
+    <button data-s="se">B3 源码编辑</button>
+    <button data-s="sf">G 规格</button>
+  </nav>
+  <button class="theme-btn" id="themeBtn"><i class="fas fa-moon"></i>&nbsp;夜间</button>
+</header>
+
+<!-- ========== A 列表页 ========== -->
+<section class="scene on" id="sa">
+  <div class="fhead"><b>页面 A · 资料库列表</b><span class="tag">书架行式</span>
+    <span class="fd">弃用等宽卡片网格：改为整幅横向行 + 左缘类型色带，信息密度与扫描效率同时提高。</span></div>
+  <div class="win list">
+    <div class="list-head">
+      <div class="l1"><h2>资料库</h2><span class="sum">4 库 · 14 篇 · 2.6 万字</span></div>
+      <div class="l2">
+        <label class="search"><i class="fas fa-magnifying-glass"></i>
+          <input placeholder="搜索库名或描述"><kbd>/</kbd></label>
+        <button class="sortsel"><i class="fas fa-arrow-down-short-wide"></i>最近更新</button>
+        <span class="spring"></span>
+        <button class="btn primary"><i class="fas fa-plus"></i>新建资料库</button>
+      </div>
+    </div>
+    <div class="shelf-list">
+      <div class="sb" style="--c:var(--ic-word)">
+        <span class="spine"></span>
+        <div>
+          <div class="nm">产品文档</div>
+          <div class="ds">需求、PRD 与会议纪要，与 qualia-code 三个版本迭代同步更新</div>
+        </div>
+        <div class="mix"><span class="t m"><i class="fas fa-file-lines"></i>3</span><span class="t w"><i class="fas fa-file-word"></i>1</span></div>
+        <div class="meta"><b>8.2k</b> 字<br>3 天前</div>
+        <div class="ov"><span class="bg"><i class="fas fa-pen"></i></span><span class="bg danger"><i class="fas fa-trash-can"></i></span><span class="go"><i class="fas fa-arrow-right"></i></span></div>
+      </div>
+      <div class="sb" style="--c:var(--ic-md)">
+        <span class="spine"></span>
+        <div>
+          <div class="nm">团队规范</div>
+          <div class="ds">编码规范、文案规范与视觉规范，Code Review 与设计评审的依据</div>
+        </div>
+        <div class="mix"><span class="t m"><i class="fas fa-file-lines"></i>6</span></div>
+        <div class="meta"><b>1.2w</b> 字<br>昨天</div>
+        <div class="ov"><span class="bg"><i class="fas fa-pen"></i></span><span class="bg danger"><i class="fas fa-trash-can"></i></span><span class="go"><i class="fas fa-arrow-right"></i></span></div>
+      </div>
+      <div class="sb" style="--c:var(--ic-pdf)">
+        <span class="spine"></span>
+        <div>
+          <div class="nm">竞品调研</div>
+          <div class="ds">主要竞品的功能评测、定价策略与用户评价摘录</div>
+        </div>
+        <div class="mix"><span class="t p"><i class="fas fa-file-pdf"></i>2</span><span class="t m"><i class="fas fa-file-lines"></i>1</span></div>
+        <div class="meta"><b>5.6k</b> 字<br>上周</div>
+        <div class="ov"><span class="bg"><i class="fas fa-pen"></i></span><span class="bg danger"><i class="fas fa-trash-can"></i></span><span class="go"><i class="fas fa-arrow-right"></i></span></div>
+      </div>
+      <div class="sb" style="--c:var(--ic-html)">
+        <span class="spine"></span>
+        <div>
+          <div class="nm">外部资料 · 抓取存档</div>
+          <div class="ds empty-ds">暂无描述</div>
+        </div>
+        <div class="mix"><span class="t h"><i class="fas fa-file-code"></i>1</span></div>
+        <div class="meta"><b>648</b> 字<br>10-12</div>
+        <div class="ov"><span class="bg"><i class="fas fa-pen"></i></span><span class="bg danger"><i class="fas fa-trash-can"></i></span><span class="go"><i class="fas fa-arrow-right"></i></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><b>行规格</b>：<span class="pk">grid 5px书脊 | 名称+描述 | 类型构成 | 等宽元信息 | 54px操作位</span>；行高约 68px，行间用 1px 发丝线（hover 时消失并整行换底色）。
+    <b>书脊</b>=该库占比最高的文件类型色，hover 从 38px 长到 46px，作为唯一的动态色彩。
+    <b>类型构成</b>替代原来的「N 篇文章」纯文字：每种类型一枚徽标 + 数量，图标着色沿用 <span class="pk">--ic-*</span>。
+    <b>元信息</b>右对齐等宽两行（字数 / 更新时间），扫描时形成一条竖线。<b>操作</b>默认隐藏，hover 浮出「编辑 / 删除 / 进入」三枚 28px 描边方块，替代原先的无边框幽灵图标。
+    <b>头部</b>新增搜索框与排序（当前列表页无任何筛选能力），标题行右侧汇总一句 mono 统计。</div>
+</section>
+
+<!-- ========== A0 空态 + 弹窗 ========== -->
+<section class="scene" id="sb">
+  <div class="fhead"><b>页面 A · 空态与新建</b><span class="tag">首次引导</span>
+    <span class="fd">无库时的引导；新建 / 重命名共用弹窗。</span></div>
+  <div class="win">
+    <div class="blank">
+      <div class="in">
+        <div class="mark"><i class="fas fa-book-open"></i></div>
+        <h3>还没有资料库</h3>
+        <p>资料库用于沉淀项目文档、规范与调研材料，<br>智能体在对话中自动发现并按需检索引用。</p>
+        <div class="flow">
+          <span class="n"><b>01</b>建库</span><i class="fas fa-chevron-right ar"></i>
+          <span class="n"><b>02</b>上传或新建文章</span><i class="fas fa-chevron-right ar"></i>
+          <span class="n"><b>03</b>对话中引用</span>
+        </div>
+        <button class="btn primary" style="height:32px;padding:0 20px"><i class="fas fa-plus"></i>新建资料库</button>
+        <p style="margin-top:14px;font-size:11px;color:var(--text-3)">也可以直接对智能体说：「帮我建一个『产品文档』资料库」</p>
+      </div>
+    </div>
+    <div class="mask">
+      <div class="dlg">
+        <div class="dt">新建资料库</div>
+        <div class="dd">库名是对话中的检索指称（如「查一下产品文档」），创建后可修改。</div>
+        <label>名称</label><input placeholder="如：产品文档">
+        <label>描述 · 可选</label><input placeholder="一句话说明这个库的用途">
+        <div class="acts"><button class="btn">取消</button><button class="btn primary"><i class="fas fa-check"></i>创建</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><b>空态</b>：70px 描边图标块（底缘加一条 34px 墨线压边，形成"书面"意象）→ 16px 标题 → 一句说明 → <b>横向胶囊步骤条</b>（mono 序号 01/02/03 + 箭头串联，替代原纵向三行文字，视线动线更短）→ 实底主 CTA。<br>
+    <b>弹窗</b>：<span class="pk">392px · radius 14 · pad 18/20</span>，字段标签改为 10.5px 大写字距灰阶（替代原 11px 常规标签，层级更清），底缘加分隔线 + 右对齐操作；输入框聚焦为墨色描边 + 8% 灰光圈。遮罩加 2px 模糊。</div>
+</section>
+
+<!-- ========== B1 目录首页 ========== -->
+<section class="scene" id="sc">
+  <div class="fhead"><b>页面 B1 · 详情页 目录首页</b><span class="tag">左树 + 右封面带</span>
+    <span class="fd">进入某个库后的落地页：库信息横幅 + 编号文章列表。</span></div>
+  <div class="win kb">
+    <div class="tree-col">
+      <div class="th"><span class="lb">Contents</span><span class="spring"></span>
+        <button class="ib" title="新建文件夹"><i class="fas fa-folder-plus"></i></button>
+        <button class="ib" title="新建文章"><i class="fas fa-file-circle-plus"></i></button>
+        <span class="gsep"></span>
+        <button class="ib" title="上传"><i class="fas fa-arrow-up-from-bracket"></i></button>
+      </div>
+      <div class="fr"><label class="si"><i class="fas fa-magnifying-glass"></i><input placeholder="筛选文章"></label></div>
+      <div class="tree">
+        <div class="tr dir"><i class="car fas fa-caret-down"></i><i class="fi fas fa-folder-open"></i><span class="tx">需求</span><span class="cnt">3</span></div>
+        <div class="tr lv1"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">2026-Q4 路线图</span></div>
+        <div class="tr lv1 on"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">工作台交互说明</span></div>
+        <div class="tr lv1"><i class="car"></i><i class="fi fas fa-file-word w"></i><span class="tx">PRD 评审稿</span></div>
+        <div class="tr dir"><i class="car fas fa-caret-right"></i><i class="fi fas fa-folder"></i><span class="tx">会议纪要</span><span class="cnt">2</span></div>
+        <div class="tr dir"><i class="car fas fa-caret-right"></i><i class="fi fas fa-folder"></i><span class="tx">竞品</span><span class="cnt">1</span></div>
+        <div class="tr"><i class="car"></i><i class="fi fas fa-file-code h"></i><span class="tx">index.html</span></div>
+        <div class="up"><i class="fas fa-circle-notch fa-spin"></i>design-review.docx 转换中</div>
+      </div>
+    </div>
+    <div class="reader">
+      <div class="rd-head">
+        <button class="ib" title="返回列表"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumb"><span class="lk">产品文档</span><i class="sp fas fa-chevron-right"></i><span class="cur">目录首页</span></div>
+        <span class="spring"></span>
+        <button class="btn ghost"><i class="fas fa-list-ul"></i>导读</button>
+      </div>
+      <div class="rd-body">
+        <div class="home">
+          <div class="cover">
+            <div class="row">
+              <div class="bk"><i class="fas fa-book-open"></i></div>
+              <div>
+                <h2>产品文档</h2>
+                <div class="ds">需求、PRD 与会议纪要，与 qualia-code 三个版本迭代同步更新。智能体在对话中可直接检索本库内容作为回答依据。</div>
+              </div>
+            </div>
+            <div class="stats">
+              <div class="s"><div class="k">Articles</div><div class="v">14<small>篇</small></div></div>
+              <div class="s"><div class="k">Words</div><div class="v">8.2<small>k 字</small></div></div>
+              <div class="s"><div class="k">Formats</div><div class="v">4<small>种</small></div></div>
+              <div class="s"><div class="k">Updated</div><div class="v">3<small>天前</small></div></div>
+            </div>
+          </div>
+          <div class="grp">
+            <div class="grp-h"><i class="fas fa-folder"></i><span class="t">需求</span><span class="n">3</span><span class="rule"></span></div>
+            <div class="cards">
+              <div class="cd"><div class="idx">01</div><div class="cb">
+                <div class="ct"><i class="fas fa-file-lines m"></i><span class="cn">工作台交互说明</span></div>
+                <div class="cs">定义工作台三栏布局的收起规则、面板宽度区间与拖拽热区响应。</div>
+                <div class="cm">1,240 字 · 3 天前</div></div></div>
+              <div class="cd"><div class="idx">02</div><div class="cb">
+                <div class="ct"><i class="fas fa-file-lines m"></i><span class="cn">2026-Q4 路线图</span></div>
+                <div class="cs">按季度拆分的目标、里程碑与依赖项，含外部厂商接入优先级。</div>
+                <div class="cm">2,880 字 · 上周</div></div></div>
+              <div class="cd"><div class="idx">03</div><div class="cb">
+                <div class="ct"><i class="fas fa-file-word w"></i><span class="cn">PRD 评审稿</span></div>
+                <div class="cs">三轮评审意见汇总，附修订记录与结论段落。</div>
+                <div class="cm">3,110 字 · 10-08</div></div></div>
+            </div>
+          </div>
+          <div class="grp">
+            <div class="grp-h"><i class="fas fa-folder"></i><span class="t">会议纪要</span><span class="n">2</span><span class="rule"></span></div>
+            <div class="cards">
+              <div class="cd"><div class="idx">04</div><div class="cb">
+                <div class="ct"><i class="fas fa-file-lines m"></i><span class="cn">10 月双周会</span></div>
+                <div class="cs">议题：检索链路升级排期、桌面端打包阻塞项归属。</div>
+                <div class="cm">640 字 · 昨天</div></div></div>
+              <div class="cd"><div class="idx">05</div><div class="cb">
+                <div class="ct"><i class="fas fa-file-pdf p"></i><span class="cn">设计评审记录</span></div>
+                <div class="cs">视觉规范落地范围与三处未决争议，含原件 PDF。</div>
+                <div class="cm">980 字 · 10-02</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><b>左侧树</b>：栏头改为 48px 高 + 大写 mono 标签「CONTENTS」（库名移到右栏封面带，不再重复占位），三枚图标按钮按「新建｜导入」分组；子级用 <span class="pk">inset 2px 发丝导轨</span>替代纯缩进；选中行 = 左缘 2px 墨条 + 加深底色；文件夹行右侧计数徽标。<br>
+    <b>封面带</b>：由「左对齐文字堆 + chips」改为 <b>横幅容器</b>（底色由侧栏灰渐变到白），44px 实心墨色方块压住左端；库描述放开到两行不再截断；
+    元信息由 3 枚小 chip 升级为 <b>四格统计条</b>（等宽数字 15px mono + 大写小标签），读起来像"库的仪表盘"而不是一串标签。<br>
+    <b>文章区</b>：分组头改为「图标 + 大写字距标题 + 计数 + 延展发丝线」；文章卡前加 <b>两位 mono 序号</b>（01/02…），hover 序号变墨色 —— 让列表有目录的秩序感；卡片网格 minmax 280px、gap 10px，比现有卡片更紧，摘要固定两行。</div>
+</section>
+
+<!-- ========== B2 整篇阅读 ========== -->
+<section class="scene" id="sd">
+  <div class="fhead"><b>页面 B2 · 整篇阅读</b><span class="tag">正文 + 侧边目录</span>
+    <span class="fd">Markdown 渲染正文，右栏 sticky TOC，头部提供视图切换与编辑入口。</span></div>
+  <div class="win kb">
+    <div class="tree-col">
+      <div class="th"><span class="lb">Contents</span><span class="spring"></span>
+        <button class="ib"><i class="fas fa-folder-plus"></i></button>
+        <button class="ib"><i class="fas fa-file-circle-plus"></i></button>
+        <span class="gsep"></span><button class="ib"><i class="fas fa-arrow-up-from-bracket"></i></button>
+      </div>
+      <div class="fr"><label class="si"><i class="fas fa-magnifying-glass"></i><input placeholder="筛选文章"></label></div>
+      <div class="tree">
+        <div class="tr dir"><i class="car fas fa-caret-down"></i><i class="fi fas fa-folder-open"></i><span class="tx">需求</span><span class="cnt">3</span></div>
+        <div class="tr lv1 on"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">工作台交互说明</span></div>
+        <div class="tr lv1"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">2026-Q4 路线图</span></div>
+        <div class="tr lv1"><i class="car"></i><i class="fi fas fa-file-word w"></i><span class="tx">PRD 评审稿</span></div>
+        <div class="tr dir"><i class="car fas fa-caret-right"></i><i class="fi fas fa-folder"></i><span class="tx">会议纪要</span><span class="cnt">2</span></div>
+      </div>
+    </div>
+    <div class="reader">
+      <div class="rd-head">
+        <button class="ib"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumb"><span class="lk">产品文档</span><i class="sp fas fa-chevron-right"></i><span class="lk">需求</span><i class="sp fas fa-chevron-right"></i><span class="cur">工作台交互说明</span></div>
+        <span class="spring"></span>
+        <div class="seg"><button class="on"><i class="fas fa-eye"></i>预览</button><button><i class="fas fa-code"></i>源码</button></div>
+        <button class="btn ghost"><i class="fas fa-pen"></i>编辑</button>
+      </div>
+      <div class="rd-body">
+        <div class="read">
+          <div class="art">
+            <h1>工作台交互说明</h1>
+            <div class="am">
+              <span class="orig"><i class="fas fa-file-word w"></i>源自 PRD 评审稿.docx</span>
+              <span>2026-10-21</span><span>1,240 字</span><span>约 4 分钟</span>
+            </div>
+            <div class="body">
+              <p>工作台由三栏构成：左侧会话列表、中间对话区、右侧资料面板。三栏均可独立收起，收起状态写入本地配置，跨会话保持。</p>
+              <h2>三栏收起规则</h2>
+              <p>每栏头部保留一枚 28px 收起按钮，收起后在相邻栏边缘出现 <code>6px</code> 悬浮导轨，悬停即展开预览、点击固定。</p>
+              <blockquote>窄屏（&lt;1200px）下右侧资料面板默认收起，避免对话区正文宽度低于 640px。</blockquote>
+              <ul><li>宽度区间：左 200–320px、右 240–420px，拖拽边界即区间端点</li><li>拖拽热区：<code>4px</code> 分隔线，命中后光标切换 <code>col-resize</code></li><li>双击分隔线恢复默认宽度</li></ul>
+              <h2>阅读区排版</h2>
+              <p>正文列最大宽度 700px，配合右栏 176px 目录整体居中；无目录时正文列保持同宽，切换文章不产生横向跳动。</p>
+              <pre><code>const readerGrid = 'minmax(0,700px) 176px'
+justifyContent: 'center'</code></pre>
+              <p>代码块超过 40 行时折叠，展开按钮固定在块底缘，避免长代码把正文推出视野。</p>
+            </div>
+          </div>
+          <aside class="toc">
+            <div class="tt">On this page</div>
+            <a class="act">三栏收起规则</a>
+            <a class="sub">边界与热区</a>
+            <a>阅读区排版</a>
+            <a class="sub">代码块折叠</a>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><b>头部</b>：视图切换由原来的裸按钮改为 <b>凹槽分段控件</b>（预览 / 源码，富文档为 原件 / 文本），与「编辑」描边按钮并排，操作分组清晰；面包屑补上中间目录层级，段间距 7px。<br>
+    <b>正文</b>：标题 25px/700；元信息行改为 mono 小字 + 底部分隔线，"源自原件"作为唯一的蓝色可点项；<b>h2 前加 22×2px 墨线短标</b>作为章节锚点，替代纯文字标题的平淡；引用块用 2px 墨色左线。<br>
+    <b>TOC</b>：176px 右栏 sticky 顶对齐，标题大写小字距，当前小节墨色加粗；正文与 TOC 栅格整体居中，正文宽度不随窗口拉伸。</div>
+</section>
+
+<!-- ========== B3 源码编辑 ========== -->
+<section class="scene" id="se">
+  <div class="fhead"><b>页面 B3 · 源码编辑</b><span class="tag">工具条 + 行号 + 状态栏</span>
+    <span class="fd">Markdown 原文编辑态，保存/取消在头部。</span></div>
+  <div class="win kb">
+    <div class="tree-col">
+      <div class="th"><span class="lb">Contents</span><span class="spring"></span>
+        <button class="ib"><i class="fas fa-folder-plus"></i></button>
+        <button class="ib"><i class="fas fa-file-circle-plus"></i></button>
+        <span class="gsep"></span><button class="ib"><i class="fas fa-arrow-up-from-bracket"></i></button>
+      </div>
+      <div class="fr"><label class="si"><i class="fas fa-magnifying-glass"></i><input placeholder="筛选文章"></label></div>
+      <div class="tree">
+        <div class="tr dir"><i class="car fas fa-caret-down"></i><i class="fi fas fa-folder-open"></i><span class="tx">需求</span><span class="cnt">3</span></div>
+        <div class="tr lv1 on"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">工作台交互说明</span></div>
+        <div class="tr lv1"><i class="car"></i><i class="fi fas fa-file-lines m"></i><span class="tx">2026-Q4 路线图</span></div>
+      </div>
+    </div>
+    <div class="reader">
+      <div class="rd-head">
+        <button class="ib"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumb"><span class="lk">产品文档</span><i class="sp fas fa-chevron-right"></i><span class="cur">工作台交互说明</span><span class="tag" style="margin-left:6px">编辑中</span></div>
+        <span class="spring"></span>
+        <button class="btn"><i class="fas fa-times"></i>取消</button>
+        <button class="btn primary"><i class="fas fa-check"></i>保存</button>
+      </div>
+      <div class="rd-body">
+        <div class="edit">
+          <div class="ed-bar">
+            <button class="ib" title="加粗"><i class="fas fa-bold"></i></button>
+            <button class="ib" title="斜体"><i class="fas fa-italic"></i></button>
+            <button class="ib" title="删除线"><i class="fas fa-strikethrough"></i></button>
+            <span class="gsep"></span>
+            <button class="ib" title="二级标题"><i class="fas fa-heading"></i></button>
+            <button class="ib" title="引用"><i class="fas fa-quote-left"></i></button>
+            <button class="ib" title="代码"><i class="fas fa-code"></i></button>
+            <span class="gsep"></span>
+            <button class="ib" title="无序列表"><i class="fas fa-list-ul"></i></button>
+            <button class="ib" title="有序列表"><i class="fas fa-list-ol"></i></button>
+            <button class="ib" title="表格"><i class="fas fa-table"></i></button>
+            <span class="gsep"></span>
+            <button class="ib" title="链接"><i class="fas fa-link"></i></button>
+            <span class="spring"></span>
+            <div class="seg"><button class="on"><i class="fas fa-code"></i>源码</button><button><i class="fas fa-eye"></i>预览</button></div>
+          </div>
+          <div class="ed-area">
+            <div class="ed-ln"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div></div>
+            <div class="ed-code"><span class="h"># 工作台交互说明</span>
+
+工作台由三栏构成：左侧会话列表、中间对话区、右侧资料面板。
+
+<span class="h">## 三栏收起规则</span>
+每栏头部保留一枚 28px 收起按钮，收起后出现 <span class="b">`6px`</span> 悬浮导轨。
+
+<span class="q">> 窄屏（&lt;1200px）下右侧面板默认收起。</span>
+
+<span class="h">## 阅读区排版</span>
+正文列最大宽度 700px，配合右栏 176px 目录整体居中。</div>
+          </div>
+          <div class="ed-status"><span><span class="dot"></span>已同步</span><span>12 行</span><span>1,240 字</span><span>Markdown</span><span class="spring" style="font-family:var(--mono)">Ctrl+S 保存 · Esc 取消</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><b>编辑态头部</b>：面包屑后加「编辑中」mono 徽标，明确当前不在阅读态；保存/取消仍在头部右缘（保存为唯一实心 accent）。<br>
+    <b>工具条</b>：底色转侧栏灰以区分编辑画布，按钮 26px 无边框、按「文本样式｜块级｜列表｜插入」四组发丝分隔；预览切换移到右端分段控件。<br>
+    <b>画布</b>：左 34px 行号栏（mono 11.5px，右对齐 + 发丝右边线），正文 12px mono / 1.8 行高；语法元素轻量着色（标题蓝、粗体墨、引用灰）只作辅助定位，不做完整高亮。<br>
+    <b>状态栏</b>：30px 高，同步状态用小圆点（绿=已同步，黄=编辑中，红=失败），右侧常驻快捷键提示。</div>
+</section>
+
+<!-- ========== G 规格 ========== -->
+<section class="scene" id="sf">
+  <div class="fhead"><b>G · 设计 token 与改动清单</b><span class="tag">相对现状</span></div>
+  <div class="spec">
+    <div class="sp"><h4>日间色板（近白石墨）</h4>
+      <div class="sw">
+        <div class="c"><div class="b" style="background:#ffffff"></div><div class="l">#fff</div></div>
+        <div class="c"><div class="b" style="background:#f6f8fa"></div><div class="l">#f6f8fa</div></div>
+        <div class="c"><div class="b" style="background:#eef1f4"></div><div class="l">hover</div></div>
+        <div class="c"><div class="b" style="background:#d0d7de"></div><div class="l">border</div></div>
+        <div class="c"><div class="b" style="background:#24292f"></div><div class="l">accent</div></div>
+        <div class="c"><div class="b" style="background:#1f2328"></div><div class="l">text-1</div></div>
+      </div>
+    </div>
+    <div class="sp"><h4>类型彩源（唯一彩色）</h4>
+      <div class="sw">
+        <div class="c"><div class="b" style="background:#519aba"></div><div class="l">md</div></div>
+        <div class="c"><div class="b" style="background:#e5615c"></div><div class="l">pdf</div></div>
+        <div class="c"><div class="b" style="background:#5b9bd5"></div><div class="l">docx</div></div>
+        <div class="c"><div class="b" style="background:#d9704a"></div><div class="l">html</div></div>
+        <div class="c"><div class="b" style="background:#0969da"></div><div class="l">info</div></div>
+        <div class="c"><div class="b" style="background:#cf222e"></div><div class="l">danger</div></div>
+      </div>
+    </div>
+    <div class="sp"><h4>字号与圆角</h4><ul>
+      <li><b>22/25</b> 封面带库名 · 文章大标题</li>
+      <li><b>14.5</b> 列表行库名（原 13.5）</li>
+      <li><b>13</b> 文章卡标题（原 13，加粗 650）</li>
+      <li><b>11.5</b> 描述与正文摘要</li>
+      <li><b>10–10.5</b> mono 元信息 / 序号 / 标签</li>
+      <li><b>radius</b> 行 12 · 卡 11 · 按钮 8 · 徽标 20</li>
+    </ul></div>
+    <div class="sp"><h4>相对现状的关键改动</h4><ul>
+      <li><b>A</b> 卡片网格 → 书架行式（色带书脊 + 类型构成徽标 + 右对齐等宽元信息）</li>
+      <li><b>A</b> 新增列表搜索框与排序，头部加总量汇总</li>
+      <li><b>A0</b> 空态纵向步骤文字 → 横向胶囊步骤条；弹窗字段标签大写字距化</li>
+      <li><b>B</b> 树栏头改用 mono 标签「CONTENTS」，库名不再重复</li>
+      <li><b>B</b> Hero + chips → 渐变封面带 + 四格统计条</li>
+      <li><b>B</b> 文章卡加 mono 序号，分组头大写字距化</li>
+      <li><b>B</b> 阅读 h2 加墨线短标，TOC sticky + 当前项高亮</li>
+      <li><b>B</b> 编辑加行号栏、语法轻着色、状态栏与快捷键提示</li>
+    </ul></div>
+    <div class="sp"><h4>风险与取舍</h4><ul>
+      <li><b>行式列表</b>在库数很多（&gt;30）时纵向偏长，可保留网格作为可切换视图</li>
+      <li><b>封面带四格统计</b>需后端补 formats 字段（类型种数），否则改显示首字母类型分布</li>
+      <li><b>序号</b>依赖前端渲染顺序计算，与过滤/分组重排联动需注意编号语义仅为视觉锚</li>
+      <li><b>书脊取主类型色</b>：混合库以占比最高者着色，空库用 <code>--text-3</code> 灰</li>
+    </ul></div>
+  </div>
+</section>
+
+<script>
+const nav=document.getElementById('nav');
+nav.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  nav.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.scene').forEach(s=>s.classList.toggle('on',s.id===b.dataset.s));
+  window.scrollTo({top:0});
+});
+const tb=document.getElementById('themeBtn');
+tb.addEventListener('click',()=>{
+  const d=document.body.classList.toggle('dark');
+  tb.innerHTML=d?'<i class="fas fa-sun"></i>&nbsp;日间':'<i class="fas fa-moon"></i>&nbsp;夜间';
+});
+</script>
+</body>
+</html>

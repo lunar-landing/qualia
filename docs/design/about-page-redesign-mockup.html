@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>关于页新版设计 · About Page Redesign Mockup</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  /* ===== 石墨工程日间基底（与 qualia-code-ui light-theme 对齐） ===== */
+  :root {
+    --page-bg: #f6f8fa;
+    --panel-bg: #ffffff;
+    --rail-bg: #eff2f5;
+    --inset-bg: #f6f8fa;
+    --border: #d0d7de;
+    --border-soft: #e4e8ee;
+    --ink: #24292f;
+    --ink-2: #57606a;
+    --ink-3: #8b949e;
+    --accent: #24292f;
+    --focus-ring: rgba(36, 41, 47, 0.10);
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--page-bg);
+    font-family: var(--sans);
+    color: var(--ink);
+    padding: 40px 48px 56px;
+  }
+
+  /* ===== 设计稿页头 ===== */
+  .doc-head { max-width: 1560px; margin: 0 auto 8px; }
+  .doc-head h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .doc-head h1 i { font-size: 14px; color: var(--ink-3); margin-right: 10px; }
+  .doc-head p { margin-top: 6px; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
+  .doc-head .tag {
+    display: inline-block; margin-left: 10px; padding: 2px 9px;
+    font-size: 10.5px; font-weight: 600; color: var(--ink-2);
+    background: var(--rail-bg); border: 1px solid var(--border);
+    border-radius: 999px; vertical-align: 2px;
+  }
+
+  /* ===== A/B 对比容器 ===== */
+  .variants {
+    max-width: 1560px; margin: 24px auto 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+    align-items: start;
+  }
+  .variant-block { min-width: 0; }
+  .v-head {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;
+  }
+  .v-badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 6px;
+    background: var(--ink); color: #fff; letter-spacing: 0.5px;
+  }
+  .v-title { font-size: 14px; font-weight: 700; }
+  .v-sub { font-size: 11.5px; color: var(--ink-3); }
+
+  /* ===== 模拟设置弹窗外框（还原真实容器语境） ===== */
+  .dialog {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(31, 35, 40, 0.10);
+    display: flex; height: 560px; overflow: hidden;
+  }
+  /* 左侧导航栏 */
+  .rail {
+    width: 168px; flex-shrink: 0;
+    background: var(--rail-bg);
+    border-right: 1px solid var(--border-soft);
+    padding: 14px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .rail .grp { font-size: 10px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.6px; padding: 10px 10px 5px; text-transform: uppercase; }
+  .rail .item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .rail .item i { width: 14px; text-align: center; font-size: 12px; }
+  .rail .item.on {
+    background: #ffffff; color: var(--ink); font-weight: 600;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(31, 35, 40, 0.05);
+  }
+  /* 内容区通用 */
+  .content { flex: 1; min-width: 0; padding: 22px 26px; overflow: hidden; display: flex; flex-direction: column; }
+  .sec-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); margin-bottom: 18px; }
+  .sec-head .t { font-size: 15px; font-weight: 700; }
+  .sec-head .s { font-size: 11px; color: var(--ink-3); }
+
+  /* ============================================================
+     V1 · 双栏铭牌：左品牌 + 右规格清单（工程铭牌式，信息密度高）
+     ============================================================ */
+  .np { flex: 1; display: grid; grid-template-columns: 42% 1fr; gap: 0; min-height: 0; }
+  .np-brand {
+    display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+    padding-right: 24px; border-right: 1px dashed var(--border);
+  }
+  .np-logo {
+    width: 56px; height: 56px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, #2c333b, #1c2128);
+    color: #e9edf2;
+    box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .np-logo svg { width: 28px; height: 28px; fill: currentColor; }
+  .np-name { margin-top: 14px; font-size: 19px; font-weight: 700; letter-spacing: -0.4px; }
+  .np-slogan { margin-top: 3px; font-size: 12px; color: var(--ink-2); }
+  .np-ver {
+    margin-top: 12px; font-family: var(--mono); font-size: 11px;
+    color: var(--ink); background: var(--inset-bg);
+    border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px;
+  }
+  .np-desc {
+    margin-top: 16px; font-size: 11.5px; line-height: 1.8; color: var(--ink-2);
+  }
+  .np-links { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--ink-2); text-decoration: none;
+    padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--panel-bg);
+    transition: all .15s;
+  }
+  .chip:hover { background: var(--inset-bg); color: var(--ink); }
+
+  .np-spec { display: flex; flex-direction: column; justify-content: center; padding-left: 26px; }
+  .spec-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .spec-title::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
+  .spec { display: flex; flex-direction: column; }
+  .spec-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 8.5px 0; border-bottom: 1px dashed var(--border-soft);
+  }
+  .spec-row:last-child { border-bottom: none; }
+  .spec-row .k { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2); }
+  .spec-row .k i { width: 13px; text-align: center; font-size: 11px; color: var(--ink-3); }
+  .spec-row .v { font-size: 11.5px; color: var(--ink); font-weight: 500; text-align: right; }
+  .spec-row .v.mono { font-family: var(--mono); font-size: 11px; }
+
+  .np-foot {
+    margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border-soft);
+    font-size: 10.5px; color: var(--ink-3); display: flex; justify-content: space-between; align-items: center;
+  }
+  .np-foot .upd { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-2); cursor: pointer; }
+  .np-foot .upd:hover { color: var(--ink); }
+
+  /* ============================================================
+     V2 · 居中名录：延续现有垂直 hero，信息降为双列键值网格
+     ============================================================ */
+  .ct { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 0; }
+  .ct-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 6px; }
+  .ct-logo {
+    width: 50px; height: 50px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, #2c333b, #1c2128);
+    color: #e9edf2;
+    box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .ct-logo svg { width: 25px; height: 25px; fill: currentColor; }
+  .ct-name-row { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  .ct-name { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .ct-ver {
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink);
+    background: var(--inset-bg); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 10px;
+  }
+  .ct-slogan { font-size: 12px; color: var(--ink-2); }
+  .ct-desc { max-width: 420px; margin: 12px auto 0; font-size: 11.5px; line-height: 1.75; color: var(--ink-2); }
+
+  /* 双列键值网格：把「规格 + 协议 + 技术栈」收进一张 2×N 卡片 */
+  .ct-grid {
+    width: 100%; max-width: 430px; margin-top: 18px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--inset-bg); overflow: hidden;
+    display: grid; grid-template-columns: 1fr 1fr;
+  }
+  .ct-cell {
+    padding: 11px 14px; text-align: left;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .ct-cell:nth-child(odd) { border-right: 1px solid var(--border-soft); }
+  .ct-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .ct-cell .ck { font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+  .ct-cell .ck i { font-size: 9.5px; }
+  .ct-cell .cv { margin-top: 4px; font-size: 11.5px; font-weight: 500; color: var(--ink); }
+  .ct-cell .cv.mono { font-family: var(--mono); font-size: 11px; }
+
+  .ct-links { margin-top: 16px; display: flex; gap: 8px; }
+  .ct-foot { margin-top: auto; padding-top: 14px; font-size: 10.5px; color: var(--ink-3); }
+
+  /* ===== 底部：差异点与风险点 ===== */
+  .notes {
+    max-width: 1560px; margin: 30px auto 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+  }
+  .note {
+    background: var(--panel-bg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .note h3 { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .note h3 i { color: var(--ink-3); font-size: 12px; }
+  .note ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .note li { font-size: 11.5px; line-height: 1.65; color: var(--ink-2); padding-left: 14px; position: relative; }
+  .note li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); }
+  .note li b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+  <header class="doc-head">
+    <h1><i class="fa-regular fa-id-badge"></i>关于页新版设计<span class="tag">石墨工程 · 日间</span><span class="tag">设置弹窗 · About Tab</span></h1>
+    <p>相对现版（居中 hero + 两行信息卡）的增量：补齐「构建/运行环境规格」「快速链接」「检查更新」三类 About 页标准信息；提供两种布局取向——V1 工程铭牌（左品牌右规格，密度高）、V2 居中名录（延续现有结构，改动温和）。配色与组件沿用现有 CSS 变量体系。</p>
+  </header>
+
+  <div class="variants">
+    <!-- ================= V1 ================= -->
+    <div class="variant-block">
+      <div class="v-head">
+        <span class="v-badge">V1</span>
+        <span class="v-title">双栏铭牌</span>
+        <span class="v-sub">左品牌 · 右规格清单，工程感与信息密度优先</span>
+      </div>
+      <div class="dialog">
+        <aside class="rail">
+          <div class="grp">服务</div>
+          <div class="item"><i class="fas fa-robot"></i>模型</div>
+          <div class="item"><i class="fas fa-server"></i>MCP</div>
+          <div class="item"><i class="fas fa-gears"></i>系统</div>
+          <div class="grp">扩展</div>
+          <div class="item"><i class="fas fa-shapes"></i>技能</div>
+          <div class="item"><i class="fas fa-wrench"></i>工具</div>
+          <div class="grp">其他</div>
+          <div class="item"><i class="fas fa-palette"></i>个性</div>
+          <div class="item on"><i class="fas fa-circle-info"></i>关于</div>
+        </aside>
+        <div class="content">
+          <div class="sec-head"><span class="t">关于</span><span class="s">产品信息与开源协议</span></div>
+          <div class="np">
+            <!-- 左：品牌 -->
+            <div class="np-brand">
+              <div class="np-logo">
+                <svg viewBox="0 0 512 512"><path d="M278.5 215.6L23 471c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l57-57 68 0c49.7 0 97.9-14.4 139-41c11.1-7.2 5.5-23-7.8-23c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l81-24.3c2.5-.8 4.8-2.1 6.7-4l22.4-22.4c10.1-10.1 2.9-27.3-11.3-27.3l-32.2 0c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l112-33.6c4-1.2 7.4-3.9 9.3-7.7C506.4 207.6 512 184.1 512 160c0-41-16.3-80.3-45.3-109.3l-5.5-5.5C432.3 16.3 393 0 352 0s-80.3 16.3-109.3 45.3L139 149C91 197 64 262.1 64 330l0 55.3L253.6 195.8c6.2-6.2 16.4-6.2 22.6 0c5.4 5.4 6.1 13.6 2.2 19.8z"/></svg>
+              </div>
+              <div class="np-name">Qualia Code</div>
+              <div class="np-slogan">AI 编程搭档</div>
+              <span class="np-ver">v1.4.2</span>
+              <p class="np-desc">基于 Qualia 框架打造的 AI 编程助手：多会话管理、代码生成与分析、MCP 工具集成、多模型动态切换，支持 Web 与桌面双形态。</p>
+              <div class="np-links">
+                <a class="chip" href="javascript:void(0)"><i class="fab fa-github"></i>GitHub</a>
+                <a class="chip" href="javascript:void(0)"><i class="fas fa-book"></i>文档</a>
+                <a class="chip" href="javascript:void(0)"><i class="fas fa-bug"></i>反馈问题</a>
+              </div>
+            </div>
+            <!-- 右：规格清单 -->
+            <div class="np-spec">
+              <div class="spec-title">Build Info</div>
+              <div class="spec">
+                <div class="spec-row">
+                  <span class="k"><i class="fas fa-code-branch"></i>版本</span>
+                  <span class="v mono">1.4.2 · release</span>
+                </div>
+                <div class="spec-row">
+                  <span class="k"><i class="fas fa-calendar-day"></i>构建日期</span>
+                  <span class="v mono">2026-10-18</span>
+                </div>
+                <div class="spec-row">
+                  <span class="k"><i class="fab fa-java"></i>运行时</span>
+                  <span class="v mono">Java 17.0.10</span>
+                </div>
+                <div class="spec-row">
+                  <span class="k"><i class="fas fa-layer-group"></i>框架</span>
+                  <span class="v">Spring Boot 3.2 · Vue 3</span>
+                </div>
+                <div class="spec-row">
+                  <span class="k"><i class="fas fa-plug"></i>协议集成</span>
+                  <span class="v">MCP</span>
+                </div>
+                <div class="spec-row">
+                  <span class="k"><i class="fas fa-scale-balanced"></i>开源协议</span>
+                  <span class="v">Apache License 2.0</span>
+                </div>
+              </div>
+              <div class="np-foot">
+                <span>© 2026 Qualia</span>
+                <span class="upd"><i class="fas fa-rotate"></i>检查更新</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= V2 ================= -->
+    <div class="variant-block">
+      <div class="v-head">
+        <span class="v-badge">V2</span>
+        <span class="v-title">居中名录</span>
+        <span class="v-sub">延续现有垂直结构，信息收进双列键值网格</span>
+      </div>
+      <div class="dialog">
+        <aside class="rail">
+          <div class="grp">服务</div>
+          <div class="item"><i class="fas fa-robot"></i>模型</div>
+          <div class="item"><i class="fas fa-server"></i>MCP</div>
+          <div class="item"><i class="fas fa-gears"></i>系统</div>
+          <div class="grp">扩展</div>
+          <div class="item"><i class="fas fa-shapes"></i>技能</div>
+          <div class="item"><i class="fas fa-wrench"></i>工具</div>
+          <div class="grp">其他</div>
+          <div class="item"><i class="fas fa-palette"></i>个性</div>
+          <div class="item on"><i class="fas fa-circle-info"></i>关于</div>
+        </aside>
+        <div class="content">
+          <div class="sec-head"><span class="t">关于</span><span class="s">产品信息与开源协议</span></div>
+          <div class="ct">
+            <div class="ct-hero">
+              <div class="ct-logo">
+                <svg viewBox="0 0 512 512"><path d="M278.5 215.6L23 471c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l57-57 68 0c49.7 0 97.9-14.4 139-41c11.1-7.2 5.5-23-7.8-23c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l81-24.3c2.5-.8 4.8-2.1 6.7-4l22.4-22.4c10.1-10.1 2.9-27.3-11.3-27.3l-32.2 0c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l112-33.6c4-1.2 7.4-3.9 9.3-7.7C506.4 207.6 512 184.1 512 160c0-41-16.3-80.3-45.3-109.3l-5.5-5.5C432.3 16.3 393 0 352 0s-80.3 16.3-109.3 45.3L139 149C91 197 64 262.1 64 330l0 55.3L253.6 195.8c6.2-6.2 16.4-6.2 22.6 0c5.4 5.4 6.1 13.6 2.2 19.8z"/></svg>
+              </div>
+              <div class="ct-name-row">
+                <span class="ct-name">Qualia Code</span>
+                <span class="ct-ver">v1.4.2</span>
+              </div>
+              <div class="ct-slogan">AI 编程搭档</div>
+              <p class="ct-desc">基于 Qualia 框架打造的 AI 编程助手：多会话管理、代码生成与分析、MCP 工具集成、多模型动态切换，支持 Web 与桌面双形态。</p>
+            </div>
+            <!-- 双列键值网格：规格 + 协议收纳进一张卡 -->
+            <div class="ct-grid">
+              <div class="ct-cell">
+                <div class="ck"><i class="fas fa-calendar-day"></i>构建日期</div>
+                <div class="cv mono">2026-10-18</div>
+              </div>
+              <div class="ct-cell">
+                <div class="ck"><i class="fab fa-java"></i>运行时</div>
+                <div class="cv mono">Java 17.0.10</div>
+              </div>
+              <div class="ct-cell">
+                <div class="ck"><i class="fas fa-layer-group"></i>技术栈</div>
+                <div class="cv">Spring Boot 3 · Vue 3</div>
+              </div>
+              <div class="ct-cell">
+                <div class="ck"><i class="fas fa-scale-balanced"></i>开源协议</div>
+                <div class="cv">Apache License 2.0</div>
+              </div>
+            </div>
+            <div class="ct-links">
+              <a class="chip" href="javascript:void(0)"><i class="fab fa-github"></i>GitHub</a>
+              <a class="chip" href="javascript:void(0)"><i class="fas fa-book"></i>文档</a>
+              <a class="chip" href="javascript:void(0)"><i class="fas fa-bug"></i>反馈问题</a>
+            </div>
+            <div class="ct-foot">© 2026 Qualia · Apache License 2.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 差异点与风险点 ===== -->
+  <div class="notes">
+    <div class="note">
+      <h3><i class="fas fa-code-fork"></i>两版差异点</h3>
+      <ul>
+        <li><b>布局取向：</b>V1 横向双栏（品牌 42% + 规格 58%），Build Info 单列键值、dashed 分隔线，工程铭牌质感；V2 纵向居中，双列网格收纳信息，与现版视觉连续性最强。</li>
+        <li><b>新增信息：</b>两版均补齐 构建日期 / 运行时 / 框架版本 / 快速链接（GitHub · 文档 · 反馈）；V1 额外带「检查更新」入口，V2 不带（避免承诺未实现的更新逻辑）。</li>
+        <li><b>版本展示：</b>V1 版本徽章独立一行（左对齐节奏）；V2 徽章与产品名同行（节省纵向空间）。</li>
+        <li><b>数据来源：</b>构建日期/运行时需后端在 about 接口补两个字段；拿不到时两版均可整行隐藏，不阻塞落地。</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3><i class="fas fa-triangle-exclamation"></i>风险点</h3>
+      <ul>
+        <li><b>V1：</b>设置弹窗内容区宽约 620px，双栏在 620px 下品牌列描述文案较长时可能挤压规格列，落地时需把 desc 控制在两行内（或弹窗加宽到 680px）。</li>
+        <li><b>V1：</b>「检查更新」是新增交互承诺，若近期无更新检查实现，建议首版去掉该入口。</li>
+        <li><b>V2：</b>信息增多后纵向高度接近弹窗上限，小屏（高度 &lt; 560px）时需允许内容区滚动。</li>
+        <li><b>共性：</b>链接芯片的跳转目标（GitHub 仓库地址、文档站）需与 README / deploy-docs 对齐，桌面端壳内点击需走系统浏览器（BrowserPanel 已有外链转交逻辑）。</li>
+      </ul>
+    </div>
+  </div>
+
+</body>
+</html>

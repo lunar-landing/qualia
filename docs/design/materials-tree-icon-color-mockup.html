@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料树文件图标 · 颜色区分对比</title>
+<!--
+  资料树文件图标 · 颜色区分对比 · materials-tree-icon-color-mockup
+  ----------------------------------------------------------------------------
+  议题：资料库侧边栏文件树的类型图标是否按类型上色（pdf 红 / word 蓝 …）。
+  现状：MaterialTreeNode.vue 已按 kind 区分字形（fa-file-pdf/word/code/lines），
+        但色彩统一 --text-secondary 灰阶（代码注释注明「克制」是刻意决策）；
+        而应用里已存在一套文档配色 .icon-pdf/.icon-word/.icon-excel（styles/index.css），
+        用于聊天附件 chip 与上传预览条 —— 同一份 PDF 在聊天里是红色、在树里却是灰色。
+  三方案：
+    A 灰阶现状：树最安静，代价是视觉词汇断裂 + 12px 下类型辨识靠逐行读文件名
+    B 仅原件上色（推荐）：pdf 红 / docx 蓝（未来 excel 绿）完全对齐既有 .icon-* 词汇，
+      零新增颜色；md 是库内多数派 = 默认态保持灰阶，少数原件行自然跳出
+    C 全类型上色：md/html 也上色（需新增色值）；类型辨识最彻底，
+      但彩色行过半后颜色从「信息」退化为「装饰」，与石墨灰阶 + 唯一 accent 语言冲突
+  定稿（2026-10-20）：采纳 C 全类型上色 —— md #519aba / html #d9704a 已加入
+  styles/index.css :root（--ic-md / --ic-html），树 / 详情页 / 聊天 chip 共用 .icon-* 词汇。
+  可交互：右上角切换日间/夜间（两主题下同一套色值均需可读，与 app 现状一致）。
+  零依赖 · Font Awesome 6.7.2 CDN。
+  ============================================================================
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+:root {
+  --bg-app: #ffffff;
+  --bg-panel: #f6f8fa;
+  --bg-hover: #e9edf1;
+  --bg-active: #e4e9ee;
+  --bg-input: #f6f8fa;
+  --text-primary: #1f2328;
+  --text-secondary: #57657a;
+  --text-muted: #8c959f;
+  --border-color: #d0d7de;
+  --accent-light: #32383f;
+  --accent-ink: #ffffff;
+  --ic-pdf: #e5615c;   /* 既有 .icon-pdf */
+  --ic-word: #5b9bd5;  /* 既有 .icon-word */
+  --ic-excel: #4caf7d; /* 既有 .icon-excel */
+  --ic-md: #519aba;    /* C 方案新增候选（无既有词汇背书） */
+  --ic-html: #d9704a;  /* C 方案新增候选（无既有词汇背书） */
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+body.dark-theme {
+  --bg-app: #080a10;
+  --bg-panel: #0d1117;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(230, 237, 243, 0.10);
+  --bg-input: #0b0e14;
+  --text-primary: #e4e9f2;
+  --text-secondary: #8f97ae;
+  --text-muted: #4f566b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --accent-light: #f0f6fc;
+  --accent-ink: #0d1117;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  transition: background 0.2s ease, color 0.2s ease;
+  padding: 28px 32px 48px;
+}
+
+/* ===== 页头 ===== */
+.page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.page-head h1 { font-size: 19px; font-weight: 700; letter-spacing: 0.2px; }
+.page-head .sub { font-size: 12.5px; color: var(--text-secondary); }
+.theme-btn {
+  margin-left: auto; border: 1px solid var(--border-color); background: transparent;
+  color: var(--text-secondary); font-size: 12px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+}
+.theme-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.page-tip { font-size: 12px; color: var(--text-secondary); margin-bottom: 22px; line-height: 1.7; }
+.page-tip b { color: var(--text-primary); font-weight: 600; }
+.page-tip .mono { font-family: var(--mono); font-size: 11px; }
+
+/* ===== 三列对比 ===== */
+.variants { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 1180px) { .variants { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+.variant-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.variant-head .vn { font-size: 14px; font-weight: 700; }
+.variant-head .vd { font-size: 11.5px; color: var(--text-secondary); }
+.badge-rec {
+  font-size: 10px; font-weight: 600; color: var(--accent-ink); background: var(--accent-light);
+  border-radius: 20px; padding: 2px 9px; letter-spacing: 1px;
+}
+
+/* ===== 侧边栏实例（264px，对齐产品 kb-tree-col） ===== */
+.sidebar {
+  width: 264px; border: 1px solid var(--border-color); border-radius: 12px;
+  background: var(--bg-panel); overflow: hidden;
+}
+.tree-head {
+  display: flex; align-items: center; gap: 7px; height: 48px; padding: 0 12px;
+  border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+.tree-head .bk { color: var(--text-secondary); font-size: 12px; }
+.tree-head .kb-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-head .spring { flex: 1; }
+.head-btn {
+  width: 26px; height: 26px; border: none; background: transparent; color: var(--text-secondary);
+  border-radius: 7px; cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; justify-content: center;
+}
+.filter-row { padding: 8px 10px; border-bottom: 1px solid var(--border-color); }
+.filter {
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px;
+  background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px;
+}
+.filter i { color: var(--text-muted); font-size: 10.5px; }
+.filter input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  color: var(--text-primary); font-size: 12px;
+}
+.filter input::placeholder { color: var(--text-muted); }
+.filter .esc {
+  font-family: var(--mono); font-size: 9px; color: var(--text-muted);
+  border: 1px solid var(--border-color); border-radius: 4px; padding: 1px 4px; flex-shrink: 0;
+}
+
+/* ===== 树区（行样式对齐 app：40px 行 + 选中左缘竖条） ===== */
+.kb-tree { max-height: 460px; overflow-y: auto; padding: 6px; }
+.tree-row {
+  display: flex; align-items: center; gap: 8px; height: 40px; margin: 2px 0;
+  padding: 0 9px; border-radius: 8px; font-size: 12.5px; cursor: default; user-select: none;
+  position: relative;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.on { background: var(--bg-active); }
+.tree-row.on::before {
+  content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px;
+  border-radius: 2px; background: var(--accent-light);
+}
+.caret { width: 12px; color: var(--text-secondary); font-size: 9px; flex-shrink: 0; text-align: center; }
+.fic { width: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }
+/* 图标着色类：B/C 由 JS 按 kind 挂载 */
+.fic.ic-pdf { color: var(--ic-pdf); }
+.fic.ic-word { color: var(--ic-word); }
+.fic.ic-excel { color: var(--ic-excel); }
+.fic.ic-md { color: var(--ic-md); }
+.fic.ic-html { color: var(--ic-html); }
+.nm { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.words { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+
+/* ===== 设计说明卡 ===== */
+.notes {
+  width: 264px; margin-top: 10px; border: 1px solid var(--border-color); border-radius: 10px;
+  padding: 12px 14px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.75;
+}
+.notes b { color: var(--text-primary); font-weight: 600; }
+.notes ul { list-style: none; }
+.notes li { padding-left: 14px; position: relative; margin: 3px 0; }
+.notes li::before { content: ''; position: absolute; left: 2px; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); }
+.notes.rec { border-color: var(--accent-light); }
+
+/* ===== 词汇一致性对照 ===== */
+.vocab-cap { font-size: 13.5px; font-weight: 700; margin: 34px 0 4px; }
+.vocab-sub { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+.vocab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 900px) { .vocab-grid { grid-template-columns: 1fr; } }
+.vocab-panel {
+  border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-panel);
+  padding: 14px 16px 16px;
+}
+.vp-tag {
+  display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: 1px;
+  border: 1px solid var(--border-color); color: var(--text-secondary);
+  border-radius: 20px; padding: 2px 10px; margin-bottom: 12px;
+}
+.vp-tag.ok { color: var(--ic-excel); border-color: var(--ic-excel); opacity: 0.85; }
+.vp-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; }
+.vp-cap { width: 96px; flex-shrink: 0; font-size: 10.5px; color: var(--text-muted); line-height: 1.5; }
+/* 聊天气泡附件 chip（简化自 MessageItem 文档卡） */
+.chip-doc {
+  width: 158px; border: 1px solid var(--border-color); border-radius: 10px;
+  background: var(--bg-app); padding: 9px 11px; display: flex; align-items: center; gap: 9px;
+}
+.chip-doc i { font-size: 15px; }
+.chip-doc .cn { flex: 1; min-width: 0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-doc .ce { font-family: var(--mono); font-size: 9px; color: var(--text-muted); }
+/* 上传预览条（简化自 InputArea） */
+.up-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+.up-row i { font-size: 14px; }
+.up-row .us { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-left: 2px; }
+.up-row .st { margin-left: auto; font-size: 10px; color: var(--ic-excel); }
+/* 树行摘录（复用 .tree-row） */
+.tree-excerpt { border: 1px dashed var(--border-color); border-radius: 10px; padding: 4px 6px; background: var(--bg-app); }
+.vp-state { font-size: 11px; margin-top: 10px; color: var(--text-secondary); }
+.vp-state b { font-weight: 600; }
+.vp-state .bad { color: var(--ic-pdf); }
+.vp-state .good { color: var(--ic-excel); }
+
+/* ===== 调色板卡 ===== */
+.pal {
+  margin-top: 34px; border: 1px solid var(--border-color); border-radius: 12px;
+  background: var(--bg-panel); padding: 16px 18px; max-width: 720px;
+}
+.pal-cap { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.pal-sub { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 12px; }
+.pal-row { display: flex; align-items: center; gap: 12px; padding: 7px 2px; border-top: 1px dashed var(--border-color); font-size: 11.5px; }
+.pal-row:first-of-type { border-top: none; }
+.pal-row .dot { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
+.pal-row .cls { font-family: var(--mono); font-size: 11px; width: 180px; flex-shrink: 0; }
+.pal-row .hex { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); width: 76px; flex-shrink: 0; }
+.pal-row .use { color: var(--text-secondary); }
+.pal-row.new .cls::after {
+  content: '已采纳'; margin-left: 8px; font-size: 9px; letter-spacing: 1px;
+  color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 4px; padding: 1px 5px;
+  font-family: inherit;
+}
+
+/* 页脚 */
+.page-foot { margin-top: 26px; font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>资料树文件图标 · 颜色区分</h1>
+  <span class="sub">264px 文章树栏 · 与聊天附件 / 上传预览条的既有配色对齐</span>
+  <button class="theme-btn" onclick="document.body.classList.toggle('dark-theme')">切换夜间</button>
+</div>
+<p class="page-tip">
+  现状树图标<b>字形已按类型区分</b>但颜色统一灰阶；而聊天附件 chip 与上传预览条已在用 <span class="mono">.icon-pdf / .icon-word</span> 彩色词汇。
+  本稿对比三个取态，<b>已定稿 C · 全类型上色</b>（md/html 色值见下方调色板）。右上角可切换夜间验证两主题可读性。
+</p>
+
+<div class="variants">
+  <section>
+    <div class="variant-head">
+      <span class="vn">A · 灰阶现状</span>
+      <span class="vd">树最安静，词汇断裂</span>
+    </div>
+    <div class="sidebar" data-mode="a"></div>
+    <div class="notes">
+      <b>设计点</b>
+      <ul>
+        <li>现状即如此：色彩随 --text-secondary，代码注释注明「克制」是刻意决策</li>
+        <li>优点：树是导航区，全灰阶最安静，与石墨 + 唯一 accent 语言完全一致</li>
+        <li>代价 1：同一份 PDF 在聊天 chip 是红色、进树变灰 —— 词汇断裂</li>
+        <li>代价 2：12px 下字形差异弱，类型辨识要逐行读文件名后缀</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="variant-head">
+      <span class="vn">B · 仅原件上色</span>
+      <span class="vd">pdf 红 / docx 蓝，md 保持灰阶</span>
+    </div>
+    <div class="sidebar" data-mode="b"></div>
+    <div class="notes rec">
+      <b>设计点</b>
+      <ul>
+        <li>判据 =「二进制原件」：pdf 红、docx 蓝（未来 excel 绿）——与既有 .icon-* 逐一对应，<b>零新增颜色</b></li>
+        <li>md 是库内多数派 = 默认态，保持灰阶；少数原件行自然跳出，颜色是信息不是装饰</li>
+        <li>颜色是前注意（pre-attentive）特征，扫视定位「那几个 PDF」明显更快</li>
+        <li>html 归入文本灰阶 —— 与 docIconMeta 现状一致（html → icon-text）</li>
+        <li>文件夹图标不参与：结构 ≠ 内容类型</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="variant-head">
+      <span class="vn">C · 全类型上色</span><span class="badge-rec">定稿</span>
+      <span class="vd">md/html 也上色，辨识最彻底</span>
+    </div>
+    <div class="sidebar" data-mode="c"></div>
+    <div class="notes">
+      <b>设计点</b>
+      <ul>
+        <li>md 蓝 / html 橙一并着色，任何行不看后缀即可辨类型</li>
+        <li>但 md 占多数时彩色行过半，颜色从「信息」退化为「装饰」，扫视收益反而下降</li>
+        <li>md/html 无既有词汇背书，需新增 2 个色值并解释「为什么是这个色」</li>
+        <li>整树彩色化与石墨灰阶 + 唯一 accent 的克制语言冲突，选中态竖条被稀释</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<!-- ===== 词汇一致性对照 ===== -->
+<div class="vocab-cap">词汇一致性对照 —— 同一份「发布流程.pdf」的三处上下文</div>
+<div class="vocab-sub">颜色不该在上下文之间漂移；现状断在「聊天 → 树」这一步。</div>
+<div class="vocab-grid">
+  <div class="vocab-panel">
+    <span class="vp-tag">现状 · 断裂</span>
+    <div class="vp-row">
+      <span class="vp-cap">聊天气泡<br>附件 chip</span>
+      <div class="chip-doc"><i class="fas fa-file-pdf" style="color:var(--ic-pdf)"></i><span class="cn">发布流程.pdf</span><span class="ce">PDF</span></div>
+    </div>
+    <div class="vp-row">
+      <span class="vp-cap">上传预览条</span>
+      <div class="up-row"><i class="fas fa-file-pdf" style="color:var(--ic-pdf)"></i><span>发布流程.pdf</span><span class="us">2.1MB</span><span class="st">已解析</span></div>
+    </div>
+    <div class="vp-row">
+      <span class="vp-cap">资料树行</span>
+      <div class="tree-excerpt" style="width:264px"><div class="tree-row file"><span class="caret"></span><i class="fic fas fa-file-pdf"></i><span class="nm">发布流程.pdf</span><span class="words">pdf</span></div></div>
+    </div>
+    <div class="vp-state">前两处红色、树里灰色 —— <b class="bad">同一文件两种身份</b>，词汇不连续。</div>
+  </div>
+
+  <div class="vocab-panel">
+    <span class="vp-tag ok">方案 B / C · 一致</span>
+    <div class="vp-row">
+      <span class="vp-cap">聊天气泡<br>附件 chip</span>
+      <div class="chip-doc"><i class="fas fa-file-pdf" style="color:var(--ic-pdf)"></i><span class="cn">发布流程.pdf</span><span class="ce">PDF</span></div>
+    </div>
+    <div class="vp-row">
+      <span class="vp-cap">上传预览条</span>
+      <div class="up-row"><i class="fas fa-file-pdf" style="color:var(--ic-pdf)"></i><span>发布流程.pdf</span><span class="us">2.1MB</span><span class="st">已解析</span></div>
+    </div>
+    <div class="vp-row">
+      <span class="vp-cap">资料树行</span>
+      <div class="tree-excerpt" style="width:264px"><div class="tree-row file"><span class="caret"></span><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">发布流程.pdf</span><span class="words">pdf</span></div></div>
+    </div>
+    <div class="vp-state">三处同色同形 —— <b class="good">一套词汇贯穿全链路</b>，且树里红色行天然就是「原件」标记。</div>
+  </div>
+</div>
+
+<!-- ===== 调色板 ===== -->
+<div class="pal">
+  <div class="pal-cap">既有文档配色（styles/index.css · 预览条 / 气泡 chip / 历史标签共用）</div>
+  <div class="pal-sub">色值单一来源 styles/index.css :root（--ic-* 变量）；两主题共用同一套色值，md/html 为定稿新增词汇。</div>
+  <div class="pal-row"><span class="dot" style="background:var(--ic-pdf)"></span><span class="cls">.icon-pdf</span><span class="hex">#e5615c</span><span class="use">PDF 原件 → 树行 / chip 同色</span></div>
+  <div class="pal-row"><span class="dot" style="background:var(--ic-word)"></span><span class="cls">.icon-word</span><span class="hex">#5b9bd5</span><span class="use">Word 原件 → 树行 / chip 同色</span></div>
+  <div class="pal-row"><span class="dot" style="background:var(--ic-excel)"></span><span class="cls">.icon-excel</span><span class="hex">#4caf7d</span><span class="use">表格原件（若资料树未来支持 xlsx，沿用）</span></div>
+  <div class="pal-row"><span class="dot" style="background:var(--text-secondary)"></span><span class="cls">.icon-text</span><span class="hex">--text-secondary</span><span class="use">其余未知扩展的默认态（txt 等）→ 保持灰阶</span></div>
+  <div class="pal-row new"><span class="dot" style="background:var(--ic-md)"></span><span class="cls">md 已采纳 #519aba</span><span class="hex">#519aba</span><span class="use">定稿采纳；已入 index.css :root --ic-md</span></div>
+  <div class="pal-row new"><span class="dot" style="background:var(--ic-html)"></span><span class="cls">html 已采纳 #d9704a</span><span class="hex">#d9704a</span><span class="use">定稿采纳；已入 index.css :root --ic-html</span></div>
+</div>
+
+<div class="page-foot">
+  共同基线：树行 40px + 选中左缘竖条 + hover 背景，均与 app 现状一致；过滤框为静态示意，本稿只聚焦图标配色。<br>
+  落地成本：MaterialTreeNode.vue 的 fileIcon 已按 kind 映射字形，上色只需给 .fic 追加 kind → 色类（B 方案仅 pdf/docx 两分支）；
+  若愿意也可把映射收敛进 docIconMeta（加 kind 入参）让树与聊天共用一处。文件夹 / 选中态 / hover 均不受影响。
+</div>
+
+<script>
+// ===== 示例树：md 为多数派 + 少量原件（pdf/docx/html），贴近真实资料库构成 =====
+const TREE = [
+  { type: 'file', name: '产品简介.md', words: 487 },
+  { type: 'folder', name: 'guide', children: [
+    { type: 'file', name: '部署指南.md', words: 308 },
+    { type: 'file', name: '发布流程.pdf' },
+    { type: 'file', name: '常见问题.md', words: 218 },
+    { type: 'file', name: '版本路线图.docx' },
+  ]},
+  { type: 'folder', name: 'specs', children: [
+    { type: 'file', name: '接口设计规范.md', words: 452 },
+    { type: 'file', name: '评审记录.docx' },
+  ]},
+  { type: 'file', name: '系统架构总览.md', words: 678 },
+  { type: 'folder', name: 'notes', children: [
+    { type: 'file', name: '头脑风暴.md', words: 96 },
+    { type: 'file', name: '调研引用资料.pdf' },
+  ]},
+]
+const SELECTED = 'specs/接口设计规范.md'
+
+// kind → 字形（与 MaterialTreeNode.vue 一致）；B/C 追加色类
+const GLYPH = { pdf: 'fa-file-pdf', docx: 'fa-file-word', html: 'fa-file-code', md: 'fa-file-lines' }
+function iconCls(kind, mode) {
+  let cls = GLYPH[kind] || GLYPH.md
+  if (mode === 'b' && (kind === 'pdf' || kind === 'docx')) cls += ' ic-' + (kind === 'docx' ? 'word' : 'pdf')
+  if (mode === 'c') cls += kind === 'pdf' ? ' ic-pdf' : kind === 'docx' ? ' ic-word' : kind === 'html' ? ' ic-html' : ' ic-md'
+  return cls
+}
+
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;') }
+
+function renderTree(nodes, depth, mode) {
+  let html = ''
+  for (const node of nodes) {
+    const isFolder = node.type === 'folder'
+    const on = !isFolder && node.name === SELECTED
+    const pad = 9 + depth * 20
+    const kind = isFolder ? null : (node.name.match(/\.(\w+)$/) || [])[1]
+    const fic = isFolder ? 'fa-folder-open' : iconCls(kind, mode)
+    html += `<div class="tree-row ${isFolder ? '' : 'file'} ${on ? 'on' : ''}" style="padding-left:${pad}px">
+      <i class="caret fas ${isFolder ? 'fa-chevron-down' : ''}"></i>
+      <i class="fic fas ${fic}"></i>
+      <span class="nm" title="${esc(node.name)}">${esc(node.name)}</span>
+      ${!isFolder && node.words ? `<span class="words">${node.words}</span>` : ''}
+    </div>`
+    if (isFolder) html += renderTree(node.children, depth + 1, mode)
+  }
+  return html
+}
+
+document.querySelectorAll('.sidebar').forEach((sb) => {
+  const head = `<div class="tree-head">
+    <i class="fas fa-book-open bk"></i><span class="kb-name">产品知识库</span><span class="spring"></span>
+    <button class="head-btn" title="新建文件夹"><i class="fas fa-folder-plus"></i></button>
+    <button class="head-btn" title="上传 · 支持多选"><i class="fas fa-arrow-up-from-bracket"></i></button>
+  </div>
+  <div class="filter-row"><label class="filter">
+    <i class="fas fa-magnifying-glass"></i>
+    <input type="text" placeholder="过滤文章…" />
+    <span class="esc">Esc</span>
+  </label></div>`
+  sb.innerHTML = head + '<div class="kb-tree">' + renderTree(TREE, 0, sb.dataset.mode) + '</div>'
+})
+</script>
+</body>
+</html>

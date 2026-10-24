@@ -4,16 +4,18 @@ import { useI18n } from 'vue-i18n'
 import { useMaterialsStore } from '@/stores/materials'
 import { renderMarkdown } from '@/utils/markdown'
 import { formatWordCount, relTime } from '@/utils/format'
-import { materialOriginalUrl, type MaterialNode } from '@/api/materials'
+import { materialOriginalUrl, type MaterialNode, type MaterialKind } from '@/api/materials'
 import MaterialTreeNode from './MaterialTreeNode.vue'
 import MaterialEditor from './MaterialEditor.vue'
+import MaterialOriginalViewer from './MaterialOriginalViewer.vue'
 
 /**
  * 资料详情页（页面 B）：两栏 —— 文章树 + 预览阅读区。
  * 操作单一入口：上传 = 树底 CTA（拖拽为等价手势）；新建文件夹/文章 = 树头；
  * 删除/重命名 = 树行 hover；阅读区头部只放阅读上下文操作（返回 / 面包屑 / 原件 / 编辑）。
  * 阅读区三态：目录首页 / 整篇阅读（md 渲染 + 文内 TOC + .md 相对链接跳转）/ 源码编辑。
- * 排版对齐产品：头部为页面级宽松规格（对齐 steps-panel-header 比例，不用 fp-head 密工具条），md 排版同聊天区（index.css .msg .bubble）。
+ * 排版走资料库专属规格（--mat-* token）：正文列 672px + 目录列 180px 整体居中，
+ * 阅读态 14.5px/1.9 长文行高，层级靠字号字重与段间距而非装饰；区域靠底色分层而非边框。
  */
 const { t } = useI18n()
 const materials = useMaterialsStore()
@@ -184,6 +186,50 @@ const homeGroups = computed<HomeGroup[]>(() => {
 const articleHtml = computed(() => (materials.article ? renderMarkdown(materials.article.content) : ''))
 const readerBodyEl = ref<HTMLElement | null>(null)
 
+// 阅读子视图：kind 决定可选视图与默认项（富文档看原件，文本类看预览）
+const kind = computed<MaterialKind>(() => materials.article?.kind ?? 'markdown')
+const view = ref<'preview' | 'source' | 'original' | 'text'>('preview')
+const isRichDoc = computed(() => kind.value === 'pdf' || kind.value === 'docx')
+// 版式预览（pdf/docx 原件 · html 渲染页）占满阅读区：去正文留白与外滚，交内层自滚
+const fullbleed = computed(
+  () =>
+    materials.readerMode === 'article' &&
+    (view.value === 'original' || (kind.value === 'html' && view.value === 'preview')),
+)
+const originalUrl = computed(() =>
+  materials.current && materials.article?.source
+    ? materialOriginalUrl(materials.current.id, materials.article.source)
+    : '',
+)
+// 切换文章时按 kind 重置默认视图
+watch(
+  () => materials.article?.path,
+  () => {
+    view.value = isRichDoc.value ? 'original' : 'preview'
+  },
+)
+
+/** 图标按 kind 区分字形与颜色（树已同规则，此处供首页卡片与拖拽上传行复用；.icon-* 与聊天附件共用词汇） */
+function iconOf(k: MaterialKind | null): string {
+  switch (k) {
+    case 'pdf':
+      return 'fa-file-pdf icon-pdf'
+    case 'docx':
+      return 'fa-file-word icon-word'
+    case 'html':
+      return 'fa-file-code icon-html'
+    default:
+      return 'fa-file-lines icon-md'
+  }
+}
+function uploadIcon(name: string): string {
+  const n = name.toLowerCase()
+  if (n.endsWith('.pdf')) return 'fa-file-pdf icon-pdf'
+  if (n.endsWith('.docx')) return 'fa-file-word icon-word'
+  if (n.endsWith('.html') || n.endsWith('.htm')) return 'fa-file-code icon-html'
+  return 'fa-file-lines icon-md'
+}
+
 /** 文内目录：h2/h3 顺序提取（渲染顺序一致，按下标定位滚动） */
 const toc = computed(() => {
   const items: { level: number; text: string }[] = []
@@ -196,9 +242,47 @@ const toc = computed(() => {
 })
 
 function jumpToc(index: number) {
-  const heads = readerBodyEl.value?.querySelectorAll('.md h2, .md h3')
+  const heads = readerBodyEl.value?.querySelectorAll('.art-body .md h2, .art-body .md h3')
   heads?.[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+
+/** 元信息行：作者缩写（CJK 取前两字，拉丁取首字母）与阅读时长按 400 字/分估算 */
+const authorShort = computed(() => {
+  const a = (materials.article?.author ?? '').trim()
+  if (!a) return ''
+  return /[\u4e00-\u9fa5]/.test(a) ? a.slice(0, 2) : a.slice(0, 2).toUpperCase()
+})
+const readingMins = computed(() => Math.max(1, Math.round((materials.article?.words ?? 0) / 400)))
+
+/** 目录跟随：滚动时按小节距阅读区顶部 96px 内判定当前项，rAF 节流避免逐像素重排 */
+const activeToc = ref(0)
+let spyRaf = 0
+function spyToc() {
+  const body = readerBodyEl.value
+  if (!body) return
+  const heads = body.querySelectorAll<HTMLElement>('.art-body .md h2, .art-body .md h3')
+  const base = body.getBoundingClientRect().top
+  let current = 0
+  heads.forEach((h, i) => {
+    if (h.getBoundingClientRect().top - base <= 96) current = i
+  })
+  activeToc.value = current
+}
+function onReaderScroll() {
+  if (spyRaf || toc.value.length === 0) return
+  spyRaf = requestAnimationFrame(() => {
+    spyRaf = 0
+    spyToc()
+  })
+}
+// 换文章复位目录，渲染完成后再判定一次（首屏可能已滚过若干小节）
+watch(
+  () => materials.article?.path,
+  () => {
+    activeToc.value = 0
+    void nextTick(spyToc)
+  },
+)
 
 /** 文章内 .md 相对链接 → 库内文章跳转（链接即导航） */
 function onArticleClick(e: MouseEvent) {
@@ -272,6 +356,13 @@ function onDeleteNode(node: MaterialNode) {
 function updatedTs(ts: number): string {
   return relTime(new Date(ts).toISOString())
 }
+
+/** 阅读态元信息用绝对日期（相对时间放在列表与树里更合适） */
+function dateText(ts: number): string {
+  const d = new Date(ts)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 </script>
 
 <template>
@@ -312,7 +403,7 @@ function updatedTs(ts: number): string {
         <!-- 上传中的短暂过渡行（同步转换，秒级） -->
         <div v-for="name in materials.uploading" :key="name" class="tree-row uploading">
           <i class="caret"></i>
-          <i class="fic fas" :class="'fa-file-' + (name.toLowerCase().endsWith('.pdf') ? 'pdf' : name.toLowerCase().endsWith('.docx') ? 'word' : 'lines')"></i>
+          <i class="fic fas" :class="uploadIcon(name)"></i>
           <span class="nm2">{{ name }}</span>
           <span class="conv"><i class="fas fa-circle-notch fa-spin"></i>{{ t('materials.converting') }}</span>
         </div>
@@ -355,12 +446,30 @@ function updatedTs(ts: number): string {
         </div>
         <span class="spring"></span>
 
-        <!-- 阅读态：原件 / 编辑（删除与重命名统一在树行） -->
+        <!-- 阅读态：按 kind 提供视图切换（文本类 预览/源码 · 富文档 原件/文本）+ 编辑或打开原件 -->
         <template v-if="materials.readerMode === 'article'">
-          <button v-if="materials.article?.source" class="act-btn" @click="openOriginal">
-            <i class="fas fa-file-pdf"></i>{{ t('materials.original') }}
+          <div class="view-switch">
+            <template v-if="isRichDoc">
+              <button :class="{ on: view === 'original' }" @click="view = 'original'">
+                <i class="fas fa-file-lines"></i>{{ t('materials.viewOriginal') }}
+              </button>
+              <button :class="{ on: view === 'text' }" @click="view = 'text'">
+                <i class="fas fa-align-left"></i>{{ t('materials.viewText') }}
+              </button>
+            </template>
+            <template v-else>
+              <button :class="{ on: view === 'preview' }" @click="view = 'preview'">
+                <i class="fas fa-eye"></i>{{ t('materials.viewPreview') }}
+              </button>
+              <button :class="{ on: view === 'source' }" @click="view = 'source'">
+                <i class="fas fa-code"></i>{{ t('materials.viewSource') }}
+              </button>
+            </template>
+          </div>
+          <button v-if="isRichDoc && materials.article?.source" class="act-btn" @click="openOriginal">
+            <i class="fas fa-up-right-from-square"></i>{{ t('materials.openOriginal') }}
           </button>
-          <button class="act-btn" @click="materials.startEdit()">
+          <button v-else-if="!isRichDoc" class="act-btn" @click="materials.startEdit()">
             <i class="fas fa-pen"></i>{{ t('materials.edit') }}
           </button>
         </template>
@@ -376,7 +485,7 @@ function updatedTs(ts: number): string {
         </template>
       </div>
 
-      <div ref="readerBodyEl" class="reader-body">
+      <div ref="readerBodyEl" class="reader-body" :class="{ flush: fullbleed }" @scroll="onReaderScroll">
         <!-- 加载态 -->
         <div v-if="materials.articleLoading" class="reader-loading"><i class="fas fa-circle-notch fa-spin"></i></div>
 
@@ -404,7 +513,7 @@ function updatedTs(ts: number): string {
               <div class="card-grid">
                 <div v-for="item in group.items" :key="item.path" class="kb-card" @click="materials.openArticle(item.path)">
                   <div class="c-head">
-                    <div class="fic"><i class="fas fa-file-lines"></i></div>
+                    <div class="fic"><i class="fas" :class="iconOf(item.kind)"></i></div>
                     <span class="nm" :title="item.name">{{ item.name }}</span>
                   </div>
                   <div class="c-sm">{{ item.summary }}</div>
@@ -424,39 +533,78 @@ function updatedTs(ts: number): string {
           </div>
         </div>
 
-        <!-- 整篇阅读 -->
-        <div
-          v-else-if="materials.readerMode === 'article' && materials.article"
-          class="reader-wrap"
-          :class="{ 'with-toc': toc.length > 0 }"
-        >
-          <div class="article">
-            <div class="art-title">{{ materials.article.title }}</div>
-            <div class="art-meta">
-              <span v-if="materials.article.source" class="src-link" :title="t('materials.originalTip')" @click="openOriginal">
-                <i class="fas fa-file-pdf"></i>{{ t('materials.fromOriginal', { name: materials.article.source.split('/').pop() }) }}
-              </span>
-              <span class="m">{{ materials.article.author }}</span>
-              <span class="m">{{ updatedTs(materials.article.updatedAt) }}</span>
-              <span class="m">{{ formatWordCount(materials.article.words) }}</span>
-            </div>
-            <!-- eslint-disable-next-line vue/no-v-html —— md 渲染经 renderMarkdown 统一出口（对齐聊天区） -->
-            <div class="md" v-html="articleHtml" @click="onArticleClick"></div>
+        <!-- 整篇阅读（按 view × kind 分支：源码 / 原件 / HTML 预览 / Markdown 渲染） -->
+        <template v-else-if="materials.readerMode === 'article' && materials.article">
+          <!-- 源码：md / html 原文只读 -->
+          <div v-if="view === 'source'" class="reader-wrap">
+            <pre class="src-code">{{ materials.article.content }}</pre>
           </div>
-          <aside v-if="toc.length > 0" class="art-toc">
-            <div class="t">{{ t('materials.toc') }}</div>
-            <a
-              v-for="(item, i) in toc"
-              :key="i"
-              :class="{ sub: item.level === 3 }"
-              @click="jumpToc(i)"
-            >{{ item.text }}</a>
-          </aside>
-        </div>
+
+          <!-- 原件：pdf/docx 统一走 MaterialOriginalViewer（占满阅读区：pdf 原生内嵌 · docx 前端分页渲染） -->
+          <div v-else-if="view === 'original'" class="bleed-host">
+            <MaterialOriginalViewer v-if="originalUrl" :kind="kind === 'pdf' ? 'pdf' : 'docx'" :src="originalUrl" @open="openOriginal" />
+            <div v-else class="doc-card">
+              <div class="doc-ic"><i class="fas" :class="iconOf(kind)"></i></div>
+              <div class="doc-t">{{ materials.article.title }}</div>
+              <div class="doc-s">{{ t('materials.docxNoInline') }}</div>
+              <button class="btn-upload" @click="openOriginal">
+                <i class="fas fa-up-right-from-square"></i>{{ t('materials.openOriginal') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- HTML 预览：沙箱 iframe 渲染原文（sandbox 空值禁脚本，防 XSS），占满阅读区 -->
+          <div v-else-if="kind === 'html'" class="bleed-host">
+            <iframe class="html-frame" sandbox="" :srcdoc="materials.article.content" title="HTML"></iframe>
+          </div>
+
+          <!-- Markdown 渲染：普通 md 预览 / 富文档抽取正文（672px 正文 + 180px 目录栏整体居中） -->
+          <div v-else class="reader-wrap" :class="{ 'with-toc': toc.length > 0 }">
+            <div class="article">
+              <div class="art-title">{{ materials.article.title }}</div>
+              <div class="art-meta">
+                <span
+                  v-if="materials.article.source"
+                  class="src-link"
+                  :title="t('materials.originalTip')"
+                  @click="openOriginal"
+                >
+                  <i class="fas fa-file-shield"></i>{{ t('materials.fromOriginal', { name: materials.article.source.split('/').pop() }) }}
+                </span>
+                <span v-if="authorShort" class="who"><span class="av">{{ authorShort }}</span>{{ materials.article.author }}</span>
+                <span class="dot"></span>
+                <span>{{ dateText(materials.article.updatedAt) }}</span>
+                <span class="dot"></span>
+                <span>{{ formatWordCount(materials.article.words) }} {{ t('materials.unitChars') }}</span>
+                <span class="dot"></span>
+                <span>{{ t('materials.readingTime', { n: readingMins }) }}</span>
+              </div>
+              <div class="art-rule"></div>
+              <div class="art-body">
+                <!-- eslint-disable-next-line vue/no-v-html —— md 渲染经 renderMarkdown 统一出口（对齐聊天区） -->
+                <div class="md mat-md" v-html="articleHtml" @click="onArticleClick"></div>
+              </div>
+            </div>
+            <aside v-if="toc.length > 0" class="art-toc">
+              <div class="t">{{ t('materials.toc') }}</div>
+              <a
+                v-for="(item, i) in toc"
+                :key="i"
+                :class="{ sub: item.level === 3, act: i === activeToc }"
+                @click="jumpToc(i)"
+              >{{ item.text }}</a>
+            </aside>
+          </div>
+        </template>
 
         <!-- 源码编辑（MaterialEditor：格式工具条 / 编辑预览切换 / 状态栏 / 快捷键） -->
         <div v-else-if="materials.readerMode === 'edit'" class="editor-host">
-          <MaterialEditor v-model="editContent" :original="materials.article?.content ?? ''" @save="saveEdit" />
+          <MaterialEditor
+            v-model="editContent"
+            :original="materials.article?.content ?? ''"
+            @save="saveEdit"
+            @cancel="materials.cancelEdit()"
+          />
         </div>
       </div>
     </div>
@@ -471,7 +619,7 @@ function updatedTs(ts: number): string {
     </div>
 
     <!-- 隐藏文件选择器 -->
-    <input ref="fileInput" type="file" multiple accept=".md,.markdown,.txt,.pdf,.docx" style="display: none" @change="onPickFiles" />
+    <input ref="fileInput" type="file" multiple accept=".md,.markdown,.txt,.pdf,.docx,.html,.htm" style="display: none" @change="onPickFiles" />
 
     <!-- 行右键菜单（行操作唯一入口；Teleport 到 body 防树区 overflow 裁剪） -->
     <Teleport to="body">
@@ -502,7 +650,8 @@ function updatedTs(ts: number): string {
 .kb-tree-col {
   width: 264px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--mat-line);
+  background: var(--mat-card);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -575,6 +724,11 @@ function updatedTs(ts: number): string {
   font-size: 12px;
   flex-shrink: 0;
 }
+/* 上传中行同树规则全类型着色：作用域提权覆盖上方基色，色值取 index.css :root */
+.tree-row.uploading .fic.icon-pdf { color: var(--ic-pdf); }
+.tree-row.uploading .fic.icon-word { color: var(--ic-word); }
+.tree-row.uploading .fic.icon-md { color: var(--ic-md); }
+.tree-row.uploading .fic.icon-html { color: var(--ic-html); }
 .tree-row.uploading .nm2 {
   color: var(--text-primary);
   white-space: nowrap;
@@ -610,6 +764,9 @@ function updatedTs(ts: number): string {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* 靠底色分层：树栏白卡 → 内容区极浅灰 → 文章条目回到白底 */
+  background: var(--mat-surface-2);
+  color: var(--mat-ink);
 }
 .reader-head {
   display: flex;
@@ -617,10 +774,11 @@ function updatedTs(ts: number): string {
   gap: 10px;
   padding: 0 20px;
   height: 49px; /* 定高与左侧 tree-head 同高，左右分隔线严格同线 */
-  border-bottom: 1px solid var(--border-color);
+  background: var(--mat-card);
+  border-bottom: 1px solid var(--mat-line);
   flex-shrink: 0;
 }
-/* 返回按钮：fp-back 同款（无边框幽灵） */
+/* 返回按钮：图标钮规格（无边框，悬停浅洗底） */
 .back-btn {
   width: 28px;
   height: 28px;
@@ -630,23 +788,23 @@ function updatedTs(ts: number): string {
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: var(--mat-faint);
   font-size: 12px;
   margin-left: -6px;
   border-radius: 7px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.16s ease;
 }
 .back-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--mat-wash);
+  color: var(--mat-ink);
 }
 .crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--mat-faint);
   min-width: 0;
   overflow: hidden;
 }
@@ -655,15 +813,14 @@ function updatedTs(ts: number): string {
   white-space: nowrap;
 }
 .crumbs .lnk:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
+  color: var(--mat-ink);
 }
 .crumbs .sep {
-  color: var(--text-secondary);
-  font-size: 8px;
+  color: var(--mat-line-2);
+  font-size: 7.5px;
 }
 .crumbs .cur {
-  color: var(--text-primary);
+  color: var(--mat-ink);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -673,49 +830,61 @@ function updatedTs(ts: number): string {
   flex: 1;
 }
 
-/* 动作按钮：无边框幽灵（产品惯例），仅保存用实心 accent */
+/* 动作按钮：描边次按钮（白底 + --mat-line-2 边），主动作为墨色实心 */
 .act-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   height: 28px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
+  padding: 0 11px;
+  border: 1px solid var(--mat-line-2);
+  border-radius: 9px;
+  background: var(--mat-card);
+  color: var(--mat-ink-2);
   font-size: 12px;
   font-family: inherit;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 .act-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  border-color: var(--mat-faint);
+  background: var(--mat-surface-2);
+  color: var(--mat-ink);
 }
 .act-btn i {
-  font-size: 10.5px;
+  font-size: 10px;
+  color: var(--mat-mut);
 }
 .act-btn.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--mat-ink);
+  border-color: var(--mat-ink);
+  color: var(--mat-card);
   font-weight: 600;
 }
+.act-btn.primary i {
+  color: var(--mat-card);
+  opacity: 0.8;
+}
 .act-btn.primary:hover {
-  background: var(--accent-light);
+  background: var(--mat-ink-2);
+  border-color: var(--mat-ink-2);
+  color: var(--mat-card);
 }
 .act-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .act-btn:disabled:hover {
-  background: transparent;
-  color: var(--text-secondary);
+  background: var(--mat-card);
+  border-color: var(--mat-line-2);
+  color: var(--mat-ink-2);
 }
 .act-btn.primary:disabled:hover {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--mat-ink);
+  border-color: var(--mat-ink);
+  color: var(--mat-card);
 }
 
 .reader-body {
@@ -731,15 +900,27 @@ function updatedTs(ts: number): string {
   color: var(--text-secondary);
 }
 .reader-wrap {
-  padding: 26px 32px 60px;
+  padding: 32px 32px 64px;
 }
-/* 有文内目录时：文章列 + 目录列两列栅格整体居中，文章列宽稳定 */
+/* 有文内目录时：正文列 672px + 目录列 180px 整体居中，正文列宽稳定 */
 .reader-wrap.with-toc {
   display: grid;
-  grid-template-columns: minmax(0, 720px) 168px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 672px) 180px;
+  gap: 36px;
   justify-content: center;
   align-items: start;
+}
+
+/* 版式预览满幅：外层不滚、不留白，内层（iframe / 渲染容器）自滚占满 */
+.reader-body.flush {
+  overflow: hidden;
+}
+.bleed-host {
+  height: 100%;
+  display: flex;
+}
+.bleed-host > .doc-card {
+  margin: auto; /* 无原件兜底卡片：满幅区居中的唯一例外 */
 }
 
 /* 目录首页：文库封面页（Hero 锚点 + 文章卡片陈列） */
@@ -858,6 +1039,11 @@ function updatedTs(ts: number): string {
   flex-shrink: 0;
 }
 .kb-card .fic i { font-size: 11.5px; color: var(--accent); }
+/* 首页卡片图标同树全类型着色：作用域提权覆盖 accent 基色 */
+.kb-card .fic i.icon-pdf { color: var(--ic-pdf); }
+.kb-card .fic i.icon-word { color: var(--ic-word); }
+.kb-card .fic i.icon-md { color: var(--ic-md); }
+.kb-card .fic i.icon-html { color: var(--ic-html); }
 .kb-card .nm {
   font-size: 12.5px;
   font-weight: 600;
@@ -925,178 +1111,225 @@ function updatedTs(ts: number): string {
   line-height: 1.7;
 }
 
-/* 文章阅读 */
+/* 文章阅读：无目录时正文列仍占 672px 同宽，切换文章不产生横向跳动 */
 .article {
-  max-width: 720px;
+  max-width: 672px;
   min-width: 0;
   margin: 0 auto;
 }
 .art-title {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.4;
-  margin-bottom: 10px;
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1.28;
+  color: var(--mat-ink);
 }
-/* 元信息：纯文字轻量行（无 badge 框），来源为 info 色可点文字 */
+/* 元信息：一行点分轻量文字（faint），来源为强调色可点文字，作者带缩写头像 */
 .art-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  margin-top: 14px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--mat-faint);
+}
+.art-meta .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--mat-line-2);
+  margin: 0 8px;
+}
+.art-meta .who {
+  display: inline-flex;
+  align-items: center;
+}
+.art-meta .av {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--mat-wash-2);
+  color: var(--mat-ink-2);
+  font-size: 8.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 7px;
+}
+.art-rule {
+  height: 1px;
+  background: var(--mat-line);
+  margin: 22px 0 26px;
 }
 .src-link {
-  color: var(--info);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mat-accent);
+  font-weight: 550;
   cursor: pointer;
 }
 .src-link:hover {
   text-decoration: underline;
 }
 .src-link i {
-  font-size: 9px;
-  margin-right: 3px;
+  font-size: 10px;
 }
 
-/* md 排版：数值对齐 index.css .msg .bubble（阅读体验与聊天一致） */
-.md {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: var(--text-primary);
-  word-break: break-word;
-}
-.md :deep(h1),
-.md :deep(h2),
-.md :deep(h3),
-.md :deep(h4) {
-  color: var(--text-primary);
-  margin: 18px 0 8px;
-}
-.md :deep(h2) {
-  font-size: 16px;
-}
-.md :deep(h3) {
-  font-size: 14.5px;
-}
-.md :deep(h4) {
-  font-size: 13.5px;
-}
-.md :deep(p) {
-  margin: 8px 0;
-}
-.md :deep(ul),
-.md :deep(ol) {
-  margin: 7px 0;
-  padding-left: 22px;
-}
-.md :deep(li) {
-  margin: 4px 0;
-}
-/* 引用块：产品为圆角背景块（--bg-blockquote），无竖线 */
-.md :deep(blockquote) {
-  padding: 9px 14px;
-  margin: 9px 0;
-  background: var(--bg-blockquote);
-  border-radius: 10px;
-  color: var(--text-secondary);
-}
-/* 行内代码：--bg-inline-code 底 + 代码高亮色，无边框 */
-.md :deep(code) {
-  background: var(--bg-inline-code);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 11.5px;
-  color: var(--text-code-hl);
-}
-/* 代码块：线框式（--bg-codeblock 底 + 细边框），对齐 .code-wrap 视觉 */
-.md :deep(pre) {
-  margin: 11px 0;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--bg-codeblock);
-  padding: 11px 14px;
-  overflow-x: auto;
-}
-.md :deep(pre code) {
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--text-code);
-}
-/* 表格：fit-content + 分离边框 + 底边线（对齐 .bubble table） */
-.md :deep(table) {
-  display: block;
-  overflow-x: auto;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin: 9px 0;
-  width: fit-content;
-  max-width: 100%;
-  font-size: 12.5px;
-}
-.md :deep(th),
-.md :deep(td) {
-  border-bottom: 1px solid var(--border-color);
-  padding: 6px 12px;
-  text-align: left;
-}
-.md :deep(th) {
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 11.5px;
-}
-/* 库内相对链接：info 色虚线下划线（区别于外链），点击跳转库内文章 */
-.md :deep(a[href$='.md']) {
-  color: var(--info);
-  cursor: pointer;
-  text-decoration: none;
-  border-bottom: 1px dashed color-mix(in srgb, var(--info) 40%, transparent);
-}
-.md :deep(a[href$='.md']:hover) {
-  background: color-mix(in srgb, var(--info) 8%, transparent);
-}
+/* md 排版见全局 .mat-md（index.css）：整篇阅读与编辑器预览共用同一套长文规格 */
 
-/* 文内 TOC */
+/* 文内 TOC：1px 左线串联条目，当前项靠强调色改线色与文字而非加底色块 */
 .art-toc {
   position: sticky;
   top: 16px;
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: var(--mat-mut);
 }
 .art-toc .t {
-  padding-left: 12px; /* 对齐条目文字（border-left 2px + 内距 10px） */
+  padding-left: 13px; /* 对齐条目文字（border-left 1px + 内距 12px） */
   font-size: 10.5px;
-  color: var(--text-secondary);
-  letter-spacing: 0.4px;
-  margin-bottom: 8px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mat-faint);
+  margin-bottom: 12px;
 }
 .art-toc a {
+  position: relative;
   display: block;
-  padding: 4px 0 4px 10px;
-  color: var(--text-secondary);
-  border-left: 2px solid var(--border-color);
+  padding: 5px 0 5px 13px;
+  line-height: 1.45;
+  color: var(--mat-mut);
+  border-left: 1px solid var(--mat-line);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.14s ease, border-color 0.14s ease;
 }
 .art-toc a:hover {
-  color: var(--text-primary);
+  color: var(--mat-ink);
 }
 .art-toc a.sub {
   padding-left: 24px;
+  font-size: 11.5px;
+  color: var(--mat-faint);
+}
+.art-toc a.act {
+  color: var(--mat-accent);
+  font-weight: 600;
+  border-left-color: var(--mat-accent);
 }
 
 /* 源码编辑：MaterialEditor 铺满 reader-body，滚动由编辑器内部（textarea/预览列）自理 */
 .editor-host {
   height: 100%;
   min-height: 0;
+}
+
+/* 阅读头部视图切换器：浅洗凹槽分段（预览/源码 · 原件/文本），激活项白底浮起 */
+.view-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--mat-line);
+  border-radius: 9px;
+  background: var(--mat-wash);
+  flex-shrink: 0;
+}
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mat-mut);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.view-switch button:hover {
+  color: var(--mat-ink);
+}
+.view-switch button.on {
+  background: var(--mat-card);
+  color: var(--mat-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(28, 33, 40, 0.06);
+}
+.view-switch button i {
+  font-size: 9px;
+}
+
+/* 源码只读视图：白底描边等宽块，横向滚动由 pre 自理 */
+.src-code {
+  max-width: 672px;
+  margin: 0 auto;
+  padding: 18px 22px;
+  background: var(--mat-card);
+  border: 1px solid var(--mat-line);
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--mat-ink-2);
+  white-space: pre;
+  overflow: auto;
+}
+
+/* HTML 预览：沙箱 iframe 渲染原文，满幅占位（无卡片边框/圆角，与 pdf/docx 一致），白底贴合文档自身配色 */
+.html-frame {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+}
+
+/* docx 无法内联：居中占位卡片 + 打开原件主按钮 */
+.doc-card {
+  max-width: 440px;
+  margin: 40px auto;
+  text-align: center;
+  padding: 34px 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+}
+.doc-card .doc-ic {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: var(--bg-blockquote);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+}
+.doc-card .doc-ic i {
+  font-size: 24px;
+  color: var(--accent);
+}
+/* docx 占位卡跟随 word 蓝（该卡仅 docx 可达） */
+.doc-card .doc-ic i.icon-word { color: var(--ic-word); }
+.doc-card .doc-t {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.doc-card .doc-s {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  line-height: 1.6;
 }
 
 .head-sep {

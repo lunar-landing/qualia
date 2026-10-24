@@ -139,12 +139,12 @@
         .mc-actions .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .mc-actions .toggle-slider {
             position: absolute; cursor: pointer; inset: 0;
-            background-color: var(--text-muted); transition: background-color 0.2s; border-radius: 4px;
+            background-color: var(--text-muted); transition: background-color 0.2s; border-radius: 999px;
         }
         .mc-actions .toggle-slider:before {
             position: absolute; content: ""; height: 18px; width: 18px;
             left: 2px; bottom: 2px; background-color: var(--white);
-            transition: transform 0.2s; border-radius: 3px;
+            transition: transform 0.2s; border-radius: 50%;
         }
         .mc-actions .toggle-switch input:checked + .toggle-slider { background-color: var(--accent); }
         .mc-actions .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }

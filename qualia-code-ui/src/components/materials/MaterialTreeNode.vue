@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MaterialNode } from '@/api/materials'
-import { formatWordCount } from '@/utils/format'
 import { useMaterialsStore } from '@/stores/materials'
 
 /**
@@ -19,6 +18,21 @@ const { t } = useI18n()
 const materials = useMaterialsStore()
 
 const expanded = computed(() => props.filtering === true || !materials.collapsedPaths.has(props.node.path))
+
+/** 文件图标按 kind 区分（文件夹另计）：markdown/html/pdf/docx 各自字形并全类型着色，
+ *  .icon-* 与聊天附件 chip / 上传预览条共用同一词汇（色值单一来源 index.css :root） */
+const fileIcon = computed(() => {
+  switch (props.node.kind) {
+    case 'pdf':
+      return ['fa-file-pdf', 'icon-pdf']
+    case 'docx':
+      return ['fa-file-word', 'icon-word']
+    case 'html':
+      return ['fa-file-code', 'icon-html']
+    default:
+      return ['fa-file-lines', 'icon-md']
+  }
+})
 
 function onRowClick() {
   materials.selectedPath = props.node.path
@@ -44,11 +58,8 @@ function onContextmenu(e: MouseEvent) {
       @contextmenu="onContextmenu"
     >
       <i class="caret fas" :class="node.type === 'folder' ? (expanded ? 'fa-chevron-down' : 'fa-chevron-right') : ''"></i>
-      <i class="fic fas" :class="node.type === 'folder' ? (expanded ? 'fa-folder-open' : 'fa-folder') : 'fa-file-lines'"></i>
+      <i class="fic fas" :class="node.type === 'folder' ? (expanded ? 'fa-folder-open' : 'fa-folder') : fileIcon"></i>
       <span class="nm2" :title="node.name">{{ node.name }}</span>
-
-      <!-- 字数：主信息名称之后的轻元信息 -->
-      <span v-if="node.type === 'file' && node.words" class="words">{{ formatWordCount(node.words) }}</span>
     </div>
 
     <template v-if="node.type === 'folder' && expanded">
@@ -110,18 +121,16 @@ export default { name: 'MaterialTreeNode' }
   font-size: 12px;
   flex-shrink: 0;
 }
+/* 全类型着色：作用域选择器提权覆盖上方基色，色值取 index.css :root */
+.fic.icon-pdf { color: var(--ic-pdf); }
+.fic.icon-word { color: var(--ic-word); }
+.fic.icon-md { color: var(--ic-md); }
+.fic.icon-html { color: var(--ic-html); }
 .nm2 {
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.words {
-  margin-left: auto;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10.5px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
 }
 .tree-sub-empty {
   padding: 4px 9px;

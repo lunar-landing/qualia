@@ -27,13 +27,18 @@ export function initChatView() {
 }
 
 export function useChatView() {
-  function toggleView() {
-    view.value = view.value === 'terminal' ? 'bubble' : 'terminal'
+  /** 直接指定视图（设置弹窗「个性」页用）：同值静默返回，避免无谓写存储 */
+  function setView(m: ChatViewMode) {
+    if (view.value === m) return
+    view.value = m
     try {
-      localStorage.setItem(STORAGE_KEY, view.value)
+      localStorage.setItem(STORAGE_KEY, m)
     } catch {
       /* 隐私模式等存储失败时仅内存生效 */
     }
   }
-  return { view, toggleView }
+  function toggleView() {
+    setView(view.value === 'terminal' ? 'bubble' : 'terminal')
+  }
+  return { view, setView, toggleView }
 }

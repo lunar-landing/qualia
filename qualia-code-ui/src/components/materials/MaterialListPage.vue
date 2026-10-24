@@ -1,19 +1,63 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMaterialsStore } from '@/stores/materials'
 import { formatWordCount, relTime } from '@/utils/format'
-import type { MaterialInfo } from '@/api/materials'
+import type { MaterialInfo, MaterialKind } from '@/api/materials'
 
 /**
- * 资料列表页（页面 A）：整栏卡片网格，展示全部资料
- * （名称 / 描述 / 文章数 / 字数 / 更新时间），点击卡片进入详情页；
- * 新建与重命名共用一个小弹窗，删除走 confirm 二次确认。
+ * 资料列表页（页面 A）：三列留白卡片，卡片底部 3px 构成条表达类型占比（全卡唯一彩色）。
+ * 头部提供本地搜索与排序（库数量级小，无需后端）；新建与重命名共用弹窗，删除走 confirm 二次确认。
+ * 视觉语言走 --mat-* 模块 token：靠底色与发丝线分层，不画框、不用重阴影。
  */
 const { t } = useI18n()
 const materials = useMaterialsStore()
 
-/** 新建 / 重命名共用弹窗：editing=null 为新建态 */
+// ===== 检索与排序（纯前端） =====
+type SortKey = 'recent' | 'name' | 'words'
+const kw = ref('')
+const sortBy = ref<SortKey>('recent')
+const sortOpen = ref(false)
+const SORTS = computed(() => [
+  { key: 'recent' as SortKey, label: t('materials.sortRecent') },
+  { key: 'name' as SortKey, label: t('materials.sortName') },
+  { key: 'words' as SortKey, label: t('materials.sortWords') },
+])
+const sortLabel = computed(() => SORTS.value.find((s) => s.key === sortBy.value)?.label ?? '')
+
+const visible = computed(() => {
+  const q = kw.value.trim().toLowerCase()
+  const list = q
+    ? materials.list.filter(
+        (kb) => kb.name.toLowerCase().includes(q) || (kb.description ?? '').toLowerCase().includes(q),
+      )
+    : [...materials.list]
+  const order = new Intl.Collator('zh-Hans-CN')
+  list.sort((a, b) => {
+    if (sortBy.value === 'name') return order.compare(a.name, b.name)
+    if (sortBy.value === 'words') return b.totalChars - a.totalChars
+    return b.updatedAt - a.updatedAt
+  })
+  return list
+})
+
+/** 构成条分段：按篇数降序取占比（色值由 --mat-t-* 统一降饱和，仅作数据表达不做装饰） */
+const KIND_VAR: Record<MaterialKind, string> = {
+  markdown: 'var(--mat-t-md)',
+  pdf: 'var(--mat-t-pdf)',
+  docx: 'var(--mat-t-word)',
+  html: 'var(--mat-t-html)',
+}
+function mix(kb: MaterialInfo): { kind: MaterialKind; pct: number }[] {
+  const entries = Object.entries(kb.kindBreakdown ?? {}) as [MaterialKind, number][]
+  const total = entries.reduce((n, [, v]) => n + v, 0)
+  if (!total) return []
+  return entries
+    .sort((a, b) => b[1] - a[1])
+    .map(([kind, v]) => ({ kind, pct: (v / total) * 100 }))
+}
+
+// ===== 新建 / 重命名共用弹窗：editing=null 为新建态 =====
 const dialogOpen = ref(false)
 const editing = ref<MaterialInfo | null>(null)
 const formName = ref('')
@@ -61,64 +105,98 @@ async function removeKb(kb: MaterialInfo) {
 }
 
 function updatedText(kb: MaterialInfo): string {
-  return t('materials.updatedAt', { time: relTime(new Date(kb.updatedAt).toISOString()) })
+  return relTime(new Date(kb.updatedAt).toISOString())
 }
 </script>
 
 <template>
   <div class="list-page">
-    <div class="list-head">
-      <div class="ic"><i class="fas fa-book-open"></i></div>
-      <div>
-        <div class="t">{{ t('materials.title') }}</div>
-        <div class="ds">{{ t('materials.subtitle') }}</div>
-      </div>
-      <span class="spring"></span>
-      <button class="btn primary" @click="openCreate">
-        <i class="fas fa-plus"></i> {{ t('materials.create') }}
-      </button>
-    </div>
-
-    <!-- 有库：卡片网格 -->
-    <div v-if="materials.list.length > 0" class="list-scroll">
-      <div class="kb-grid">
-        <div v-for="kb in materials.list" :key="kb.id" class="kb-tile" @click="materials.enterKb(kb.id)">
-          <div class="top">
-            <div class="fic"><i class="fas fa-book-open"></i></div>
-            <div class="nm" :title="kb.name">{{ kb.name }}</div>
-            <span class="acts">
-              <button :title="t('materials.editKb')" @click.stop="openEdit(kb)">
-                <i class="fas fa-pen"></i>
-              </button>
-              <button :title="t('common.delete')" class="danger" @click.stop="removeKb(kb)">
-                <i class="fas fa-trash-alt"></i>
-              </button>
-            </span>
+    <div class="list-pad">
+      <!-- 页头：标题 + 计数 + 搜索 + 排序 + 唯一实心主操作 -->
+      <div class="list-head">
+        <h2>{{ t('materials.title') }}</h2>
+        <span v-if="materials.list.length" class="kb-count">{{ materials.list.length }}</span>
+        <div class="head-tools">
+          <label class="kb-search">
+            <i class="fas fa-magnifying-glass"></i>
+            <input v-model="kw" type="text" :placeholder="t('materials.searchKb')" />
+          </label>
+          <div class="kb-sort">
+            <button class="btn ghost" @click="sortOpen = !sortOpen">
+              <i class="fas fa-arrow-down-short-wide"></i>{{ sortLabel }}
+            </button>
+            <template v-if="sortOpen">
+              <div class="sort-backdrop" @click="sortOpen = false"></div>
+              <div class="sort-menu">
+                <button
+                  v-for="opt in SORTS"
+                  :key="opt.key"
+                  :class="{ on: opt.key === sortBy }"
+                  @click="((sortBy = opt.key), (sortOpen = false))"
+                >
+                  <i class="fas fa-check"></i>{{ opt.label }}
+                </button>
+              </div>
+            </template>
           </div>
-          <div class="ds">{{ kb.description || t('materials.noDesc') }}</div>
-          <div class="mt">
-            <span class="m"><i class="fas fa-file-lines"></i>{{ t('materials.articlesCount', { n: kb.articleCount }) }}</span>
-            <span class="m"><i class="fas fa-font"></i>{{ formatWordCount(kb.totalChars) }}</span>
-            <span class="spring"></span>
-            <span>{{ updatedText(kb) }}</span>
-            <span class="enter"><i class="fas fa-arrow-right"></i></span>
+          <button class="btn solid" @click="openCreate">
+            <i class="fas fa-plus"></i>{{ t('materials.create') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 有库：留白卡片网格 -->
+      <div v-if="materials.list.length > 0" class="list-scroll">
+        <div v-if="visible.length === 0" class="search-empty">{{ t('materials.searchEmpty') }}</div>
+        <div v-else class="kb-grid">
+          <div v-for="kb in visible" :key="kb.id" class="lib" @click="materials.enterKb(kb.id)">
+            <div class="lib-hd">
+              <span class="sq"><i class="fas fa-book-open"></i></span>
+              <span class="nm" :title="kb.name">{{ kb.name }}</span>
+              <span class="lib-acts">
+                <button :title="t('materials.editKb')" @click.stop="openEdit(kb)">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button class="danger" :title="t('common.delete')" @click.stop="removeKb(kb)">
+                  <i class="fas fa-trash-can"></i>
+                </button>
+              </span>
+            </div>
+            <div class="lib-ds" :class="{ none: !kb.description }">
+              {{ kb.description || t('materials.noDesc') }}
+            </div>
+            <div class="lib-ft">
+              <span class="num">{{ kb.articleCount }}</span> {{ t('materials.unitArticles') }}
+              <span class="sep"></span>
+              <span class="num">{{ formatWordCount(kb.totalChars) }}</span> {{ t('materials.unitChars') }}
+              <span class="sep"></span>
+              <span>{{ updatedText(kb) }}</span>
+              <i class="fas fa-arrow-right go"></i>
+            </div>
+            <div class="mix-bar">
+              <i
+                v-for="seg in mix(kb)"
+                :key="seg.kind"
+                :style="{ width: seg.pct + '%', background: KIND_VAR[seg.kind] }"
+              ></i>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 空态引导 -->
-    <div v-else class="list-empty">
-      <div class="inner">
-        <div class="ic"><i class="fas fa-book-open"></i></div>
-        <div class="t1">{{ t('materials.emptyTitle') }}</div>
-        <div class="steps">
-          <div><i class="fas fa-1"></i>{{ t('materials.emptyStep1') }}</div>
-          <div><i class="fas fa-2"></i>{{ t('materials.emptyStep2') }}</div>
-          <div><i class="fas fa-3"></i>{{ t('materials.emptyStep3') }}</div>
+      <!-- 空态引导 -->
+      <div v-else class="list-empty">
+        <div class="inner">
+          <div class="ic"><i class="fas fa-book-open"></i></div>
+          <div class="t1">{{ t('materials.emptyTitle') }}</div>
+          <div class="steps">
+            <div><i class="fas fa-1"></i>{{ t('materials.emptyStep1') }}</div>
+            <div><i class="fas fa-2"></i>{{ t('materials.emptyStep2') }}</div>
+            <div><i class="fas fa-3"></i>{{ t('materials.emptyStep3') }}</div>
+          </div>
+          <div class="hint">{{ t('materials.emptyCtaHint', { action: t('materials.create') }) }}</div>
+          <div class="future">{{ t('materials.emptyFuture') }}</div>
         </div>
-        <div class="hint">{{ t('materials.emptyCtaHint', { action: t('materials.create') }) }}</div>
-        <div class="future">{{ t('materials.emptyFuture') }}</div>
       </div>
     </div>
 
@@ -132,8 +210,8 @@ function updatedText(kb: MaterialInfo): string {
           <label class="dlg-label">{{ t('materials.descLabel') }}</label>
           <input v-model="formDesc" class="dlg-input" :placeholder="t('materials.descPlaceholder')" @keyup.enter="submitDialog" />
           <div class="dlg-acts">
-            <button class="btn" @click="dialogOpen = false">{{ t('common.cancel') }}</button>
-            <button class="btn primary" :disabled="!formName.trim() || submitting" @click="submitDialog">
+            <button class="btn ghost" @click="dialogOpen = false">{{ t('common.cancel') }}</button>
+            <button class="btn solid" :disabled="!formName.trim() || submitting" @click="submitDialog">
               {{ t('common.save') }}
             </button>
           </div>
@@ -149,209 +227,336 @@ function updatedText(kb: MaterialInfo): string {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: var(--mat-stage);
+  color: var(--mat-ink);
 }
-.list-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 20px 28px 16px;
-}
-.list-head .ic {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-  background: var(--bg-active);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-}
-.list-head .t {
-  font-size: 16.5px;
-  font-weight: 700;
-}
-.list-head .ds {
-  margin-top: 2px;
-  font-size: 11.5px;
-  color: var(--text-secondary);
-}
-.list-head .spring {
+.list-pad {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 30px 0;
 }
 
-/* 动作按钮：无边框幽灵（产品惯例），primary 用实心 accent */
+/* ===== 页头 ===== */
+.list-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 22px;
+  flex-shrink: 0;
+}
+.list-head h2 {
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.kb-count {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--mat-faint);
+  margin-bottom: 4px;
+}
+.head-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kb-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--mat-line-2);
+  border-radius: 9px;
+  background: var(--mat-surface-2);
+  color: var(--mat-faint);
+  font-size: 12px;
+  width: 200px;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.kb-search:focus-within {
+  border-color: var(--mat-accent);
+  background: var(--mat-card);
+  box-shadow: 0 0 0 3px var(--mat-accent-wash);
+}
+.kb-search i {
+  font-size: 10px;
+}
+.kb-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--mat-ink);
+  font: inherit;
+}
+.kb-search input::placeholder {
+  color: var(--mat-faint);
+}
+.kb-sort {
+  position: relative;
+}
+.sort-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+.sort-menu {
+  position: absolute;
+  z-index: 21;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 132px;
+  padding: 4px;
+  border: 1px solid var(--mat-line);
+  border-radius: 10px;
+  background: var(--mat-card);
+  box-shadow: var(--mat-lift);
+}
+.sort-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mat-ink-2);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease;
+}
+.sort-menu button i {
+  font-size: 9px;
+  width: 9px;
+  color: transparent;
+  flex-shrink: 0;
+}
+.sort-menu button:hover {
+  background: var(--mat-wash);
+}
+.sort-menu button.on {
+  color: var(--mat-ink);
+  font-weight: 600;
+}
+.sort-menu button.on i {
+  color: var(--mat-accent);
+}
+
+/* ===== 按钮（幽灵 / 描边 / 实心） ===== */
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
+  gap: 7px;
+  height: 30px;
   padding: 0 13px;
-  border-radius: 8px;
-  font-size: 12px;
   border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
+  border-radius: 9px;
+  font-size: 12.5px;
   font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
-.btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.btn i {
+  font-size: 10.5px;
+  color: var(--mat-mut);
 }
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+.btn.ghost {
+  background: transparent;
+  color: var(--mat-ink-2);
+}
+.btn.ghost:hover {
+  background: var(--mat-wash);
+  color: var(--mat-ink);
+}
+.btn.solid {
+  background: var(--mat-ink);
+  color: var(--mat-card);
   font-weight: 600;
 }
-.btn.primary:hover {
-  background: var(--accent-light);
+.btn.solid i {
+  color: var(--mat-card);
+  opacity: 0.82;
 }
-.btn:disabled {
+.btn.solid:hover {
+  background: var(--mat-ink-2);
+}
+.btn.solid:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-/* 卡片网格 */
+/* ===== 卡片网格 ===== */
 .list-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 22px 28px 40px;
+  padding-bottom: 30px;
 }
 .kb-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
   gap: 14px;
 }
-.kb-tile {
+.lib {
   position: relative;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  padding: 16px 16px 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-.kb-tile:hover {
-  border-color: var(--border-active);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
-}
-.kb-tile .top {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 10px;
+  flex-direction: column;
+  padding: 18px 18px 0;
+  border: 1px solid var(--mat-line);
+  border-radius: 14px;
+  background: var(--mat-card);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
-.kb-tile .fic {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+.lib:hover {
+  border-color: var(--mat-line-2);
+  box-shadow: var(--mat-lift);
+  transform: translateY(-2px);
+}
+.lib-hd {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.sq {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   flex-shrink: 0;
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  background: var(--mat-wash);
+  color: var(--mat-ink-2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
+  transition: background 0.18s ease;
 }
-.kb-tile .nm {
-  font-size: 13.5px;
-  font-weight: 600;
+.lib:hover .sq {
+  background: var(--mat-wash-2);
+}
+.nm {
+  flex: 1;
   min-width: 0;
+  margin-top: 2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.kb-tile .acts {
-  margin-left: auto;
-  display: none;
-  gap: 2px;
+.lib-acts {
+  display: flex;
+  gap: 1px;
   flex-shrink: 0;
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
-.kb-tile:hover .acts {
-  display: inline-flex;
+.lib:hover .lib-acts {
+  opacity: 1;
+  transform: none;
 }
-.kb-tile .acts button {
-  width: 22px;
-  height: 22px;
+.lib-acts button {
+  width: 24px;
+  height: 24px;
   border: none;
-  background: none;
-  color: var(--text-secondary);
+  background: transparent;
+  color: var(--mat-faint);
+  border-radius: 7px;
+  font-size: 10px;
   cursor: pointer;
-  border-radius: 6px;
-  font-size: 10.5px;
+  transition: background 0.16s ease, color 0.16s ease;
 }
-.kb-tile .acts button:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.lib-acts button:hover {
+  background: var(--mat-wash);
+  color: var(--mat-ink);
 }
-.kb-tile .acts button.danger:hover {
+.lib-acts button.danger:hover {
   color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
 }
-.kb-tile .ds {
-  font-size: 11.5px;
-  color: var(--text-secondary);
+.lib-ds {
+  margin: 8px 0 16px;
+  min-height: 41px;
+  font-size: 12.5px;
   line-height: 1.65;
-  height: 38px;
-  margin-bottom: 12px;
+  color: var(--mat-mut);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.kb-tile .mt {
+.lib-ds.none {
+  color: var(--mat-faint);
+}
+.lib-ft {
+  margin-top: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 10.5px;
-  color: var(--text-secondary);
-  padding-top: 10px;
-  border-top: 1px solid var(--border-color);
-}
-.kb-tile .mt .m {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.kb-tile .mt .spring {
-  flex: 1;
-}
-.kb-tile .mt .enter {
-  color: var(--text-secondary);
-  font-size: 10px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.kb-tile:hover .enter {
-  opacity: 1;
-}
-.kb-tile.dashed {
-  border-style: dashed;
-  background: transparent;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 148px;
   gap: 8px;
-  color: var(--text-secondary);
+  padding: 11px 0 12px;
+  border-top: 1px solid var(--mat-line);
+  font-size: 11.5px;
+  color: var(--mat-faint);
+}
+.lib-ft .num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--mat-ink-2);
+  font-weight: 500;
+}
+.lib-ft .sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--mat-line-2);
+}
+.lib-ft .go {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--mat-faint);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.lib:hover .lib-ft .go {
+  opacity: 1;
+  transform: none;
+  color: var(--mat-accent);
+}
+/* 构成条：卡片底缘 3px 分段，全卡唯一彩色（按类型占比，缺数据则不占位） */
+.mix-bar {
+  display: flex;
+  gap: 1px;
+  height: 3px;
+  margin: 0 -1px -1px;
+  border-radius: 0 0 13px 13px;
+  overflow: hidden;
+}
+.mix-bar i {
+  display: block;
+  height: 100%;
+}
+.search-empty {
+  padding: 40px 0;
+  text-align: center;
   font-size: 12.5px;
-}
-.kb-tile.dashed i {
-  font-size: 17px;
-  color: var(--text-secondary);
-}
-.kb-tile.dashed:hover {
-  color: var(--text-primary);
+  color: var(--mat-faint);
 }
 
-/* 空态 */
+/* ===== 空态（沿用既有文案与结构） ===== */
 .list-empty {
   flex: 1;
   display: flex;
@@ -364,7 +569,7 @@ function updatedText(kb: MaterialInfo): string {
 }
 .list-empty .ic {
   font-size: 34px;
-  color: var(--text-secondary);
+  color: var(--mat-faint);
   margin-bottom: 16px;
 }
 .list-empty .t1 {
@@ -377,73 +582,79 @@ function updatedText(kb: MaterialInfo): string {
   display: inline-block;
   margin: 0 0 20px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--mat-mut);
   line-height: 2.1;
 }
 .list-empty .steps i {
   width: 20px;
-  color: var(--text-secondary);
+  color: var(--mat-faint);
   font-size: 11px;
 }
 .list-empty .future {
   margin-top: 14px;
   font-size: 10.5px;
-  color: var(--text-secondary);
+  color: var(--mat-faint);
 }
-
-/* 空态右上入口文字指引（新建唯一入口在列表头） */
 .hint {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--mat-mut);
 }
 
-/* 新建 / 重命名弹窗 */
+/* ===== 弹窗 ===== */
 .dlg-mask {
   position: fixed;
   inset: 0;
   z-index: 1250;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(20, 26, 34, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .dlg {
-  width: 380px;
-  padding: 18px 20px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-app);
-  box-shadow: var(--shadow);
+  width: 400px;
+  padding: 20px;
+  border: 1px solid var(--mat-line);
+  border-radius: 14px;
+  background: var(--mat-card);
+  box-shadow: var(--mat-lift);
 }
 .dlg-title {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 .dlg-label {
   display: block;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin: 10px 0 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--mat-ink-2);
+  margin: 16px 0 6px;
 }
 .dlg-input {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-input);
-  color: var(--text-primary);
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--mat-line-2);
+  border-radius: 9px;
+  background: var(--mat-surface-2);
+  color: var(--mat-ink);
   font-size: 12.5px;
   font-family: inherit;
   outline: none;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+.dlg-input::placeholder {
+  color: var(--mat-faint);
 }
 .dlg-input:focus {
-  border-color: var(--border-active);
+  background: var(--mat-card);
+  border-color: var(--mat-accent);
+  box-shadow: 0 0 0 3px var(--mat-accent-wash);
 }
 .dlg-acts {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 </style>

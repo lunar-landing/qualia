@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库检索逻辑 · 交互讲解</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+        --bg-app: #f6f8fa; --bg-panel: #ffffff; --bg-subtle: #eff2f5;
+        --bg-inline: #eff1f3; --bg-active: #e4e9ee; --bg-hover: #e9edf1;
+        --border: #d0d7de; --border-soft: #e4e9ee;
+        --text-1: #1f2328; --text-2: #57657a; --text-3: #8c959f;
+        --accent: #24292f; --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5; --danger: #cf222e; --danger-bg: #ffebe9;
+        --mono: Consolas, "JetBrains Mono", monospace;
+    }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-1);
+        padding: 42px 20px 90px; font-size: 13.5px; line-height: 1.7;
+    }
+    main { max-width: 960px; margin: 0 auto; }
+
+    /* ===== 头部 ===== */
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 { font-size: 22px; letter-spacing: -0.5px; }
+    header .sub { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+    .badges { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .badge {
+        font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+        border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-2);
+    }
+    .badge.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    section { margin-bottom: 46px; }
+    h2 { font-size: 15px; margin-bottom: 4px; }
+    h2 .no { color: var(--text-3); font-family: var(--mono); font-weight: 400; margin-right: 6px; }
+    .sec-note { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
+    .note { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
+    .note b { color: var(--text-1); }
+
+    .panel {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 20px;
+    }
+
+    code {
+        font-family: var(--mono); font-size: 11.5px; background: var(--bg-inline);
+        border-radius: 4px; padding: 1px 5px;
+    }
+
+    /* ===== S1 三层体系 ===== */
+    .layer-list {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    }
+    .layer {
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+        padding: 14px 16px; position: relative;
+    }
+    .layer .tool {
+        font-family: var(--mono); font-size: 12px; font-weight: 700;
+        display: inline-block; background: var(--accent); color: #fff;
+        padding: 2px 9px; border-radius: 6px; margin-bottom: 8px;
+    }
+    .layer.entry .tool { background: var(--text-2); }
+    .layer h3 { font-size: 13px; margin-bottom: 4px; }
+    .layer .q { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
+    .layer p { font-size: 11.5px; color: var(--text-2); line-height: 1.65; }
+    .layer .meta { margin-top: 8px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+    .layer-arrow { display: flex; align-items: center; justify-content: center; margin: 10px 0 6px; color: var(--text-3); font-size: 15px; }
+    .iron-law {
+        margin-top: 14px; border: 1px dashed var(--border); border-radius: 10px;
+        background: var(--bg-app); padding: 10px 16px; font-size: 12px; color: var(--text-2);
+    }
+    .iron-law b { color: var(--danger); }
+
+    /* ===== S2 检索路径 ===== */
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .tab {
+        border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-2);
+        border-radius: 9px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-weight: 600;
+    }
+    .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .path-scene { font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; }
+    .path-scene b { color: var(--text-1); }
+    .flow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .pill {
+        font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+        border: 1px solid var(--border); background: var(--bg-panel);
+        border-radius: 8px; padding: 5px 11px; color: var(--text-1);
+    }
+    .pill.hot { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .pill.cond {
+        border-style: dashed; color: var(--warning); background: var(--warning-bg);
+        border-color: #e3d18a; font-weight: 600; font-family: inherit;
+    }
+    .pill.stop { color: var(--danger); background: var(--danger-bg); border-color: #f0b1ad; font-family: inherit; font-weight: 600; }
+    .flow .arr { color: var(--text-3); font-size: 13px; }
+    .path-desc { margin-top: 12px; font-size: 12px; color: var(--text-2); border-top: 1px solid var(--border-soft); padding-top: 10px; }
+    .path-desc b { color: var(--text-1); }
+
+    /* ===== S3 模拟器 ===== */
+    .sim-input { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .sim-input input {
+        flex: 1; min-width: 220px; border: 1px solid var(--border); border-radius: 9px;
+        padding: 8px 12px; font-size: 13px; font-family: inherit; background: var(--bg-panel); color: var(--text-1);
+    }
+    .sim-input input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,35,40,0.1); }
+    .sim-input button {
+        border: none; background: var(--accent); color: #fff; border-radius: 9px;
+        padding: 8px 18px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    }
+    .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+    .ex {
+        font-size: 11px; border: 1px solid var(--border); background: var(--bg-panel);
+        color: var(--text-2); border-radius: 14px; padding: 3px 11px; cursor: pointer;
+    }
+    .ex:hover { background: var(--bg-hover); }
+
+    .step { display: flex; gap: 14px; margin-bottom: 14px; }
+    .step-no {
+        flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px;
+        background: var(--accent); color: #fff; font-weight: 700; font-size: 12px;
+        display: flex; align-items: center; justify-content: center; margin-top: 2px;
+    }
+    .step-body { flex: 1; min-width: 0; }
+    .step-body h3 { font-size: 13px; margin-bottom: 4px; }
+    .step-body .exp { font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
+    .step-body .exp code { color: var(--text-1); }
+    .formula {
+        font-family: var(--mono); font-size: 11.5px; background: var(--bg-app);
+        border: 1px solid var(--border-soft); border-radius: 8px; padding: 7px 12px;
+        color: var(--text-1); display: inline-block; margin-bottom: 10px;
+    }
+
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip {
+        font-family: var(--mono); font-size: 12px; font-weight: 700;
+        border-radius: 6px; padding: 3px 10px; border: 1px solid var(--border);
+        background: var(--bg-panel);
+    }
+    .chip.ascii { background: var(--bg-active); }
+    .chip.gram { background: var(--bg-panel); }
+    .chip-src { font-size: 10.5px; color: var(--text-3); font-family: inherit; font-weight: 400; margin-left: 5px; }
+
+    table.hit { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.hit th {
+        text-align: left; font-size: 11px; color: var(--text-2); font-weight: 600;
+        padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    table.hit td { padding: 7px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+    table.hit td.mono { font-family: var(--mono); font-size: 11px; }
+    table.hit tr.top td { background: #fbfcfd; }
+    .mini { font-size: 10.5px; border-radius: 5px; padding: 1px 7px; font-weight: 700; white-space: nowrap; }
+    .mini.yes { background: var(--success-bg); color: var(--success); }
+    .mini.no { background: var(--bg-subtle); color: var(--text-3); font-weight: 400; }
+    .bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .bar { height: 8px; border-radius: 4px; background: var(--accent); min-width: 2px; }
+    .score-num { font-family: var(--mono); font-size: 11px; color: var(--text-2); min-width: 34px; text-align: right; }
+    .miss-note { font-size: 11px; color: var(--text-3); margin-top: 8px; }
+    .idf-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .idf-card {
+        border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel);
+        padding: 7px 12px; font-family: var(--mono); font-size: 11px; color: var(--text-2);
+    }
+    .idf-card b { color: var(--text-1); font-size: 12.5px; }
+
+    .snippets { display: flex; flex-direction: column; gap: 8px; }
+    .snip {
+        border: 1px solid var(--border); border-radius: 9px; background: var(--bg-panel);
+        padding: 9px 13px; font-size: 12px;
+    }
+    .snip .p { font-family: var(--mono); font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+    .snip .tx { color: var(--text-2); }
+    .snip .read-hint { font-size: 10.5px; color: var(--text-3); margin-top: 4px; }
+    mark { background: var(--warning-bg); color: var(--text-1); border-radius: 3px; padding: 0 2px; }
+    .empty-hint { font-size: 12px; color: var(--text-2); background: var(--bg-app); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 14px; }
+
+    /* ===== S4 取舍 ===== */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .trade {
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+        padding: 14px 16px;
+    }
+    .trade h3 { font-size: 12.5px; margin-bottom: 6px; }
+    .trade h3 .tag { font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 7px; margin-right: 6px; vertical-align: 1px; }
+    .trade h3 .why { background: var(--success-bg); color: var(--success); }
+    .trade h3 .limit { background: var(--warning-bg); color: var(--warning); }
+    .trade p { font-size: 11.5px; color: var(--text-2); }
+    .trade p b { color: var(--text-1); }
+
+    footer { text-align: center; margin-top: 50px; font-size: 11px; color: var(--text-3); }
+    footer code { background: var(--bg-subtle); }
+
+    @media (max-width: 760px) {
+        .layer-list { grid-template-columns: 1fr 1fr; }
+        .grid2 { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+    <h1>资料库检索逻辑 · 交互讲解</h1>
+    <p class="sub">导航式三层检索 + 关键词全文兜底 —— 下方的检索模拟器与后端 Java 实现（MaterialService.search）逐行同逻辑</p>
+    <div class="badges">
+        <span class="badge on">非 RAG</span>
+        <span class="badge">不切块</span>
+        <span class="badge">现场扫描 · 无持久索引</span>
+        <span class="badge">零外部依赖</span>
+        <span class="badge">topK = 8</span>
+    </div>
+</header>
+
+<!-- ===== S1 三层体系 ===== -->
+<section>
+    <h2><span class="no">01</span>三层检索体系：每层回答一个不同的问题</h2>
+    <p class="sec-note">四个读侧工具构成流水线，决策者是模型本身（由工具 description 与系统提示词编排），每轮按需串行调用，终点汇合到 material_read。</p>
+
+    <div class="layer-list">
+        <div class="layer entry">
+            <span class="tool">material_list</span>
+            <h3>入口</h3>
+            <div class="q">有哪些库？</div>
+            <p>列出全部资料库（名称/描述/文章数/总字数）。库发现的唯一入口，系统提示词不注入库清单快照，增删即时生效。</p>
+        </div>
+        <div class="layer">
+            <span class="tool">material_tree</span>
+            <h3>导航层</h3>
+            <div class="q">库里有什么？（面）</div>
+            <p>全量目录树：文件夹 + 每篇的标题、字数、首行摘要与相对路径。模型靠树与摘要建立全局结构认知。</p>
+            <div class="meta">输出上限 200 行 · 超限截断并提示转 search</div>
+        </div>
+        <div class="layer">
+            <span class="tool">material_search</span>
+            <h3>召回层</h3>
+            <div class="q">目标在哪里？（点）</div>
+            <p>正文全文关键词检索，IDF 加权排序，返回 top 8 命中文章的片段与路径。tree 失效时的兜底。</p>
+            <div class="meta">现场扫描 · 无持久索引</div>
+        </div>
+        <div class="layer">
+            <span class="tool">material_read</span>
+            <h3>精读层</h3>
+            <div class="q">内容是什么？（事实源）</div>
+            <p>整篇返回 frontmatter 元信息 + 全文 Markdown，不切块。所有路径的汇合点，唯一的答案来源。</p>
+            <div class="meta">50,000 字符截断保护</div>
+        </div>
+    </div>
+
+    <div class="iron-law">
+        <b>铁律：</b>search 的片段仅用于「确认相关性、拿到 path」，回答引用必须先 material_read 阅读原文 —— 片段可能断章取义，原文才是唯一事实来源。该规则同时写入工具描述与系统提示词。
+    </div>
+</section>
+
+<!-- ===== S2 检索路径 ===== -->
+<section>
+    <h2><span class="no">02</span>三条典型检索路径</h2>
+    <p class="sec-note">点击场景切换。虚线节点是触发条件，红色节点表示该工具止步（fail → 换路），深色节点是本轮的实际执行者。</p>
+
+    <div class="tabs">
+        <button class="tab on" data-p="a">路径 A · 小库直达</button>
+        <button class="tab" data-p="b">路径 B · 大库截断</button>
+        <button class="tab" data-p="c">路径 C · 正文关键词</button>
+    </div>
+
+    <div class="panel">
+        <div id="path-a">
+            <div class="path-scene"><b>场景：</b>库内几十篇文章，目录树一次全览（≤ 200 行）。</div>
+            <div class="flow">
+                <span class="pill">material_list</span><span class="arr">→</span>
+                <span class="pill hot">material_tree</span><span class="arr">→</span>
+                <span class="pill hot">material_read</span><span class="arr">→</span>
+                <span class="pill">回答（注明来源 path）</span>
+            </div>
+            <div class="path-desc"><b>search 不出场。</b>模型扫一眼标题 + 摘要即可锁定目标，行为与没有 search 的版本完全一致 —— 小库体验零变化。</div>
+        </div>
+        <div id="path-b" style="display:none">
+            <div class="path-scene"><b>场景：</b>数百篇文章，目录树超过 200 行被截断。</div>
+            <div class="flow">
+                <span class="pill">material_list</span><span class="arr">→</span>
+                <span class="pill hot">material_tree</span>
+                <span class="pill cond">输出截断：仅前 200 行 + 提示改用 search</span><span class="arr">→</span>
+                <span class="pill hot">material_search(关键词)</span><span class="arr">→</span>
+                <span class="pill hot">material_read</span><span class="arr">→</span>
+                <span class="pill">回答</span>
+            </div>
+            <div class="path-desc"><b>截断提示起「导航牌」作用：</b>模型明确知道树没看全，转用 search 按用户问题中的关键词补齐定位，而不会基于半棵树瞎猜。这同时堵住了目录全量渲染挤爆上下文的问题。</div>
+        </div>
+        <div id="path-c" style="display:none">
+            <div class="path-scene"><b>场景：</b>目标概念只出现在正文中（如「回滚」二字没出现在任何标题/摘要里）。</div>
+            <div class="flow">
+                <span class="pill">material_list</span><span class="arr">→</span>
+                <span class="pill hot">material_tree</span>
+                <span class="pill stop">元数据无命中 → 导航失效</span><span class="arr">→</span>
+                <span class="pill hot">material_search("回滚")</span><span class="arr">→</span>
+                <span class="pill hot">material_read</span><span class="arr">→</span>
+                <span class="pill">回答</span>
+            </div>
+            <div class="path-desc"><b>tree 的召回上限 = 元数据覆盖率：</b>标题和首行摘要没写的概念，导航永远找不到。正文级定位只有 search 能做 —— 这是不做 RAG 的前提下补齐召回率的关键一层。</div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== S3 search 原理 ===== -->
+<section>
+    <h2><span class="no">03</span>material_search 原理 · 可运行模拟</h2>
+    <p class="sec-note">模拟库含 6 篇文章。修改查询词，下方五步实时重算，与 Java 实现完全同逻辑。</p>
+
+    <div class="sim-input">
+        <input id="q" type="text" value="部署 回滚" placeholder="输入查询词，支持中英文，空格分隔">
+        <button id="run">执行检索</button>
+    </div>
+    <div class="examples" id="examples">
+        <button class="ex">部署 回滚</button>
+        <button class="ex">监控</button>
+        <button class="ex">数据库 配置</button>
+        <button class="ex">lint</button>
+        <button class="ex">灰度发布 预案</button>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step">
+        <div class="step-no">1</div>
+        <div class="step-body">
+            <h3>分词 · extractTerms</h3>
+            <div class="exp">ASCII 连续串作为整词（<code>lint</code>）；中文连续串拆 <b>2-gram</b>（相邻两字一组，如「回滚方案」→ 回滚 / 滚方 / 方案）；去重保序。不用词典就能让「如何部署」和文章里的「部署」对上；无意义组合（滚方）交给下一步 IDF 自动压权。</div>
+            <div class="chips" id="terms"></div>
+        </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+        <div class="step-no">2</div>
+        <div class="step-body">
+            <h3>现场扫描 · 一遍遍历</h3>
+            <div class="exp">Files.walk 遍历 articles/ 全部 .md，逐篇剥 frontmatter，统计三个信号：哪些词命中<b>标题</b>、哪些词命中<b>路径</b>、每个词在<b>正文</b>出现几次（TF）。此刻不缓存任何正文 —— 内存里只有统计数字。</div>
+            <div class="formula">信号 = { titleTerms: Set, pathTerms: Set, bodyTf: Map&lt;词, 次数&gt; }</div>
+        </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+        <div class="step-no">3</div>
+        <div class="step-body">
+            <h3>IDF 评分 · 越稀有的词越值钱</h3>
+            <div class="exp">df = 包含该词的<b>命中文档</b>数。「的」「服务」几乎每篇都有 → IDF≈0，加不加分无所谓；「回滚」只有 3 篇有 → IDF 高，命中即强信号。这套朴素加权是 BM25 的简化版。</div>
+            <div class="formula">IDF = ln( 1 + N / (1 + df) )　·　N = 命中文档数</div>
+            <div class="idf-row" id="idf"></div>
+        </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+        <div class="step-no">4</div>
+        <div class="step-body">
+            <h3>加权求和 · 排序取 top 8</h3>
+            <div class="exp">标题命中比正文顺带一提更可信（3 倍权重），路径次之；正文按词频带饱和（ln TF，出现 10 次不会是 1 次的 10 倍）。</div>
+            <div class="formula">得分 = Σ [ 标题 3×IDF + 路径 1.5×IDF + 正文 (1 + ln TF)×IDF ]</div>
+            <table class="hit" id="scoreTable">
+                <thead><tr><th>文章</th><th>标题命中</th><th>路径命中</th><th>正文 TF</th><th style="min-width:150px">得分</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="miss-note" id="missNote"></div>
+        </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="step">
+        <div class="step-no">5</div>
+        <div class="step-body">
+            <h3>片段提取 · 惰性回读</h3>
+            <div class="exp">此刻才回读 top 8 的正文（此前全文从未进过内存），找<b>最早命中位置</b>，取「前 30 字 + 后 120 字」窗口；正文无命中的（纯标题命中）回退首段摘要。片段只用来确认相关性 —— 回答必须 material_read 原文。</div>
+            <div class="snippets" id="snippets"></div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== S4 取舍 ===== -->
+<section>
+    <h2><span class="no">04</span>设计取舍与边界</h2>
+    <div class="grid2">
+        <div class="trade">
+            <h3><span class="tag why">取舍</span>为什么不切块、不建索引</h3>
+            <p>本地 wiki 定位是<b>通读理解</b>而非片段拼凑；库规模（几十~几百篇）下现场扫描是毫秒级；零索引 = 零维护、零一致性问题，上传即生效。<b>规模过千再谈持久索引。</b></p>
+        </div>
+        <div class="trade">
+            <h3><span class="tag why">取舍</span>为什么用 2-gram 而不是分词词典</h3>
+            <p>整词匹配需要词典（jieba 等）引依赖；单字区分度太差。2-gram 零词典即可跨词边界命中，噪声 gram 被 <b>IDF 自动压权</b> —— 用统计代价换工程简单。</p>
+        </div>
+        <div class="trade">
+            <h3><span class="tag why">取舍</span>标题为什么 3 倍权重</h3>
+            <p>标题是作者对全文的浓缩承诺，标题命中比正文偶然提及<b>可信度高一个量级</b>；路径次之（目录命名也是人工组织信号）。比例 3 : 1.5 : 1。</p>
+        </div>
+        <div class="trade">
+            <h3><span class="tag limit">边界</span>字面匹配的天花板</h3>
+            <p>搜「回滚」找不到只写「撤销上线」的文章 —— <b>同义改写是关键词检索的结构性盲区</b>。升级路径：接入向量（DashscopeEmbeddingModel 已就绪）做 RRF 融合，导航层与精读层完全不动。</p>
+        </div>
+    </div>
+</section>
+
+<footer>
+    对应实现：<code>MaterialService.search()</code> · <code>MaterialSearchTool</code> · <code>MaterialTreeTool</code>（200 行截断） · <code>ChatService.MATERIAL_GUIDE</code>
+</footer>
+
+</main>
+
+<script>
+/* ===== 模拟库：6 篇文章（path / title / body） ===== */
+const KB = [
+    { path: '指南/部署手册.md', title: '部署手册',
+      body: '本文介绍服务的完整部署流程。部署前需准备 JDK 17 与数据库连接信息。部署脚本 start.sh 会拉起应用进程，部署完成后访问健康检查端口确认实例状态正常。' },
+    { path: '指南/部署回滚方案.md', title: '部署回滚方案',
+      body: '当部署失败或新版本出现异常时，执行回滚。回滚流程：先停止新版本服务，再将数据库快照还原到部署前的时间点，最后把流量切回旧版本。回滚操作要求在 30 分钟窗口内完成。' },
+    { path: '运维/监控告警.md', title: '监控与告警',
+      body: '服务部署后需接入监控体系。告警规则覆盖 CPU 使用率、内存占用与接口错误率。告警触发后值班人员按 runbook 处置，必要时执行回滚止损。' },
+    { path: '规范/代码风格.md', title: '代码风格规范',
+      body: '团队统一使用 UTF-8 编码，命名采用小驼峰，注释使用中文。提交代码前需通过 lint 静态检查，禁止引入未格式化的文件。' },
+    { path: '指南/配置说明.md', title: '配置说明',
+      body: '配置文件位于 conf/application.yaml。数据库连接、服务端口与日志级别均在此调整，修改后需重启服务才能生效。' },
+    { path: '方案/灰度发布.md', title: '灰度发布方案',
+      body: '新版本先放量 5% 观察核心指标，无异常后逐步放量至全量。灰度期间发现问题按回滚预案立即处理，并记录失败原因。' },
+];
+
+/* ===== 与 Java 实现同逻辑 ===== */
+function extractTerms(query) {
+    const q = (query || '').toLowerCase();
+    const re = /[a-z0-9_]+|[^\s\x00-\x7f]+/g;
+    const out = [], seen = new Set();
+    let m;
+    while ((m = re.exec(q))) {
+        const tok = m[0];
+        if (tok.length === 1 || /^[\x00-\x7f]+$/.test(tok)) {
+            if (!seen.has(tok)) { seen.add(tok); out.push(tok); }
+        } else {
+            for (let i = 0; i + 2 <= tok.length; i++) {
+                const g = tok.substring(i, i + 2);
+                if (!seen.has(g)) { seen.add(g); out.push(g); }
+            }
+        }
+    }
+    return out;
+}
+
+function countOccurrences(text, term) {
+    let c = 0, i = 0;
+    while ((i = text.indexOf(term, i)) >= 0) { c++; i += term.length; }
+    return c;
+}
+
+function extractSnippet(body, terms) {
+    const lower = body.toLowerCase();
+    let pos = -1;
+    terms.forEach(t => {
+        const i = lower.indexOf(t);
+        if (i >= 0 && (pos < 0 || i < pos)) pos = i;
+    });
+    if (pos < 0) return { text: body.replace(/\s+/g, ' ').slice(0, 60) + '…', fallback: true };
+    const start = Math.max(0, pos - 30), end = Math.min(body.length, pos + 120);
+    const w = body.substring(start, end).replace(/\s+/g, ' ').trim();
+    return { text: (start > 0 ? '…' : '') + w + (end < body.length ? '…' : ''), fallback: false };
+}
+
+function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function highlight(text, terms) {
+    let safe = escapeHtml(text);
+    if (!terms.length) return safe;
+    const esc = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                     .sort((a, b) => b.length - a.length).join('|');
+    return safe.replace(new RegExp(esc, 'gi'), m => '<mark>' + m + '</mark>');
+}
+
+function doSearch(query) {
+    const terms = extractTerms(query);
+    if (!terms.length) return { terms, docs: [], hits: [], idfs: [] };
+
+    let docs = KB.map(d => {
+        const lb = d.body.toLowerCase(), lt = d.title.toLowerCase(), lp = d.path.toLowerCase();
+        const s = { doc: d, titleTerms: [], pathTerms: [], bodyTf: {}, score: 0 };
+        terms.forEach(t => {
+            if (lt.includes(t)) s.titleTerms.push(t);
+            if (lp.includes(t)) s.pathTerms.push(t);
+            const tf = countOccurrences(lb, t);
+            if (tf > 0) s.bodyTf[t] = tf;
+        });
+        return s;
+    });
+    docs = docs.filter(s => s.titleTerms.length || s.pathTerms.length || Object.keys(s.bodyTf).length);
+
+    const df = {};
+    docs.forEach(s => Object.keys(s.bodyTf).forEach(t => { df[t] = (df[t] || 0) + 1; }));
+    const idfs = terms.map(t => ({
+        term: t, df: df[t] || 0,
+        idf: Math.log(1 + docs.length / (1 + (df[t] || 0)))
+    }));
+    docs.forEach(s => {
+        terms.forEach(t => {
+            const idf = Math.log(1 + docs.length / (1 + (df[t] || 0)));
+            if (s.titleTerms.includes(t)) s.score += 3 * idf;
+            if (s.pathTerms.includes(t)) s.score += 1.5 * idf;
+            const tf = s.bodyTf[t];
+            if (tf) s.score += idf * (1 + Math.log(tf));
+        });
+    });
+    docs.sort((a, b) => b.score - a.score);
+    const hits = docs.slice(0, 8).map(s => ({ ...s, snippet: extractSnippet(s.doc.body, terms) }));
+    return { terms, docs, hits, idfs, N: docs.length };
+}
+
+/* ===== 渲染 ===== */
+function render(query) {
+    const r = doSearch(query);
+
+    // Step1 分词
+    const termsEl = document.getElementById('terms');
+    if (!r.terms.length) {
+        termsEl.innerHTML = '<span class="empty-hint">查询词无效（无有效字符），检索终止。</span>';
+    } else {
+        termsEl.innerHTML = r.terms.map(t => {
+            const isAscii = /^[\x00-\x7f]+$/.test(t);
+            return '<span class="chip ' + (isAscii ? 'ascii' : 'gram') + '">' + escapeHtml(t) +
+                   '<span class="chip-src">' + (isAscii ? '整词' : '2-gram') + '</span></span>';
+        }).join('');
+    }
+
+    // Step3 IDF
+    const idfEl = document.getElementById('idf');
+    idfEl.innerHTML = r.idfs.map(x =>
+        '<span class="idf-card"><b>' + escapeHtml(x.term) + '</b>　df=' + x.df +
+        '　IDF=' + x.idf.toFixed(3) + '</span>'
+    ).join('');
+
+    // Step4 评分表
+    const tbody = document.querySelector('#scoreTable tbody');
+    if (!r.docs.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><span class="empty-hint">没有任何文章命中，返回空结果（工具会提示换关键词或改用 material_tree 浏览目录）。</span></td></tr>';
+        document.getElementById('missNote').textContent = '';
+    } else {
+        const max = Math.max(...r.docs.map(d => d.score), 0.001);
+        tbody.innerHTML = r.docs.map((s, i) => {
+            const tt = s.titleTerms.length
+                ? s.titleTerms.map(t => '<span class="mini yes">' + escapeHtml(t) + '</span>').join(' ') : '<span class="mini no">—</span>';
+            const pt = s.pathTerms.length
+                ? s.pathTerms.map(t => '<span class="mini yes">' + escapeHtml(t) + '</span>').join(' ') : '<span class="mini no">—</span>';
+            const tf = Object.entries(s.bodyTf).map(([t, n]) =>
+                '<span class="mini yes">' + escapeHtml(t) + '×' + n + '</span>').join(' ') || '<span class="mini no">—</span>';
+            return '<tr' + (i === 0 ? ' class="top"' : '') + '>' +
+                '<td><b>' + escapeHtml(s.doc.title) + '</b> <span class="mono" style="color:var(--text-3)">' + escapeHtml(s.doc.path) + '</span></td>' +
+                '<td>' + tt + '</td><td>' + pt + '</td><td>' + tf + '</td>' +
+                '<td><div class="bar-wrap"><div class="bar" style="width:' + (s.score / max * 100).toFixed(1) + '%"></div>' +
+                '<span class="score-num">' + s.score.toFixed(2) + '</span></div></td></tr>';
+        }).join('');
+        const miss = KB.length - r.docs.length;
+        document.getElementById('missNote').textContent =
+            miss > 0 ? miss + ' 篇文章零命中，不进入评分与排序（N = ' + r.docs.length + '）。' : '';
+    }
+
+    // Step5 片段
+    const snipEl = document.getElementById('snippets');
+    if (!r.hits.length) {
+        snipEl.innerHTML = '';
+    } else {
+        snipEl.innerHTML = r.hits.map(h => {
+            const tx = h.snippet.fallback
+                ? '<i>（正文无命中，回退首段摘要）</i>' + escapeHtml(h.snippet.text)
+                : highlight(h.snippet.text, r.terms);
+            return '<div class="snip"><div class="p">' + escapeHtml(h.doc.title) +
+                ' [' + escapeHtml(h.doc.path) + ']</div><div class="tx">' + tx + '</div>' +
+                '<div class="read-hint">↑ 片段仅用于定位 —— 回答引用必须 material_read 阅读原文</div></div>';
+        }).join('');
+    }
+}
+
+/* ===== 交互 ===== */
+document.getElementById('run').addEventListener('click', () => {
+    render(document.getElementById('q').value);
+});
+document.getElementById('q').addEventListener('keydown', e => {
+    if (e.key === 'Enter') render(e.target.value);
+});
+document.getElementById('examples').addEventListener('click', e => {
+    if (!e.target.classList.contains('ex')) return;
+    document.getElementById('q').value = e.target.textContent;
+    render(e.target.textContent);
+});
+document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+        t.classList.add('on');
+        ['a', 'b', 'c'].forEach(p => document.getElementById('path-' + p).style.display = p === t.dataset.p ? '' : 'none');
+    });
+});
+
+render('部署 回滚');
+</script>
+</body>
+</html>

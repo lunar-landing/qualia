@@ -3,6 +3,7 @@ package cn.lunarlanding.qualia.code.service;
 import cn.lunarlanding.qualia.code.CodeAgentConfig;
 import cn.lunarlanding.qualia.core.parser.Document;
 import cn.lunarlanding.qualia.core.parser.DocumentParseException;
+import cn.lunarlanding.qualia.core.parser.DocumentParser;
 import cn.lunarlanding.qualia.core.parser.MarkdownDocumentParser;
 import cn.lunarlanding.qualia.core.parser.PdfDocumentParser;
 import cn.lunarlanding.qualia.core.parser.WordDocumentParser;
@@ -23,11 +24,17 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -66,19 +73,20 @@ public class MaterialService {
 
     // ===== 视图记录 =====
 
-    /** 库列表项（含统计：文章数与总字数） */
+    /** 库列表项（含统计：文章数、总字数与类型构成 kindBreakdown） */
     public record MaterialInfo(String id, String name, String description,
-                               long createdAt, long updatedAt, int articleCount, long totalChars) {
+                               long createdAt, long updatedAt, int articleCount, long totalChars,
+                               Map<String, Integer> kindBreakdown) {
     }
 
-    /** 文章树节点：文件夹或文章（path 为库内相对路径，'/' 分隔） */
+    /** 文章树节点：文件夹或文章（path 为库内相对路径，'/' 分隔；kind 决定前端图标与默认视图） */
     public record TreeNode(String type, String name, String path, long updatedAt,
-                           Integer words, String summary, List<TreeNode> children) {
+                           Integer words, String summary, String kind, List<TreeNode> children) {
     }
 
-    /** 文章正文（content 为剥离 frontmatter 后的正文，供阅读与编辑） */
+    /** 文章正文（content 为剥离 frontmatter 后的正文，供阅读与编辑；kind 见 {@link #deriveKind}） */
     public record Article(String path, String title, String author, String source,
-                          long updatedAt, int words, String content) {
+                          long updatedAt, int words, String kind, String content) {
     }
 
     /** 单文件上传回执（同步转换，ok=false 时 error 给出可读原因） */
@@ -124,7 +132,7 @@ public class MaterialService {
                     long updatedAt = meta.containsKey("updatedAt") ? meta.getLongValue("updatedAt") : stats.latest;
                     result.add(new MaterialInfo(dir.getFileName().toString(),
                             meta.getString("name"), meta.getString("description"),
-                            meta.getLongValue("createdAt"), updatedAt, stats.files, stats.chars));
+                            meta.getLongValue("createdAt"), updatedAt, stats.files, stats.chars, stats.kinds));
                 });
             }
         } catch (IOException e) {
@@ -150,7 +158,8 @@ public class MaterialService {
         meta.put("createdAt", now);
         meta.put("updatedAt", now);
         writeKbMeta(dir, meta);
-        return new MaterialInfo(id, meta.getString("name"), meta.getString("description"), now, now, 0, 0);
+        return new MaterialInfo(id, meta.getString("name"), meta.getString("description"), now, now, 0, 0,
+                new LinkedHashMap<>());
     }
 
     /** 更新库名称/描述（null 字段保持不变） */
@@ -170,7 +179,7 @@ public class MaterialService {
         writeKbMeta(dir, meta);
         Stats stats = scanStats(dir.resolve("articles"));
         return new MaterialInfo(id, meta.getString("name"), meta.getString("description"),
-                meta.getLongValue("createdAt"), meta.getLongValue("updatedAt"), stats.files, stats.chars);
+                meta.getLongValue("createdAt"), meta.getLongValue("updatedAt"), stats.files, stats.chars, stats.kinds);
     }
 
     /** 删除资料库（物理递归删除，前端二次确认） */
@@ -216,11 +225,14 @@ public class MaterialService {
                     String raw = Files.readString(child, StandardCharsets.UTF_8);
                     Map<String, String> meta = new LinkedHashMap<>();
                     String body = stripFrontmatter(raw, meta);
+                    String kind = deriveKind(meta);
+                    // HTML 正文含标签，摘要先剥标签取纯文本，避免首页卡片露出标记；字数仍按原口径与文章态一致
+                    String summarySrc = "html".equals(kind) ? body.replaceAll("<[^>]+>", " ") : body;
                     files.add(new TreeNode("file", displayTitle(meta, name), rel, lastModified(child),
-                            countWords(body), extractSummary(body), null));
+                            countWords(body), extractSummary(summarySrc), kind, null));
                 } else if (Files.isDirectory(child)) {
                     String rel = relPrefix + name + "/";
-                    folders.add(new TreeNode("folder", name, rel, lastModified(child), null, null,
+                    folders.add(new TreeNode("folder", name, rel, lastModified(child), null, null, null,
                             buildLevel(articlesRoot, child, rel)));
                 }
             }
@@ -228,6 +240,173 @@ public class MaterialService {
         List<TreeNode> result = new ArrayList<>(folders);
         result.addAll(files);
         return result;
+    }
+
+    // ===== 全文检索 =====
+
+    /** 单条全文检索命中（片段仅用于确认相关性，回答须以 material_read 的原文为准） */
+    public record SearchHit(String path, String title, double score, String snippet) {
+    }
+
+    /**
+     * 库内全文检索（现场扫描 articles/**.md，无持久索引，与 {@link #tree} 同风格）：
+     * 查询词拆 ASCII 整词 + 中文 2-gram，IDF 加权评分（标题 3x / 路径 1.5x / 正文按 TF），
+     * 按相关性排序返回 topK 并附正文片段。片段仅用于定位，回答须读原文。
+     */
+    public List<SearchHit> search(String id, String query, int topK) throws IOException {
+        List<String> terms = extractTerms(query);
+        if (terms.isEmpty() || topK <= 0) {
+            return new ArrayList<>();
+        }
+        Path articles = requireKb(id).resolve("articles");
+        Files.createDirectories(articles);
+
+        // 一遍扫描收集命中统计（不缓存正文）；评分定出 topK 后仅回读这几篇提片段
+        List<DocStat> docs = new ArrayList<>();
+        try (Stream<Path> stream = Files.walk(articles)) {
+            for (Path file : stream.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".md")).toList()) {
+                try {
+                    Map<String, String> meta = new LinkedHashMap<>();
+                    String body = stripFrontmatter(Files.readString(file, StandardCharsets.UTF_8), meta);
+                    // HTML 正文剥标签后参与匹配，与树摘要同口径，避免标签词污染结果
+                    String plain = "html".equals(deriveKind(meta)) ? body.replaceAll("<[^>]+>", " ") : body;
+                    String lowerBody = plain.toLowerCase(Locale.ROOT);
+                    String title = displayTitle(meta, file.getFileName().toString());
+                    String rel = relativizeArticle(file, id);
+                    DocStat stat = new DocStat(file, rel, title);
+                    String lowerTitle = title.toLowerCase(Locale.ROOT);
+                    String lowerRel = rel.toLowerCase(Locale.ROOT);
+                    for (String term : terms) {
+                        if (lowerTitle.contains(term)) {
+                            stat.titleTerms.add(term);
+                        }
+                        if (lowerRel.contains(term)) {
+                            stat.pathTerms.add(term);
+                        }
+                        int tf = countOccurrences(lowerBody, term);
+                        if (tf > 0) {
+                            stat.bodyTf.put(term, tf);
+                        }
+                    }
+                    if (!stat.titleTerms.isEmpty() || !stat.pathTerms.isEmpty() || !stat.bodyTf.isEmpty()) {
+                        docs.add(stat);
+                    }
+                } catch (IOException ignored) {
+                    // 单文件读取失败不阻塞检索
+                }
+            }
+        }
+        if (docs.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // IDF 评分：词越稀有越有区分度；标题/路径命中比正文命中更可信
+        Map<String, Integer> df = new HashMap<>();
+        for (DocStat d : docs) {
+            for (String t : d.bodyTf.keySet()) {
+                df.merge(t, 1, Integer::sum);
+            }
+        }
+        for (DocStat d : docs) {
+            double score = 0;
+            for (String term : terms) {
+                double idf = Math.log(1.0 + (double) docs.size() / (1 + df.getOrDefault(term, 0)));
+                if (d.titleTerms.contains(term)) {
+                    score += 3 * idf;
+                }
+                if (d.pathTerms.contains(term)) {
+                    score += 1.5 * idf;
+                }
+                Integer tf = d.bodyTf.get(term);
+                if (tf != null) {
+                    score += idf * (1 + Math.log(tf));
+                }
+            }
+            d.score = score;
+        }
+        docs.sort(Comparator.comparingDouble((DocStat d) -> d.score).reversed());
+
+        // 仅回读 topK 提取片段，控制内存与 IO
+        List<SearchHit> hits = new ArrayList<>();
+        for (DocStat d : docs.subList(0, Math.min(topK, docs.size()))) {
+            try {
+                Map<String, String> meta = new LinkedHashMap<>();
+                String body = stripFrontmatter(Files.readString(d.file, StandardCharsets.UTF_8), meta);
+                String plain = "html".equals(deriveKind(meta)) ? body.replaceAll("<[^>]+>", " ") : body;
+                hits.add(new SearchHit(d.rel, d.title, d.score, extractSnippet(plain, terms)));
+            } catch (IOException ignored) {
+                // 回读失败跳过该条
+            }
+        }
+        return hits;
+    }
+
+    /** 查询分词：ASCII 连续串为整词，非 ASCII 连续串拆 2-gram（单字保留），去重保序 */
+    static List<String> extractTerms(String query) {
+        Set<String> terms = new LinkedHashSet<>();
+        if (query == null) {
+            return new ArrayList<>(terms);
+        }
+        Matcher matcher = Pattern.compile("[a-z0-9_]+|[^\\s\\x00-\\x7f]+")
+                .matcher(query.toLowerCase(Locale.ROOT));
+        while (matcher.find()) {
+            String token = matcher.group();
+            if (token.length() == 1 || token.chars().allMatch(c -> c < 0x80)) {
+                terms.add(token);
+            } else {
+                for (int i = 0; i + 2 <= token.length(); i++) {
+                    terms.add(token.substring(i, i + 2));
+                }
+            }
+        }
+        return new ArrayList<>(terms);
+    }
+
+    /** 正文片段：取最早命中处前后窗口，空白归一，省略号标注截断；正文无命中回退首段摘要 */
+    private String extractSnippet(String body, List<String> terms) {
+        String lower = body.toLowerCase(Locale.ROOT);
+        int pos = -1;
+        for (String term : terms) {
+            int idx = lower.indexOf(term);
+            if (idx >= 0 && (pos < 0 || idx < pos)) {
+                pos = idx;
+            }
+        }
+        if (pos < 0) {
+            return extractSummary(body);
+        }
+        int start = Math.max(0, pos - 30);
+        int end = Math.min(body.length(), pos + 120);
+        String window = body.substring(start, end).replaceAll("\\s+", " ").strip();
+        return (start > 0 ? "…" : "") + window + (end < body.length() ? "…" : "");
+    }
+
+    /** 子串出现次数 */
+    private static int countOccurrences(String text, String term) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.indexOf(term, idx)) >= 0) {
+            count++;
+            idx += term.length();
+        }
+        return count;
+    }
+
+    /** 检索中间统计（一遍扫描收集，评分后仅回读 topK 文件提片段） */
+    private static class DocStat {
+        final Path file;
+        final String rel;
+        final String title;
+        final Set<String> titleTerms = new HashSet<>();
+        final Set<String> pathTerms = new HashSet<>();
+        final Map<String, Integer> bodyTf = new HashMap<>();
+        double score;
+
+        DocStat(Path file, String rel, String title) {
+            this.file = file;
+            this.rel = rel;
+            this.title = title;
+        }
     }
 
     // ===== 文章读写 =====
@@ -240,7 +419,7 @@ public class MaterialService {
         String body = stripFrontmatter(raw, meta);
         return new Article(normalizeRel(path), displayTitle(meta, file.getFileName().toString()),
                 meta.getOrDefault("author", "user"), meta.get("source"),
-                lastModified(file), countWords(body), body);
+                lastModified(file), countWords(body), deriveKind(meta), body);
     }
 
     /** 新建空白文章（frontmatter + 空 body），返回库内相对路径 */
@@ -380,13 +559,19 @@ public class MaterialService {
                 String text = new String(data, StandardCharsets.UTF_8);
                 raw = buildFrontmatter(newMeta(base, "user", null), text);
             } else if (lower.endsWith(".pdf")) {
-                raw = documentsToMarkdown(new PdfDocumentParser().parse(data), base, "user");
                 original = storeOriginal(id, name, data);
+                raw = documentsToMarkdown(new PdfDocumentParser().parse(data), base, "user", original);
             } else if (lower.endsWith(".docx")) {
-                raw = documentsToMarkdown(new WordDocumentParser().parse(data), base, "user");
                 original = storeOriginal(id, name, data);
+                raw = documentsToMarkdown(new WordDocumentParser().parse(data), base, "user", original);
+            } else if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+                // HTML 不解析：原文即文本，模型可直接读，且前端需「源码查看」必须留原文；
+                // 以 frontmatter.format=html 标记，沙箱 iframe 渲染预览（无原件留档，正文即原文）
+                Map<String, String> htmlMeta = newMeta(base, "user", null);
+                htmlMeta.put("format", "html");
+                raw = buildFrontmatter(htmlMeta, DocumentParser.decodeText(data));
             } else {
-                return new UploadResult(name, false, null, null, 0, null, "不支持的格式（md / txt / pdf / docx）");
+                return new UploadResult(name, false, null, null, 0, null, "不支持的格式（md / txt / pdf / docx / html）");
             }
             Path target = uniqueChild(targetDir, base + ".md");
             atomicWrite(target, raw);
@@ -418,8 +603,8 @@ public class MaterialService {
         return buildFrontmatter(meta, content);
     }
 
-    /** 解析页文档列表拼为整篇 Markdown（页间以水平线分页） */
-    private String documentsToMarkdown(List<Document> documents, String base, String author) {
+    /** 解析页文档列表拼为整篇 Markdown（页间以水平线分页）；source 为原件相对 originals/ 的路径，写入 frontmatter 供 kind 派生与原件预览 */
+    private String documentsToMarkdown(List<Document> documents, String base, String author, String source) {
         StringBuilder body = new StringBuilder();
         for (Document document : documents) {
             if (body.length() > 0) {
@@ -427,16 +612,16 @@ public class MaterialService {
             }
             body.append(document.getContent() == null ? "" : document.getContent().strip());
         }
-        return buildFrontmatter(newMeta(base, author, null), body.toString());
+        return buildFrontmatter(newMeta(base, author, source), body.toString());
     }
 
-    /** 原件存入库内 originals/（重名自动追加序号），返回库内相对路径 */
+    /** 原件存入库内 originals/（重名自动追加序号），返回相对 originals/ 的路径（供 /original 接口拼接） */
     private String storeOriginal(String id, String name, byte[] data) throws IOException {
         Path dir = kbDir(id).resolve("originals");
         Files.createDirectories(dir);
         Path target = uniqueChild(dir, sanitizeName(stripExtension(name)) + extOf(name));
         Files.write(target, data);
-        return relativize(target, id);
+        return dir.relativize(target).toString().replace('\\', '/');
     }
 
     /** 读原件字节（供「原件」按钮下载/预览） */
@@ -511,6 +696,30 @@ public class MaterialService {
         return title == null || title.isBlank() ? stripMdExtension(fileName) : title;
     }
 
+    /**
+     * 派生展示类型（前端据此选图标与默认视图，单一事实源，避免前端猜扩展名）：
+     * 富格式原件按 source 扩展名判 pdf/docx；HTML 不解析、以 format=html 标记；其余为 markdown。
+     */
+    private String deriveKind(Map<String, String> meta) {
+        String source = meta.get("source");
+        if (source != null && !source.isBlank()) {
+            String s = source.toLowerCase(Locale.ROOT);
+            if (s.endsWith(".pdf")) {
+                return "pdf";
+            }
+            if (s.endsWith(".docx")) {
+                return "docx";
+            }
+            if (s.endsWith(".html") || s.endsWith(".htm")) {
+                return "html";
+            }
+        }
+        if ("html".equalsIgnoreCase(meta.get("format"))) {
+            return "html";
+        }
+        return "markdown";
+    }
+
     /** 字数：去空白后的字符数（中英文同权重，够用作阅读预期） */
     private int countWords(String body) {
         return body.replaceAll("\\s+", "").length();
@@ -579,11 +788,6 @@ public class MaterialService {
         return dir;
     }
 
-    /** 库内相对路径（'/' 分隔） */
-    private String relativize(Path file, String id) {
-        return root().resolve(id).relativize(file).toString().replace('\\', '/');
-    }
-
     /** 文章区相对路径（相对 articles/，与树与文章接口的路径契约一致） */
     private String relativizeArticle(Path file, String id) {
         return root().resolve(id).resolve("articles").relativize(file).toString().replace('\\', '/');
@@ -637,7 +841,7 @@ public class MaterialService {
         }
     }
 
-    /** 库统计：递归计文章数、总字数与最新更新时间 */
+    /** 库统计：递归计文章数、总字数、最新更新时间与类型构成 */
     private Stats scanStats(Path articles) {
         Stats stats = new Stats();
         if (!Files.isDirectory(articles)) {
@@ -651,6 +855,8 @@ public class MaterialService {
                     stats.files++;
                     stats.chars += countWords(body);
                     stats.latest = Math.max(stats.latest, lastModified(p));
+                    // 类型构成：列表页卡片底部 3px 构成条按占比分段，色值由前端统一降饱和
+                    stats.kinds.merge(deriveKind(meta), 1, Integer::sum);
                 } catch (IOException ignored) {
                     // 单文件读取失败不阻塞统计
                 }
@@ -665,6 +871,7 @@ public class MaterialService {
         int files;
         long chars;
         long latest;
+        final Map<String, Integer> kinds = new LinkedHashMap<>();
     }
 
     /** 原子写：临时文件 + 替换，避免半写损坏 */

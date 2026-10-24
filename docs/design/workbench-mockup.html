@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 · 重构版</title>
+<!--
+  ============================================================================
+  工作台 · 重构版 v2 · workbench-mockup
+  ----------------------------------------------------------------------------
+  v1 的问题：容器太窄（780px）导致拥挤；通篇灰阶细线缺少视觉锚点；
+  工具占比条过弱；资料库以表格行呈现没有存在感。
+  v2 重构：
+    · 容器加宽至 1000px，区块卡片化（白卡 + 柔和多层阴影 + 14px 圆角），
+      区块之间靠留白呼吸，不再靠线分割
+    · 引入唯一强调色：石墨蓝 #46618c——只用于条形图 / sparkline / 激活指示，
+      其余保持石墨灰阶，克制不花
+    · Hero 升级：问候 20px、输入框 54px 高、聚焦浮起
+    · 工具条 6px 圆角 + accent 分层透明度；行 hover 呈现
+    · 资料库卡片化：3 列库卡（icon + 名称 + 篇数/字数 + 更新）+ 最近更新文章，
+      摘要大数字「42 篇 / 6.7 万字」提升资料存在感
+    · 侧边栏精修：accent 左竖线激活态、分组小标、按钮计数徽标
+  数据自洽：148 = 146 内置 + 2 MCP；42 篇 = 18+15+9；
+  edit 10-18 21:04 与 fastjson 文档更新同刻呼应。
+  零依赖 · 日间石墨 · 图标内联 SVG。
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#f5f7f9;
+    --panel:#ffffff;
+    --card:#ffffff;
+    --line:#e9edf1;
+    --border:#d3dae1;
+    --text:#1f2429; --text2:#5a6572; --muted:#8b95a1;
+    --ok:#1a7f37;
+    --accent:#46618c;           /* 石墨蓝：唯一强调色 */
+    --accent-soft:#eef2f7;
+    --hover:rgba(31,36,41,.045);
+    --shadow-sm:0 1px 2px rgba(24,32,44,.05);
+    --shadow-md:0 1px 2px rgba(24,32,44,.04), 0 6px 22px rgba(24,32,44,.06);
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);overflow:hidden;
+       font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       font-size:13px;-webkit-font-smoothing:antialiased}
+
+  .app{display:flex;height:100vh}
+
+  /* ============================================================
+     侧边栏
+     ============================================================ */
+  .side{width:232px;flex:none;background:#fbfcfd;border-right:1px solid var(--line);
+        display:flex;flex-direction:column}
+  .s-logo{display:flex;align-items:center;gap:9px;padding:16px 16px 12px}
+  .s-logo .glyph{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;
+                 display:flex;align-items:center;justify-content:center;
+                 font-family:var(--mono);font-size:12px;font-weight:700}
+  .s-logo .nm{font-size:13px;font-weight:600;letter-spacing:.2px}
+  .s-logo .ver{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+  .s-search{margin:2px 14px 10px;display:flex;align-items:center;gap:8px;
+            border:1px solid var(--border);border-radius:9px;padding:6px 11px;
+            font-size:11.5px;color:var(--muted);cursor:text;background:#fff;
+            transition:border-color .15s}
+  .s-search:hover{border-color:#c3ccd6}
+  .s-cap{padding:10px 18px 6px;font-size:10px;color:var(--muted);letter-spacing:1.2px}
+  .s-list{flex:1;overflow-y:auto;padding:0 10px}
+  .s-list::-webkit-scrollbar{width:6px}
+  .s-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .s-row{position:relative;display:flex;align-items:center;gap:7px;padding:7px 10px;
+         border-radius:8px;font-size:12px;color:var(--text2);cursor:default;
+         transition:background .12s;white-space:nowrap;overflow:hidden}
+  .s-row:hover{background:var(--hover)}
+  .s-row.cur{background:var(--accent-soft);color:var(--text)}
+  .s-row.cur::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:2px;
+                     border-radius:1px;background:var(--accent)}
+  .s-row .t{flex:1;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .s-row .tm,.s-row .fl{flex:none;font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+  .s-row .fl{display:inline-flex;align-items:center;gap:3px}
+  .s-row .fl.paused{opacity:.5}
+  .s-foot{border-top:1px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+  .s-btn{position:relative;display:flex;align-items:center;gap:9px;padding:7px 11px;
+         border-radius:8px;border:0;background:none;font-size:12px;color:var(--text2);
+         cursor:pointer;font-family:inherit;text-align:left;transition:background .12s,color .12s}
+  .s-btn:hover{background:var(--hover);color:var(--text)}
+  .s-btn.active{background:var(--accent-soft);color:var(--text);font-weight:600}
+  .s-btn.active::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:2px;
+                        border-radius:1px;background:var(--accent)}
+  .s-btn .cnt{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--muted);
+              font-weight:400}
+
+  /* ============================================================
+     主区
+     ============================================================ */
+  .main{flex:1;min-width:0;overflow-y:auto}
+  .main::-webkit-scrollbar{width:8px}
+  .main::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 34px 44px}
+  .m-head{display:flex;align-items:baseline;gap:12px;padding:22px 0 4px}
+  .m-head .t{font-size:17px;font-weight:600}
+  .m-head .d{font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .m-head .spring{flex:1}
+  .m-head .lnk{font-size:11.5px;color:var(--text2);background:none;border:0;cursor:pointer;
+               font-family:inherit}
+  .m-head .lnk:hover{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+
+  /* ============================================================
+     Hero
+     ============================================================ */
+  .hero{padding:26px 0 6px}
+  .hero .hi{font-size:20px;font-weight:600;letter-spacing:.2px}
+  .hero .hi span{color:var(--muted);font-weight:400;font-size:12.5px;margin-left:12px}
+  .hero-input{margin-top:16px;display:flex;align-items:center;gap:12px;
+              border:1px solid var(--border);border-radius:15px;padding:11px 12px 11px 18px;
+              background:#fff;box-shadow:var(--shadow-md);
+              transition:border-color .18s, box-shadow .18s, transform .18s}
+  .hero-input:focus-within{border-color:var(--accent);
+                           box-shadow:0 2px 4px rgba(24,32,44,.05),0 10px 30px rgba(70,97,140,.13);
+                           transform:translateY(-1px)}
+  .hero-input input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px;
+                    font-family:inherit;color:var(--text)}
+  .hero-input input::placeholder{color:var(--muted)}
+  .hero-input .send{flex:none;width:34px;height:34px;border-radius:10px;border:0;
+                    background:var(--accent);color:#fff;cursor:pointer;display:flex;
+                    align-items:center;justify-content:center;transition:filter .15s}
+  .hero-input .send:hover{filter:brightness(1.12)}
+  .hero-chips{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text2);
+        border:1px solid var(--border);border-radius:999px;padding:5px 14px;background:#fff;
+        cursor:pointer;transition:all .13s;font-family:inherit}
+  .chip:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .chip svg{opacity:.65}
+
+  /* ============================================================
+     概览卡行
+     ============================================================ */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-top:26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:15px 17px;box-shadow:var(--shadow-sm);
+        transition:border-color .15s, box-shadow .15s, transform .15s;cursor:default}
+  .card:hover{border-color:#c6cfdc;box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .card .k{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px}
+  .card .v{font-family:var(--mono);font-size:23px;font-weight:700;line-height:1;
+           letter-spacing:-.3px}
+  .card .v small{font-size:11px;color:var(--muted);font-weight:400;letter-spacing:0}
+  .card .s{font-size:10.5px;color:var(--muted);margin-top:7px;line-height:1.5}
+  .card .s .up{color:var(--ok)}
+  .card .spark{display:block;margin-top:9px}
+
+  /* ============================================================
+     区块卡（通用）
+     ============================================================ */
+  .grid{display:grid;grid-template-columns:minmax(0,1.58fr) minmax(0,1fr);
+        gap:13px;margin-top:13px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:13px}
+  .blk{background:var(--card);border:1px solid var(--line);border-radius:14px;
+       box-shadow:var(--shadow-sm);padding:16px 18px 10px}
+  .blk-cap{display:flex;align-items:baseline;gap:9px;margin-bottom:10px}
+  .blk-cap .t{font-size:13px;font-weight:600}
+  .blk-cap .rng{font-size:10px;color:var(--muted);font-family:var(--mono);
+                border:1px solid var(--line);border-radius:999px;padding:1px 9px;background:#fbfcfd}
+  .blk-cap .spring{flex:1}
+  .blk-cap .big{font-family:var(--mono);font-size:11px;color:var(--text2)}
+  .blk-cap .lnk{font-size:11px;color:var(--text2);background:none;border:0;cursor:pointer;
+                font-family:inherit}
+  .blk-cap .lnk:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+
+  /* —— 工具使用 —— */
+  .tool-row{display:grid;grid-template-columns:86px 48px minmax(0,1fr) 74px;gap:13px;
+            align-items:center;padding:8px 6px;border-radius:8px;font-size:12px;
+            transition:background .12s}
+  .tool-row:hover{background:var(--hover)}
+  .tool-row .nm{font-family:var(--mono);font-size:11.5px}
+  .tool-row .ct{font-family:var(--mono);font-size:11.5px;color:var(--text);text-align:right;
+                font-weight:600}
+  .tool-row .ct em{font-style:normal;color:var(--muted);font-size:9.5px;font-weight:400;
+                   margin-left:4px}
+  .tool-row .bar{height:6px;border-radius:3px;background:#eef1f5;position:relative;overflow:hidden}
+  .tool-row .bar i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--accent)}
+  .tool-row:nth-child(3) .bar i{opacity:.88}
+  .tool-row:nth-child(4) .bar i{opacity:.76}
+  .tool-row:nth-child(5) .bar i{opacity:.64}
+  .tool-row:nth-child(6) .bar i{opacity:.52}
+  .tool-row:nth-child(7) .bar i{opacity:.40}
+  .tool-row:nth-child(8) .bar i{opacity:.28}
+  .tool-row:nth-child(9) .bar i{opacity:.16}
+  .tool-row .at{font-size:10px;color:var(--muted);font-family:var(--mono);text-align:right}
+  .tool-row.mcp .nm{color:var(--text2)}
+  .tool-row.mcp .bar i{background:#c3ccd6;opacity:1}
+
+  /* —— 资料库 —— */
+  .kb-sum{display:flex;align-items:baseline;gap:14px;padding:2px 6px 12px}
+  .kb-sum .n{font-family:var(--mono);font-size:19px;font-weight:700}
+  .kb-sum .n small{font-size:10.5px;color:var(--muted);font-weight:400;margin-left:3px}
+  .kb-sum .sep{width:1px;height:16px;background:var(--line);align-self:center}
+  .kb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:6px}
+  .kb-tile{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fbfcfd;
+           cursor:default;transition:border-color .15s, background .15s}
+  .kb-tile:hover{border-color:#c6cfdc;background:#fff}
+  .kb-tile .fic{width:26px;height:26px;border:1px solid var(--border);border-radius:8px;
+                background:#fff;display:flex;align-items:center;justify-content:center;
+                color:var(--accent);margin-bottom:9px}
+  .kb-tile .nm{font-size:12.5px;font-weight:600;margin-bottom:3px}
+  .kb-tile .meta{font-size:10px;color:var(--muted);font-family:var(--mono);line-height:1.6}
+  .kb-art{display:flex;align-items:center;gap:9px;padding:8px 6px;border-top:1px dashed var(--line);
+          font-size:12px;border-radius:6px;cursor:default;transition:background .12s}
+  .kb-art:hover{background:var(--hover)}
+  .kb-art .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+              color:var(--text2)}
+  .kb-art:hover .tt{color:var(--text)}
+  .kb-art .kb{flex:none;font-size:9.5px;color:var(--accent);background:var(--accent-soft);
+              border-radius:999px;padding:1.5px 9px}
+  .kb-art .tm{flex:none;font-size:10px;color:var(--muted);font-family:var(--mono)}
+
+  /* —— 最近会话 —— */
+  .r-row{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;
+         font-size:12.5px;cursor:default;transition:background .12s}
+  .r-row:hover{background:var(--hover)}
+  .r-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .r-flag{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:10px;
+          color:var(--muted);font-family:var(--mono)}
+  .r-flag.paused{opacity:.5}
+  .r-time{flex:none;font-size:10px;color:var(--muted);font-family:var(--mono)}
+  .r-foot{border-top:1px solid var(--line);margin-top:4px;padding:10px 8px 2px}
+  .r-foot .lnk{font-size:11.5px;color:var(--text2);background:none;border:0;cursor:pointer;
+               font-family:inherit}
+  .r-foot .lnk:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+
+  /* —— 接下来 —— */
+  .nx-row{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:8px;
+          font-size:12px;cursor:default;transition:background .12s}
+  .nx-row:hover{background:var(--hover)}
+  .nx-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+              font-weight:600}
+  .nx-row .cy{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--text2)}
+  .nx-row .in{flex:none;font-size:10px;color:var(--muted);font-family:var(--mono)}
+  .nx-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ok)}
+  .nx-dot.dim{background:#c3ccd6}
+  .nx-row.paused .nm,.nx-row.paused .cy{color:var(--muted);font-weight:400}
+
+  @media (max-width:1120px){
+    .grid{grid-template-columns:1fr}
+    .cards{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= 侧边栏 ================= -->
+  <aside class="side">
+    <div class="s-logo">
+      <span class="glyph">Q</span>
+      <span class="nm">Qualia Code</span>
+      <span class="ver">v2.3</span>
+    </div>
+    <div class="s-search">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="m10.6 10.6 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      搜索会话…
+    </div>
+    <div class="s-cap">会话</div>
+    <div class="s-list">
+      <div class="s-row cur">
+        <span class="t">依赖巡检</span>
+        <span class="fl">
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          09:30
+        </span>
+      </div>
+      <div class="s-row"><span class="t">把 README 里的示例更新成新 API</span><span class="tm">10-18</span></div>
+      <div class="s-row"><span class="t">周报素材整理：本周变更清单汇总</span><span class="tm">10-17</span></div>
+      <div class="s-row"><span class="t">登录页样式修复</span><span class="tm">10-15</span></div>
+      <div class="s-row">
+        <span class="t">发布说明草稿整理</span>
+        <span class="fl paused">
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          暂停
+        </span>
+      </div>
+      <div class="s-row"><span class="t">fastjson 升级可行性评估</span><span class="tm">10-12</span></div>
+    </div>
+    <div class="s-foot">
+      <button class="s-btn active">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="1.8" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="9.2" y="1.8" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="1.8" y="9.2" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="9.2" y="9.2" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.4"/></svg>
+        工作台
+      </button>
+      <button class="s-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.2A1.7 1.7 0 0 1 4.2 1.5h5L13 5.2v7.6a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7V3.2Z" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.8V5h3.5" stroke="currentColor" stroke-width="1.4"/></svg>
+        资料
+        <span class="cnt">3 库</span>
+      </button>
+      <button class="s-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        设置
+      </button>
+    </div>
+  </aside>
+
+  <!-- ================= 主区 ================= -->
+  <main class="main">
+    <div class="wrap">
+
+      <div class="m-head">
+        <span class="t">工作台</span>
+        <span class="d">2026-10-19 · 周一</span>
+        <span class="spring"></span>
+        <button class="lnk">返回聊天 ›</button>
+      </div>
+
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hi">上午好<span>输入问题直接开始新会话</span></div>
+        <div class="hero-input">
+          <input placeholder="描述任务，或粘贴报错信息…">
+          <button class="send" title="发送（Enter 新建会话）">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 13V3.5M8 3.5 4 7.5M8 3.5l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="hero-chips">
+          <button class="chip">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            继续「依赖巡检」
+          </button>
+          <button class="chip">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2.5 4A1.5 1.5 0 0 1 4 2.5h3l1.5 1.8H12A1.5 1.5 0 0 1 13.5 5.8v6A1.5 1.5 0 0 1 12 13.3H4A1.5 1.5 0 0 1 2.5 11.8V4Z" stroke="currentColor" stroke-width="1.3"/></svg>
+            绑定项目文件夹…
+          </button>
+          <button class="chip">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            新建定时任务
+          </button>
+          <button class="chip">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.2A1.7 1.7 0 0 1 4.2 1.5h5L13 5.2v7.6a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7V3.2Z" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.8V5h3.5" stroke="currentColor" stroke-width="1.4"/></svg>
+            查资料
+          </button>
+        </div>
+      </div>
+
+      <!-- 概览卡 -->
+      <div class="cards">
+        <div class="card">
+          <div class="k">今日 TOKEN</div>
+          <div class="v">12.4k</div>
+          <div class="s"><span class="up">▲ 8%</span> 较昨日同时段</div>
+          <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none">
+            <polyline points="2,17 18,15 34,18 50,12 66,14 82,8 98,5"
+              fill="none" stroke="#46618c" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="98" cy="5" r="2" fill="#46618c"/>
+          </svg>
+        </div>
+        <div class="card">
+          <div class="k">活跃会话</div>
+          <div class="v">3</div>
+          <div class="s">本周新增 5 · 归档 1</div>
+        </div>
+        <div class="card">
+          <div class="k">本周工具调用</div>
+          <div class="v">148</div>
+          <div class="s">8 个工具 · 2 个 MCP</div>
+        </div>
+        <div class="card">
+          <div class="k">定时任务</div>
+          <div class="v">2</div>
+          <div class="s"><span class="up">1 启用</span> · 今日已执行 1 · 下次 09:30</div>
+        </div>
+      </div>
+
+      <!-- 双栏 -->
+      <div class="grid">
+        <!-- 左列 -->
+        <div class="col">
+
+          <!-- 工具使用 -->
+          <div class="blk">
+            <div class="blk-cap">
+              <span class="t">工具使用</span>
+              <span class="rng">近 7 天</span>
+              <span class="spring"></span>
+              <span class="big">148 次</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">read</span><span class="ct">46<em>31%</em></span>
+              <span class="bar"><i style="width:100%"></i></span>
+              <span class="at">10-19 09:31</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">bash</span><span class="ct">32<em>22%</em></span>
+              <span class="bar"><i style="width:70%"></i></span>
+              <span class="at">10-19 09:33</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">edit</span><span class="ct">27<em>18%</em></span>
+              <span class="bar"><i style="width:59%"></i></span>
+              <span class="at">10-18 21:04</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">grep</span><span class="ct">18<em>12%</em></span>
+              <span class="bar"><i style="width:39%"></i></span>
+              <span class="at">10-18 20:12</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">web_fetch</span><span class="ct">12<em>8%</em></span>
+              <span class="bar"><i style="width:26%"></i></span>
+              <span class="at">10-17 15:40</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">glob</span><span class="ct">7<em>5%</em></span>
+              <span class="bar"><i style="width:15%"></i></span>
+              <span class="at">10-17 11:26</span>
+            </div>
+            <div class="tool-row">
+              <span class="nm">write</span><span class="ct">4<em>3%</em></span>
+              <span class="bar"><i style="width:9%"></i></span>
+              <span class="at">10-15 18:03</span>
+            </div>
+            <div class="tool-row mcp">
+              <span class="nm">MCP · 2 项</span><span class="ct">2<em>1%</em></span>
+              <span class="bar"><i style="width:4%"></i></span>
+              <span class="at">10-14 10:22</span>
+            </div>
+          </div>
+
+          <!-- 资料库 -->
+          <div class="blk">
+            <div class="blk-cap">
+              <span class="t">资料库</span>
+              <span class="spring"></span>
+              <button class="lnk">进入资料 ›</button>
+            </div>
+            <div class="kb-sum">
+              <span class="n">3<small>个库</small></span>
+              <span class="sep"></span>
+              <span class="n">42<small>篇文章</small></span>
+              <span class="sep"></span>
+              <span class="n">6.7<small>万字</small></span>
+            </div>
+            <div class="kb-grid">
+              <div class="kb-tile">
+                <div class="fic">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.2A1.7 1.7 0 0 1 4.2 1.5h5L13 5.2v7.6a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7V3.2Z" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.8V5h3.5" stroke="currentColor" stroke-width="1.4"/></svg>
+                </div>
+                <div class="nm">产品文档</div>
+                <div class="meta">18 篇 · 3.2 万字<br>更新 10-18</div>
+              </div>
+              <div class="kb-tile">
+                <div class="fic">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.2A1.7 1.7 0 0 1 4.2 1.5h5L13 5.2v7.6a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7V3.2Z" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.8V5h3.5" stroke="currentColor" stroke-width="1.4"/></svg>
+                </div>
+                <div class="nm">团队规范</div>
+                <div class="meta">15 篇 · 2.1 万字<br>更新 10-16</div>
+              </div>
+              <div class="kb-tile">
+                <div class="fic">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.2A1.7 1.7 0 0 1 4.2 1.5h5L13 5.2v7.6a1.7 1.7 0 0 1-1.7 1.7H4.2a1.7 1.7 0 0 1-1.7-1.7V3.2Z" stroke="currentColor" stroke-width="1.4"/><path d="M9 1.8V5h3.5" stroke="currentColor" stroke-width="1.4"/></svg>
+                </div>
+                <div class="nm">部署手册</div>
+                <div class="meta">9 篇 · 1.4 万字<br>更新 10-12</div>
+              </div>
+            </div>
+            <div class="kb-art">
+              <span class="tt">fastjson 升级可行性评估与迁移清单</span>
+              <span class="kb">产品文档</span>
+              <span class="tm">10-18 21:04</span>
+            </div>
+            <div class="kb-art">
+              <span class="tt">Maven 国内镜像配置规范（settings.xml）</span>
+              <span class="kb">团队规范</span>
+              <span class="tm">10-16 14:22</span>
+            </div>
+            <div class="kb-art">
+              <span class="tt">Windows 端口占用排查与僵尸进程处理</span>
+              <span class="kb">部署手册</span>
+              <span class="tm">10-12 09:47</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列 -->
+        <div class="col">
+          <!-- 最近会话 -->
+          <div class="blk">
+            <div class="blk-cap">
+              <span class="t">最近会话</span>
+              <span class="spring"></span>
+              <button class="lnk">全部 ›</button>
+            </div>
+            <div class="r-row">
+              <span class="r-title">依赖巡检</span>
+              <span class="r-flag">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 4.8V8l2.2 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                09:30
+              </span>
+              <span class="r-time">今天</span>
+            </div>
+            <div class="r-row">
+              <span class="r-title">把 README 里的示例更新成新 API</span>
+              <span class="r-time">10-18</span>
+            </div>
+            <div class="r-row">
+              <span class="r-title">周报素材整理：本周变更清单</span>
+              <span class="r-time">10-17</span>
+            </div>
+            <div class="r-row">
+              <span class="r-title">登录页样式修复</span>
+              <span class="r-time">10-15</span>
+            </div>
+            <div class="r-row">
+              <span class="r-title">fastjson 升级可行性评估</span>
+              <span class="r-time">10-12</span>
+            </div>
+          </div>
+
+          <!-- 接下来 -->
+          <div class="blk">
+            <div class="blk-cap">
+              <span class="t">接下来</span>
+              <span class="spring"></span>
+              <button class="lnk">任务中心 ›</button>
+            </div>
+            <div class="nx-row">
+              <span class="nx-dot"></span>
+              <span class="nm">依赖巡检</span>
+              <span class="cy">每天 09:30</span>
+              <span class="in">明天 22h 后</span>
+            </div>
+            <div class="nx-row paused">
+              <span class="nx-dot dim"></span>
+              <span class="nm">发布说明草稿整理</span>
+              <span class="cy">每周五 18:00</span>
+              <span class="in">已暂停</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -13,7 +13,12 @@ export interface MaterialInfo {
   updatedAt: number
   articleCount: number
   totalChars: number
+  /** 类型构成（kind → 篇数），列表页卡片底部构成条据此分段着色 */
+  kindBreakdown: Partial<Record<MaterialKind, number>>
 }
+
+/** 文章展示类型：后端据 source/format 派生，前端据此选图标与默认视图 */
+export type MaterialKind = 'markdown' | 'html' | 'pdf' | 'docx'
 
 /** 文章树节点：文件夹或文章（path 为库内相对路径，文件夹以 / 结尾） */
 export interface MaterialNode {
@@ -23,6 +28,7 @@ export interface MaterialNode {
   updatedAt: number
   words: number | null
   summary: string | null
+  kind: MaterialKind | null
   children: MaterialNode[] | null
 }
 
@@ -33,6 +39,7 @@ export interface MaterialArticle {
   source: string | null
   updatedAt: number
   words: number
+  kind: MaterialKind
   content: string
 }
 

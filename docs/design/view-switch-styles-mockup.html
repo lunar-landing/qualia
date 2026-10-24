@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>view-switch 样式优化 · 四版对比</title>
+<!--
+  ============================================================================
+  view-switch 样式优化 · 四版对比 · view-switch-styles-mockup
+  ----------------------------------------------------------------------------
+  背景：资料库阅读头部（MaterialDetailPage .view-switch）现为「细线拼接分段」：
+  容器 1px 边框 + 按钮间 1px 分隔线，激活态仅 bg-active 中性底。
+  问题：① 边框 + 分隔线三重线条，视觉碎；② 激活态与 hover 态层级接近，
+  状态辨识弱；③ 与设置页 .skill-view-switch（独立胶囊）语言不统一。
+
+  四个版本（同一语境：back + crumbs + view-switch + 编辑按钮，可直接点击切换）：
+    V1 凹槽分段    —— 现有分段语义精修：轨道内衬 2px，激活项浮起白卡，零 JS
+    V2 滑块分段    —— 同 V1 轨道 + 滑块位移动效，反馈最强，需少量 JS
+    V3 下划线指示  —— 去框去底，文字 + 2px 下划线，最轻量，与面包屑同基线
+    V4 墨色胶囊    —— 独立胶囊 + 实心墨色激活（--accent/--accent-ink），
+                      与设置页技能切换统一语言，视觉最重
+
+  数据自洽：与线上真实主题变量同源（index.css 石墨工程日间 / 夜间默认）。
+  零构建依赖 · FontAwesome CDN 6.7.2 · 日间默认 + 夜间切换。
+  ============================================================================
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+  /* ===== 主题变量（与 qualia-code-ui index.css 同源） ===== */
+  body{
+    --bg-app:#ffffff; --bg-hover:#e9edf1; --bg-active:#e4e9ee;
+    --text-primary:#1f2328; --text-secondary:#57657a; --text-muted:#8c959f;
+    --border-color:#d0d7de;
+    --accent:#24292f; --accent-ink:#ffffff;
+    --canvas:#f6f8fa; --card:#ffffff;
+    --seg-track:#eff1f4; --seg-thumb:#ffffff;
+    --shadow-sm:0 1px 2px rgba(31,35,40,.06);
+    --shadow-thumb:0 1px 2px rgba(31,35,40,.12);
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  body.dark{
+    --bg-app:#080a10; --bg-hover:rgba(255,255,255,.04); --bg-active:rgba(230,237,243,.10);
+    --text-primary:#e4e9f2; --text-secondary:#8f97ae; --text-muted:#4f566b;
+    --border-color:rgba(255,255,255,.08);
+    --accent:#e6edf3; --accent-ink:#0d1117;
+    --canvas:#0b0e14; --card:rgba(19,24,32,.9);
+    --seg-track:rgba(255,255,255,.05); --seg-thumb:rgba(230,237,243,.14);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.3);
+    --shadow-thumb:0 1px 3px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--text-primary);min-height:100vh;
+       font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       font-size:13px;-webkit-font-smoothing:antialiased;
+       transition:background .2s ease,color .2s ease}
+
+  /* ===== 顶栏 ===== */
+  .top{display:flex;align-items:baseline;gap:12px;padding:20px 30px 14px;max-width:1200px;margin:0 auto}
+  .top .t{font-size:16px;font-weight:600}
+  .top .d{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+  .top .spring{flex:1}
+  .top .theme-btn{font-family:inherit;font-size:11.5px;color:var(--text-secondary);
+                  background:var(--card);border:1px solid var(--border-color);border-radius:8px;
+                  padding:5px 12px;cursor:pointer;transition:all .15s}
+  .top .theme-btn:hover{color:var(--text-primary);border-color:var(--text-muted)}
+
+  .wrap{max-width:1200px;margin:0 auto;padding:0 30px 50px}
+
+  /* ===== 设计说明卡 ===== */
+  .note{background:var(--card);border:1px solid var(--border-color);border-radius:12px;
+        padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-sm);line-height:1.7}
+  .note .cap{font-size:10px;letter-spacing:1.2px;color:var(--text-muted);margin-bottom:6px}
+  .note p{font-size:12px;color:var(--text-secondary)}
+  .note b{color:var(--text-primary);font-weight:600}
+
+  /* ===== 版本卡网格 ===== */
+  .variants{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .vcard{background:var(--card);border:1px solid var(--border-color);border-radius:14px;
+         box-shadow:var(--shadow-sm);padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+  .vcard .vhead{display:flex;align-items:baseline;gap:9px}
+  .vcard .vhead .no{font-family:var(--mono);font-size:10px;color:var(--accent-ink);
+                    background:var(--accent);border-radius:5px;padding:1.5px 7px;font-weight:700}
+  .vcard .vhead .nm{font-size:13.5px;font-weight:600}
+  .vcard .vhead .en{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+  .vcard .vhead .tag{margin-left:auto;font-size:10px;color:var(--text-muted);
+                     border:1px solid var(--border-color);border-radius:999px;padding:1.5px 9px}
+
+  /* —— 语境还原：reader-head 迷你条 —— */
+  .ctx{border:1px solid var(--border-color);border-radius:10px;background:var(--bg-app);
+       display:flex;align-items:center;gap:10px;padding:0 14px;height:52px;overflow:hidden}
+  .ctx .back{width:26px;height:26px;flex:none;border:none;background:transparent;
+             color:var(--text-secondary);border-radius:7px;cursor:pointer;font-size:11px}
+  .ctx .back:hover{background:var(--bg-hover)}
+  .ctx .crumbs{display:flex;align-items:center;gap:7px;font-size:11.5px;min-width:0;
+               white-space:nowrap;overflow:hidden}
+  .ctx .crumbs .cur{color:var(--text-primary);font-weight:600}
+  .ctx .crumbs .lnk{color:var(--text-muted)}
+  .ctx .crumbs .sep{font-size:7.5px;color:var(--text-muted);opacity:.7}
+  .ctx .spring{flex:1}
+  .ctx .act{flex:none;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;
+            font-size:12px;font-family:inherit;color:var(--text-secondary);background:transparent;
+            border:1px solid var(--border-color);border-radius:8px;cursor:pointer;white-space:nowrap}
+  .ctx .act i{font-size:10px}
+
+  /* —— 通用切换按钮基元 —— */
+  .vs{display:inline-flex;align-items:center;flex-shrink:0;cursor:pointer}
+  .vs button{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;
+             font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;
+             background:transparent;border:none;color:var(--text-secondary);
+             transition:background .15s ease,color .15s ease}
+  .vs button i{font-size:10px}
+
+  /* ===== V1 凹槽分段 ===== */
+  .vs1{gap:2px;padding:2px;border-radius:9px;
+       background:var(--seg-track);border:1px solid var(--border-color)}
+  .vs1 button{border-radius:7px}
+  .vs1 button:hover{color:var(--text-primary)}
+  .vs1 button.on{background:var(--seg-thumb);color:var(--text-primary);font-weight:600;
+                 box-shadow:var(--shadow-thumb)}
+
+  /* ===== V2 滑块分段（滑块由 JS 定位到激活按钮下方） ===== */
+  .vs2{position:relative;gap:2px;padding:2px;border-radius:9px;
+       background:var(--seg-track);border:1px solid var(--border-color)}
+  .vs2 .thumb{position:absolute;top:2px;left:2px;height:calc(100% - 4px);border-radius:7px;
+              background:var(--seg-thumb);box-shadow:var(--shadow-thumb);
+              transition:transform .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1);
+              pointer-events:none}
+  .vs2 button{position:relative;border-radius:7px}
+  .vs2 button:hover{color:var(--text-primary)}
+  .vs2 button.on{color:var(--text-primary);font-weight:600}
+
+  /* ===== V3 下划线指示 ===== */
+  .vs3{gap:16px}
+  .vs3 button{padding:0 2px 7px;position:relative;border-radius:0}
+  .vs3 button::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;
+                     border-radius:1px;background:var(--accent);
+                     transform:scaleX(0);transform-origin:center;
+                     transition:transform .18s ease}
+  .vs3 button:hover{color:var(--text-primary)}
+  .vs3 button.on{color:var(--text-primary);font-weight:600}
+  .vs3 button.on::after{transform:scaleX(1)}
+
+  /* ===== V4 墨色胶囊 ===== */
+  .vs4{gap:6px}
+  .vs4 button{height:28px;padding:0 13px;border-radius:999px;
+              border:1px solid var(--border-color);transition:all .15s ease}
+  .vs4 button:hover{color:var(--text-primary);border-color:var(--text-muted)}
+  .vs4 button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);
+                 font-weight:600}
+  .vs4 button.on:hover{color:var(--accent-ink);border-color:var(--accent)}
+
+  /* ===== 版本注解 ===== */
+  .vnote{display:flex;flex-direction:column;gap:5px}
+  .vnote .row{display:flex;gap:8px;font-size:11.5px;line-height:1.55}
+  .vnote .k{flex:none;width:44px;font-family:var(--mono);font-size:10px;color:var(--text-muted);
+            letter-spacing:1px;padding-top:2px}
+  .vnote .v{color:var(--text-secondary)}
+  .vnote .v b{color:var(--text-primary);font-weight:600}
+
+  /* ===== 对比表 ===== */
+  .cmp{margin-top:16px;background:var(--card);border:1px solid var(--border-color);
+       border-radius:14px;box-shadow:var(--shadow-sm);padding:16px 18px;overflow-x:auto}
+  .cmp .cap{font-size:10px;letter-spacing:1.2px;color:var(--text-muted);margin-bottom:10px}
+  .cmp table{width:100%;border-collapse:collapse;font-size:12px}
+  .cmp th,.cmp td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-color);
+                  vertical-align:top;line-height:1.5}
+  .cmp th{font-size:10.5px;color:var(--text-muted);font-weight:600;letter-spacing:.5px;white-space:nowrap}
+  .cmp td:first-child{color:var(--text-primary);font-weight:600;white-space:nowrap}
+  .cmp tr:last-child td{border-bottom:none}
+  .cmp .rec{font-family:var(--mono);font-size:10px;color:var(--accent-ink);background:var(--accent);
+            border-radius:5px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+
+  @media (max-width:1000px){
+    .variants{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="t">view-switch 样式优化</span>
+  <span class="d">MATERIALS · READER HEAD · 4 VARIANTS</span>
+  <span class="spring"></span>
+  <button class="theme-btn" onclick="document.body.classList.toggle('dark')">
+    <i class="fas fa-circle-half-stroke"></i> 切换夜间
+  </button>
+</header>
+
+<div class="wrap">
+
+  <!-- 设计说明卡 -->
+  <div class="note">
+    <div class="cap">DESIGN NOTES · 设计说明</div>
+    <p>现状为「1px 边框容器 + 按钮间 1px 分隔线」的细线拼接分段，<b>三重线条视觉碎</b>，激活态
+      （中性底）与 hover 层级接近、辨识弱，且与设置页技能切换（独立胶囊）语言不统一。
+      以下四版均在真实 reader-head 语境中呈现，<b>可直接点击切换</b>体验状态；右上角可切日/夜主题。</p>
+  </div>
+
+  <div class="variants">
+
+    <!-- ============ V1 凹槽分段 ============ -->
+    <div class="vcard">
+      <div class="vhead">
+        <span class="no">V1</span><span class="nm">凹槽分段</span>
+        <span class="en">Inset Segmented</span>
+        <span class="tag">零 JS · 推荐</span>
+      </div>
+      <div class="ctx">
+        <button class="back"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumbs">
+          <span class="lnk">产品文档</span><i class="sep fas fa-chevron-right"></i>
+          <span class="cur">fastjson 升级可行性评估</span>
+        </div>
+        <span class="spring"></span>
+        <div class="vs vs1" data-vsw>
+          <button class="on"><i class="fas fa-eye"></i>预览</button>
+          <button><i class="fas fa-code"></i>源码</button>
+        </div>
+        <button class="act"><i class="fas fa-pen"></i>编辑</button>
+      </div>
+      <div class="vnote">
+        <div class="row"><span class="k">差异</span><span class="v">保留分段语义，去分隔线：轨道内衬 2px，激活项以<b>白卡浮起</b>（阴影 + 圆角），线条减为容器 1 条</span></div>
+        <div class="row"><span class="k">风险</span><span class="v">夜间下浮起卡需控制透明度（已用 rgba 弱化）；暗色阴影存在感低，激活辨识略弱于日间</span></div>
+        <div class="row"><span class="k">实现</span><span class="v">纯 CSS，改造量最小：现结构加 padding + 去 button 分隔线即可</span></div>
+      </div>
+    </div>
+
+    <!-- ============ V2 滑块分段 ============ -->
+    <div class="vcard">
+      <div class="vhead">
+        <span class="no">V2</span><span class="nm">滑块分段</span>
+        <span class="en">Sliding Thumb</span>
+        <span class="tag">需少量 JS</span>
+      </div>
+      <div class="ctx">
+        <button class="back"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumbs">
+          <span class="lnk">产品文档</span><i class="sep fas fa-chevron-right"></i>
+          <span class="cur">fastjson 升级可行性评估</span>
+        </div>
+        <span class="spring"></span>
+        <div class="vs vs2" data-vsw data-slider>
+          <span class="thumb"></span>
+          <button class="on"><i class="fas fa-eye"></i>预览</button>
+          <button><i class="fas fa-code"></i>源码</button>
+        </div>
+        <button class="act"><i class="fas fa-pen"></i>编辑</button>
+      </div>
+      <div class="vnote">
+        <div class="row"><span class="k">差异</span><span class="v">同 V1 轨道语言，激活块以<b>滑块位移动效</b>迁移，状态变化反馈最直观</span></div>
+        <div class="row"><span class="k">风险</span><span class="v">滑块定位需 JS（offsetLeft/width）；按钮宽度不等时需动态计算，Vue 中可封装为 15 行小指令</span></div>
+        <div class="row"><span class="k">实现</span><span class="v">CSS transition + 一个监听 click 的定位函数；键盘可达性需补 focus 态</span></div>
+      </div>
+    </div>
+
+    <!-- ============ V3 下划线指示 ============ -->
+    <div class="vcard">
+      <div class="vhead">
+        <span class="no">V3</span><span class="nm">下划线指示</span>
+        <span class="en">Underline Tabs</span>
+        <span class="tag">最轻量</span>
+      </div>
+      <div class="ctx">
+        <button class="back"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumbs">
+          <span class="lnk">产品文档</span><i class="sep fas fa-chevron-right"></i>
+          <span class="cur">fastjson 升级可行性评估</span>
+        </div>
+        <span class="spring"></span>
+        <div class="vs vs3" data-vsw>
+          <button class="on"><i class="fas fa-eye"></i>预览</button>
+          <button><i class="fas fa-code"></i>源码</button>
+        </div>
+        <button class="act"><i class="fas fa-pen"></i>编辑</button>
+      </div>
+      <div class="vnote">
+        <div class="row"><span class="k">差异</span><span class="v">去框去底，仅<b>文字加粗 + 2px 下划线</b>（accent 墨色），与面包屑同一基线，头部最安静</span></div>
+        <div class="row"><span class="k">风险</span><span class="v">可点击区域小（需补 padding 命中区）；无容器包裹，密集工具栏中指示强度最弱</span></div>
+        <div class="row"><span class="k">实现</span><span class="v">纯 CSS（::after scaleX 过渡），改动量与 V1 相当</span></div>
+      </div>
+    </div>
+
+    <!-- ============ V4 墨色胶囊 ============ -->
+    <div class="vcard">
+      <div class="vhead">
+        <span class="no">V4</span><span class="nm">墨色胶囊</span>
+        <span class="en">Ink Pills</span>
+        <span class="tag">与设置页统一</span>
+      </div>
+      <div class="ctx">
+        <button class="back"><i class="fas fa-arrow-left"></i></button>
+        <div class="crumbs">
+          <span class="lnk">产品文档</span><i class="sep fas fa-chevron-right"></i>
+          <span class="cur">fastjson 升级可行性评估</span>
+        </div>
+        <span class="spring"></span>
+        <div class="vs vs4" data-vsw>
+          <button class="on"><i class="fas fa-file-lines"></i>原件</button>
+          <button><i class="fas fa-align-left"></i>文本</button>
+        </div>
+        <button class="act"><i class="fas fa-up-right-from-square"></i>打开</button>
+      </div>
+      <div class="vnote">
+        <div class="row"><span class="k">差异</span><span class="v">独立胶囊 + <b>实心墨色激活</b>（--accent 底 / --accent-ink 字），与设置页技能切换完全同语言（本卡顺带演示「原件/文本」对）</span></div>
+        <div class="row"><span class="k">风险</span><span class="v">视觉重量最重：头部同时有实心激活胶囊 + 主操作按钮时易打架；胶囊间无线条关联，分段语义弱于 V1/V2</span></div>
+        <div class="row"><span class="k">实现</span><span class="v">纯 CSS；若与设置页 .sv-btn 抽公共类可一并统一</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 对比表 -->
+  <div class="cmp">
+    <div class="cap">COMPARISON · 横向对比</div>
+    <table>
+      <tr><th>版本</th><th>视觉重量</th><th>状态辨识</th><th>动效反馈</th><th>实现成本</th><th>建议场景</th></tr>
+      <tr>
+        <td>V1 凹槽分段<span class="rec">推荐</span></td>
+        <td>中（轨道 1 条线）</td><td>强（浮起卡 + 加粗）</td><td>无（仅色变）</td>
+        <td>最低（纯 CSS 微调）</td><td>默认落地项，阅读头部安静且清晰</td>
+      </tr>
+      <tr>
+        <td>V2 滑块分段</td>
+        <td>中（同 V1）</td><td>强（同 V1）</td><td>最强（滑块位移）</td>
+        <td>中（需 JS 定位）</td><td>在意切换手感时的 V1 升级版</td>
+      </tr>
+      <tr>
+        <td>V3 下划线指示</td>
+        <td>最低（无框无底）</td><td>中（下划线细）</td><td>中（scaleX 展开）</td>
+        <td>低（纯 CSS）</td><td>追求极简、与面包屑融为一体的头部</td>
+      </tr>
+      <tr>
+        <td>V4 墨色胶囊</td>
+        <td>最高（实心激活）</td><td>最强（反色）</td><td>无（仅色变）</td>
+        <td>低（纯 CSS）</td><td>全站切换器语言统一（含设置页）</td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  /* 通用点击切换：click 即互斥换 active */
+  document.querySelectorAll('[data-vsw]').forEach(function (sw) {
+    sw.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      sw.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+      btn.classList.add('on');
+      if (sw.hasAttribute('data-slider')) moveThumb(sw);
+    });
+  });
+
+  /* V2 滑块定位：滑块平移至激活按钮的 offsetLeft，宽度随按钮 */
+  function moveThumb(sw) {
+    var on = sw.querySelector('button.on');
+    if (!on) return;
+    var t = sw.querySelector('.thumb');
+    t.style.width = on.offsetWidth + 'px';
+    t.style.transform = 'translateX(' + on.offsetLeft + 'px)';
+  }
+  document.querySelectorAll('[data-slider]').forEach(moveThumb);
+  window.addEventListener('resize', function () {
+    document.querySelectorAll('[data-slider]').forEach(moveThumb);
+  });
+</script>
+</body>
+</html>

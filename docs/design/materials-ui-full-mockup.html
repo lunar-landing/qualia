@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库 · 整体 UI 设计总稿</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<!--
+  资料库（Materials）整体功能样式 · 整理优化总稿
+  ============================================================================
+  覆盖全部页面与状态（顶部导航切换）：
+    A  列表页（库卡片网格）        A0 空态 + 新建库弹窗
+    B1 详情页 · 目录首页（封面页）  B2 整篇阅读（Markdown + 文内 TOC）
+    B3 富文档原件（pdf / docx）     B4 源码编辑（MaterialEditor）
+    G  全局组件（对话框/菜单/toast/拖拽落区）+ 设计 token + 优化清单 P1~P11
+  设计语言：近白石墨日间 + 暗色双主题；去彩化 accent（#24292f / #e6edf3）；
+  文件图标全类型着色（--ic-* 单一来源）；凹槽分段控件统一语言。
+  标「优化 P#」处为相对现状实现的变更点，与 docs/tech/materials-ui-design-spec.md 一一对应。
+  零依赖 · 日间默认 + 夜间切换 · 悬停态真实可感
+-->
+<style>
+/* ===== 主题 token（严格对齐 qualia-code-ui src/styles/index.css） ===== */
+:root {
+  --bg-app:#ffffff; --bg-surface:#ffffff; --bg-side:#eff2f5; --bg-hover:#e9edf1; --bg-active:#e4e9ee;
+  --bg-input:#ffffff; --bg-codeblock:#eef1f4; --bg-inline-code:#eff1f3; --bg-blockquote:rgba(31,35,40,.05);
+  --text-primary:#1f2328; --text-secondary:#57657a; --text-muted:#8c959f;
+  --border-color:#d0d7de; --border-active:rgba(31,35,40,.3);
+  --accent:#24292f; --accent-light:#32383f; --accent-ink:#ffffff;
+  --seg-track:#eff1f4; --seg-thumb:#ffffff; --seg-thumb-shadow:0 1px 2px rgba(31,35,40,.12);
+  --info:#0969da; --success:#1a7f37; --warning:#9a6700; --error:#cf222e;
+  --shadow:0 16px 40px rgba(31,35,40,.10); --shadow-soft:0 3px 14px rgba(31,35,40,.08);
+  --ic-pdf:#e5615c; --ic-word:#5b9bd5; --ic-md:#519aba; --ic-html:#d9704a;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+body.dark {
+  --bg-app:#080a10; --bg-surface:rgba(19,24,32,.85); --bg-side:rgba(255,255,255,.02); --bg-hover:rgba(255,255,255,.04);
+  --bg-active:rgba(230,237,243,.10); --bg-input:rgba(255,255,255,.03);
+  --bg-codeblock:#0b0e14; --bg-inline-code:rgba(255,255,255,.07); --bg-blockquote:rgba(128,144,168,.10);
+  --text-primary:#e4e9f2; --text-secondary:#8f97ae; --text-muted:#4f566b;
+  --border-color:rgba(255,255,255,.07); --border-active:rgba(230,237,243,.42);
+  --accent:#e6edf3; --accent-light:#f0f6fc; --accent-ink:#0d1117;
+  --seg-track:rgba(255,255,255,.05); --seg-thumb:rgba(230,237,243,.14); --seg-thumb-shadow:0 1px 3px rgba(0,0,0,.4);
+  --info:#60a5fa; --success:#34d399; --warning:#f59e0b; --error:#f87171;
+  --shadow:0 32px 64px rgba(0,0,0,.7); --shadow-soft:0 6px 20px rgba(0,0,0,.4);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg-app); color:var(--text-primary); padding:22px 30px 64px; transition:background .2s ease,color .2s ease; -webkit-font-smoothing:antialiased; }
+
+/* ===== 页头与场景导航 ===== */
+.top { display:flex; align-items:center; gap:16px; margin-bottom:6px; flex-wrap:wrap; }
+.top h1 { font-size:19px; font-weight:700; }
+.top .sub { font-size:12px; color:var(--text-secondary); }
+.nav { margin-left:auto; display:flex; gap:4px; padding:3px; border:1px solid var(--border-color); border-radius:11px; background:var(--seg-track); flex-wrap:wrap; }
+.nav button { border:none; background:transparent; color:var(--text-secondary); font-size:12px; font-family:inherit; padding:6px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; transition:background .15s,color .15s; }
+.nav button:hover { color:var(--text-primary); }
+.nav button.on { background:var(--seg-thumb); color:var(--text-primary); font-weight:600; box-shadow:var(--seg-thumb-shadow); }
+.theme-btn { border:1px solid var(--border-color); background:transparent; color:var(--text-secondary); font-size:12px; padding:7px 14px; border-radius:9px; cursor:pointer; font-family:inherit; }
+.theme-btn:hover { color:var(--text-primary); border-color:var(--text-muted); }
+
+/* ===== 画框（场景容器）与注记 ===== */
+.scene { display:none; }
+.scene.on { display:block; }
+.frame { margin-top:22px; }
+.fhead { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.fhead b { font-size:14px; font-weight:700; }
+.fhead .fd { font-size:12px; color:var(--text-secondary); }
+.tag { font-family:var(--mono); font-size:10px; color:var(--text-secondary); border:1px solid var(--border-color); border-radius:20px; padding:2px 9px; }
+.tag.opt { color:var(--info); border-color:color-mix(in srgb,var(--info) 40%,transparent); }
+.anno { margin-top:10px; font-size:12px; line-height:1.9; color:var(--text-secondary); max-width:1080px; }
+.anno b { color:var(--text-primary); font-weight:600; }
+.anno .pk { font-family:var(--mono); font-size:10.5px; color:var(--info); }
+kbd { font-family:var(--mono); font-size:10px; border:1px solid var(--border-color); border-bottom-width:2px; border-radius:5px; padding:1px 5px; color:var(--text-secondary); background:var(--bg-input); }
+.spring { flex:1; }
+.win { position:relative; border:1px solid var(--border-color); border-radius:14px; background:var(--bg-app); overflow:hidden; }
+.icon-pdf { color:var(--ic-pdf); } .icon-word { color:var(--ic-word); } .icon-md { color:var(--ic-md); } .icon-html { color:var(--ic-html); }
+
+/* ===== 通用控件（按钮 / 分段 / 头部） ===== */
+.btn { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 13px; border:none; border-radius:8px; font-size:12px; font-family:inherit; background:transparent; color:var(--text-secondary); cursor:pointer; white-space:nowrap; transition:background .15s,color .15s; }
+.btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.btn.primary { background:var(--accent); color:var(--accent-ink); font-weight:600; }
+.btn.primary:hover { background:var(--accent-light); }
+.btn.danger-act { color:var(--error); }
+.act-btn { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border:none; border-radius:7px; background:transparent; color:var(--text-secondary); font-size:12px; font-family:inherit; cursor:pointer; white-space:nowrap; transition:background .15s,color .15s; }
+.act-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.act-btn i { font-size:10.5px; }
+.act-btn.primary { background:var(--accent); color:var(--accent-ink); font-weight:600; }
+.act-btn.primary:hover { background:var(--accent-light); }
+.seg { display:inline-flex; gap:2px; padding:2px; border:1px solid var(--border-color); border-radius:9px; background:var(--seg-track); }
+.seg button { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 11px; border:none; border-radius:7px; background:transparent; color:var(--text-secondary); font-size:12px; font-family:inherit; cursor:pointer; white-space:nowrap; transition:background .15s,color .15s; }
+.seg button:hover { color:var(--text-primary); }
+.seg button.on { background:var(--seg-thumb); color:var(--text-primary); font-weight:600; box-shadow:var(--seg-thumb-shadow); }
+.seg button i { font-size:10px; }
+.head-sep { width:1px; height:14px; background:var(--border-color); margin:0 3px; }
+
+/* ===== 页面 A · 列表页 ===== */
+.list-page { display:flex; flex-direction:column; min-height:520px; }
+.list-head { display:flex; align-items:center; gap:14px; padding:20px 28px 16px; }
+.list-head .lic { width:38px; height:38px; border-radius:11px; background:var(--bg-hover); color:var(--text-secondary); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.list-head .lt { font-size:16.5px; font-weight:700; }
+.list-head .lds { margin-top:2px; font-size:11.5px; color:var(--text-secondary); }
+.list-scroll { flex:1; overflow-y:auto; padding:6px 28px 30px; }
+.kb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:14px; }
+.kb-tile { position:relative; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-surface); padding:16px 16px 14px; cursor:pointer; transition:border-color .15s,box-shadow .15s,transform .15s; }
+.kb-tile:hover { border-color:var(--text-muted); box-shadow:var(--shadow-soft); transform:translateY(-1px); }
+.kb-tile.hshow { border-color:var(--text-muted); box-shadow:var(--shadow-soft); transform:translateY(-1px); }
+.kb-tile .top { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+.kb-tile .fic { width:26px; height:26px; border-radius:7px; background:var(--bg-hover); color:var(--text-secondary); display:flex; align-items:center; justify-content:center; font-size:11.5px; flex-shrink:0; }
+.kb-tile .nm { font-size:13.5px; font-weight:600; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kb-tile .acts { margin-left:auto; display:none; gap:2px; flex-shrink:0; }
+.kb-tile:hover .acts, .kb-tile.hshow .acts { display:inline-flex; }
+.kb-tile .acts button { width:22px; height:22px; border:none; background:none; color:var(--text-secondary); cursor:pointer; border-radius:6px; font-size:10.5px; }
+.kb-tile .acts button:hover { background:var(--bg-hover); color:var(--text-primary); }
+.kb-tile .acts button.danger:hover { color:var(--error); }
+.kb-tile .ds { font-size:11.5px; color:var(--text-secondary); line-height:1.65; height:38px; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.kb-tile .mt { display:flex; align-items:center; gap:12px; font-size:10.5px; color:var(--text-secondary); padding-top:10px; border-top:1px solid var(--border-color); }
+.kb-tile .mt .m { display:inline-flex; align-items:center; gap:4px; }
+.kb-tile .mt .enter { color:var(--text-secondary); font-size:10px; opacity:0; transition:opacity .15s; }
+.kb-tile:hover .enter, .kb-tile.hshow .enter { opacity:1; }
+
+/* ===== 页面 A · 空态 + 新建弹窗 ===== */
+.list-empty { min-height:520px; display:flex; align-items:center; justify-content:center; }
+.list-empty .inner { text-align:center; max-width:460px; padding-bottom:16px; }
+.list-empty .big { width:64px; height:64px; border-radius:18px; background:var(--bg-blockquote); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+.list-empty .big i { font-size:24px; color:var(--accent); }
+.list-empty .t1 { font-size:15px; font-weight:600; margin-bottom:14px; }
+.list-empty .steps { text-align:left; display:inline-block; margin:0 auto 20px; font-size:12px; color:var(--text-secondary); line-height:1.7; }
+.list-empty .step { display:flex; gap:9px; align-items:flex-start; margin:7px 0; }
+.list-empty .step .n { width:18px; height:18px; border-radius:50%; background:var(--bg-hover); color:var(--text-secondary); font-family:var(--mono); font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+.list-empty .step b { color:var(--text-primary); font-weight:600; }
+.dlg-mask { position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; }
+.dlg { width:380px; padding:18px 20px; border:1px solid var(--border-color); border-radius:16px; background:var(--bg-app); box-shadow:var(--shadow); }
+.dlg.danger { width:360px; }
+.dlg-title { font-size:14px; font-weight:700; margin-bottom:4px; }
+.dlg .dlg-ds { font-size:12px; color:var(--text-secondary); line-height:1.7; margin-bottom:12px; }
+.dlg .dlg-ds .nm { color:var(--text-primary); font-weight:600; }
+.dlg-label { display:block; font-size:11px; color:var(--text-secondary); margin:10px 0 5px; }
+.dlg-input { width:100%; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-input); color:var(--text-primary); font-size:12.5px; font-family:inherit; outline:none; }
+.dlg-input:focus { border-color:var(--border-active); }
+.dlg-acts { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+.dlg-acts .btn.red { background:var(--error); color:#fff; font-weight:600; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="tt"><h1>资料库 · 整体 UI 设计总稿</h1><div class="sub">Materials 全页面规格 · 双页结构 A → B · 优化点 P1~P11</div></div>
+  <nav class="nav" id="nav">
+    <button class="on" data-s="sc-a">A 列表页</button>
+    <button data-s="sc-b">A0 空态 · 新建</button>
+    <button data-s="sc-c">B1 目录首页</button>
+    <button data-s="sc-d">B2 整篇阅读</button>
+    <button data-s="sc-e">B3 富文档原件</button>
+    <button data-s="sc-f">B4 源码编辑</button>
+    <button data-s="sc-g">G 组件与规格</button>
+  </nav>
+  <button class="theme-btn" id="themeBtn"><i class="fas fa-moon"></i>&nbsp;夜间</button>
+</header>
+
+<!-- ================= 场景 A · 列表页 ================= -->
+<section class="scene on" id="sc-a">
+  <div class="frame">
+    <div class="fhead">
+      <b>页面 A · 资料列表页</b>
+      <span class="tag">整栏卡片网格</span>
+      <span class="tag opt">优化 P3 · 图标块/卡片规格统一</span>
+      <span class="tag opt">优化 P9 · 空态语言统一</span>
+      <span class="fd">入口：侧栏底部「资料」→ 聊天区整栏覆盖层；点击卡片进入详情页 B。</span>
+    </div>
+    <div class="win list-page">
+      <div class="list-head">
+        <div class="lic"><i class="fas fa-book-open"></i></div>
+        <div>
+          <div class="lt">资料</div>
+          <div class="lds">沉淀团队与项目的长期资料，智能体可在对话中检索引用</div>
+        </div>
+        <span class="spring"></span>
+        <button class="btn primary"><i class="fas fa-plus"></i> 新建资料库</button>
+      </div>
+      <div class="list-scroll">
+        <div class="kb-grid">
+          <div class="kb-tile hshow">
+            <div class="top">
+              <div class="fic"><i class="fas fa-book-open"></i></div>
+              <div class="nm">产品文档</div>
+              <span class="acts">
+                <button title="重命名 / 描述"><i class="fas fa-pen"></i></button>
+                <button class="danger" title="删除"><i class="fas fa-trash-alt"></i></button>
+              </span>
+            </div>
+            <div class="ds">需求、PRD 与会议纪要；与 qualia-code 三个版本迭代同步更新。</div>
+            <div class="mt">
+              <span class="m"><i class="fas fa-file-lines"></i>4 篇文章</span>
+              <span class="m"><i class="fas fa-font"></i>8.2 千字</span>
+              <span class="spring"></span><span>3 天前</span>
+              <span class="enter"><i class="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+          <div class="kb-tile">
+            <div class="top">
+              <div class="fic"><i class="fas fa-book-open"></i></div>
+              <div class="nm">团队规范</div>
+              <span class="acts">
+                <button title="重命名 / 描述"><i class="fas fa-pen"></i></button>
+                <button class="danger" title="删除"><i class="fas fa-trash-alt"></i></button>
+              </span>
+            </div>
+            <div class="ds">编码规范、文案规范与视觉规范，Code Review 与设计评审的依据。</div>
+            <div class="mt">
+              <span class="m"><i class="fas fa-file-lines"></i>6 篇文章</span>
+              <span class="m"><i class="fas fa-font"></i>1.2 万字</span>
+              <span class="spring"></span><span>昨天</span>
+              <span class="enter"><i class="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+          <div class="kb-tile">
+            <div class="top">
+              <div class="fic"><i class="fas fa-book-open"></i></div>
+              <div class="nm">竞品调研</div>
+              <span class="acts">
+                <button title="重命名 / 描述"><i class="fas fa-pen"></i></button>
+                <button class="danger" title="删除"><i class="fas fa-trash-alt"></i></button>
+              </span>
+            </div>
+            <div class="ds">主要竞品的功能评测、定价策略与用户评价摘录。</div>
+            <div class="mt">
+              <span class="m"><i class="fas fa-file-lines"></i>3 篇文章</span>
+              <span class="m"><i class="fas fa-font"></i>5.6 千字</span>
+              <span class="spring"></span><span>上周</span>
+              <span class="enter"><i class="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+          <div class="kb-tile">
+            <div class="top">
+              <div class="fic"><i class="fas fa-book-open"></i></div>
+              <div class="nm">会议纪要（名称较长时省略号截断）</div>
+              <span class="acts">
+                <button title="重命名 / 描述"><i class="fas fa-pen"></i></button>
+                <button class="danger" title="删除"><i class="fas fa-trash-alt"></i></button>
+              </span>
+            </div>
+            <div class="ds">暂无描述</div>
+            <div class="mt">
+              <span class="m"><i class="fas fa-file-lines"></i>1 篇文章</span>
+              <span class="m"><i class="fas fa-font"></i>648 字</span>
+              <span class="spring"></span><span>10-12</span>
+              <span class="enter"><i class="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="anno">
+      <b>区块规格</b>：页头 38px 图标块（radius 11）+ 16.5px/700 标题 + 11.5px 副题，右缘唯一主操作「新建资料库」（实底 accent，28px 高）。
+      卡片网格 <span class="pk">minmax 272px · gap 14 · pad 16/14 · radius 16</span>；hover = 边框加深 + 轻投影 + translateY(-1px)，浮出右上「编辑 / 删除」22px 幽灵按钮与右下进入箭头。
+      元信息行上缘分隔线：11px mono 数字（N 篇文章 / 字数）+ 相对时间。<span class="pk">P3</span> 图标块统一三级规格 S26（radius 7）/ M38（radius 11）/ L46（radius 12）；卡片语言与首页文章卡同源。列表页遗留的虚线占位卡样式（.kb-tile.dashed）在实现中移除。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 场景 A0 · 空态 + 新建弹窗 ================= -->
+<section class="scene" id="sc-b">
+  <div class="frame">
+    <div class="fhead">
+      <b>页面 A · 空态 + 新建库弹窗</b>
+      <span class="tag">首次引导</span>
+      <span class="tag opt">优化 P9 · 空态统一</span>
+      <span class="fd">无任何库时的引导页；新建/重命名共用一个小弹窗（<kbd>Enter</kbd> 确认 · <kbd>Esc</kbd> 取消）。</span>
+    </div>
+    <div class="win">
+      <div class="list-empty">
+        <div class="inner">
+          <div class="big"><i class="fas fa-book-open"></i></div>
+          <div class="t1">还没有任何资料库</div>
+          <div class="steps">
+            <div class="step"><span class="n">1</span><span><b>创建资料库</b> —— 起个名字，再用一句话描述用途</span></div>
+            <div class="step"><span class="n">2</span><span><b>上传或新建文章</b> —— 支持 Markdown / PDF / Word / HTML / 纯文本</span></div>
+            <div class="step"><span class="n">3</span><span><b>在对话中使用</b> —— 智能体自动发现资料库，按需检索引用</span></div>
+          </div>
+          <button class="btn primary" style="height:32px;padding:0 18px;"><i class="fas fa-plus"></i> 新建资料库</button>
+          <div style="margin-top:12px;font-size:11px;color:var(--text-muted);">也可以让智能体直接创建：「帮我建一个『产品文档』资料库」</div>
+        </div>
+      </div>
+      <div class="dlg-mask">
+        <div class="dlg">
+          <div class="dlg-title">新建资料库</div>
+          <div class="dlg-ds">库名用于对话中的检索指称（如「查一下产品文档」），创建后可修改。</div>
+          <label class="dlg-label">名称</label>
+          <input class="dlg-input" placeholder="如：产品文档" />
+          <label class="dlg-label">描述（可选）</label>
+          <input class="dlg-input" placeholder="一句话说明这个库的用途" />
+          <div class="dlg-acts">
+            <button class="btn">取消</button>
+            <button class="btn primary"><i class="fas fa-check"></i> 创建</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="anno">
+      <b>空态规格（P9，三处空态同语言：列表空 / 库空 / 树空）</b>：64px 大图标块（radius 18，bg-blockquote 底 + accent 图标）→ 15px/600 标题 → 编号步骤（18px 圆点序号 + <b>加粗动作</b> + 说明）→ 实底主 CTA 上移至步骤下方 → 11px muted 副提示收尾。
+      相比现状：去掉纯文字 fa-1/2/3 步骤行，主 CTA 从页头「重复可达」改为空态主视区直接给行动点。
+      <b>弹窗</b>：<span class="pk">380px 宽 · radius 16 · pad 18/20</span>，标题 + 一句用途说明（新增）+ 名称 / 描述两字段，底缘右对齐「取消 / 创建」；遮罩 rgba(0,0,0,.35)。<kbd>Enter</kbd> 提交、<kbd>Esc</kbd> 关闭、名称为空时禁用提交。删除库走同规格确认弹窗（见 G）。
+    </div>
+  </div>
+</section>

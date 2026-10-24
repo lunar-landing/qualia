@@ -13,12 +13,14 @@ export interface DocIconMeta {
   ext: string
 }
 
-/** 按扩展名返回文档类型图标与配色（预览条、气泡 chip、历史标签共用） */
+/** 按扩展名返回文档类型图标与配色（预览条、气泡 chip、历史标签共用）；md/html 色与资料树同词汇 */
 export function docIconMeta(name: string): DocIconMeta {
   const ext = (name && name.indexOf('.') >= 0 ? name.split('.').pop()! : '').toLowerCase()
   if (ext === 'pdf') return { icon: 'fa-file-pdf', cls: 'icon-pdf', ext: 'PDF' }
   if (ext === 'docx') return { icon: 'fa-file-word', cls: 'icon-word', ext: 'WORD' }
   if (ext === 'csv' || ext === 'xlsx') return { icon: 'fa-file-excel', cls: 'icon-excel', ext: ext.toUpperCase() }
+  if (ext === 'html' || ext === 'htm') return { icon: 'fa-file-code', cls: 'icon-html', ext: 'HTML' }
+  if (ext === 'md' || ext === 'markdown') return { icon: 'fa-file-lines', cls: 'icon-md', ext: 'MD' }
   return { icon: 'fa-file-lines', cls: 'icon-text', ext: ext ? ext.toUpperCase() : 'TXT' }
 }
 

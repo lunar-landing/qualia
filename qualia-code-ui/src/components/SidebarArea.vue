@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/theme'
-import { useChatView } from '@/composables/chatView'
 import { setLocale } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
 import { useMaterialsStore } from '@/stores/materials'
@@ -14,13 +13,12 @@ const emit = defineEmits<{ openSettings: [] }>()
 const sessionStore = useSessionStore()
 const materials = useMaterialsStore()
 const { isLight, toggleTheme } = useTheme()
-const { view: chatView, toggleView: toggleChatView } = useChatView()
 const { t, locale } = useI18n()
 
 /** 会话搜索展开态：入口钮在本组件 header，搜索框与过滤在 ConversationList 内 */
 const sessionSearch = ref(false)
 
-/** 设置悬浮菜单：点设置钮弹出右侧浮层，点「系统设置」才真正开弹窗（为后续设置入口扩展留位） */
+/** 设置悬浮菜单：点设置钮弹出右侧浮层；外观/视图/语言归入系统设置「个性」页，浮层只留常用快捷项 */
 const flyoutOpen = ref(false)
 const anchorRef = ref<HTMLElement | null>(null)
 const flyoutPos = ref<{ left: string; bottom: string }>({ left: '0px', bottom: '0px' })
@@ -178,14 +176,6 @@ onBeforeUnmount(() => {
         <i class="fas fa-circle-half-stroke"></i>
         <span>{{ t('sidebar.appearance') }}</span>
         <span class="flyout-switch" :class="{ on: isLight }" aria-hidden="true">
-          <span class="flyout-knob"></span>
-        </span>
-      </button>
-      <!-- 终端视图行：整行点击切换聊天的气泡/终端形态，开关仅作状态指示（开=终端） -->
-      <button class="flyout-item" @click="toggleChatView">
-        <i class="fas fa-terminal"></i>
-        <span>{{ t('chat.terminalView') }}</span>
-        <span class="flyout-switch" :class="{ on: chatView === 'terminal' }" aria-hidden="true">
           <span class="flyout-knob"></span>
         </span>
       </button>

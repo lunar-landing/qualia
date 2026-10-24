@@ -29,6 +29,11 @@
     --shadow-input: 0 4px 16px rgba(230, 237, 243, 0.20);
     --scrollbar-thumb: #2e3546;
 
+    /* 凹槽分段控件：轨道底 / 激活浮起底 / 浮起阴影 */
+    --seg-track: rgba(255, 255, 255, 0.05);
+    --seg-thumb: rgba(230, 237, 243, 0.14);
+    --seg-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+
     --accent: #e6edf3;
     --accent-light: #f0f6fc;
     --accent-gradient: linear-gradient(145deg, #f0f6fc, #8b949e);
@@ -54,6 +59,32 @@
     --terminal-prompt: #6e7681;
     --terminal-success: #7ee787;
     --terminal-idle: #8b949e;
+
+    /* 资料库模块 token（--mat-*）：命名空间隔离，仅 materials 组件消费，
+       夜间为极冷蓝灰分层（card → surface-2 → wash），accent 为雾蓝，面积控制在选中/聚焦/链接 */
+    --mat-card: #0d1117;
+    --mat-surface-2: #11161e;
+    --mat-wash: #161c26;
+    --mat-wash-2: #1c232e;
+    --mat-line: #1d242f;
+    --mat-line-2: #2a3441;
+    --mat-ink: #e6ebf2;
+    --mat-ink-2: #b7c1cd;
+    --mat-mut: #8b94a3;
+    --mat-faint: #5b6572;
+    --mat-accent: #8fb3d9;
+    --mat-accent-wash: rgba(143, 179, 217, 0.10);
+    --mat-on-accent: #0a0e14;
+    --mat-t-md: #8595a8;
+    --mat-t-pdf: #c99088;
+    --mat-t-word: #9ab6d6;
+    --mat-t-html: #cfa37c;
+    --mat-lift: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px rgba(0, 0, 0, 0.45);
+    --mat-hair: rgba(230, 237, 242, 0.06);
+    --mat-ok: #7fb392;
+    --mat-warn: #d8b26a;
+    /* 列表页舞台底：比卡片低一档，让白卡靠底色自然浮起（不靠重阴影） */
+    --mat-stage: #080b11;
 
     /* 圆角 */
     --radius-xs: 4px;
@@ -93,6 +124,11 @@ body.light-theme {
     --shadow-input: 0 1px 3px rgba(31, 35, 40, 0.08);
     --scrollbar-thumb: #c8d0d8;
 
+    /* 凹槽分段控件：轨道底 / 激活浮起底 / 浮起阴影 */
+    --seg-track: #eff1f4;
+    --seg-thumb: #ffffff;
+    --seg-thumb-shadow: 0 1px 2px rgba(31, 35, 40, 0.12);
+
     /* 语义色：GitHub 无障碍色，仅用于状态反馈不参与装饰 */
     --success: #1a7f37;
     --warning: #9a6700;
@@ -111,6 +147,31 @@ body.light-theme {
     --terminal-prompt: #57606a;
     --terminal-success: #0f7b4f;
     --terminal-idle: #8c959f;
+
+    /* 资料库模块 token（日间）：冷白分层，accent 为墨青，类型色统一降饱和仅作数据表达 */
+    --mat-card: #ffffff;
+    --mat-surface-2: #f7f9fb;
+    --mat-wash: #f2f5f8;
+    --mat-wash-2: #e9eef3;
+    --mat-line: #e6ebf0;
+    --mat-line-2: #d5dde5;
+    --mat-ink: #1c2128;
+    --mat-ink-2: #3c4551;
+    --mat-mut: #6b7480;
+    --mat-faint: #98a1ac;
+    --mat-accent: #3d5a80;
+    --mat-accent-wash: rgba(61, 90, 128, 0.07);
+    --mat-on-accent: #ffffff;
+    --mat-t-md: #7d8da0;
+    --mat-t-pdf: #c0857c;
+    --mat-t-word: #8aa6c8;
+    --mat-t-html: #c79a72;
+    --mat-lift: 0 1px 1px rgba(28, 33, 40, 0.03), 0 10px 28px rgba(28, 33, 40, 0.06);
+    --mat-hair: rgba(28, 33, 40, 0.07);
+    --mat-ok: #4a7c59;
+    --mat-warn: #9a6700;
+    /* 列表页舞台底：比卡片低一档，让白卡靠底色自然浮起（不靠重阴影） */
+    --mat-stage: #eef1f5;
 
     --accent: #24292f;
     --accent-light: #32383f;
@@ -2567,10 +2628,19 @@ body.light-theme .input-tools .send-btn:active {
     line-height: 1.3;
 }
 
-/* 文档类型配色（预览条 / 气泡 chip / 历史标签共用） */
-.icon-pdf { color: #e5615c; }
-.icon-word { color: #5b9bd5; }
-.icon-excel { color: #4caf7d; }
+/* 文档类型配色（预览条 / 气泡 chip / 历史标签 / 资料树与详情页图标共用）；色值经 :root 变量单一来源，2026-10 全类型上色：md/html 入词汇 */
+:root {
+  --ic-pdf: #e5615c;
+  --ic-word: #5b9bd5;
+  --ic-excel: #4caf7d;
+  --ic-md: #519aba;
+  --ic-html: #d9704a;
+}
+.icon-pdf { color: var(--ic-pdf); }
+.icon-word { color: var(--ic-word); }
+.icon-excel { color: var(--ic-excel); }
+.icon-md { color: var(--ic-md); }
+.icon-html { color: var(--ic-html); }
 .icon-text { color: var(--text-secondary); }
 
 /* 用户消息附件组：气泡外下方展示（图片缩略图 + 文档图标卡片，与上传预览条同构，跟气泡右对齐） */
@@ -2935,4 +3005,155 @@ body.light-theme .msg .attach-card.doc {
 
 .ws-sw-hint {
     margin-top: 9px;
+}
+
+/* ===== 资料库阅读态 Markdown 排版（.mat-md）=====
+   详情页整篇阅读与编辑器预览共用同一套长文规格：14.5px / 1.9 行高，
+   层级只靠字号、字重与段间距建立，标题不加装饰条，色彩只留给链接与强调。
+   全局类（非 scoped）以便 v-html 渲染出的正文直接命中，两处消费不再重复定义。 */
+.mat-md {
+    font-size: 14.5px;
+    line-height: 1.9;
+    color: var(--mat-ink-2);
+    word-break: break-word;
+}
+
+.mat-md h1,
+.mat-md h2,
+.mat-md h3,
+.mat-md h4 {
+    color: var(--mat-ink);
+    font-weight: 650;
+}
+
+.mat-md h1 {
+    margin: 30px 0 4px;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+}
+
+.mat-md h2 {
+    margin: 34px 0 4px;
+    font-size: 18px;
+    letter-spacing: -0.015em;
+}
+
+.mat-md h3 {
+    margin: 26px 0 2px;
+    font-size: 15px;
+}
+
+.mat-md h4 {
+    margin: 22px 0 2px;
+    font-size: 14px;
+}
+
+.mat-md p {
+    margin: 14px 0;
+}
+
+.mat-md strong {
+    font-weight: 650;
+    color: var(--mat-ink);
+}
+
+.mat-md ul,
+.mat-md ol {
+    margin: 14px 0;
+    padding-left: 20px;
+}
+
+.mat-md li {
+    margin: 7px 0;
+}
+
+.mat-md li::marker {
+    color: var(--mat-faint);
+}
+
+/* 引用：左缘 2px 发丝竖线（背景块会打断长文阅读流） */
+.mat-md blockquote {
+    margin: 18px 0;
+    padding: 0 0 0 15px;
+    border-left: 2px solid var(--mat-line-2);
+    border-radius: 0;
+    background: transparent;
+    color: var(--mat-mut);
+}
+
+/* 行内代码：--mat-wash 底 + 正文同色系，不做高亮着色 */
+.mat-md code {
+    background: var(--mat-wash);
+    color: var(--mat-ink);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12.5px;
+}
+
+/* 代码块：白底描边圆角，内部代码沿用 --mat-ink-2 保持安静 */
+.mat-md pre {
+    margin: 18px 0;
+    padding: 15px 17px;
+    border: 1px solid var(--mat-line);
+    border-radius: 12px;
+    background: var(--mat-card);
+    overflow-x: auto;
+}
+
+.mat-md pre code {
+    display: block;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--mat-ink-2);
+}
+
+/* 表格：只留横线不留竖线，表头大写字距作分组；display:block 保留超宽横滚 */
+.mat-md table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+    font-size: 13px;
+}
+
+.mat-md th,
+.mat-md td {
+    text-align: left;
+    border-bottom: 1px solid var(--mat-hair);
+}
+
+.mat-md th {
+    padding: 0 12px 9px 0;
+    border-bottom-color: var(--mat-line);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mat-faint);
+}
+
+.mat-md td {
+    padding: 10px 12px 10px 0;
+    color: var(--mat-ink-2);
+}
+
+.mat-md a {
+    color: var(--mat-accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--mat-accent-wash);
+}
+
+/* 库内相对链接：强调色虚线下划线（区别于外链），点击跳转库内文章 */
+.mat-md a[href$='.md'] {
+    cursor: pointer;
+    border-bottom: 1px dashed color-mix(in srgb, var(--mat-accent) 40%, transparent);
+}
+
+.mat-md a[href$='.md']:hover {
+    background: var(--mat-accent-wash);
 }

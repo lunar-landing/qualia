@@ -7,6 +7,7 @@ import cn.lunarlanding.qualia.code.tool.MaterialCreateKbTool;
 import cn.lunarlanding.qualia.code.tool.MaterialEditTool;
 import cn.lunarlanding.qualia.code.tool.MaterialListTool;
 import cn.lunarlanding.qualia.code.tool.MaterialReadTool;
+import cn.lunarlanding.qualia.code.tool.MaterialSearchTool;
 import cn.lunarlanding.qualia.code.tool.MaterialTreeTool;
 import cn.lunarlanding.qualia.code.tool.MaterialWriteTool;
 import cn.lunarlanding.qualia.core.agent.CallOptions;
@@ -60,9 +61,10 @@ public class ChatService {
      */
     private static final String MATERIAL_GUIDE = "\n\n## 资料库\n"
             + "可使用 material_* 工具查阅本机资料库（wiki 式目录 + 整篇文章，不切块）：\n"
-            + "material_list 发现库 → material_tree 浏览目录 → material_read 整篇阅读。\n"
+            + "material_list 发现库 → material_tree 浏览目录 → "
+            + "material_search 全文检索（目录被截断、或关键词只在正文中时用）→ material_read 整篇阅读。\n"
             + "当用户提及「资料 / 文档 / wiki」、询问既有约定，或任务需要背景知识时，"
-            + "优先检索资料库再回答；引用内容时注明来源文章路径。\n"
+            + "优先检索资料库再回答；引用内容时注明来源文章路径；search 片段仅用于定位，引用必须先 read 原文。\n"
             + "沉淀文档：material_create_kb 建库、material_edit 修改库名称/描述、"
             + "material_write 写入文章（path 为库内相对路径，支持子目录）；"
             + "用户要求保存或整理内容进资料库时主动使用。";
@@ -342,12 +344,13 @@ public class ChatService {
         MaterialService materials = MaterialService.getInstance();
         agent.addTool(new MaterialListTool(materials));
         agent.addTool(new MaterialTreeTool(materials));
+        agent.addTool(new MaterialSearchTool(materials));
         agent.addTool(new MaterialReadTool(materials));
         agent.addTool(new MaterialCreateKbTool(materials));
         agent.addTool(new MaterialEditTool(materials));
         agent.addTool(new MaterialWriteTool(materials));
         agent.setSystemPrompt(agent.getSystemPrompt() + MATERIAL_GUIDE);
-        logger.info("资料库工具已注册（material_list / material_tree / material_read / material_create_kb / material_edit / material_write）");
+        logger.info("资料库工具已注册（material_list / material_tree / material_search / material_read / material_create_kb / material_edit / material_write）");
     }
 
     /** 根据配置禁用工具 */

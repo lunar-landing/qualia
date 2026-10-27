@@ -3021,6 +3021,112 @@ body.light-theme .msg .attach-card.doc {
     margin-top: 9px;
 }
 
+/* ===== 资料库轻弹窗（.dlg-*，全局共享：列表页新建/重命名库与详情页新建文件夹/文章/重命名节点共用） =====
+   Teleport 到 body 的遮罩弹窗，样式走 --mat-* token 随主题自动切换 */
+.dlg-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1250;
+    background: rgba(20, 26, 34, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dlg {
+    width: 400px;
+    padding: 20px;
+    border: 1px solid var(--mat-line);
+    border-radius: 14px;
+    background: var(--mat-card);
+    box-shadow: var(--mat-lift);
+}
+
+.dlg-title {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    color: var(--mat-ink);
+}
+
+.dlg-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mat-ink-2);
+    margin: 16px 0 6px;
+}
+
+.dlg-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 11px;
+    border: 1px solid var(--mat-line-2);
+    border-radius: 9px;
+    background: var(--mat-surface-2);
+    color: var(--mat-ink);
+    font-size: 12.5px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dlg-input::placeholder {
+    color: var(--mat-faint);
+}
+
+.dlg-input:focus {
+    background: var(--mat-card);
+    border-color: var(--mat-accent);
+    box-shadow: 0 0 0 3px var(--mat-accent-wash);
+}
+
+.dlg-acts {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.dlg-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 13px;
+    border: none;
+    border-radius: 9px;
+    font-size: 12.5px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.dlg-btn.ghost {
+    background: transparent;
+    color: var(--mat-ink-2);
+}
+
+.dlg-btn.ghost:hover {
+    background: var(--mat-wash);
+    color: var(--mat-ink);
+}
+
+.dlg-btn.solid {
+    background: var(--mat-ink);
+    color: var(--mat-card);
+    font-weight: 600;
+}
+
+.dlg-btn.solid:hover {
+    background: var(--mat-ink-2);
+}
+
+.dlg-btn.solid:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 /* ===== 资料库阅读态 Markdown 排版（.mat-md）=====
    详情页整篇阅读与编辑器预览共用同一套长文规格：14.5px / 1.9 行高，
    层级只靠字号、字重与段间距建立，标题不加装饰条，色彩只留给链接与强调。

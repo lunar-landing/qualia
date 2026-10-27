@@ -11,8 +11,8 @@ import MaterialOriginalViewer from './MaterialOriginalViewer.vue'
 
 /**
  * 资料详情页（页面 B）：两栏 —— 文章树 + 预览阅读区。
- * 操作单一入口：上传 = 树底 CTA（拖拽为等价手势）；新建文件夹/文章 = 树头；
- * 删除/重命名 = 树行 hover；阅读区头部只放阅读上下文操作（返回 / 面包屑 / 原件 / 编辑）。
+ * 操作单一入口：上传 = 树底 CTA（拖拽为等价手势）；新建文件夹/文章 = 树头（共用 .dlg 轻弹窗）；
+ * 删除/重命名 = 树行 hover（重命名同走轻弹窗，删除走 confirm）。阅读区头部只放阅读上下文操作（返回 / 面包屑 / 原件 / 编辑）。
  * 阅读区三态：目录首页 / 整篇阅读（md 渲染 + 文内 TOC + .md 相对链接跳转）/ 源码编辑。
  * 排版走资料库专属规格（--mat-* token）：正文列 672px + 目录列 180px 整体居中，
  * 阅读态 14.5px/1.9 长文行高，层级靠字号字重与段间距而非装饰；区域靠底色分层而非边框。
@@ -333,20 +333,48 @@ async function saveEdit() {
   }
 }
 
-// ===== 节点操作（删除/重命名统一从树行发起） =====
-function promptNewFolder() {
-  const name = window.prompt(t('materials.promptNewFolder'))
-  if (name?.trim()) void materials.createFolder(name.trim(), currentUploadDir())
+// ===== 节点操作（新建/重命名走共享轻弹窗 .dlg-*；删除仍从树行 confirm 发起） =====
+type NodeOp = 'folder' | 'article' | 'rename'
+const dlgOpen = ref(false)
+const dlgOp = ref<NodeOp>('folder')
+const dlgName = ref('')
+const dlgNode = ref<MaterialNode | null>(null)
+
+/** 三态文案：标题/输入标签/placeholder（rename 的标题沿用 common.rename） */
+function dlgCfg(op: NodeOp) {
+  if (op === 'folder')
+    return { title: t('materials.newFolder'), label: t('materials.folderNameLabel'), ph: t('materials.folderNamePh') }
+  if (op === 'article')
+    return { title: t('materials.newArticle'), label: t('materials.articleNameLabel'), ph: t('materials.articleNamePh') }
+  return { title: t('common.rename'), label: t('materials.renameNodeLabel'), ph: '' }
 }
 
-function promptNewArticle() {
-  const name = window.prompt(t('materials.promptNewArticle'))
-  if (name?.trim()) void materials.createArticle(name.trim(), currentUploadDir())
+function openDlg(op: NodeOp, preset = '') {
+  dlgOp.value = op
+  dlgName.value = preset
+  dlgOpen.value = true
+}
+
+function onNewFolder() {
+  openDlg('folder')
+}
+
+function onNewArticle() {
+  openDlg('article')
 }
 
 function onRenameNode(node: MaterialNode) {
-  const name = window.prompt(t('materials.promptRename'), node.name)
-  if (name?.trim() && name.trim() !== node.name) void materials.renameNode(node.path, name.trim())
+  dlgNode.value = node
+  openDlg('rename', node.name)
+}
+
+async function submitDlg() {
+  const name = dlgName.value.trim()
+  if (!name) return
+  dlgOpen.value = false
+  if (dlgOp.value === 'folder') void materials.createFolder(name, currentUploadDir())
+  else if (dlgOp.value === 'article') void materials.createArticle(name, currentUploadDir())
+  else if (dlgNode.value && name !== dlgNode.value.name) void materials.renameNode(dlgNode.value.path, name)
 }
 
 function onDeleteNode(node: MaterialNode) {
@@ -379,10 +407,10 @@ function dateText(ts: number): string {
         <i class="fas fa-book-open"></i>
         <span class="t" :title="materials.current?.name">{{ materials.current?.name }}</span>
         <span class="spring"></span>
-        <button class="head-btn" :title="t('materials.newFolder')" @click="promptNewFolder">
+        <button class="head-btn" :title="t('materials.newFolder')" @click="onNewFolder">
           <i class="fas fa-folder-plus"></i>
         </button>
-        <button class="head-btn" :title="t('materials.newArticle')" @click="promptNewArticle">
+        <button class="head-btn" :title="t('materials.newArticle')" @click="onNewArticle">
           <i class="fas fa-file-circle-plus"></i>
         </button>
         <!-- 创建类与导入类语义分组 -->
@@ -633,6 +661,27 @@ function dateText(ts: number): string {
         <button class="danger" @click="ctxAction('delete')">
           <i class="fas fa-trash-alt"></i>{{ t('common.delete') }}
         </button>
+      </div>
+    </Teleport>
+
+    <!-- 新建文件夹 / 新建文章 / 重命名共用轻弹窗（.dlg-* 全局样式，替代 window.prompt） -->
+    <Teleport to="body">
+      <div v-if="dlgOpen" class="dlg-mask" @click.self="dlgOpen = false">
+        <div class="dlg">
+          <div class="dlg-title">{{ dlgCfg(dlgOp).title }}</div>
+          <label class="dlg-label">{{ dlgCfg(dlgOp).label }}</label>
+          <input
+            v-model="dlgName"
+            class="dlg-input"
+            :placeholder="dlgCfg(dlgOp).ph"
+            autofocus
+            @keyup.enter="submitDlg"
+          />
+          <div class="dlg-acts">
+            <button class="dlg-btn ghost" @click="dlgOpen = false">{{ t('common.cancel') }}</button>
+            <button class="dlg-btn solid" :disabled="!dlgName.trim()" @click="submitDlg">{{ t('common.save') }}</button>
+          </div>
+        </div>
       </div>
     </Teleport>
   </div>

@@ -18,6 +18,7 @@ import {
   type MaterialUploadResult,
 } from '@/api/materials'
 import { i18n } from '@/i18n'
+import { useSchedulesStore } from '@/stores/schedules'
 
 /**
  * 资料视图状态：双页结构（列表页 ⇄ 详情页）+ 详情页三态（目录 / 阅读 / 编辑）。
@@ -63,6 +64,7 @@ export const useMaterialsStore = defineStore('materials', {
       else void this.openView()
     },
     async openView() {
+      useSchedulesStore().closeView() // 覆盖视图互斥：资料与任务同时只开一个
       this.open = true
       if (!this.currentId) await this.loadList()
     },

@@ -344,6 +344,9 @@ public class ChatController {
         List<Map<String, Object>> result = messages.stream()
                 .map(msg -> {
                     Map<String, Object> map = new java.util.HashMap<>();
+                    // 消息 id 与时间透传：定时任务执行记录按 userMsgId/assistantMsgId 精确匹配渲染标注
+                    map.put("id", msg.getId());
+                    map.put("createdAt", msg.getCreatedAt());
                     map.put("role", msg.getRole().name().toLowerCase());
                     map.put("content", msg.getContent());
                     if (msg.getAttachments() != null && !msg.getAttachments().isEmpty()) {

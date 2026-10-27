@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 定时任务卡片重设计（4 变体对比）</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<!--
+  定时任务卡片重设计对比稿（信息架构层面，非皮肤精修）
+  现状问题：时间列两行定宽占位重、状态点小、meta 与时间区分不开
+  V1 meta 合并：上次运行降为 meta 项，右侧只留「下次」主信息
+  V2 执行脉搏：最近 N 次执行压成色块条，扫视健康度
+  V3 三段分层：提示词升为可换行主标题，meta 全部 pill 化，底栏收尾
+  V4 紧凑单行：去卡片化，一行一任务，密度优先
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+        --bg-app: #f6f8fa; --bg-card: #ffffff; --bg-subtle: #eff2f5; --bg-hover: #e9edf1;
+        --bg-active: #e4e9ee; --border-color: #d0d7de; --border-soft: #e4e9ee;
+        --text-primary: #1f2328; --text-secondary: #57657a; --text-muted: #8c959f;
+        --accent: #24292f; --success: #1a7f37; --success-soft: rgba(26, 127, 55, 0.16);
+        --danger: #cf222e; --danger-soft: rgba(207, 34, 46, 0.14); --busy: #0969da;
+        --mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    body.dark {
+        --bg-app: #080a10; --bg-card: #141824; --bg-subtle: rgba(255, 255, 255, 0.03);
+        --bg-hover: rgba(255, 255, 255, 0.06); --bg-active: rgba(230, 237, 243, 0.10);
+        --border-color: rgba(255, 255, 255, 0.09); --border-soft: rgba(255, 255, 255, 0.06);
+        --text-primary: #e4e9f2; --text-secondary: #8f97ae; --text-muted: #4f566b;
+        --accent: #f0f6fc; --success: #3fb950; --success-soft: rgba(63, 185, 80, 0.18);
+        --danger: #f85149; --danger-soft: rgba(248, 81, 73, 0.16); --busy: #58a6ff;
+    }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; font-size: 13px; transition: background 0.3s;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    i { line-height: 1; }
+    main { max-width: 800px; margin: 0 auto; }
+
+    .mode-switch { position: fixed; top: 14px; right: 16px; z-index: 99; }
+    .mode-switch button {
+        padding: 7px 14px; font-size: 12.5px; border-radius: 9px;
+        border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary);
+    }
+    .mode-switch button:hover { color: var(--text-primary); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 36px; line-height: 1.8; }
+    .sub b { color: var(--text-primary); }
+
+    .demo { margin-bottom: 40px; }
+    .demo-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .badge {
+        font-size: 11.5px; font-weight: 700; color: var(--bg-app);
+        background: var(--accent); border-radius: 7px; padding: 2.5px 9px; flex-shrink: 0;
+    }
+    .badge.rec { background: var(--success); color: #fff; }
+    .demo-head h2 { font-size: 14.5px; font-weight: 650; }
+    .demo-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.75; margin-bottom: 14px; }
+    .demo-desc b { color: var(--text-primary); }
+    .demo-desc code, .spec code {
+        font-family: var(--mono); font-size: 11px; background: var(--bg-subtle);
+        border-radius: 4px; padding: 1px 5px; color: var(--text-secondary);
+    }
+    .spec { margin-top: 10px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec b { color: var(--text-secondary); }
+
+    /* ===== 公共卡内元素 ===== */
+    .list { display: flex; flex-direction: column; gap: 10px; }
+    .prompt { font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cron { white-space: nowrap; }
+    .sep { opacity: 0.5; }
+    .link { color: var(--busy); text-decoration: none; cursor: pointer; white-space: nowrap; }
+    .link:hover { text-decoration: underline; }
+    .mono { font-family: var(--mono); }
+    .acts { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+    .abtn {
+        width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center;
+        border: none; border-radius: 7px; background: transparent; color: var(--text-muted);
+        font-size: 11.5px; transition: background 0.15s, color 0.15s;
+    }
+    .abtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .abtn.danger:hover { color: var(--danger); background: var(--danger-soft); }
+    .sw {
+        width: 29px; height: 16px; border-radius: 999px; border: 1px solid var(--border-color);
+        background: var(--bg-hover); position: relative; flex-shrink: 0;
+    }
+    .sw::after {
+        content: ''; position: absolute; top: 1px; left: 1px; width: 12px; height: 12px;
+        border-radius: 50%; background: var(--text-muted); transition: 0.16s;
+    }
+    .sw.on { background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 45%, transparent); }
+    .sw.on::after { transform: translateX(13px); background: var(--success); }
+
+    /* ===== V0 现状基线 ===== */
+    .v0 .item {
+        display: flex; align-items: center; gap: 13px; padding: 13px 16px;
+        border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-card);
+    }
+    .v0 .dot { font-size: 13px; flex-shrink: 0; }
+    .v0 .dot.ok { color: var(--success); }
+    .v0 .dot.busy { color: var(--busy); }
+    .v0 .dot.off { color: var(--text-muted); opacity: 0.7; }
+    .v0 .main { flex: 1; min-width: 0; }
+    .v0 .prompt { font-size: 13.5px; }
+    .v0 .meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 11.5px; color: var(--text-muted); }
+    .v0 .times { display: flex; flex-direction: column; gap: 3px; min-width: 156px; flex-shrink: 0; font-size: 11px; }
+    .v0 .t { display: flex; gap: 8px; }
+    .v0 .t .k { color: var(--text-muted); min-width: 52px; }
+    .v0 .t .v { display: inline-flex; gap: 5px; justify-content: flex-end; min-width: 84px; color: var(--text-secondary); }
+
+    /* ===== V1 meta 合并 · 下次唯一主信息 ===== */
+    .v1 .item {
+        position: relative; display: flex; align-items: center; gap: 13px; padding: 13px 16px 13px 19px;
+        border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-card);
+    }
+    .v1 .item::before {
+        content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
+        border-radius: 3px; background: var(--band, var(--success));
+    }
+    .v1 .item.run { --band: var(--busy); }
+    .v1 .item.fail { --band: var(--danger); }
+    .v1 .item.pause { --band: var(--text-muted); opacity: 0.72; }
+    .v1 .main { flex: 1; min-width: 0; }
+    .v1 .prompt { font-size: 13.5px; }
+    .v1 .meta { display: flex; align-items: center; gap: 7px; margin-top: 4px; font-size: 11.5px; color: var(--text-muted); }
+    .v1 .last { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .v1 .last i { font-size: 10px; }
+    .v1 .last .ok { color: var(--success); }
+    .v1 .last .bad { color: var(--danger); }
+    .v1 .next { text-align: right; flex-shrink: 0; min-width: 118px; }
+    .v1 .next .rel { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .v1 .next .abs { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+    .v1 .next.none .rel { font-size: 11.5px; font-weight: 500; color: var(--text-muted); }
+
+    /* ===== V2 执行脉搏 ===== */
+    .v2 .item {
+        position: relative; display: flex; align-items: center; gap: 13px; padding: 13px 16px 13px 19px;
+        border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-card);
+    }
+    .v2 .item::before {
+        content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
+        border-radius: 3px; background: var(--band, var(--success));
+    }
+    .v2 .item.fail { --band: var(--danger); }
+    .v2 .main { flex: 1; min-width: 0; }
+    .v2 .prompt { font-size: 13.5px; }
+    .v2 .meta { display: flex; align-items: center; gap: 7px; margin-top: 4px; font-size: 11.5px; color: var(--text-muted); }
+    .v2 .pulse { display: flex; align-items: flex-end; gap: 3px; flex-shrink: 0; height: 22px; }
+    .v2 .pulse b {
+        width: 6px; border-radius: 2px; background: var(--success); opacity: 0.55;
+        transition: opacity 0.15s;
+    }
+    .v2 .pulse b:hover { opacity: 1; }
+    .v2 .pulse b.h { height: 18px; }
+    .v2 .pulse b.m { height: 13px; }
+    .v2 .pulse b.bad { background: var(--danger); opacity: 0.9; }
+    .v2 .pulse b.live { background: var(--busy); animation: p-blink 1s ease infinite; }
+    .v2 .pulse b.skip { background: var(--border-color); }
+    @keyframes p-blink { 50% { opacity: 0.25; } }
+    .v2 .next { font-family: var(--mono); font-size: 11.5px; color: var(--text-secondary); flex-shrink: 0; white-space: nowrap; }
+    .v2 .next em { font-style: normal; color: var(--text-muted); margin-right: 4px; font-family: inherit; }
+
+    /* ===== V3 三段分层 ===== */
+    .v3 .item {
+        border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-card);
+        overflow: hidden; transition: border-color 0.18s;
+    }
+    .v3 .item:hover { border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-color)); }
+    .v3 .top { padding: 14px 16px 0; }
+    .v3 .prompt { font-size: 14px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .v3 .pills { display: flex; align-items: center; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+    .v3 .pill {
+        display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+        border-radius: 999px; background: var(--bg-subtle); border: 1px solid var(--border-soft);
+        font-size: 11px; color: var(--text-secondary);
+    }
+    .v3 .pill i { font-size: 9.5px; }
+    .v3 .pill.st-ok { background: var(--success-soft); border-color: transparent; color: var(--success); font-weight: 600; }
+    .v3 .pill.st-run { background: var(--danger-soft); border-color: transparent; color: var(--danger); font-weight: 600; }
+    .v3 .pill.st-off { color: var(--text-muted); }
+    .v3 .foot {
+        display: flex; align-items: center; gap: 10px; margin-top: 12px;
+        padding: 9px 16px; background: var(--bg-subtle); border-top: 1px solid var(--border-soft);
+    }
+    .v3 .foot .nx { font-size: 11.5px; color: var(--text-secondary); }
+    .v3 .foot .nx b { font-family: var(--mono); font-weight: 600; color: var(--text-primary); }
+    .v3 .foot .acts { margin-left: auto; }
+
+    /* ===== V4 紧凑单行 ===== */
+    .v4 .list { gap: 0; }
+    .v4 .item {
+        position: relative; display: flex; align-items: center; gap: 11px; padding: 10px 14px 10px 17px;
+        border-bottom: 1px solid var(--border-soft); background: transparent;
+    }
+    .v4 .item:last-child { border-bottom: none; }
+    .v4 .item:hover { background: var(--bg-subtle); }
+    .v4 .item::before {
+        content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px;
+        border-radius: 3px; background: var(--band, var(--success));
+    }
+    .v4 .item.run { --band: var(--busy); }
+    .v4 .item.fail { --band: var(--danger); }
+    .v4 .item.pause { --band: var(--text-muted); }
+    .v4 .prompt { flex: 1.4; min-width: 0; font-size: 12.5px; font-weight: 550; }
+    .v4 .cron { flex-shrink: 0; width: 92px; font-size: 11px; color: var(--text-muted); }
+    .v4 .st { flex-shrink: 0; width: 88px; font-size: 10.5px; display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); }
+    .v4 .st.ok { color: var(--success); }
+    .v4 .st.bad { color: var(--danger); }
+    .v4 .st.run { color: var(--busy); }
+    .v4 .st.idle { color: var(--text-muted); }
+    .v4 .next { flex-shrink: 0; width: 88px; text-align: right; font-family: var(--mono); font-size: 11.5px; color: var(--text-secondary); }
+    .v4 .item.pause .prompt, .v4 .item.pause .cron { opacity: 0.55; }
+
+    /* ===== 网格卡片公共 ===== */
+    .ggrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 12px; }
+    .gcard {
+        position: relative; display: flex; flex-direction: column; gap: 0;
+        border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-card);
+        padding: 14px 16px 12px 19px; overflow: hidden;
+        transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    .gcard:hover { border-color: color-mix(in srgb, var(--text-muted) 55%, var(--border-color)); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06); }
+    .gcard::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+        border-radius: 3px 0 0 3px; background: var(--band, var(--success));
+    }
+    .gcard.run { --band: var(--busy); }
+    .gcard.fail { --band: var(--danger); }
+    .gcard.pause { --band: var(--text-muted); }
+    .gcard.pause .prompt, .gcard.pause .meta { opacity: 0.55; }
+    .gtop { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-muted); }
+    .gtop .st { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+    .gtop .st i { font-size: 10.5px; }
+    .gtop .st.ok { color: var(--success); }
+    .gtop .st.bad { color: var(--danger); }
+    .gtop .st.busy { color: var(--busy); }
+    .gtop .st.idle { color: var(--text-muted); font-weight: 500; }
+    .gtop .cron { margin-left: auto; white-space: nowrap; }
+    .gcard .prompt {
+        font-size: 13px; line-height: 1.55; margin-top: 8px; white-space: normal;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .gcard .meta { font-size: 11px; color: var(--text-muted); margin-top: 5px; min-height: 17px; }
+    .gcard .meta .link { font-size: 11px; }
+    .gfoot {
+        display: flex; align-items: flex-end; gap: 10px;
+        margin: 11px -16px -12px -19px; padding: 9px 16px 10px 19px;
+        border-top: 1px dashed var(--border-soft); background: var(--bg-subtle);
+    }
+    .gfoot .nx { min-width: 0; }
+    .gfoot .nx .rel { font-family: var(--mono); font-size: 13.5px; font-weight: 650; color: var(--text-primary); line-height: 1.2; }
+    .gfoot .nx .abs { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .gfoot .nx.none .rel { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    .gfoot .acts { margin-left: auto; align-items: center; padding-bottom: 2px; }
+
+    /* G2 脉搏行 */
+    .gpulse { display: flex; align-items: flex-end; gap: 3px; height: 18px; margin-top: 9px; }
+    .gpulse b { width: 7px; border-radius: 2px; background: var(--success); opacity: 0.5; }
+    .gpulse b.h { height: 17px; }
+    .gpulse b.m { height: 12px; }
+    .gpulse b.bad { background: var(--danger); opacity: 0.9; height: 17px; }
+    .gpulse b.live { background: var(--busy); animation: p-blink 1s ease infinite; height: 17px; }
+    .gpulse b.skip { background: var(--border-color); height: 7px; }
+
+    /* G3 倒数大字 */
+    .g3 .gcard { padding-top: 16px; }
+    .g3 .hero { font-family: var(--mono); font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); line-height: 1.1; }
+    .g3 .hero.none { font-size: 15px; color: var(--text-muted); font-weight: 500; }
+    .g3 .hero-cap { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ===== 对比表 ===== */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); }
+    th { color: var(--text-muted); font-weight: 600; font-size: 11px; }
+    td b { color: var(--text-primary); }
+    td { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+    <div class="mode-switch"><button id="modeBtn">切夜间模式</button></div>
+    <main>
+        <h1>定时任务卡片 · 重设计对比</h1>
+        <div class="sub">
+            信息结构重新组织（不同于此前只换皮肤的四变体稿）：现状的问题是<b>「上次/下次」两行定宽时间列占位过重、状态靠 13px 小点、meta 与时间列语义粘连</b>。
+            每款展示典型状态：执行中 / 正常 / 最近失败 / 已暂停。
+        </div>
+
+        <!-- ===== V0 基线 ===== -->
+        <div class="demo v0">
+            <div class="demo-head"><span class="badge">V0</span><h2>现状基线（对照）</h2></div>
+            <p class="demo-desc">状态点 + meta 子行 + 右侧两行定宽时间列（156px）。问题：时间列内容短、占位重，扫视动线在「两行时间」上停留过久。</p>
+            <div class="list">
+                <div class="item">
+                    <i class="fas fa-circle-notch fa-spin dot ok"></i>
+                    <div class="main">
+                        <div class="prompt">汇总昨日 CI 失败的用例并按模块归类，给出修复建议</div>
+                        <div class="meta"><span>汇总周报 ·</span><span class="cron">每天 09:30</span></div>
+                    </div>
+                    <div class="times">
+                        <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-27 09:30</span></div>
+                        <div class="t"><span class="k">下次运行</span><span class="v">10-28 09:30</span></div>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item">
+                    <i class="fas fa-circle-xmark dot" style="color: var(--danger)"></i>
+                    <div class="main">
+                        <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                        <div class="meta"><span class="cron">每周一 08:00</span></div>
+                    </div>
+                    <div class="times">
+                        <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-xmark" style="color: var(--danger)"></i>10-27 08:00</span></div>
+                        <div class="t"><span class="k">下次运行</span><span class="v">11-03 08:00</span></div>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item">
+                    <i class="fas fa-circle-pause dot off"></i>
+                    <div class="main">
+                        <div class="prompt">整理本周新增 API 文档草稿</div>
+                        <div class="meta"><span class="cron">工作日 18:00</span></div>
+                    </div>
+                    <div class="times">
+                        <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 18:00</span></div>
+                        <div class="t"><span class="k">下次运行</span><span class="v">—</span></div>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== V1 ===== -->
+        <div class="demo v1">
+            <div class="demo-head"><span class="badge">V1</span><h2>meta 合并 · 下次唯一主信息</h2><span class="badge rec">推荐</span></div>
+            <p class="demo-desc">「上次运行（相对时间 + 成败）」降为 meta 的一项；右侧只留<b>「下次」</b>且升为主信息：相对倒计时大字 + 绝对时间小字。左缘 <code>3px</code> 圆头色带接替状态点，卡内元素从 5 组减到 3 组。</p>
+            <div class="list">
+                <div class="item run">
+                    <div class="main">
+                        <div class="prompt">汇总昨日 CI 失败的用例并按模块归类，给出修复建议</div>
+                        <div class="meta">
+                            <span class="cron">每天 09:30</span><span class="sep">·</span>
+                            <span class="last"><i class="fas fa-circle-notch fa-spin" style="color: var(--busy)"></i>执行中</span><span class="sep">·</span>
+                            <span class="link"><i class="far fa-comment"></i> 汇总周报</span>
+                        </div>
+                    </div>
+                    <div class="next"><div class="rel">23 小时后</div><div class="abs">10-28 09:30</div></div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item">
+                    <div class="main">
+                        <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                        <div class="meta">
+                            <span class="cron">每周一 08:00</span><span class="sep">·</span>
+                            <span class="last"><i class="fas fa-circle-xmark bad"></i>3 天前失败</span>
+                        </div>
+                    </div>
+                    <div class="next"><div class="rel">7 天后</div><div class="abs">11-03 08:00</div></div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item fail">
+                    <div class="main">
+                        <div class="prompt">抓取竞品 changelog 并生成摘要</div>
+                        <div class="meta">
+                            <span class="cron">每天 18:30</span><span class="sep">·</span>
+                            <span class="last"><i class="fas fa-circle-xmark bad"></i>2 小时前失败</span><span class="sep">·</span>
+                            <span class="link"><i class="far fa-comment"></i> 抓取竞品 changelog 并…</span>
+                        </div>
+                    </div>
+                    <div class="next"><div class="rel">10 小时后</div><div class="abs">10-28 18:30</div></div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item pause">
+                    <div class="main">
+                        <div class="prompt">整理本周新增 API 文档草稿</div>
+                        <div class="meta">
+                            <span class="cron">工作日 18:00</span><span class="sep">·</span>
+                            <span class="last"><i class="fas fa-circle-check ok"></i>3 天前成功</span>
+                        </div>
+                    </div>
+                    <div class="next none"><div class="rel">已暂停</div></div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：动线干净（提示词 → meta → 倒计时），时间列瘦身近一半；倒计时比绝对时刻更贴近「什么时候会跑」的心智。<b>风险</b>：相对时间需要前端按分钟刷新（轮询已有 30s 周期，顺路可算）。</div>
+        </div>
+
+        <!-- ===== V2 ===== -->
+        <div class="demo v2">
+            <div class="demo-head"><span class="badge">V2</span><h2>执行脉搏</h2></div>
+            <p class="demo-desc">右侧时间列整体替换为<b>最近 10 次执行的色块条</b>（GitHub Actions 语言）：绿=成功、红=失败、蓝闪=执行中、灰=顺延跳过；块高映射耗时。下次触发压成 meta 尾部一行小字。</p>
+            <div class="list">
+                <div class="item">
+                    <div class="main">
+                        <div class="prompt">汇总昨日 CI 失败的用例并按模块归类，给出修复建议</div>
+                        <div class="meta"><span class="cron">每天 09:30</span><span class="sep">·</span><span>下次 23 小时后</span></div>
+                    </div>
+                    <div class="pulse" title="最近 10 次执行">
+                        <b class="m"></b><b class="h"></b><b class="m"></b><b class="skip" style="height: 8px"></b><b class="m"></b><b class="h"></b><b class="m"></b><b class="bad" style="height: 18px"></b><b class="m"></b><b class="live h"></b>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item fail">
+                    <div class="main">
+                        <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                        <div class="meta"><span class="cron">每周一 08:00</span><span class="sep">·</span><span>下次 7 天后</span></div>
+                    </div>
+                    <div class="pulse" title="最近 6 次执行">
+                        <b class="m"></b><b class="m"></b><b class="bad" style="height: 18px"></b><b class="bad" style="height: 18px"></b><b class="m"></b><b class="bad" style="height: 18px"></b>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item">
+                    <div class="main">
+                        <div class="prompt">整理本周新增 API 文档草稿</div>
+                        <div class="meta"><span class="cron">工作日 18:00</span><span class="sep">·</span><span>下次 3 小时后</span></div>
+                    </div>
+                    <div class="pulse" title="最近 8 次执行">
+                        <b class="m"></b><b class="m"></b><b class="m"></b><b class="h"></b><b class="m"></b><b class="m"></b><b class="h"></b><b class="m"></b>
+                    </div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：健康度一眼可辨（连续红块 = 该修了），数据源就是现成的 runs 数组，零后端改动。<b>风险</b>：信息抽象度高，色块含义需要适应期；执行记录少于 3 条时脉搏显得空。</div>
+        </div>
+
+        <!-- ===== V3 ===== -->
+        <div class="demo v3">
+            <div class="demo-head"><span class="badge">V3</span><h2>三段分层 · pill 化 meta</h2></div>
+            <p class="demo-desc">卡片重构为「标题 / meta pills / 底栏」三段：提示词放宽为可换行主标题（2 行截断），周期、状态、上次运行全部 <code>pill</code> 化，底栏浅底收「下次运行 + 操作」。</p>
+            <div class="list">
+                <div class="item">
+                    <div class="top">
+                        <div class="prompt">汇总昨日 CI 失败的用例并按模块归类，给出修复建议，输出 Markdown 报告</div>
+                        <div class="pills">
+                            <span class="pill st-run"><i class="fas fa-circle-notch fa-spin"></i>执行中</span>
+                            <span class="pill"><i class="fas fa-clock"></i>每天 09:30</span>
+                            <span class="pill">✓ 上次 3 天前</span>
+                            <span class="pill"><i class="far fa-comment"></i>汇总周报</span>
+                        </div>
+                        <div class="foot">
+                            <span class="nx">下次运行 <b>10-28 09:30</b>（23 小时后）</span>
+                            <div class="acts"><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="item">
+                    <div class="top">
+                        <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                        <div class="pills">
+                            <span class="pill st-run"><i class="fas fa-circle-xmark"></i>上次失败</span>
+                            <span class="pill"><i class="fas fa-clock"></i>每周一 08:00</span>
+                        </div>
+                        <div class="foot">
+                            <span class="nx">下次运行 <b>11-03 08:00</b>（7 天后）</span>
+                            <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：状态 pill 最醒目，提示词可读性最好（不强制单行）。<b>风险</b>：卡高 ~110px 是四款中最大，任务多时滚动负担重；pill 底色多，与列表页克制基调有拉扯。</div>
+        </div>
+
+        <!-- ===== V4 ===== -->
+        <div class="demo v4">
+            <div class="demo-head"><span class="badge">V4</span><h2>紧凑单行</h2></div>
+            <p class="demo-desc">去卡片化：一行一任务，分割线分组，左缘色带承状态；<b>周期 / 上次 / 下次</b>定宽列对齐，hover 行底色浮现。密度约为现状 2 倍，像 crontab 管理台。</p>
+            <div class="list" style="border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card); overflow: hidden;">
+                <div class="item run">
+                    <div class="prompt">汇总昨日 CI 失败的用例并按模块归类</div>
+                    <div class="cron">每天 09:30</div>
+                    <div class="st run"><i class="fas fa-circle-notch fa-spin"></i>执行中</div>
+                    <div class="next">23h 后</div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item fail">
+                    <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                    <div class="cron">每周一 08:00</div>
+                    <div class="st bad"><i class="fas fa-circle-xmark"></i>3d 前失败</div>
+                    <div class="next">7d 后</div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item">
+                    <div class="prompt">抓取竞品 changelog 并生成摘要</div>
+                    <div class="cron">每天 18:30</div>
+                    <div class="st ok"><i class="fas fa-circle-check"></i>2h 前成功</div>
+                    <div class="next">10h 后</div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+                <div class="item pause">
+                    <div class="prompt">整理本周新增 API 文档草稿</div>
+                    <div class="cron">工作日 18:00</div>
+                    <div class="st idle"><i class="fas fa-circle-pause"></i>已暂停</div>
+                    <div class="next">—</div>
+                    <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：密度与扫视轨道最佳，历史展开缩进一层即可。<b>风险</b>：放弃了卡片的语言（与资料列表页视觉脱节）；行内可放的 meta 最少，会话跳转只能进历史层找。</div>
+        </div>
+
+        <!-- ===== G1 ===== -->
+        <div class="demo g1">
+            <div class="demo-head"><span class="badge">G1</span><h2>定宽卡片网格 · V1 结构竖排</h2><span class="badge rec">推荐</span></div>
+            <p class="demo-desc">对齐资料中心网格语言（<code>minmax(258px, 1fr)</code>），卡内自上而下读：<b>状态行（色带 + 状态 + 周期）→ 提示词（2 行截断）→ meta → 虚线分隔 → 倒计时底栏</b>。操作钮收进底栏右侧。</p>
+            <div class="ggrid">
+                <div class="gcard run">
+                    <div class="gtop"><span class="st busy"><i class="fas fa-circle-notch fa-spin"></i>执行中</span><span class="cron">每天 09:30</span></div>
+                    <div class="prompt">汇总昨日 CI 失败的用例并按模块归类，给出修复建议，输出 Markdown 报告</div>
+                    <div class="meta"><span class="link"><i class="far fa-comment"></i> 汇总周报</span></div>
+                    <div class="gfoot">
+                        <div class="nx"><div class="rel">23 小时后</div><div class="abs">10-28 09:30</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard fail">
+                    <div class="gtop"><span class="st bad"><i class="fas fa-circle-xmark"></i>上次失败</span><span class="cron">每周一 08:00</span></div>
+                    <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                    <div class="meta">3 天前失败 · <span class="link"><i class="far fa-comment"></i> 漏洞扫描</span></div>
+                    <div class="gfoot">
+                        <div class="nx"><div class="rel">7 天后</div><div class="abs">11-03 08:00</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard">
+                    <div class="gtop"><span class="st ok"><i class="fas fa-circle-check"></i>正常</span><span class="cron">每天 18:30</span></div>
+                    <div class="prompt">抓取竞品 changelog 并生成摘要</div>
+                    <div class="meta">2 小时前成功 · <span class="link"><i class="far fa-comment"></i> 竞品 changelog</span></div>
+                    <div class="gfoot">
+                        <div class="nx"><div class="rel">10 小时后</div><div class="abs">10-27 18:30</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard pause">
+                    <div class="gtop"><span class="st idle"><i class="fas fa-circle-pause"></i>已暂停</span><span class="cron">工作日 18:00</span></div>
+                    <div class="prompt">整理本周新增 API 文档草稿</div>
+                    <div class="meta">3 天前成功</div>
+                    <div class="gfoot">
+                        <div class="nx none"><div class="rel">暂停中</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：与资料中心同语言；提示词不再单行截断；任务数不多时页面不空（网格自然铺满）。<b>风险</b>：行列表的历史展开交互在网格里要换成点击卡片弹出详情层，需补一层承接；窄屏单列时比列表费高度。</div>
+        </div>
+
+        <!-- ===== G2 ===== -->
+        <div class="demo g2">
+            <div class="demo-head"><span class="badge">G2</span><h2>仪表盘网格 · 脉搏上卡面</h2></div>
+            <p class="demo-desc">G1 骨架不变，把 meta 行换成<b>最近 8 次执行脉搏条</b>（块高映射耗时，矮灰=顺延跳过）；健康度直接进卡面，执行历史不再是刚需展开层。</p>
+            <div class="ggrid">
+                <div class="gcard">
+                    <div class="gtop"><span class="st ok"><i class="fas fa-circle-check"></i>正常</span><span class="cron">每天 09:30</span></div>
+                    <div class="prompt">汇总昨日 CI 失败的用例并按模块归类</div>
+                    <div class="gpulse" title="最近 8 次">
+                        <b class="m"></b><b class="h"></b><b class="m"></b><b class="skip"></b><b class="m"></b><b class="h"></b><b class="bad"></b><b class="live"></b>
+                    </div>
+                    <div class="gfoot">
+                        <div class="nx"><div class="rel">23 小时后</div><div class="abs">10-28 09:30</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard fail">
+                    <div class="gtop"><span class="st bad"><i class="fas fa-circle-xmark"></i>上次失败</span><span class="cron">每周一 08:00</span></div>
+                    <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                    <div class="gpulse" title="最近 6 次">
+                        <b class="m"></b><b class="m"></b><b class="bad"></b><b class="bad"></b><b class="m"></b><b class="bad"></b>
+                    </div>
+                    <div class="gfoot">
+                        <div class="nx"><div class="rel">7 天后</div><div class="abs">11-03 08:00</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard pause">
+                    <div class="gtop"><span class="st idle"><i class="fas fa-circle-pause"></i>已暂停</span><span class="cron">工作日 18:00</span></div>
+                    <div class="prompt">整理本周新增 API 文档草稿</div>
+                    <div class="gpulse" title="最近 5 次">
+                        <b class="m"></b><b class="m"></b><b class="h"></b><b class="m"></b><b class="m"></b>
+                    </div>
+                    <div class="gfoot">
+                        <div class="nx none"><div class="rel">暂停中</div></div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button><button class="abtn danger"><i class="fas fa-trash-can"></i></button></div>
+                    </div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：密度与健康的平衡最佳，脉搏条替代「展开历史」的查看刚需。<b>风险</b>：单条摘要文本没位置，查看某轮结果只能点脉搏块跳会话（新增交互语义）。</div>
+        </div>
+
+        <!-- ===== G3 ===== -->
+        <div class="demo g3">
+            <div class="demo-head"><span class="badge">G3</span><h2>倒数大字卡</h2></div>
+            <p class="demo-desc">卡面主角换成<b>下次触发倒计时</b>（mono 大字），周期/提示词降为配角——把「任务在等执行」的隐喻放到最强。示例为静态值，真实现需秒级刷新。</p>
+            <div class="ggrid">
+                <div class="gcard">
+                    <div class="hero">23:41:07</div>
+                    <div class="hero-cap">下次运行 · 每天 09:30</div>
+                    <div class="prompt">汇总昨日 CI 失败的用例并按模块归类</div>
+                    <div class="gfoot">
+                        <div class="nx" style="font-size: 11px; color: var(--success);"><i class="fas fa-circle-check"></i> 正常 · 已运行 23 轮</div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard fail">
+                    <div class="hero">6-18:42:03</div>
+                    <div class="hero-cap">下次运行 · 每周一 08:00</div>
+                    <div class="prompt">检查依赖漏洞并输出 CVE 清单</div>
+                    <div class="gfoot">
+                        <div class="nx" style="font-size: 11px; color: var(--danger);"><i class="fas fa-circle-xmark"></i> 上次失败</div>
+                        <div class="acts"><button class="abtn"><i class="fas fa-bolt"></i></button><span class="sw on"></span><button class="abtn"><i class="fas fa-pen"></i></button></div>
+                    </div>
+                </div>
+                <div class="gcard pause">
+                    <div class="hero none">已暂停</div>
+                    <div class="hero-cap">工作日 18:00</div>
+                    <div class="prompt">整理本周新增 API 文档草稿</div>
+                    <div class="gfoot">
+                        <div class="nx" style="font-size: 11px; color: var(--text-muted);">启用后重新计时</div>
+                        <div class="acts"><span class="sw"></span><button class="abtn"><i class="fas fa-pen"></i></button></div>
+                    </div>
+                </div>
+            </div>
+            <div class="spec"><b>优势</b>：最有「调度台」辨识度，倒数读秒的在场感强。<b>风险</b>：提示词（任务的本质）被降权，秒级刷新与现有 30s 轮询节奏不合——列出供参考，不建议采用。</div>
+        </div>
+
+        <!-- ===== 对比表 ===== -->
+        <div class="demo">
+            <div class="demo-head"><h2>横向对比</h2></div>
+            <table>
+                <tr><th>版本</th><th>卡高</th><th>状态表达</th><th>下次运行</th><th>信息密度</th><th>一句话取舍</th></tr>
+                <tr><td><b>V0 现状</b></td><td>~64px</td><td>13px 状态点</td><td>两行定宽列</td><td>中</td><td>时间列过重、层级平</td></tr>
+                <tr><td><b>V1 推荐</b></td><td>~64px</td><td>左缘色带</td><td>倒计时大字 + 小字</td><td>中高</td><td>结构最干净，改动适中</td></tr>
+                <tr><td><b>V2 脉搏</b></td><td>~64px</td><td>色带 + 脉搏条</td><td>meta 小字</td><td>高</td><td>健康度最强，抽象度高</td></tr>
+                <tr><td><b>V3 三段</b></td><td>~110px</td><td>状态 pill</td><td>底栏整行</td><td>低</td><td>可读性好，密度差</td></tr>
+                <tr><td><b>V4 单行</b></td><td>~42px</td><td>左缘色带</td><td>定宽列（23h 后）</td><td>最高</td><td>管理台气质，脱离卡片语言</td></tr>
+                <tr><td><b>G1 网格</b></td><td>卡 ~150px</td><td>色带 + 状态行</td><td>底栏倒计时大字</td><td>中</td><td>与资料中心同语言，改动最大</td></tr>
+                <tr><td><b>G2 脉搏网格</b></td><td>卡 ~150px</td><td>色带 + 脉搏条</td><td>底栏倒计时</td><td>中高</td><td>健康度上卡面，摘要没位置</td></tr>
+                <tr><td><b>G3 倒数卡</b></td><td>卡 ~150px</td><td>色带 + 状态小字</td><td>秒级大字</td><td>低</td><td>隐喻最强但本末倒置，不建议</td></tr>
+            </table>
+            <div class="spec">组合可能：列表路线 <b>V1 + V2</b>（倒计时 + 脉搏条替换时间列）；网格路线 <b>G1 + G2</b>（脉搏条替换 meta 行）。相对时间统一由 <code>utils/schedule.ts</code> 计算，随 30s 轮询刷新；网格版的历史承接建议改为点击卡片弹出详情层。</div>
+        </div>
+    </main>
+
+<script>
+    var btn = document.getElementById('modeBtn');
+    btn.addEventListener('click', function () {
+        document.body.classList.toggle('dark');
+        btn.textContent = document.body.classList.contains('dark') ? '切日间模式' : '切夜间模式';
+    });
+</script>
+</body>
+</html>

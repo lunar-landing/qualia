@@ -233,12 +233,9 @@ function markUnreadIfBackground(sid: string, hasContent: boolean) {
 function applyStepSideEffects(step: AgentStep) {
   const ws = useWorkspaceStore()
   if (step.stepType === 'ACTION') {
-    // 审查/终端 Tab 未激活时打提示圆点（对齐旧 record→notifyChangesTab / renderTerminal→dot；历史重建不打点）
+    // 审查 Tab 未激活时打提示圆点（对齐旧 record→notifyChangesTab；历史重建不打点）
     if (step.toolName && CHANGE_TOOLS.includes(step.toolName) && ws.activeTab !== 'wsChanges') {
       ws.tabDots.wsChanges = true
-    }
-    if (step.toolName === 'bash' && ws.activeTab !== 'wsTerm') {
-      ws.tabDots.wsTerm = true
     }
     const fp = stepFilePath(step)
     if (!fp) {

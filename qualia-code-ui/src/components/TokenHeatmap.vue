@@ -6,10 +6,10 @@ import { useChatStore } from '@/stores/chat'
 import type { TokenStat } from '@/types'
 
 /**
- * 侧边栏「近 30 日 Token 用量」热力矩阵（平移旧 js/token-map.js）：
- * 按当期最大值动态分 4 档渲染 10×3 方格；hover 气泡展示日期与用量；
- * 接口失败或无数据时整块隐藏，不破坏侧边栏布局；
- * 点击矩阵弹出统计详情面板：总量/日均/峰值/活跃天数四张卡片 + SVG 折线趋势图。
+ * Hero「近 30 日 Token 用量」迷你统计条（自侧边栏迁入，平移旧 js/token-map.js）：
+ * 挂载于欢迎 Hero 输入框下方，按当期最大值动态分 4 档渲染 15×2 方格矩阵 + 30 日总量摘要；
+ * hover 气泡展示日期与用量；接口失败或无数据时整块隐藏，不破坏 Hero 布局；
+ * 点击整条弹出统计详情面板：总量/日均/峰值/活跃天数四张卡片 + SVG 折线趋势图。
  */
 const chat = useChatStore()
 const { t } = useI18n()
@@ -63,6 +63,9 @@ const cells = computed<Cell[]>(() => {
     return { lv, tip: dayTip(d.date, formatTokens(d.tokens)) }
   })
 })
+
+/** 30 日总量（k/M 缩写），迷你条摘要展示 */
+const totalLabel = computed(() => formatTokens(stats.value.reduce((s, d) => s + d.tokens, 0)))
 
 // ===== 统计详情面板 =====
 // 折线图 viewBox 逻辑尺寸（实际宽度自适应，等比缩放）
@@ -217,12 +220,13 @@ const tipStyle = computed(() => {
 </script>
 
 <template>
-  <!-- 无数据/接口失败整块隐藏，不破坏侧边栏布局 -->
-  <div v-if="cells.length" class="token-heatmap" @click="openDetail">
-    <div class="th-title"><i class="fas fa-fire"></i> {{ t('heatmap.title') }}</div>
+  <!-- 无数据/接口失败整块隐藏；置于 Hero 输入框锚点之后，不抢焦点 -->
+  <div v-if="cells.length" class="hero-token-strip" @click="openDetail">
     <div class="th-grid">
       <span v-for="(c, i) in cells" :key="i" class="th-cell" :class="'lv' + c.lv" :data-tip="c.tip"></span>
     </div>
+    <div class="hts-meta">{{ t('heatmap.stripLabel') }} <b>{{ totalLabel }}</b> tokens</div>
+    <span class="hts-go">{{ t('heatmap.detail') }} <i class="fas fa-chevron-right"></i></span>
   </div>
 
   <!-- 统计详情面板（Teleport 到 body，等价旧 document.body.appendChild） -->
@@ -304,32 +308,50 @@ const tipStyle = computed(() => {
 </template>
 
 <style>
-/* ===== 热力矩阵（旧 token-map.js 自包含样式平移；th-/thd- 前缀全局防冲突） ===== */
-.token-heatmap {
-  flex-shrink: 0;
-  padding: 11px 4px 2px;
-  border-top: 1px solid var(--border-color);
-  margin-bottom: 9px;
-  /* 整块可点击打开统计详情 */
+/* ===== Hero 迷你统计条：输入框下方一行（15×2 微缩矩阵 + 30 日总量摘要），整条可点进详情 ===== */
+/* th-/hts- 前缀全局防冲突；Hero 为 flex column（gap 11px），margin-top 3px 合计 14px 对齐设计稿 */
+.hero-token-strip {
+  width: 100%;
+  max-width: 580px;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
   cursor: pointer;
+  transition: border-color 0.15s;
 }
-.th-title {
+.hero-token-strip:hover {
+  border-color: var(--text-muted);
+}
+.hts-meta {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.hts-meta b {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.hts-go {
+  margin-left: auto;
   font-size: 10.5px;
-  font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 7px;
   display: flex;
   align-items: center;
   gap: 5px;
-}
-.th-title i {
-  font-size: 9.5px;
-  color: var(--accent-light);
+  white-space: nowrap;
 }
 .th-grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 3px;
+  width: 172px;
+  flex-shrink: 0;
 }
 .th-cell {
   aspect-ratio: 1;
@@ -383,14 +405,14 @@ const tipStyle = computed(() => {
 .th-grid .th-cell:hover::after {
   opacity: 1;
 }
-/* 前两列的气泡左对齐、末两列右对齐，避免溢出侧边栏 */
-.th-grid .th-cell:nth-child(10n + 1)::after,
-.th-grid .th-cell:nth-child(10n + 2)::after {
+/* 前两列的气泡左对齐、末两列右对齐，避免溢出迷你条 */
+.th-grid .th-cell:nth-child(15n + 1)::after,
+.th-grid .th-cell:nth-child(15n + 2)::after {
   left: 0;
   transform: none;
 }
-.th-grid .th-cell:nth-child(10n)::after,
-.th-grid .th-cell:nth-child(10n + 9)::after {
+.th-grid .th-cell:nth-child(15n)::after,
+.th-grid .th-cell:nth-child(15n + 14)::after {
   left: auto;
   right: 0;
   transform: none;

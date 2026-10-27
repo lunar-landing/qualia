@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务卡片样式精修 · 四变体对比</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<!--
+  任务中心卡片样式优化（信息结构不变，纯视觉变体）
+  基线 = 当前线上样式：边框卡 + 行首状态点 + hover 阴影
+  变体：
+    V1 基线还原（对照）
+    V2 左缘状态带 —— 状态色从「点」升级为「带」，扫视轨道感，hover 边框加深
+    V3 平贴浮现 —— 常态无边框融入页面，hover 才浮现边框与浅影（最轻）
+    V4 历史内嵌 —— 历史展开区改为浅底内嵌块 + 轨道虚线，操作钮 hover 浮现
+  推荐组合：V2 状态带 + V4 历史内嵌
+  时间列对齐（label 定宽 + 值右对齐）在所有变体中保持
+-->
+<style>
+  :root {
+    --bg-app: #f5f7f9;
+    --bg-list: #ffffff;
+    --bg-hover: #eef1f4;
+    --bg-active: #e4e9ee;
+    --bg-card: #ffffff;
+    --border-color: #d5dbe1;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --accent: #57606a;
+    --success: #1a7f37;
+    --error: #cf222e;
+  }
+  html.night {
+    --bg-app: #0d1117;
+    --bg-list: #131820;
+    --bg-hover: rgba(230, 237, 243, 0.06);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-card: #131820;
+    --border-color: rgba(230, 237, 243, 0.14);
+    --text-primary: #e6edf3;
+    --text-secondary: #9ea7b3;
+    --text-muted: #6e7681;
+    --accent: #e6edf3;
+    --success: #34d399;
+    --error: #f85149;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app); color: var(--text-primary);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px; padding: 32px 40px 64px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  header { max-width: 980px; margin: 0 auto 28px; }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.3px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .sub b { color: var(--text-primary); }
+  .sub code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+  .mode-switch {
+    margin-top: 16px; display: inline-flex;
+    border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+  }
+  .mode-switch button {
+    background: var(--bg-list); border: none; color: var(--text-secondary);
+    font-size: 12.5px; padding: 7px 16px; cursor: pointer;
+    border-right: 1px solid var(--border-color);
+  }
+  .mode-switch button:last-child { border-right: none; }
+  .mode-switch button.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+
+  .grid { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 26px; }
+  .card {
+    background: var(--bg-list); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 22px 24px 24px;
+  }
+  .card-title { display: flex; align-items: center; gap: 10px; }
+  .card-title h2 { font-size: 15.5px; font-weight: 650; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; background: var(--text-primary); color: var(--bg-list); }
+  .badge.rec { background: var(--success); color: #fff; }
+  .card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.75; margin: 10px 0 16px; }
+  .card-desc code { font-family: Consolas, monospace; font-size: 11.5px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+
+  /* ===== 通用任务卡内部元素（所有变体共享） ===== */
+  .times { display: flex; flex-direction: column; gap: 3px; align-items: stretch; flex-shrink: 0; min-width: 156px; }
+  .t { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .t .k { color: var(--text-muted); min-width: 52px; }
+  .t .v {
+    flex: 1; display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px;
+    font-family: Consolas, monospace; color: var(--text-secondary); min-width: 84px;
+  }
+  .t .v .ok { color: var(--success); font-size: 10px; }
+  .t .v .fail { color: var(--error); font-size: 10px; }
+  .acts { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+  .b {
+    width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+    border: none; border-radius: 7px; background: transparent; color: var(--text-muted);
+    font-size: 12px; cursor: pointer;
+  }
+  .b:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .chev { color: var(--text-muted); font-size: 11px; transition: transform 0.2s ease; }
+  .chev.open { transform: rotate(90deg); }
+  .sw {
+    width: 30px; height: 17px; border-radius: 999px; position: relative; cursor: pointer; flex-shrink: 0;
+    background: var(--bg-hover); border: 1px solid var(--border-color);
+  }
+  .sw i {
+    position: absolute; top: 1px; left: 1px; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--text-muted); transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .sw.on { background: color-mix(in srgb, var(--success) 22%, transparent); border-color: color-mix(in srgb, var(--success) 45%, transparent); }
+  .sw.on i { transform: translateX(13px); background: var(--success); }
+  .main { flex: 1; min-width: 0; }
+  .prompt { font-size: 13.5px; font-weight: 550; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 11.5px; color: var(--text-muted); min-width: 0; }
+  .meta .lnk { color: var(--accent); display: inline-flex; gap: 5px; align-items: center; }
+  .meta .sep { opacity: 0.55; }
+  .meta .err { color: var(--error); }
+
+  /* ===== V1 基线（现状） ===== */
+  .v1 .item {
+    border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card);
+    transition: box-shadow 0.2s ease;
+  }
+  .v1 .item:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); }
+  .v1 .row { display: flex; align-items: center; gap: 13px; padding: 11px 14px; }
+  .v1 .dot { font-size: 13px; flex-shrink: 0; }
+  .v1 .dot.on { color: var(--success); }
+  .v1 .dot.busy { color: var(--accent); }
+  .v1 .dot.off { color: var(--text-muted); opacity: 0.7; }
+  .v1 .dot.err { color: var(--error); }
+
+  /* ===== V2 左缘状态带 ===== */
+  .v2 .item {
+    position: relative; border: 1px solid var(--border-color); border-radius: 12px;
+    background: var(--bg-card); overflow: hidden;
+    transition: border-color 0.15s ease;
+  }
+  .v2 .item:hover { border-color: var(--text-muted); }
+  .v2 .item::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+    border-radius: 0 2px 2px 0; background: var(--band, var(--text-muted));
+  }
+  .v2 .item.band-on { --band: var(--success); }
+  .v2 .item.band-run { --band: var(--accent); }
+  .v2 .item.band-off { --band: var(--text-muted); }
+  .v2 .item.band-err { --band: var(--error); }
+  .v2 .row { display: flex; align-items: center; gap: 13px; padding: 11px 14px 11px 17px; }
+  .v2 .dot { font-size: 11px; flex-shrink: 0; opacity: 0.9; }
+  .v2 .dot.on { color: var(--success); }
+  .v2 .dot.busy { color: var(--accent); }
+  .v2 .dot.off { color: var(--text-muted); }
+  .v2 .dot.err { color: var(--error); }
+
+  /* ===== V3 平贴浮现 ===== */
+  .v3 .item {
+    border: 1px solid transparent; border-radius: 12px; background: var(--bg-card);
+    transition: border-color 0.15s ease, box-shadow 0.2s ease;
+  }
+  .v3 .item:hover { border-color: var(--border-color); box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06); }
+  .v3 .row { display: flex; align-items: center; gap: 13px; padding: 11px 14px; }
+  .v3 .dot { font-size: 13px; flex-shrink: 0; }
+  .v3 .dot.on { color: var(--success); }
+  .v3 .dot.busy { color: var(--accent); }
+  .v3 .dot.off { color: var(--text-muted); opacity: 0.7; }
+  .v3 .dot.err { color: var(--error); }
+
+  /* ===== V4 历史内嵌（+操作钮 hover 浮现） ===== */
+  .v4 .item {
+    border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-card);
+    transition: border-color 0.15s ease;
+  }
+  .v4 .item:hover { border-color: var(--text-muted); }
+  .v4 .row { display: flex; align-items: center; gap: 13px; padding: 11px 14px; }
+  .v4 .dot { font-size: 13px; flex-shrink: 0; }
+  .v4 .dot.on { color: var(--success); }
+  .v4 .dot.busy { color: var(--accent); }
+  .v4 .dot.err { color: var(--error); }
+  .v4 .acts .b, .v4 .acts .sw { opacity: 0; transition: opacity 0.15s ease; }
+  .v4 .item:hover .acts .b, .v4 .item:hover .acts .sw { opacity: 1; }
+  .v4 .hist {
+    margin: 0 10px 10px 17px; padding: 4px 12px 6px;
+    border-left: 2px dashed var(--border-color);
+    background: var(--bg-hover); border-radius: 0 8px 8px 0;
+    font-size: 11.5px;
+  }
+  .v4 .h-row { display: flex; align-items: center; gap: 9px; padding: 5px 0; color: var(--text-secondary); }
+  .v4 .h-row i.ok { color: var(--success); font-size: 10px; }
+  .v4 .h-row i.fail { color: var(--error); font-size: 10px; }
+  .v4 .h-row .tm, .v4 .h-row .du { font-family: Consolas, monospace; flex-shrink: 0; }
+  .v4 .h-row .sum { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  footer { max-width: 980px; margin: 26px auto 0; color: var(--text-muted); font-size: 12px; line-height: 1.8; }
+  footer code { font-family: Consolas, monospace; font-size: 11.5px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>任务卡片样式精修 · 四变体对比</h1>
+  <div class="sub">
+    信息结构不动（提示词 + meta、时间列对齐、执行历史展开），只变<b>卡片皮肤</b>：状态表达、容器处理、hover 行为、历史区融合。
+    每个变体展示三条典型状态：执行中 / 正常 / 最近失败（V4 附带展开的历史内嵌块）。
+  </div>
+  <div class="mode-switch">
+    <button class="on" data-mode="light">日间</button>
+    <button data-mode="night">夜间</button>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- ===== V1 基线 ===== -->
+  <div class="card v1">
+    <div class="card-title"><span class="badge">V1</span><h2>基线（现状还原，作对照）</h2></div>
+    <div class="card-desc">边框卡 + 行首状态点 + hover 浅影。问题：状态只靠一个 13px 的点表达，hover 阴影在浅色下偏含糊；操作钮常驻显眼，卡片显得「工具栏化」。</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-notch fa-spin dot busy"></i>
+          <div class="main">
+            <div class="prompt">监控磁盘空间并生成清理建议</div>
+            <div class="meta"><span class="mono">0 0/30 * * * *</span><span class="sep">·</span><span>执行中</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 09:30</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-24 15:00</span></div>
+          </div>
+          <div class="acts"><button class="b"><i class="fas fa-bolt"></i></button><span class="sw on"><i></i></span><button class="b"><i class="fas fa-pen"></i></button><button class="b"><i class="fas fa-trash-can"></i></button><i class="fas fa-chevron-right chev"></i></div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-xmark dot err"></i>
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="meta"><span>工作日 18:00</span><span class="sep">·</span><span class="err">上次失败 · 模型连接超时</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-xmark fail"></i>10-24 18:00</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-27 18:00</span></div>
+          </div>
+          <div class="acts"><button class="b"><i class="fas fa-bolt"></i></button><span class="sw on"><i></i></span><button class="b"><i class="fas fa-pen"></i></button><button class="b"><i class="fas fa-trash-can"></i></button><i class="fas fa-chevron-right chev"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== V2 状态带 ===== -->
+  <div class="card v2">
+    <div class="card-title"><span class="badge">V2</span><h2>左缘状态带</h2><span class="badge rec">推荐 · 组合件</span></div>
+    <div class="card-desc">
+      状态从「点」升级为左缘 <code>3px</code> 圆头色带（<code>::before</code> + CSS 变量 <code>--band</code>）：绿=正常、主题色=执行中、灰=暂停、红=最近失败。
+      多卡并排时左缘连成纵向轨道，扫视定位最快；hover 边框加深替代阴影（日间更干净）。状态点缩小保留在原位作双保险。
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="item band-run">
+        <div class="row">
+          <i class="fas fa-circle-notch fa-spin dot busy"></i>
+          <div class="main">
+            <div class="prompt">监控磁盘空间并生成清理建议</div>
+            <div class="meta"><span class="mono">0 0/30 * * * *</span><span class="sep">·</span><span>执行中</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 09:30</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-24 15:00</span></div>
+          </div>
+          <div class="acts"><span class="sw on"><i></i></span><button class="b"><i class="fas fa-chevron-right chev"></i></button></div>
+        </div>
+      </div>
+      <div class="item band-on">
+        <div class="row">
+          <i class="fas fa-circle-check dot on"></i>
+          <div class="main">
+            <div class="prompt">汇总本周站会纪要并整理行动项</div>
+            <div class="meta"><span>每天 09:30</span><span class="sep">·</span><span class="lnk"><i class="far fa-comment"></i>昨天 09:30 成功</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 09:30</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-25 09:30</span></div>
+          </div>
+          <div class="acts"><span class="sw on"><i></i></span><button class="b"><i class="fas fa-chevron-right chev"></i></button></div>
+        </div>
+      </div>
+      <div class="item band-err">
+        <div class="row">
+          <i class="fas fa-circle-xmark dot err"></i>
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="meta"><span>工作日 18:00</span><span class="sep">·</span><span class="err">上次失败 · 模型连接超时</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-xmark fail"></i>10-24 18:00</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-27 18:00</span></div>
+          </div>
+          <div class="acts"><button class="b"><i class="fas fa-bolt"></i></button><span class="sw on"><i></i></span><button class="b"><i class="fas fa-chevron-right chev"></i></button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== V3 平贴浮现 ===== -->
+  <div class="card v3">
+    <div class="card-title"><span class="badge">V3</span><h2>平贴浮现</h2></div>
+    <div class="card-desc">
+      常态无边框（透明边框占位防跳动），卡片融入页面底色，列表更像一份安静的清单；hover 时边框与浅影一起浮现。
+      日间石墨风下「减法」最彻底，但任务少时页面会显得空。
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-check dot on"></i>
+          <div class="main">
+            <div class="prompt">汇总本周站会纪要并整理行动项</div>
+            <div class="meta"><span>每天 09:30</span><span class="sep">·</span><span class="lnk"><i class="far fa-comment"></i>昨天 09:30 成功</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 09:30</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-25 09:30</span></div>
+          </div>
+          <div class="acts"><span class="sw on"><i></i></span><button class="b"><i class="fas fa-chevron-right chev"></i></button></div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-xmark dot err"></i>
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="meta"><span>工作日 18:00</span><span class="sep">·</span><span class="err">上次失败 · 模型连接超时</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-xmark fail"></i>10-24 18:00</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-27 18:00</span></div>
+          </div>
+          <div class="acts"><button class="b"><i class="fas fa-bolt"></i></button><span class="sw on"><i></i></span><button class="b"><i class="fas fa-chevron-right chev"></i></button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== V4 历史内嵌 ===== -->
+  <div class="card v4">
+    <div class="card-title"><span class="badge">V4</span><h2>历史内嵌 + 操作浮现</h2><span class="badge rec">推荐 · 组合件</span></div>
+    <div class="card-desc">
+      两个精修点：① 操作钮与开关<b>hover 才浮现</b>（<code>opacity 0→1</code>），卡片常态只剩内容，工具感下沉；②
+      执行历史从「border-top 分隔」升级为<b>浅底内嵌块</b>（<code>bg-hover</code> + 左缘 2px 虚线轨道 + 右侧圆角），展开区域有明确的「记录」语义。
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-check dot on"></i>
+          <div class="main">
+            <div class="prompt">汇总本周站会纪要并整理行动项</div>
+            <div class="meta"><span>每天 09:30</span><span class="sep">·</span><span class="lnk"><i class="far fa-comment"></i>昨天 09:30 成功</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-check ok"></i>10-24 09:30</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-25 09:30</span></div>
+          </div>
+          <div class="acts"><span class="sw on"><i></i></span><i class="fas fa-chevron-right chev open"></i></div>
+        </div>
+        <div class="hist">
+          <div class="h-row"><i class="fas fa-circle-check ok"></i><span class="tm">10-24 09:30</span><span class="du">38s</span><span class="sum">已汇总本周 5 次站会记录，整理出 7 项行动项…</span></div>
+          <div class="h-row"><i class="fas fa-circle-check ok"></i><span class="tm">10-23 09:30</span><span class="du">45s</span><span class="sum">本周站会纪要已归档，新增 3 项待办…</span></div>
+        </div>
+      </div>
+      <div class="item">
+        <div class="row">
+          <i class="fas fa-circle-xmark dot err"></i>
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="meta"><span>工作日 18:00</span><span class="sep">·</span><span class="err">上次失败 · 模型连接超时</span></div>
+          </div>
+          <div class="times">
+            <div class="t"><span class="k">上次运行</span><span class="v"><i class="fas fa-circle-xmark fail"></i>10-24 18:00</span></div>
+            <div class="t"><span class="k">下次运行</span><span class="v">10-27 18:00</span></div>
+          </div>
+          <div class="acts"><button class="b"><i class="fas fa-bolt"></i></button><span class="sw on"><i></i></span><i class="fas fa-chevron-right chev"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b style="color:var(--text-secondary)">推荐组合</b>：<b>V2 状态带 + V4 操作浮现/历史内嵌</b>——状态带负责静态扫视，hover 浮现负责降噪，
+  历史内嵌块负责展开语义；三项均为纯 CSS（<code>::before</code> 色带、<code>opacity</code> 过渡、容器换底色），改动集中在
+  <code>.sv-item / .sv-row / .sv-acts / .sv-history</code> 四段样式，DOM 零变化。
+  时间列对齐方案在所有变体中保持不变。
+</footer>
+
+<script>
+  const btns = document.querySelectorAll('.mode-switch button')
+  btns.forEach((b) =>
+    b.addEventListener('click', () => {
+      btns.forEach((x) => x.classList.remove('on'))
+      b.classList.add('on')
+      document.documentElement.classList.toggle('night', b.dataset.mode === 'night')
+    }),
+  )
+</script>
+</body>
+</html>

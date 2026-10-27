@@ -149,10 +149,11 @@ async function unbind() {
 
 // document 级点击关闭：chip/菜单内部点击忽略（对齐 ModelSelector 委托模式）
 function onDocClick(e: MouseEvent) {
-  if (!bindMenuOpen.value) return
   const el = e.target as Element
-  if (bindHold.value?.contains(el) || el.closest('.bind-menu')) return
-  bindMenuOpen.value = false
+  if (bindMenuOpen.value) {
+    if (bindHold.value?.contains(el) || el.closest('.bind-menu')) return
+    bindMenuOpen.value = false
+  }
 }
 
 onMounted(() => document.addEventListener('click', onDocClick))
@@ -349,6 +350,7 @@ function onFileChange() {
   if (fileEl.value?.files?.length) void addFiles(fileEl.value.files)
   if (fileEl.value) fileEl.value.value = ''
 }
+
 </script>
 
 <template>

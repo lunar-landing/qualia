@@ -3,10 +3,10 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMaterialsStore } from '@/stores/materials'
 import { formatWordCount, relTime } from '@/utils/format'
-import type { MaterialInfo, MaterialKind } from '@/api/materials'
+import type { MaterialInfo } from '@/api/materials'
 
 /**
- * 资料列表页（页面 A）：三列留白卡片，卡片底部 3px 构成条表达类型占比（全卡唯一彩色）。
+ * 资料列表页（页面 A）：三列留白卡片，底部元信息行（篇数/字数/更新时间）。
  * 头部提供本地搜索与排序（库数量级小，无需后端）；新建与重命名共用弹窗，删除走 confirm 二次确认。
  * 视觉语言走 --mat-* 模块 token：靠底色与发丝线分层，不画框、不用重阴影。
  */
@@ -40,22 +40,6 @@ const visible = computed(() => {
   })
   return list
 })
-
-/** 构成条分段：按篇数降序取占比（色值由 --mat-t-* 统一降饱和，仅作数据表达不做装饰） */
-const KIND_VAR: Record<MaterialKind, string> = {
-  markdown: 'var(--mat-t-md)',
-  pdf: 'var(--mat-t-pdf)',
-  docx: 'var(--mat-t-word)',
-  html: 'var(--mat-t-html)',
-}
-function mix(kb: MaterialInfo): { kind: MaterialKind; pct: number }[] {
-  const entries = Object.entries(kb.kindBreakdown ?? {}) as [MaterialKind, number][]
-  const total = entries.reduce((n, [, v]) => n + v, 0)
-  if (!total) return []
-  return entries
-    .sort((a, b) => b[1] - a[1])
-    .map(([kind, v]) => ({ kind, pct: (v / total) * 100 }))
-}
 
 // ===== 新建 / 重命名共用弹窗：editing=null 为新建态 =====
 const dialogOpen = ref(false)
@@ -172,13 +156,6 @@ function updatedText(kb: MaterialInfo): string {
               <span class="sep"></span>
               <span>{{ updatedText(kb) }}</span>
               <i class="fas fa-arrow-right go"></i>
-            </div>
-            <div class="mix-bar">
-              <i
-                v-for="seg in mix(kb)"
-                :key="seg.kind"
-                :style="{ width: seg.pct + '%', background: KIND_VAR[seg.kind] }"
-              ></i>
             </div>
           </div>
         </div>
@@ -417,12 +394,11 @@ function updatedText(kb: MaterialInfo): string {
   border-radius: 14px;
   background: var(--mat-card);
   cursor: pointer;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .lib:hover {
   border-color: var(--mat-line-2);
   box-shadow: var(--mat-lift);
-  transform: translateY(-2px);
 }
 .lib-hd {
   display: flex;
@@ -535,19 +511,6 @@ function updatedText(kb: MaterialInfo): string {
   opacity: 1;
   transform: none;
   color: var(--mat-accent);
-}
-/* 构成条：卡片底缘 3px 分段，全卡唯一彩色（按类型占比，缺数据则不占位） */
-.mix-bar {
-  display: flex;
-  gap: 1px;
-  height: 3px;
-  margin: 0 -1px -1px;
-  border-radius: 0 0 13px 13px;
-  overflow: hidden;
-}
-.mix-bar i {
-  display: block;
-  height: 100%;
 }
 .search-empty {
   padding: 40px 0;

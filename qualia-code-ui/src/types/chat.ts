@@ -60,6 +60,9 @@ export interface HistoryAttachment {
 
 /** 历史消息（GET /api/chat/sessions/{id}/messages） */
 export interface HistoryMessage {
+  /** 服务端消息 id（定时任务执行记录按此匹配渲染标注；缺省时前端生成稳定占位 id） */
+  id?: string
+  createdAt?: number
   role: string
   content: string
   attachments?: HistoryAttachment[]
@@ -95,4 +98,36 @@ export interface QueuedMessage {
   id: string
   text: string
   attachments?: QueuedAttachment[]
+}
+
+/** 定时任务执行记录（GET /api/schedules 任务内嵌，最近 20 条） */
+export interface ScheduleRun {
+  runAt: number
+  status: 'ok' | 'error' | 'running'
+  durationMs: number
+  /** AI 回复首行摘要（后端截断，仅展示） */
+  summary?: string | null
+  /** 本轮新建的运行会话 id（查看轮次跳转目标） */
+  sessionId?: string | null
+  /** 本轮触发的 user 消息 id（会话流虚线气泡标注按此精确匹配） */
+  userMsgId?: string | null
+  /** 本轮 AI 回复消息 id（尾部执行摘要行按此精确匹配） */
+  assistantMsgId?: string | null
+  error?: string | null
+}
+
+/** 定时任务定义（一条固定提示词 + cron 周期；运行会话由调度器每轮新建） */
+export interface ScheduleDef {
+  id: string
+  prompt: string
+  /** 标准 6 段 cron（秒 分 时 日 月 周，Spring CronExpression 方言） */
+  cron: string
+  /** 周期展示文本（如「每天 09:30」） */
+  cronText: string
+  enabled: boolean
+  createdAt: number
+  lastRunAt?: number | null
+  lastStatus?: ScheduleRun['status'] | null
+  nextRunAt?: number | null
+  runs: ScheduleRun[]
 }

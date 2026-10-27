@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定时任务逻辑 · 执行讲解</title>
+<!--
+  定时任务逻辑讲解页（零依赖，日间石墨风）
+  对应实现：qualia-code/src/main/java/cn/lunarlanding/qualia/code/service/ScheduleService.java
+  风格对齐：material-retrieval-explainer.html
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+        --bg-app: #f6f8fa; --bg-panel: #ffffff; --bg-subtle: #eff2f5;
+        --bg-inline: #eff1f3; --bg-active: #e4e9ee; --bg-hover: #e9edf1;
+        --border: #d0d7de; --border-soft: #e4e9ee;
+        --text-1: #1f2328; --text-2: #57657a; --text-3: #8c959f;
+        --accent: #24292f; --success: #1a7f37; --success-bg: #e6f4ea;
+        --warning: #9a6700; --warning-bg: #fff8c5; --danger: #cf222e; --danger-bg: #ffebe9;
+        --info: #0969da; --info-bg: #ddf4ff;
+        --mono: Consolas, "JetBrains Mono", monospace;
+    }
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-1);
+        padding: 42px 20px 90px; font-size: 13.5px; line-height: 1.7;
+    }
+    main { max-width: 960px; margin: 0 auto; }
+
+    /* ===== 头部 ===== */
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 { font-size: 22px; letter-spacing: -0.5px; }
+    header .sub { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+    .badges { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .badge {
+        font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+        border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-2);
+    }
+    .badge.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    section { margin-bottom: 46px; }
+    h2 { font-size: 15px; margin-bottom: 4px; }
+    h2 .no { color: var(--text-3); font-family: var(--mono); font-weight: 400; margin-right: 6px; }
+    .note { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
+    .note b { color: var(--text-1); }
+
+    .panel {
+        background: var(--bg-panel); border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 20px;
+    }
+
+    code {
+        font-family: var(--mono); font-size: 11.5px; background: var(--bg-inline);
+        border-radius: 4px; padding: 1px 5px;
+    }
+
+    /* ===== S1 心智模型 ===== */
+    .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .model {
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+        padding: 14px 16px;
+    }
+    .model .tag {
+        font-family: var(--mono); font-size: 11px; font-weight: 700; display: inline-block;
+        background: var(--accent); color: #fff; padding: 2px 9px; border-radius: 6px; margin-bottom: 8px;
+    }
+    .model.derived .tag { background: var(--text-2); }
+    .model h3 { font-size: 13px; margin-bottom: 4px; }
+    .model p { font-size: 11.5px; color: var(--text-2); line-height: 1.65; }
+    .model .meta { margin-top: 8px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+    .iron-law {
+        margin-top: 12px; border: 1px dashed var(--border); border-radius: 10px;
+        background: var(--bg-app); padding: 10px 16px; font-size: 12px; color: var(--text-2);
+    }
+    .iron-law b { color: var(--danger); }
+    .iron-law code { background: transparent; }
+
+    /* ===== 流程图（pill 流） ===== */
+    .flow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pill {
+        font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+        border: 1px solid var(--border); background: var(--bg-panel);
+        border-radius: 8px; padding: 5px 11px; color: var(--text-1);
+    }
+    .pill.hot { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .pill.cond {
+        border-style: dashed; color: var(--warning); background: var(--warning-bg);
+        border-color: #e3d18a; font-weight: 600; font-family: inherit;
+    }
+    .pill.stop { color: var(--danger); background: var(--danger-bg); border-color: #f0b1ad; font-family: inherit; font-weight: 600; }
+    .pill.ok { color: var(--success); background: var(--success-bg); border-color: #b3dfc2; font-family: inherit; font-weight: 600; }
+    .flow .arr { color: var(--text-3); font-size: 13px; }
+    .step-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--border-soft); }
+    .step-row:last-child { border-bottom: none; }
+    .step-no {
+        flex: none; width: 20px; height: 20px; border-radius: 50%;
+        background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center; margin-top: 2px;
+    }
+    .step-row .t { font-size: 12.5px; }
+    .step-row .t b { font-weight: 700; }
+    .step-row .t .d { display: block; font-size: 11.5px; color: var(--text-2); }
+    .step-row .ref { margin-left: auto; flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); padding-top: 3px; }
+
+    /* ===== S3 场景模拟 ===== */
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .tab {
+        border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-2);
+        border-radius: 9px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-weight: 600;
+    }
+    .tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .scene-desc { font-size: 12.5px; color: var(--text-2); margin-bottom: 12px; }
+    .scene-desc b { color: var(--text-1); }
+    .verdict {
+        margin-top: 14px; border-radius: 10px; padding: 10px 16px; font-size: 12.5px; font-weight: 600;
+        border: 1px solid var(--border);
+    }
+    .verdict.run  { background: var(--success-bg); color: var(--success); border-color: #b3dfc2; }
+    .verdict.skip { background: var(--warning-bg); color: var(--warning); border-color: #e3d18a; }
+    .verdict.deny { background: var(--danger-bg); color: var(--danger); border-color: #f0b1ad; }
+    .verdict .why { display: block; font-size: 11.5px; font-weight: 400; color: var(--text-2); margin-top: 3px; }
+    .pill.dim { opacity: 0.3; }
+    .pill.lit-ok { border-color: var(--success); box-shadow: 0 0 0 2px rgba(26,127,55,0.15); }
+    .pill.lit-stop { border-color: var(--danger); box-shadow: 0 0 0 2px rgba(207,34,46,0.15); }
+
+    /* ===== S5 存储卡 ===== */
+    .kv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kv {
+        border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--bg-app);
+    }
+    .kv h4 { font-size: 12px; margin-bottom: 4px; }
+    .kv p { font-size: 11.5px; color: var(--text-2); line-height: 1.65; }
+
+    /* ===== S6 前端触点 ===== */
+    .touch-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .touch {
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+    }
+    .touch h4 { font-size: 12px; margin-bottom: 4px; font-family: var(--mono); }
+    .touch p { font-size: 11.5px; color: var(--text-2); line-height: 1.6; }
+
+    /* ===== 尾部说明卡 ===== */
+    .summary-card {
+        background: var(--accent); color: #fff; border-radius: 12px; padding: 18px 22px; font-size: 13px;
+    }
+    .summary-card b { color: #ffd33d; }
+    .summary-card code { background: rgba(255,255,255,0.15); color: #fff; }
+
+    @media (max-width: 760px) {
+        .model-grid, .touch-grid, .kv-grid { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+<main>
+    <header>
+        <h1>定时任务逻辑 · 执行讲解</h1>
+        <div class="sub">一条固定提示词 + cron 周期，到点由后台调度器复用对话管道执行</div>
+        <div class="badges">
+            <span class="badge on">qualia-code 专属</span>
+            <span class="badge">零新依赖（Spring CronExpression）</span>
+            <span class="badge">单通道互斥</span>
+            <span class="badge">错过不补跑</span>
+        </div>
+    </header>
+
+    <!-- ================= S1 心智模型 ================= -->
+    <section>
+        <h2><span class="no">01</span>核心心智模型</h2>
+        <p class="note">没有独立调度框架：任务只是一条 JSON 定义，<b>执行 = 到点自动发起一轮只读普通对话</b>，完全复用 <code>sendMessageFlux</code> 管道。</p>
+        <div class="model-grid">
+            <div class="model">
+                <span class="tag">定义态</span>
+                <h3>ScheduleDef</h3>
+                <p>prompt（固定提示词）+ cron（6 段）+ nextRunAt（下次触发时刻）+ runs（最近 20 条执行记录）。</p>
+                <div class="meta">schedules.json</div>
+            </div>
+            <div class="model">
+                <span class="tag">调度态</span>
+                <h3>20s 扫描 tick</h3>
+                <p>daemon 单线程每 20 秒扫一遍：enabled 且 nextRunAt 已到 → 触发。触发即推算下一周期。</p>
+                <div class="meta">schedule-scanner</div>
+            </div>
+            <div class="model derived">
+                <span class="tag">运行态（派生）</span>
+                <h3>运行会话</h3>
+                <p>每轮新建独立会话，只读模式发提示词；回复自然落进会话历史，qualia-core 零改动。</p>
+                <div class="meta">schedule-run × N</div>
+            </div>
+        </div>
+        <div class="iron-law">
+            <b>铁律</b>：任务与会话解耦——会话不是任务的属性，而是每轮运行时派生的产物；执行记录回填消息 id，前端按 id 精确标注。
+        </div>
+    </section>
+
+    <!-- ================= S2 调度循环 ================= -->
+    <section>
+        <h2><span class="no">02</span>调度循环（tick）</h2>
+        <p class="note">单次扫描只做<b>到点判定</b>，一轮对话的耗时与扫描解耦（执行交独立线程池）。</p>
+        <div class="panel">
+            <div class="flow">
+                <span class="pill hot">tick 每 20s</span><span class="arr">→</span>
+                <span class="pill">list() 快照</span><span class="arr">→</span>
+                <span class="pill cond">enabled?</span><span class="arr">→</span>
+                <span class="pill cond">nextRunAt ≤ now?</span><span class="arr">→</span>
+                <span class="pill cond">不在 runningIds?</span><span class="arr">→</span>
+                <span class="pill ok">startRun(scheduled)</span>
+            </div>
+            <div class="step-row"><span class="step-no">1</span><span class="t"><b>错过不补跑</b><span class="d">过期的 nextRunAt 只触发一次，进 startRun 即推算到下一周期——服务重启也一样（startupRecalibrate 重算未来）。</span></span><span class="ref">tick() L234</span></div>
+            <div class="step-row"><span class="step-no">2</span><span class="t"><b>扫描与执行解耦</b><span class="d">扫描线程只负责触发，submit 到 cachedThreadPool 执行；单任务 30 分钟超时不阻塞扫描。</span></span><span class="ref">startRun L279</span></div>
+            <div class="step-row"><span class="step-no">3</span><span class="t"><b>防重入</b><span class="d">runningIds 登记正在执行的任务 id，扫描与手动执行共用同一登记。</span></span><span class="ref">runningIds</span></div>
+        </div>
+    </section>
+
+    <!-- ================= S3 互斥决策 ================= -->
+    <section>
+        <h2><span class="no">03</span>互斥决策（点场景看路径）</h2>
+        <p class="note">全局单执行通道：与用户聊天共用 <code>ChatService.isStreaming()</code> 计数器（beginStream / endStream 记账）。</p>
+        <div class="tabs" id="sceneTabs">
+            <button class="tab on" data-s="a">空闲到点</button>
+            <button class="tab" data-s="b">用户聊天中到点</button>
+            <button class="tab" data-s="c">上一轮未跑完</button>
+            <button class="tab" data-s="d">手动执行遇忙</button>
+            <button class="tab" data-s="e">手动执行空闲</button>
+        </div>
+        <div class="panel">
+            <div class="scene-desc" id="sceneDesc"></div>
+            <div class="flow" id="sceneFlow"></div>
+            <div class="verdict" id="sceneVerdict"></div>
+        </div>
+    </section>
+
+    <!-- ================= S4 执行一轮 ================= -->
+    <section>
+        <h2><span class="no">04</span>执行一轮（execute）</h2>
+        <p class="note">一次运行 = 一个独立落地会话；完成后回读消息 id 写进执行记录，前端据此标注。</p>
+        <div class="panel">
+            <div class="step-row"><span class="step-no">1</span><span class="t"><b>新建运行会话</b><span class="d">标题取任务提示词截 30 字；sessionId 先写进执行记录（running 态），供前端跳转。</span></span><span class="ref">createSession</span></div>
+            <div class="step-row"><span class="step-no">2</span><span class="t"><b>占用通道</b><span class="d">require 激活会话 → beginStream() 计数 +1，此后用户侧 isStreaming 为 true。</span></span><span class="ref">L301-302</span></div>
+            <div class="step-row"><span class="step-no">3</span><span class="t"><b>只读发提示词</b><span class="d">sendMessageFlux(sessionId, prompt, null, CallOptions.readOnly())——只读模式不落工具写操作。</span></span><span class="ref">readOnly()</span></div>
+            <div class="step-row"><span class="step-no">4</span><span class="t"><b>后台消费至终态</b><span class="d">CountDownLatch 等待完成/出错；30 分钟超时 → dispose + 记失败（防流挂死占通道）。</span></span><span class="ref">RUN_TIMEOUT_MINUTES</span></div>
+            <div class="step-row"><span class="step-no">5</span><span class="t"><b>回读消息 id + 摘要</b><span class="d">末条 USER = 触发消息、末条 ASSISTANT = 回复；摘要取首行去 markdown 截 80 字。</span></span><span class="ref">fillMessageRefs</span></div>
+            <div class="step-row"><span class="step-no">6</span><span class="t"><b>记账销账对称</b><span class="d">finally 里统一 endStream()（幂等兜底）+ persistRunResult 落盘；执行期间任务被删则丢弃记录。</span></span><span class="ref">persistRunResult</span></div>
+        </div>
+    </section>
+
+    <!-- ================= S5 存储与兜底 ================= -->
+    <section>
+        <h2><span class="no">05</span>存储与容错</h2>
+        <p class="note">单文件 JSON 存储，风格对齐 MaterialService。</p>
+        <div class="kv-grid">
+            <div class="kv"><h4>原子写盘</h4><p><code>~/.qualia/code/schedules.json</code>，先写 <code>.tmp</code> 再 move 替换，杜绝写一半损坏。</p></div>
+            <div class="kv"><h4>启动校准</h4><p>nextRunAt 缺失或已过期 → 以 now 重算未来；重启后暂停期间错过的轮次不补跑。</p></div>
+            <div class="kv"><h4>脏 cron 兜底</h4><p>cron 解析失败 → 顺延 1 小时而非禁用，避免日志风暴；下次编辑修正后自愈。</p></div>
+            <div class="kv"><h4>记录截断</h4><p>每任务只留最近 20 条执行记录（MAX_RUNS），超出一律清除。</p></div>
+        </div>
+    </section>
+
+    <!-- ================= S6 前端触点 ================= -->
+    <section>
+        <h2><span class="no">06</span>前端触点（qualia-code-ui）</h2>
+        <div class="touch-grid">
+            <div class="touch"><h4>schedules.ts</h4><p>有任务时 30s 轮询刷新；markByMsgId 把执行记录消息 id 做成标注索引。</p></div>
+            <div class="touch"><h4>ScheduleDialog</h4><p>独立创建/改周期弹窗：每天/工作日/每周N 折算 cron，custom 直传后端校验。</p></div>
+            <div class="touch"><h4>SchedulesView</h4><p>任务中心整栏视图（与资料库互斥）：立即执行/启停/改周期/删除 + 执行记录展开。</p></div>
+            <div class="touch"><h4>会话流标注</h4><p>虚线气泡（触发消息）+ 尾部摘要行（回复），按消息 id 精确匹配；运行会话带时钟标识。</p></div>
+        </div>
+    </section>
+
+    <!-- ================= 总结 ================= -->
+    <section>
+        <div class="summary-card">
+            一句话：<b>20s 扫描线程到点判定 → 忙则顺延、错过不补跑 → 新建会话只读跑一轮 → 消息 id 回写执行记录 → 前端按 id 精确标注</b>，全程与用户聊天共用 <code>isStreaming</code> 单通道互斥。
+        </div>
+    </section>
+</main>
+
+<script>
+    // ===== S3 互斥决策场景 =====
+    // 路径节点按 startRun 实际代码顺序排布；scenario 指定每个节点亮/灭与结论。
+    var NODES = ['isStreaming?', '周期触发', '手动触发', '顺延下一周期', '409 拒绝', '登记 running', '执行一轮'];
+
+    var SCENES = {
+        a: {
+            desc: '<b>场景 A · 空闲到点</b>：无用户对话、无上一轮执行，20s 扫描命中 nextRunAt。',
+            path: { 0: 'no', 5: 'ok', 6: 'ok' },
+            verdict: ['run', '正常执行 ✓', '登记 runningIds → 记录 running 态 → 交执行池；nextRunAt 立即推算到下一周期。']
+        },
+        b: {
+            desc: '<b>场景 B · 用户聊天中到点</b>：用户正在对话（isStreaming 为 true），任务到点。',
+            path: { 0: 'ok', 1: 'ok', 3: 'stop' },
+            verdict: ['skip', '静默顺延 ⏩', 'nextRunAt 推到下一周期，本轮不记执行记录——错过不补跑，不打扰用户。']
+        },
+        c: {
+            desc: '<b>场景 C · 上一轮未跑完</b>：任务 id 仍在 runningIds 里（如上轮执行超长）。',
+            path: { 5: 'stop' },
+            verdict: ['skip', '本轮跳过 ⏩', '防重入检查直接 return；下轮扫描时 nextRunAt 已是过去时刻，空闲后下一轮触发（仍只跑一轮）。']
+        },
+        d: {
+            desc: '<b>场景 D · 手动执行遇忙</b>：用户点「立即执行」时恰有对话在进行。',
+            path: { 0: 'ok', 2: 'ok', 4: 'stop' },
+            verdict: ['deny', '直接拒绝 ✕', '抛 IllegalStateException → Controller 转 409。手动触发不静默顺延，让用户明确得知忙。']
+        },
+        e: {
+            desc: '<b>场景 E · 手动执行空闲</b>：用户点「立即执行」且通道空闲。',
+            path: { 0: 'no', 5: 'ok', 6: 'ok' },
+            verdict: ['run', '立即执行 ✓', '与周期触发同一执行路径，但 nextRunAt 保持不动——手动补跑不打乱周期。']
+        }
+    };
+
+    function renderScene(key) {
+        var s = SCENES[key];
+        document.getElementById('sceneDesc').innerHTML = s.desc;
+        var flow = document.getElementById('sceneFlow');
+        flow.innerHTML = '';
+        NODES.forEach(function (n, i) {
+            if (i > 0) {
+                var arr = document.createElement('span');
+                arr.className = 'arr'; arr.textContent = '→';
+                flow.appendChild(arr);
+            }
+            var p = document.createElement('span');
+            p.className = 'pill';
+            var lit = s.path[i];
+            if (lit === 'ok') p.classList.add('lit-ok');
+            else if (lit === 'stop') p.classList.add('lit-stop');
+            else p.classList.add('dim');
+            p.textContent = n;
+            flow.appendChild(p);
+        });
+        var v = document.getElementById('sceneVerdict');
+        v.className = 'verdict ' + s.verdict[0];
+        v.innerHTML = s.verdict[1] + '<span class="why">' + s.verdict[2] + '</span>';
+    }
+
+    document.getElementById('sceneTabs').addEventListener('click', function (e) {
+        var btn = e.target.closest('.tab');
+        if (!btn) return;
+        this.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('on'); });
+        btn.classList.add('on');
+        renderScene(btn.dataset.s);
+    });
+    renderScene('a');
+</script>
+</body>
+</html>

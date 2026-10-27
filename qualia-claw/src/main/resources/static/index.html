@@ -110,9 +110,6 @@
                         <span>系统设置</span>
                     </button>
                 </div>
-
-                <!-- 近 30 日 token 用量热力矩阵（骨架与样式由 js/token-map.js 自包含注入） -->
-                <div id="tokenHeatmap"></div>
             </aside>
 
             <!-- ===== CHAT AREA ===== -->
@@ -547,7 +544,6 @@
             // ===== 初始化 =====
             document.addEventListener('DOMContentLoaded', () => {
                 loadSessions();
-                TokenHeatmap.init(document.getElementById('tokenHeatmap'), () => window.QAgent.currentId());
                 checkModelConfigured();
                 loadMcpBadge();
                 initModelSelector();
@@ -1077,6 +1073,12 @@
                 // 输入框移入 Hero（标题下方），垂直水平居中
                 const inputArea = document.querySelector('.chat-area > .input-area');
                 if (inputArea) hero.appendChild(inputArea);
+
+                // 迷你统计条挂入 Hero（输入框下方）：随 Hero 重建重复 init；会话收尾的 refresh 链路照常生效
+                const tokenStrip = document.createElement('div');
+                tokenStrip.id = 'heroTokenStrip';
+                hero.appendChild(tokenStrip);
+                TokenHeatmap.init(tokenStrip, () => window.QAgent.currentId());
                 input.focus();
             }
 

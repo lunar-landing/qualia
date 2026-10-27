@@ -3,11 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '@/stores/session'
 import { useChatStore } from '@/stores/chat'
+import { useSchedulesStore } from '@/stores/schedules'
 import { sessionRowTime } from '@/utils/format'
 import type { ChatSession } from '@/types'
 
 const sessionStore = useSessionStore()
 const chat = useChatStore()
+const sched = useSchedulesStore()
 const { t } = useI18n()
 
 // ===== 会话搜索：入口钮在 SidebarArea header，搜索框随本列表顶部滑出（收起即清空） =====
@@ -42,7 +44,7 @@ function onSearchKeydown(e: KeyboardEvent) {
 
 type Row =
   | { kind: 'group'; key: string; label: string }
-  | { kind: 'session'; key: string; id: string; title: string; active: boolean; streaming: boolean; unread: boolean; time: string }
+  | { kind: 'session'; key: string; id: string; title: string; active: boolean; streaming: boolean; unread: boolean; time: string; schedCron?: string }
 
 /** 时间桶固定顺序（组头出现顺序） */
 const BUCKETS = ['today', 'yesterday', 'week', 'older'] as const
@@ -78,6 +80,8 @@ const rows = computed<Row[]>(() => {
     streaming: chat.isProcessing(s.id),
     unread: !!chat.unreadBySession[s.id],
     time: sessionRowTime(s.createdAt),
+    // 任务运行会话：行首图标换时钟，周期文本作悬浮提示（未命中索引为 undefined）
+    schedCron: sched.runSessionById[s.id]?.def.cronText,
   })
   const buckets = new Map<Bucket, Row[]>()
   for (const s of sessionStore.sessions) {
@@ -235,7 +239,12 @@ onBeforeUnmount(() => {
         >
           <span v-if="row.streaming" class="streaming-dot" :title="t('conversation.streaming')"></span>
           <span v-else-if="row.unread" class="unread-dot" :title="t('conversation.completed')"></span>
-          <i v-else class="far fa-comment"></i>
+          <i
+            v-else
+            class="far"
+            :class="row.schedCron ? 'fas fa-clock' : 'far fa-comment'"
+            :title="row.schedCron ? t('conversation.schedSession', { cron: row.schedCron }) : undefined"
+          ></i>
           <input
             v-if="renaming === row.id"
             ref="renameInput"

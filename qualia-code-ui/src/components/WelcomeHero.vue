@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import TokenHeatmap from '@/components/TokenHeatmap.vue'
+</script>
+
 <template>
   <!-- 空会话欢迎 Hero（对齐旧 showWelcome）：输入框经 ChatArea 的 Teleport 移入下方锚点 -->
   <div class="welcome-hero">
@@ -13,5 +17,7 @@
     <div class="hero-sub">{{ $t('welcome.sub') }}</div>
     <!-- 输入框挂载锚点（ChatArea 以 querySelector 定位后 Teleport） -->
     <div class="hero-input-anchor"></div>
+    <!-- 近 30 日 Token 用量迷你统计条（自侧边栏迁入：无数据整块隐藏，点击开详情弹窗） -->
+    <TokenHeatmap />
   </div>
 </template>

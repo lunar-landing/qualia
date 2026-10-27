@@ -392,6 +392,14 @@ body.light-theme .sidebar-brand i {
     gap: 2px;
 }
 
+/* 侧栏顶部入口：定时任务 · 资料中心（次级 settings-btn 全宽行；新建会话在 sidebar-header 钮组） */
+.side-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 12px;
+}
+
 .sidebar-footer {
     display: flex;
     flex-direction: column;
@@ -714,6 +722,11 @@ body.light-theme .conversation-list li.active {
     font-size: 14.5px;
     width: 18px;
     color: var(--text-muted);
+}
+
+/* 任务运行会话标识（方案 A）：行首时钟加深一档，active 态跟随主题色（下方 active 规则优先级更高） */
+.conversation-list li i.fa-clock {
+    color: var(--text-secondary);
 }
 
 .conversation-list li.active i {
@@ -3156,4 +3169,70 @@ body.light-theme .msg .attach-card.doc {
 
 .mat-md a[href$='.md']:hover {
     background: var(--mat-accent-wash);
+}
+
+/* ===== 定时任务（会话流执行标注；任务中心与弹窗样式各自组件内）===== */
+
+/* 会话流：定时轮次 user 消息（来源行 + 虚线弱化气泡） */
+.sched-origin {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    padding-right: 4px;
+}
+
+.sched-origin > i {
+    font-size: 10px;
+}
+
+.msg.user.sched-user .bubble {
+    border-style: dashed;
+    opacity: 0.88;
+    box-shadow: none;
+}
+
+/* 会话流：定时轮次 assistant 摘要行（成败 · 耗时 · 结论首行） */
+.sched-summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 7px;
+    padding: 5px 0 0;
+    border-top: 1px dashed var(--border-color);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    max-width: 750px;
+}
+
+.sched-summary > i.ok,
+.sched-summary > i.fa-circle-check {
+    color: var(--success);
+    font-size: 10px;
+}
+
+.sched-summary > i.fa-circle-xmark {
+    color: var(--error);
+    font-size: 10px;
+}
+
+.sched-summary .ss-sep {
+    opacity: 0.55;
+}
+
+.sched-summary > span {
+    /* 固定文字（成功/失败/耗时/分隔点）禁收缩：flex 默认 shrink 会在窄容器下把「成功」压成一字宽竖排 */
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.sched-summary .ss-text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

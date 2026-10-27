@@ -5,13 +5,14 @@ import { useTheme } from '@/composables/theme'
 import { setLocale } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
 import { useMaterialsStore } from '@/stores/materials'
+import { useSchedulesStore } from '@/stores/schedules'
 import ConversationList from '@/components/ConversationList.vue'
-import TokenHeatmap from '@/components/TokenHeatmap.vue'
 
 const emit = defineEmits<{ openSettings: [] }>()
 
 const sessionStore = useSessionStore()
 const materials = useMaterialsStore()
+const schedules = useSchedulesStore()
 const { isLight, toggleTheme } = useTheme()
 const { t, locale } = useI18n()
 
@@ -123,7 +124,34 @@ onBeforeUnmount(() => {
       <span>Qualia Code</span>
     </div>
 
-    <!-- 顶部 header：标题 + 操作钮组（搜索 / 新建；文件树在工作区面板，侧栏为纯全局会话库） -->
+    <!-- 侧栏顶部入口：新建会话 / 定时任务 / 资料（每项一行；任务与资料点击在主区整栏展开，互斥） -->
+    <div class="side-entries">
+      <!-- 新建会话：沿用 prepareDraft 延迟创建（进入草稿态，发首条消息才落库） -->
+      <button class="settings-btn" :title="t('sidebar.newChat')" @click="sessionStore.prepareDraft()">
+        <i class="far fa-comment"></i>
+        <span>{{ t('sidebar.newChat') }}</span>
+      </button>
+      <button
+        class="settings-btn"
+        :class="{ open: schedules.open }"
+        :title="t('sched.title')"
+        @click="schedules.toggleView()"
+      >
+        <i class="fas fa-clock"></i>
+        <span>{{ t('sched.entry') }}</span>
+      </button>
+      <button
+        class="settings-btn"
+        :class="{ open: materials.open }"
+        :title="t('materials.title')"
+        @click="materials.toggleView()"
+      >
+        <i class="fas fa-book"></i>
+        <span>{{ t('materials.entry') }}</span>
+      </button>
+    </div>
+
+    <!-- 顶部 header：标题 + 搜索钮（新建会话已移至顶部入口区） -->
     <div class="sidebar-header">
       <span class="sidebar-title">{{ t('sidebar.sessionsTitle') }}</span>
       <span class="header-acts">
@@ -134,27 +162,13 @@ onBeforeUnmount(() => {
         >
           <i class="fas fa-magnifying-glass"></i>
         </button>
-        <button :title="t('sidebar.newChat')" @click="sessionStore.createSession().catch(() => undefined)">
-          <i class="fas fa-plus"></i>
-        </button>
       </span>
     </div>
 
-    <!-- 全局会话库（工作区分组）+ 近 30 日 token 用量热力矩阵 -->
+    <!-- 全局会话库（工作区分组）；token 用量统计已迁至欢迎 Hero 迷你统计条 -->
     <ConversationList :search-open="sessionSearch" @close-search="sessionSearch = false" />
-    <TokenHeatmap />
 
     <div class="sidebar-footer">
-      <!-- 资料（Wiki 式资料库）入口：设置按钮上方，同款样式；点击在主区整栏展开 -->
-      <button
-        class="settings-btn"
-        :class="{ open: materials.open }"
-        :title="t('materials.title')"
-        @click="materials.toggleView()"
-      >
-        <i class="fas fa-book"></i>
-        <span>{{ t('materials.entry') }}</span>
-      </button>
       <div class="settings-anchor" ref="anchorRef">
         <button class="settings-btn" :class="{ open: flyoutOpen }" :title="t('sidebar.settings')" @click="toggleFlyout">
           <i class="fas fa-sliders-h"></i>

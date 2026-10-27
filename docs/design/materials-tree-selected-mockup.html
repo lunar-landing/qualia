@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料树 · 选中样式方案对比</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  /* ===== 页面骨架（日间石墨） ===== */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: #eef1f5;
+    color: #24292f;
+    padding: 36px 40px 60px;
+  }
+  .page-title { font-size: 24px; font-weight: 650; letter-spacing: -0.02em; }
+  .page-sub { margin: 8px 0 30px; font-size: 13px; color: #5a6472; line-height: 1.7; }
+  .page-sub b { color: #24292f; font-weight: 600; }
+  .variants { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .variant { width: 288px; }
+
+  /* ===== 左栏复刻（现状骨架：白底 + 右分隔线 + 49px 树头 + 过滤框） ===== */
+  .col {
+    width: 264px;
+    border: 1px solid #dde3e9;
+    border-right: 1px solid #dde3e9;
+    border-radius: 12px 0 0 12px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tree-head {
+    display: flex; align-items: center; gap: 8px;
+    height: 49px; padding: 0 14px;
+    border-bottom: 1px solid #d5dbe1; flex-shrink: 0;
+  }
+  .tree-head > i { color: #5a6472; font-size: 12px; }
+  .tree-head .tt { font-size: 13px; font-weight: 600; flex: 1; }
+  .tree-head .up {
+    width: 24px; height: 24px; border: none; border-radius: 6px;
+    background: transparent; color: #5a6472; font-size: 10px; cursor: pointer;
+  }
+  .tree-head .up:hover { background: #f2f5f8; color: #24292f; }
+
+  .kb-filter {
+    margin: 10px 10px 4px;
+    display: flex; align-items: center; gap: 7px;
+    height: 28px; padding: 0 9px;
+    border: 1px solid #d5dbe1; border-radius: 8px; background: #f7f9fb;
+    color: #8a93a0; font-size: 11.5px;
+  }
+  .kb-filter i { font-size: 9px; }
+
+  .kb-tree { flex: 1; padding: 8px; min-height: 300px; }
+
+  /* ===== 树行公共（整体密度优化：行高 40→34，行缝 2→1，圆角 8→7） ===== */
+  .tree-row {
+    display: flex; align-items: center; gap: 8px;
+    height: 34px; margin: 1px 0;
+    padding: 0 9px; border-radius: 7px;
+    font-size: 12.5px; color: #24292f;
+    cursor: default; user-select: none;
+    position: relative;
+  }
+  .tree-row .caret { width: 12px; color: #8a93a0; font-size: 9px; text-align: center; flex-shrink: 0; }
+  .tree-row .fic { width: 16px; text-align: center; font-size: 12px; color: #5a6472; flex-shrink: 0; }
+  .tree-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-row.hover { background: #f2f5f8; }
+  .indent-1 { padding-left: 29px; }
+
+  /* 文件类型着色（与线上 tree 一致的词汇） */
+  .ic-md   { color: #5a8bbf !important; }
+  .ic-pdf  { color: #c46a5a !important; }
+  .ic-word { color: #4a7ab5 !important; }
+
+  /* ===== V0 现状还原：纯底色 #e4e9ee ===== */
+  .v0 .tree-row.on { background: #e4e9ee; }
+
+  /* ===== V1 实底选中：底色加深一档 + 文字加重（延续无竖条语言） ===== */
+  .v1 .tree-row.on { background: #dde4ea; }
+  .v1 .tree-row.on .nm { font-weight: 600; }
+
+  /* ===== V2 左缘竖条：2px 圆头石墨蓝竖条 + 极浅底（VSCode 式） ===== */
+  .v2 .tree-row.on { background: #f2f5f8; }
+  .v2 .tree-row.on::before {
+    content: ''; position: absolute;
+    left: 2px; top: 6px; bottom: 6px; width: 2.5px;
+    border-radius: 2px; background: #3d5a80;
+  }
+  .v2 .tree-row.on .nm { font-weight: 600; }
+
+  /* ===== V3 发丝描边：1px 细描边 + 浅底（发丝线语言，克制） ===== */
+  .v3 .tree-row.on {
+    background: #f2f5f8;
+    box-shadow: inset 0 0 0 1px #c6cfda;
+  }
+  .v3 .tree-row.on .nm { font-weight: 600; }
+
+  /* ===== V4 反色选中：深墨底 + 反白（强对比，黑选中） ===== */
+  .v4 .tree-row.on { background: #24292f; }
+  .v4 .tree-row.on .nm { color: #ffffff; font-weight: 600; }
+  .v4 .tree-row.on .fic,
+  .v4 .tree-row.on .caret { color: #aeb8c4 !important; }
+
+  /* ===== 方案说明卡 ===== */
+  .desc { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: #ffffff; border: 1px solid #dde3e9; }
+  .desc .name { font-size: 13px; font-weight: 650; }
+  .desc .impl { margin-top: 6px; font-size: 11.5px; color: #5a6472; line-height: 1.65; }
+  .desc .impl code { font-family: 'Fira Code', monospace; font-size: 10.5px; background: #f2f5f8; padding: 1px 5px; border-radius: 4px; color: #3d5a80; }
+  .desc .judge { margin-top: 6px; font-size: 11.5px; line-height: 1.65; color: #24292f; }
+  .desc .judge b { font-weight: 650; }
+</style>
+</head>
+<body>
+  <div class="page-title">资料树 · 选中样式方案对比</div>
+  <div class="page-sub">
+    五个版本并排，每列为完整左栏复刻（264px / 49px 树头 / 过滤框）。所有版本统一<b>整体密度优化</b>：行高 40→34、行缝 2→1、圆角 8→7。
+    树中固定选中 <b>发布计划.md</b>，<b>评审记录.md</b> 为 hover 态。日间示意，落地走 token。
+  </div>
+
+  <div class="variants">
+
+    <!-- V0 现状 -->
+    <div class="variant v0">
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="tt">文章</span><button class="up"><i class="fas fa-upload"></i></button></div>
+        <div class="kb-filter"><i class="fas fa-magnifying-glass"></i>过滤文章名或路径</div>
+        <div class="kb-tree">
+          <div class="tree-row"><i class="caret fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="tree-row indent-1 on"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="tree-row indent-1 hover"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">测试报告</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-word ic-word"></i><span class="nm">会议纪要.docx</span></div>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="name">V0 · 现状（对照）</div>
+        <div class="impl">选中 = <code>#e4e9ee</code> 纯底色，无加重。</div>
+        <div class="judge"><b>问题：</b>底色偏灰、与 hover（#f2f5f8）浓度接近，扫视时选中位置不够跳；夜间 10% 白更弱。</div>
+      </div>
+    </div>
+
+    <!-- V1 实底加重 -->
+    <div class="variant v1">
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="tt">文章</span><button class="up"><i class="fas fa-upload"></i></button></div>
+        <div class="kb-filter"><i class="fas fa-magnifying-glass"></i>过滤文章名或路径</div>
+        <div class="kb-tree">
+          <div class="tree-row"><i class="caret fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="tree-row indent-1 on"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="tree-row indent-1 hover"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">测试报告</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-word ic-word"></i><span class="nm">会议纪要.docx</span></div>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="name">V1 · 实底加重</div>
+        <div class="impl">选中 = <code>#dde4ea</code>（比现状深一档）+ 文字 600。</div>
+        <div class="judge"><b>最保守</b>，完全延续现行「纯底色、无竖条」语言；改动只有色值与字重，hover/选中层次立刻拉开。夜间用 16% 白即可对等。</div>
+      </div>
+    </div>
+
+    <!-- V2 左缘竖条 -->
+    <div class="variant v2">
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="tt">文章</span><button class="up"><i class="fas fa-upload"></i></button></div>
+        <div class="kb-filter"><i class="fas fa-magnifying-glass"></i>过滤文章名或路径</div>
+        <div class="kb-tree">
+          <div class="tree-row"><i class="caret fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="tree-row indent-1 on"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="tree-row indent-1 hover"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">测试报告</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-word ic-word"></i><span class="nm">会议纪要.docx</span></div>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="name">V2 · 左缘竖条</div>
+        <div class="impl">选中 = <code>#f2f5f8</code> 浅底 + 左缘 2.5px 圆头石墨蓝竖条（::before）。</div>
+        <div class="judge"><b>最经典</b>的文件树选中语言（VSCode 式），深浅主题下竖条都醒目；代价是选中底色比 hover 仅浅一档，需依赖竖条承担识别。</div>
+      </div>
+    </div>
+
+    <!-- V3 发丝描边 -->
+    <div class="variant v3">
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="tt">文章</span><button class="up"><i class="fas fa-upload"></i></button></div>
+        <div class="kb-filter"><i class="fas fa-magnifying-glass"></i>过滤文章名或路径</div>
+        <div class="kb-tree">
+          <div class="tree-row"><i class="caret fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="tree-row indent-1 on"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="tree-row indent-1 hover"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">测试报告</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-word ic-word"></i><span class="nm">会议纪要.docx</span></div>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="name">V3 · 发丝描边</div>
+        <div class="impl">选中 = <code>#f2f5f8</code> 浅底 + inset 1px 描边（<code>#c6cfda</code>）。</div>
+        <div class="judge"><b>最克制</b>，与卡片发丝线语言同源；描边给出清晰边界但整体仍是「轻」的。风险：小圆角 + 描边在 12.5px 字下精细度要求高，夜间描边需单独调。</div>
+      </div>
+    </div>
+
+    <!-- V4 反色选中 -->
+    <div class="variant v4">
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="tt">文章</span><button class="up"><i class="fas fa-upload"></i></button></div>
+        <div class="kb-filter"><i class="fas fa-magnifying-glass"></i>过滤文章名或路径</div>
+        <div class="kb-tree">
+          <div class="tree-row"><i class="caret fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="tree-row indent-1 on"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="tree-row indent-1 hover"><i class="caret"></i><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+          <div class="tree-row"><i class="caret fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">测试报告</span></div>
+          <div class="tree-row"><i class="caret"></i><i class="fic fas fa-file-word ic-word"></i><span class="nm">会议纪要.docx</span></div>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="name">V4 · 反色选中</div>
+        <div class="impl">选中 = <code>#24292f</code> 深墨底 + 反白文字，图标降为浅灰。</div>
+        <div class="judge"><b>最强对比</b>，一眼锁定（终端美学同源）；但视觉重量大，与「底色分层、不用重色块」的整体克制语言有张力，且文件类型着色在反白下失效。</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

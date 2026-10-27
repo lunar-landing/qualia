@@ -3,10 +3,12 @@ import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { usePreviewStore } from '@/stores/preview'
+import { useSchedulesStore } from '@/stores/schedules'
 import { useLightbox } from '@/composables/useLightbox'
 import { useThrottledRef } from '@/composables/useThrottledRef'
 import { extractThought } from '@/utils/steps'
 import { docIconMeta, nowTimeStr } from '@/utils/format'
+import { fmtDuration, fmtRunTime } from '@/utils/schedule'
 import { enhanceCodeBlocks, renderMarkdown } from '@/utils/markdown'
 import { splitSkillMessage } from '@/utils/skillSlash'
 import { historyImageUrl } from '@/api/attachment'
@@ -19,6 +21,7 @@ const props = defineProps<{ sid: string; msg: ChatMessage }>()
 
 const chat = useChatStore()
 const preview = usePreviewStore()
+const sched = useSchedulesStore()
 const { t } = useI18n()
 const { open: openLightbox } = useLightbox()
 
@@ -29,6 +32,9 @@ const isLive = computed(() => chat.isProcessing(props.sid) && stream.value.msgId
 const userSkill = computed(() => (props.msg.role === 'user' ? splitSkillMessage(props.msg.content) : null))
 const hasSteps = computed(() => (props.msg.steps?.length ?? 0) > 0)
 const timeStr = nowTimeStr()
+
+// ===== 定时任务标注：执行记录按消息 id 精确匹配（user=虚线气泡+来源行，assistant=尾部摘要行） =====
+const schedMark = computed(() => sched.markByMsgId[props.msg.id] ?? null)
 
 // ===== markdown 渲染：SSE chunk 高频更新 → 16ms 节流后重渲 =====
 const contentSource = toRef(() => props.msg.content)
@@ -136,9 +142,14 @@ function toggleChip(key: string) {
 </script>
 
 <template>
-  <!-- 用户消息：技能指定渲染为标签 + 正文，普通消息纯文本 + 附件卡片组（气泡与时间戳之间） -->
-  <div v-if="msg.role === 'user'" class="msg user">
+  <!-- 用户消息：技能指定渲染为标签 + 正文，普通消息纯文本 + 附件卡片组（气泡与时间戳之间）；
+       定时轮次：来源行注明任务与触发时间，气泡转虚线弱化 -->
+  <div v-if="msg.role === 'user'" class="msg user" :class="{ 'sched-user': schedMark?.kind === 'user' }">
     <div>
+      <div v-if="schedMark?.kind === 'user'" class="sched-origin">
+        <i class="fas fa-clock"></i>
+        <span>{{ t('sched.origin', { cron: schedMark.def.cronText, time: fmtRunTime(schedMark.run.runAt) }) }}</span>
+      </div>
       <div class="bubble">
         <template v-if="userSkill">
           {{ userSkill.prefix }}
@@ -175,6 +186,16 @@ function toggleChip(key: string) {
     <div>
       <div ref="mdContainer" class="bubble" v-html="answerHtml"></div>
       <div class="time">{{ timeStr }}</div>
+      <div v-if="schedMark?.kind === 'assistant'" class="sched-summary" :class="schedMark.run.status">
+        <i class="fas" :class="schedMark.run.status === 'error' ? 'fa-circle-xmark' : 'fa-circle-check'"></i>
+        <span>{{ schedMark.run.status === 'error' ? t('sched.runFail') : t('sched.runOk') }}</span>
+        <span class="ss-sep">·</span>
+        <span>{{ fmtDuration(schedMark.run.durationMs) }}</span>
+        <template v-if="schedMark.run.summary">
+          <span class="ss-sep">·</span>
+          <span class="ss-text" :title="schedMark.run.summary">{{ schedMark.run.summary }}</span>
+        </template>
+      </div>
     </div>
   </div>
 
@@ -237,6 +258,18 @@ function toggleChip(key: string) {
 
       <!-- 消息尾部变更清单：从 steps 派生 edit/write/delete，点预览走整面板层 -->
       <ChangedFiles :steps="msg.steps ?? []" />
+
+      <!-- 定时轮次执行摘要：成败 + 耗时 + 结论首行（数据来自 schedules store 执行记录） -->
+      <div v-if="schedMark?.kind === 'assistant'" class="sched-summary" :class="schedMark.run.status">
+        <i class="fas" :class="schedMark.run.status === 'error' ? 'fa-circle-xmark' : 'fa-circle-check'"></i>
+        <span>{{ schedMark.run.status === 'error' ? t('sched.runFail') : t('sched.runOk') }}</span>
+        <span class="ss-sep">·</span>
+        <span>{{ fmtDuration(schedMark.run.durationMs) }}</span>
+        <template v-if="schedMark.run.summary">
+          <span class="ss-sep">·</span>
+          <span class="ss-text" :title="schedMark.run.summary">{{ schedMark.run.summary }}</span>
+        </template>
+      </div>
     </div>
   </div>
 </template>

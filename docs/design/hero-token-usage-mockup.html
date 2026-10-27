@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hero Token 用量 — 新建会话欢迎页设计方案</title>
+<!-- 设计稿图标依赖：FontAwesome CDN 6.7.2（项目 mockup 统一版本） -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+/* =====================================================================
+   Hero Token 用量迁移设计稿
+   背景：近 30 日 Token 用量热力矩阵现位于侧边栏底部（TokenHeatmap），
+        本稿将其迁移至空会话欢迎页（Hero）输入框下方，侧边栏回归纯导航。
+   规范：石墨工程日间（#fff 底 / #d0d7de 边框 / 无彩色装饰），
+        主题变量对齐 qualia-code-ui src/styles/index.css 真实值；
+        qualia-claw 同布局落位，仅 accent/热力阶梯随各自主题变量。
+   版本：V1 迷你统计条（一行低饱和） / V2 统计卡（Bento 卡，推荐）
+        + 共用空态（无数据整块隐藏）
+   ===================================================================== */
+
+/* ===== 页面外壳（mockup 自身 chrome，固定日间石墨） ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f6f8fa; color: #24292f;
+    padding: 28px 34px 48px;
+    -webkit-font-smoothing: antialiased;
+}
+.page-head { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 6px; }
+.page-head h1 { font-size: 17px; font-weight: 700; letter-spacing: 0.2px; }
+.page-head .sub { font-size: 12px; color: #57657a; }
+.theme-toggle {
+    margin-left: auto; border: 1px solid #d0d7de; background: #fff; color: #24292f;
+    font-size: 11.5px; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: all .15s;
+}
+.theme-toggle:hover { background: #f6f8fa; }
+.stages { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 18px; }
+@media (max-width: 1500px) { .stages { grid-template-columns: 1fr; } }
+
+.stage { background: #fff; border: 1px solid #d0d7de; border-radius: 12px; overflow: hidden; }
+.stage-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    border-bottom: 1px solid #e6ebf0; background: #fff;
+}
+.stage-bar .tag {
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
+    background: #24292f; color: #fff; letter-spacing: 0.4px;
+}
+.stage-bar .name { font-size: 12.5px; font-weight: 600; }
+.stage-bar .brief { margin-left: auto; font-size: 11px; color: #8c959f; }
+.stage-body { position: relative; }
+
+/* ===== 产品界面模拟：主题变量（对齐 qualia-code-ui 真实值） ===== */
+.app {
+    --bg-app: #ffffff;
+    --bg-sidebar: #eff2f5;
+    --bg-hover: #e9edf1;
+    --bg-input: #ffffff;
+    --text-primary: #1f2328;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --border-color: #d0d7de;
+    --shadow-input: 0 1px 3px rgba(31, 35, 40, 0.08);
+    /* token 热力绿色阶梯（日间） */
+    --th-lv1: #b6f2c2; --th-lv2: #4cd964; --th-lv3: #33bd58; --th-lv4: #219a42;
+    --th-glow: rgba(51, 189, 88, 0.35);
+    display: flex; height: 620px; background: var(--bg-app); color: var(--text-primary);
+}
+body.dark .app {
+    --bg-app: #080a10;
+    --bg-sidebar: rgba(255, 255, 255, 0.02);
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-input: rgba(255, 255, 255, 0.03);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --shadow-input: 0 4px 16px rgba(230, 237, 243, 0.20);
+    --th-lv1: #28a05a; --th-lv2: #38cd62; --th-lv3: #4ade80; --th-lv4: #7ee787;
+    --th-glow: rgba(126, 231, 135, 0.45);
+}
+
+/* ===== 侧边栏示意（迁移后：纯导航，无热力图） ===== */
+.sidebar {
+    width: 198px; flex-shrink: 0; background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    padding: 13px 10px; display: flex; flex-direction: column; gap: 4px;
+}
+.brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; padding: 4px 8px 12px; }
+.brand i { font-size: 13px; }
+.side-entry {
+    display: flex; align-items: center; gap: 9px; font-size: 12px;
+    padding: 8px 9px; border-radius: 8px; color: var(--text-secondary);
+}
+.side-entry.main { background: var(--bg-hover); color: var(--text-primary); font-weight: 600; }
+.side-entry i { width: 15px; text-align: center; font-size: 12px; }
+.side-title { font-size: 10.5px; color: var(--text-muted); padding: 14px 9px 6px; font-weight: 600; }
+.side-skel { height: 9px; border-radius: 4px; background: var(--bg-hover); margin: 0 9px 7px; }
+.side-skel.w60 { width: 60%; }
+.side-skel.w75 { width: 75%; }
+.side-skel.w85 { width: 85%; }
+/* 迁出占位标注：虚线框示意原热力图位置已空出 */
+.migrated-hint {
+    margin: auto 9px 4px; border: 1px dashed var(--border-color); border-radius: 8px;
+    padding: 10px 8px; font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.6;
+}
+.migrated-hint i { display: block; font-size: 11px; margin-bottom: 3px; opacity: 0.7; }
+
+/* ===== 聊天区 / Hero ===== */
+.chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.welcome-hero {
+    flex: 1; width: 100%; max-width: 690px; margin: 0 auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 11px; padding: 18px 24px 4vh;
+}
+.hero-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.hero-logo {
+    width: 43px; height: 43px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+    background: var(--text-primary); color: var(--bg-app); font-size: 18px;
+}
+body.dark .hero-logo { background: linear-gradient(145deg, #f0f6fc, #8b949e); color: #0d1117; }
+.hero-title { font-size: 22px; font-weight: 700; letter-spacing: 0.3px; }
+.hero-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; text-align: center; }
+.hero-input {
+    width: 100%; max-width: 580px; min-height: 80px;
+    background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 16px;
+    box-shadow: var(--shadow-input); padding: 15px 16px 13px;
+    display: flex; flex-direction: column; gap: 9px;
+}
+.hero-input .ph { font-size: 13px; color: var(--text-muted); }
+.hero-input .acts { display: flex; align-items: center; gap: 8px; }
+.hero-input .chip {
+    font-size: 10.5px; color: var(--text-muted); border: 1px solid var(--border-color);
+    border-radius: 6px; padding: 3px 8px; display: flex; align-items: center; gap: 5px;
+}
+.hero-input .send {
+    margin-left: auto; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--text-primary); color: var(--bg-app);
+    display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+
+/* =====================================================================
+   V1 —— 迷你统计条：输入框正下方一行，矩阵微缩 + 总量摘要，整条可点进详情
+   ===================================================================== */
+.stat-strip {
+    width: 100%; max-width: 580px; margin-top: 14px;
+    display: flex; align-items: center; gap: 13px;
+    padding: 9px 14px; border-radius: 11px; cursor: pointer;
+    border: 1px solid var(--border-color); background: transparent;
+    transition: border-color .15s, background .15s;
+}
+.stat-strip:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+.strip-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; flex-shrink: 0; width: 172px; }
+.strip-meta { font-size: 11.5px; color: var(--text-secondary); display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.strip-meta b { font-size: 14px; font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.strip-go { margin-left: auto; font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+/* =====================================================================
+   V2 —— 统计卡：标题行 + 15×2 热力矩阵 + 指标行，点击进详情弹窗
+   ===================================================================== */
+.stat-card {
+    width: 100%; max-width: 580px; margin-top: 14px;
+    border: 1px solid var(--border-color); border-radius: 14px;
+    background: var(--bg-app); padding: 13px 16px 12px; cursor: pointer;
+    transition: box-shadow .18s, transform .18s, border-color .18s;
+}
+.stat-card:hover { transform: translateY(-1px); border-color: var(--text-muted); box-shadow: 0 8px 24px rgba(31, 35, 40, 0.08); }
+body.dark .stat-card { background: rgba(19, 24, 32, 0.85); }
+body.dark .stat-card:hover { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.card-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 11px; }
+.card-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.card-title i { font-size: 10.5px; }
+.card-total { margin-left: auto; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.card-total small { font-size: 10px; font-weight: 400; color: var(--text-muted); margin-left: 3px; }
+.card-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 4px; margin-bottom: 11px; }
+.card-foot { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.card-foot .sep { opacity: 0.45; }
+.card-foot .num { color: var(--text-secondary); font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
+.card-foot .more { margin-left: auto; font-size: 10.5px; }
+
+/* ===== 热力格子（两版共用） ===== */
+.th-cell {
+    aspect-ratio: 1; width: 100%; border-radius: 3px; background: var(--bg-hover);
+    position: relative; transition: transform .12s;
+}
+.th-cell.lv1 { background: var(--th-lv1); }
+.th-cell.lv2 { background: var(--th-lv2); }
+.th-cell.lv3 { background: var(--th-lv3); }
+.th-cell.lv4 { background: var(--th-lv4); box-shadow: 0 0 6px var(--th-glow); }
+.stat-strip .th-cell:hover, .stat-card .th-cell:hover { transform: scale(1.3); outline: 1px solid var(--text-secondary); z-index: 2; }
+/* hover 气泡：日期 + 用量（贴边防溢出） */
+.th-cell::after {
+    content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    padding: 4px 8px; border-radius: 5px; background: var(--text-primary); color: var(--bg-app);
+    font-size: 10.5px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 10;
+}
+.th-cell:hover::after { opacity: 1; }
+.th-cell:nth-child(15n + 1)::after, .th-cell:nth-child(15n + 2)::after { left: 0; transform: none; }
+.th-cell:nth-child(15n)::after, .th-cell:nth-child(15n + 14)::after { left: auto; right: 0; transform: none; }
+
+/* ===== 共用空态：无数据时统计块整块隐藏，hero 回归现有极简构图 ===== */
+.empty-wrap { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 1500px) { .empty-wrap { grid-template-columns: 1fr; } }
+.empty-note {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 12px;
+    padding: 12px 16px; font-size: 12px; color: #57657a; line-height: 1.7;
+}
+.empty-note b { color: #24292f; }
+
+/* ===== 设计说明卡 ===== */
+.notes {
+    margin-top: 22px; background: #fff; border: 1px solid #d0d7de; border-radius: 12px; padding: 18px 22px;
+}
+.notes h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.notes table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.notes th, .notes td { border: 1px solid #d0d7de; padding: 8px 12px; text-align: left; vertical-align: top; line-height: 1.65; }
+.notes th { background: #f6f8fa; font-size: 11.5px; color: #57657a; white-space: nowrap; }
+.notes td b { color: #24292f; }
+.verdict {
+    margin-top: 13px; font-size: 12.5px; line-height: 1.75; padding: 11px 14px;
+    background: #f6f8fa; border-left: 3px solid #24292f; border-radius: 0 8px 8px 0; color: #24292f;
+}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+    <h1>Hero × Token 用量</h1>
+    <span class="sub">近 30 日 Token 用量热力矩阵自侧边栏迁入空会话欢迎页 · 侧边栏回归纯导航 · 默认日间，右上角切换夜间</span>
+    <button class="theme-toggle" onclick="document.body.classList.toggle('dark')">
+        <i class="fas fa-circle-half-stroke"></i><span>切换夜间</span>
+    </button>
+</div>
+
+<div class="stages">
+
+    <!-- ==================== V1 迷你统计条 ==================== -->
+    <div class="stage">
+        <div class="stage-bar">
+            <span class="tag">V1</span>
+            <span class="name">迷你统计条</span>
+            <span class="brief">一行低饱和 · 视觉零侵入 · hover 气泡 · 点击进详情弹窗</span>
+        </div>
+        <div class="stage-body">
+            <div class="app">
+                <aside class="sidebar">
+                    <div class="brand"><i class="fas fa-feather"></i><span>Qualia Code</span></div>
+                    <div class="side-entry main"><i class="far fa-comment"></i><span>新建会话</span></div>
+                    <div class="side-entry"><i class="fas fa-clock"></i><span>定时任务</span></div>
+                    <div class="side-entry"><i class="fas fa-book"></i><span>资料</span></div>
+                    <div class="side-title">会话</div>
+                    <div class="side-skel w85"></div><div class="side-skel w60"></div><div class="side-skel w75"></div><div class="side-skel w85"></div>
+                    <!-- 迁出占位：原 token 热力图位置 -->
+                    <div class="migrated-hint"><i class="fas fa-arrow-up-from-bracket"></i>原「近 30 日 Token 用量」热力图已迁出至 Hero</div>
+                </aside>
+                <section class="chat">
+                    <div class="welcome-hero">
+                        <div class="hero-head">
+                            <div class="hero-logo"><i class="fas fa-feather"></i></div>
+                            <div class="hero-title">Qualia Code</div>
+                        </div>
+                        <div class="hero-sub">与你的智能体开始一次新对话</div>
+                        <div class="hero-input">
+                            <span class="ph">描述你的任务，或直接粘贴上下文…</span>
+                            <div class="acts"><span class="chip"><i class="fas fa-at"></i> 智能体</span><span class="chip"><i class="fas fa-paperclip"></i> 附件</span><span class="send"><i class="fas fa-arrow-up"></i></span></div>
+                        </div>
+                        <!-- V1：迷你统计条（15×2 微缩矩阵 + 总量摘要） -->
+                        <div class="stat-strip" title="点击查看用量统计详情">
+                            <div class="strip-grid grid"></div>
+                            <div class="strip-meta">近 30 日 <b class="v-total"></b> tokens</div>
+                            <span class="strip-go">用量统计 <i class="fas fa-chevron-right"></i></span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== V2 统计卡 ==================== -->
+    <div class="stage">
+        <div class="stage-bar">
+            <span class="tag">V2</span>
+            <span class="name">统计卡（推荐）</span>
+            <span class="brief">标题 + 矩阵 + 指标一屏可读 · hover 微浮起 · 点击进详情弹窗</span>
+        </div>
+        <div class="stage-body">
+            <div class="app">
+                <aside class="sidebar">
+                    <div class="brand"><i class="fas fa-feather"></i><span>Qualia Code</span></div>
+                    <div class="side-entry main"><i class="far fa-comment"></i><span>新建会话</span></div>
+                    <div class="side-entry"><i class="fas fa-clock"></i><span>定时任务</span></div>
+                    <div class="side-entry"><i class="fas fa-book"></i><span>资料</span></div>
+                    <div class="side-title">会话</div>
+                    <div class="side-skel w85"></div><div class="side-skel w60"></div><div class="side-skel w75"></div><div class="side-skel w85"></div>
+                    <div class="migrated-hint"><i class="fas fa-arrow-up-from-bracket"></i>原「近 30 日 Token 用量」热力图已迁出至 Hero</div>
+                </aside>
+                <section class="chat">
+                    <div class="welcome-hero">
+                        <div class="hero-head">
+                            <div class="hero-logo"><i class="fas fa-feather"></i></div>
+                            <div class="hero-title">Qualia Code</div>
+                        </div>
+                        <div class="hero-sub">与你的智能体开始一次新对话</div>
+                        <div class="hero-input">
+                            <span class="ph">描述你的任务，或直接粘贴上下文…</span>
+                            <div class="acts"><span class="chip"><i class="fas fa-at"></i> 智能体</span><span class="chip"><i class="fas fa-paperclip"></i> 附件</span><span class="send"><i class="fas fa-arrow-up"></i></span></div>
+                        </div>
+                        <!-- V2：统计卡（标题行 + 15×2 矩阵 + 指标行） -->
+                        <div class="stat-card" title="点击查看用量统计详情">
+                            <div class="card-head">
+                                <span class="card-title"><i class="fas fa-fire"></i> 近 30 日 Token 用量</span>
+                                <span class="card-total"><span class="v-total"></span><small>tokens</small></span>
+                            </div>
+                            <div class="card-grid grid"></div>
+                            <div class="card-foot">
+                                日均 <span class="num v-avg"></span><span class="sep">·</span>
+                                峰值 <span class="num v-peak"></span><span class="sep">·</span>
+                                活跃 <span class="num v-active"></span> 天
+                                <span class="more">用量统计 <i class="fas fa-chevron-right"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 共用空态 ==================== -->
+<div class="empty-wrap">
+    <div class="empty-note">
+        <b>共用空态</b>：沿用现有 TokenHeatmap 的容错约定 —— 接口失败或近 30 日无任何用量（新用户）时，统计块整体不渲染，
+        Hero 回归现有极简构图（logo + 标题 + 输入框），不出现空卡片占位。
+    </div>
+    <div class="empty-note">
+        <b>点击行为</b>：两版的整块/卡片点击均复用现有「Token 用量统计」详情弹窗（30/60/90 日切换 + 汇总卡 + 折线图），无新增弹层；
+        发送消息后由现有 <code>refresh()</code> 链路同步刷新（下一次回到 Hero 时即为最新数据）。
+    </div>
+</div>
+
+<!-- ==================== 设计说明 ==================== -->
+<div class="notes">
+    <h3><i class="fas fa-scale-balanced"></i> 方案对比与结论</h3>
+    <table>
+        <tr><th style="width:90px">维度</th><th>V1 迷你统计条</th><th>V2 统计卡（推荐）</th></tr>
+        <tr><th>信息密度</th><td>总量 + 矩阵，hover 才见明细，指标需进详情</td><td>总量/日均/峰值/活跃 + 矩阵一屏可读，详情弹窗只承担趋势图</td></tr>
+        <tr><th>视觉重量</th><td>≈ 一行工具条，Hero 几乎零侵入</td><td>一张低饱和卡片，置于输入框<b>下方</b>（次要位），不抢焦点</td></tr>
+        <tr><th>焦点风险</th><td>无</td><td>存在轻微卡片存在感 —— 通过灰阶配色、无彩色装饰、14px 圆角弱化</td></tr>
+        <tr><th>实现成本</th><td>纯 CSS + 复用现有 /stats/tokens 接口与详情弹窗，无后端改动</td><td>同左；仅卡片容器与指标行多约 30 行样式</td></tr>
+    </table>
+    <div class="verdict">
+        <b>结论：推荐 V2。</b>理由：① Hero 目前内容过疏（logo + 两行字），统计卡补足视觉重量而不添操作负担；② 「新建会话」与「上期用量回顾」场景自然衔接，触达率高于侧边栏底部死角；③ 侧边栏由此回归纯导航，消除唯一的异类数据展示块。<b>落地注记</b>：qualia-code-ui 将 TokenHeatmap.vue 的矩阵渲染抽为可复用子块挂入 WelcomeHero，侧栏原位移除；qualia-claw 将 token-map.js 拆「矩阵渲染 / 详情弹窗」两段供 Hero 容器复用，accent 与热力阶梯随各自主题变量。会话中查看统计属低频需求，暂不补顶栏入口，保持改动最小。
+    </div>
+</div>
+
+<script>
+/* ===== 演示数据：近 30 日（与产品一致的分档逻辑：按最大值比例 4 档） ===== */
+const TOKENS = [0, 18400, 45200, 0, 92000, 61000, 34800, 52300, 0, 12700, 88400, 45900, 23100, 67200, 0, 34600, 51800, 91300, 40200, 12800, 0, 65700, 78200, 29400, 43100, 0, 15600, 54900, 86300, 47200];
+function fmt(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
+(function render() {
+    const max = Math.max(...TOKENS);
+    const cells = TOKENS.map((t, i) => {
+        const r = max > 0 ? t / max : 0;
+        const lv = t > 0 ? (r > 0.75 ? 4 : r > 0.5 ? 3 : r > 0.25 ? 2 : 1) : 0;
+        const d = new Date(2026, 8, 28 + i); // 2026-09-28 起 30 天
+        return `<span class="th-cell lv${lv}" data-tip="${d.getMonth() + 1}月${d.getDate()}日 · ${fmt(t)} tokens"></span>`;
+    }).join('');
+    document.querySelectorAll('.grid').forEach(g => g.innerHTML = cells);
+    const total = TOKENS.reduce((a, b) => a + b, 0);
+    const peakIdx = TOKENS.indexOf(max);
+    document.querySelectorAll('.v-total').forEach(el => el.textContent = fmt(total));
+    document.querySelectorAll('.v-avg').forEach(el => el.textContent = fmt(Math.round(total / 30)));
+    document.querySelectorAll('.v-peak').forEach(el => el.textContent = fmt(max));
+    document.querySelectorAll('.v-active').forEach(el => el.textContent = TOKENS.filter(t => t > 0).length);
+})();
+</script>
+</body>
+</html>

@@ -22,11 +22,11 @@ export const useWorkspaceStore = defineStore('workspace', {
     /** 工作区面板 UI 状态（对齐旧版 steps-panel 的 collapsed/maximized/tabs） */
     panelCollapsed: false,
     panelMaximized: false,
-    activeTab: 'wsChanges' as 'wsChanges' | 'wsFiles' | 'wsTerm' | 'wsPreview',
+    activeTab: 'wsChanges' as 'wsChanges' | 'wsFiles' | 'wsPreview',
     /** 文件 Tab 点开的预览文件（聊天区以整栏层展示，null=关闭） */
     previewFile: null as { path: string } | null,
-    /** 审查/文件/终端 Tab 有新内容但未激活时的提示圆点 */
-    tabDots: { wsChanges: false, wsFiles: false, wsTerm: false } as Record<string, boolean>,
+    /** 审查/文件 Tab 有新内容但未激活时的提示圆点 */
+    tabDots: { wsChanges: false, wsFiles: false } as Record<string, boolean>,
     /** 待定位的变更文件（文件树徽标点击 → 审查面板展开滚动定位；每次新对象保证 watch 触发） */
     pendingFileFocus: null as { path: string } | null,
     /** 绑定选择弹窗开合（chip 菜单 / 引导条等多入口共享，App 层读取渲染） */
@@ -89,7 +89,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.panelMaximized = !this.panelMaximized
     },
 
-    switchTab(tab: 'wsChanges' | 'wsFiles' | 'wsTerm' | 'wsPreview') {
+    switchTab(tab: 'wsChanges' | 'wsFiles' | 'wsPreview') {
       this.activeTab = tab
       delete this.tabDots[tab]
     },

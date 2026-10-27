@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务运行会话标识 · 四方案对比</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<!--
+  会话列表中「定时任务运行会话」的特殊标识设计对比
+  背景：任务每轮运行新建独立会话（标题=提示词截30字），会话列表中与普通会话无法区分
+  数据链路：ScheduleRun.sessionId → schedules store 建 runSessionById 索引 → 命中即渲染标识
+  约束：色值全部取自项目变量体系（text-muted / border-color / bg-active），石墨克制不引新彩色
+  方案：
+    A 行首图标位替换为时钟 —— 零新增元素，复用现有 18px 图标槽 ★推荐
+    B 标题后缀 mono 描边徽章「任务」 —— 语义直白
+    C 行首强调边线 + 时钟 —— 扫视分组感最强
+    D 标题下来源行（周期 · 上次运行） —— 信息最全，行高代价
+  默认日间模式；顶部按钮切「夜间 / 双主题并排」
+-->
+<style>
+  :root {
+    /* ===== 日间主题（石墨工程风，取自 index.css light-theme 段） ===== */
+    --bg-app: #f5f7f9;
+    --bg-list: #ffffff;
+    --bg-hover: #eef1f4;
+    --bg-active: #e4e9ee;
+    --border-color: #d5dbe1;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --success: #1a7f37;
+  }
+  html.night {
+    /* ===== 夜间主题（取自 index.css 默认段） ===== */
+    --bg-app: #0d1117;
+    --bg-list: #131820;
+    --bg-hover: rgba(230, 237, 243, 0.06);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --border-color: rgba(230, 237, 243, 0.14);
+    --text-primary: #e6edf3;
+    --text-secondary: #9ea7b3;
+    --text-muted: #6e7681;
+    --success: #34d399;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    padding: 32px 40px 64px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* ===== 页头 ===== */
+  header { max-width: 1180px; margin: 0 auto 28px; }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.3px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .sub b { color: var(--text-primary); }
+  .sub code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+  .mode-switch {
+    margin-top: 16px; display: inline-flex; gap: 0;
+    border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+  }
+  .mode-switch button {
+    background: var(--bg-list); border: none; color: var(--text-secondary);
+    font-size: 12.5px; padding: 7px 16px; cursor: pointer;
+    border-right: 1px solid var(--border-color);
+  }
+  .mode-switch button:last-child { border-right: none; }
+  .mode-switch button.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+
+  /* ===== 方案卡 ===== */
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  body.side .grid { grid-template-columns: 1fr; }
+  body.side .dual { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .card {
+    background: var(--bg-list);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 22px 24px 24px;
+  }
+  .card-title { display: flex; align-items: center; gap: 10px; }
+  .card-title h2 { font-size: 15.5px; font-weight: 650; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px;
+    background: var(--text-primary); color: var(--bg-list); letter-spacing: 0.5px;
+  }
+  .card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.75; margin: 10px 0 16px; }
+  .card-desc code {
+    font-family: Consolas, monospace; font-size: 11.5px;
+    background: var(--bg-active); padding: 1px 5px; border-radius: 4px;
+  }
+  .pros { margin: 0 0 16px; padding: 0; list-style: none; font-size: 12px; line-height: 1.9; color: var(--text-secondary); }
+  .pros li::before { content: "· "; color: var(--text-muted); }
+  .pros li b { color: var(--text-primary); font-weight: 600; }
+
+  /* ===== 会话列表示例（结构与 ConversationList 真实行一致） ===== */
+  .dual { display: contents; }
+  .conv {
+    background: var(--bg-app); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: 14px 16px 16px;
+  }
+  body.side .conv { margin-bottom: 0; }
+  .conv h4 { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 10px; }
+  ul { list-style: none; }
+  li {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 10px; border-radius: 7px; margin-bottom: 4px;
+    color: var(--text-secondary); font-size: 12.5px; font-weight: 500;
+    cursor: default; position: relative;
+  }
+  li:hover { background: var(--bg-hover); }
+  li.on { background: var(--bg-active); color: var(--text-primary); }
+  .ico {
+    width: 18px; height: 18px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time { font-family: Consolas, monospace; font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+  .spin { font-size: 11px; }
+
+  /* ===== 方案 A：图标位替换为时钟 ===== */
+  .a li.run .ico { color: var(--text-secondary); }
+  .a li.run.on .ico { color: var(--text-primary); }
+
+  /* ===== 方案 B：标题后缀 mono 描边徽章 ===== */
+  .b-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-left: 7px; padding: 1px 7px;
+    border: 1px solid var(--border-color); border-radius: 5px;
+    font-family: Consolas, monospace; font-size: 9.5px; font-weight: 600;
+    letter-spacing: 1px; color: var(--text-muted);
+    vertical-align: 1px; flex-shrink: 0;
+  }
+  .b-chip i { font-size: 8px; }
+
+  /* ===== 方案 C：行首强调边线 + 时钟 ===== */
+  .c li.run { box-shadow: inset 2.5px 0 0 0 var(--text-muted); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  .c li.run .ico { color: var(--text-secondary); }
+
+  /* ===== 方案 D：标题下来源行 ===== */
+  .d li { align-items: flex-start; padding-top: 8px; padding-bottom: 7px; }
+  .d .main { flex: 1; min-width: 0; }
+  .d .src {
+    margin-top: 3px; font-size: 10.5px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .d .src i { font-size: 9px; }
+  .d .src .tt-time { font-family: Consolas, monospace; }
+
+  /* ===== 色值标注 ===== */
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .sw { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+  .sw i.dot { width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--border-color); }
+
+  /* 页脚说明 */
+  footer { max-width: 1180px; margin: 26px auto 0; color: var(--text-muted); font-size: 12px; line-height: 1.8; }
+  footer code { font-family: Consolas, monospace; font-size: 11.5px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>任务运行会话标识 · 四方案对比</h1>
+  <div class="sub">
+    任务每轮运行新建独立会话（标题 = 提示词截 30 字），在会话列表里与普通会话无法区分。
+    数据链路：<code>ScheduleRun.sessionId</code> → schedules store 建 <code>runSessionById: Record&lt;sessionId, {def, run}&gt;</code> 索引，
+    行渲染时命中即套标识。以下四个方案共用同一组示例数据，色值全部取自现有变量体系。
+  </div>
+  <div class="mode-switch">
+    <button class="on" data-mode="light">日间</button>
+    <button data-mode="night">夜间</button>
+    <button data-mode="side">双主题并排</button>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- ===== 方案 A ===== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">A</span><h2>行首图标位替换为时钟</h2></div>
+    <div class="card-desc">
+      会话行左端的 18px 图标槽，普通会话是气泡 <code>fa-comment</code>，任务运行会话替换为时钟
+      <code>fa-clock</code>（text-secondary）。零新增元素、不占额外宽度，图标语义即来源。
+    </div>
+    <ul class="pros">
+      <li><b>最克制</b>：行结构与行高完全不变，石墨风本色</li>
+      <li>时钟 + 标题（提示词截断）已足够传达「这是任务跑的」</li>
+      <li>代价：丢失「一轮对话」的气泡语义（可接受——标题本身就是提示词）</li>
+    </ul>
+    <div class="dual">
+      <div class="conv">
+        <h4>今天</h4>
+        <ul>
+          <li class="run on"><span class="ico"><i class="fas fa-clock"></i></span><span class="tt">汇总本周站会纪要并整理行动项</span><span class="time">09:30</span></li>
+          <li><span class="ico"><i class="far fa-comment"></i></span><span class="tt">qualia 定时任务模块设计讨论</span><span class="time">08:12</span></li>
+          <li class="run"><span class="ico"><i class="fas fa-clock"></i></span><span class="tt">检查 CI 失败用例并给出修复建议</span><span class="time">昨天</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 B ===== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">B</span><h2>标题后缀 mono 描边徽章「任务」</h2></div>
+    <div class="card-desc">
+      标题右侧跟一枚 9.5px mono 描边 chip（border-color + text-muted，内含微型时钟）。气泡语义保留，
+      文字徽章让来源一眼可读；长标题省略号与 chip 互斥挤压（chip <code>flex-shrink:0</code>）。
+    </div>
+    <ul class="pros">
+      <li><b>语义最直白</b>：不用猜图标，中文「任务」直接标明</li>
+      <li>与侧边栏「任务」入口文案呼应（entry: '任务'）</li>
+      <li>代价：每行多一个元素，视觉密度略升</li>
+    </ul>
+    <div class="dual">
+      <div class="conv">
+        <h4>今天</h4>
+        <ul>
+          <li class="run on"><span class="ico"><i class="far fa-comment"></i></span><span class="tt">汇总本周站会纪要并整理行动项<span class="b-chip"><i class="fas fa-clock"></i>任务</span></span><span class="time">09:30</span></li>
+          <li><span class="ico"><i class="far fa-comment"></i></span><span class="tt">qualia 定时任务模块设计讨论</span><span class="time">08:12</span></li>
+          <li class="run"><span class="ico"><i class="far fa-comment"></i></span><span class="tt">检查 CI 失败用例并给出修复建议<span class="b-chip"><i class="fas fa-clock"></i>任务</span></span><span class="time">昨天</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 C ===== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">C</span><h2>行首强调边线 + 时钟</h2></div>
+    <div class="card-desc">
+      行左缘 2.5px 内嵌竖线（<code>box-shadow: inset 2.5px 0 0 var(--text-muted)</code>）+ 图标位换时钟。
+      边线形成纵向轨道，多条任务会话在列表里连成视觉分组，扫视定位最快。
+    </div>
+    <ul class="pros">
+      <li><b>扫视性最强</b>：边缘线在任何缩放/密度下都可辨</li>
+      <li>与项目「轮次标注用边线/描边」的既有语言一致</li>
+      <li>代价：视觉噪音最高，普通会话多时整列都是线</li>
+    </ul>
+    <div class="dual">
+      <div class="conv">
+        <h4>今天</h4>
+        <ul>
+          <li class="run on"><span class="ico"><i class="fas fa-clock"></i></span><span class="tt">汇总本周站会纪要并整理行动项</span><span class="time">09:30</span></li>
+          <li><span class="ico"><i class="far fa-comment"></i></span><span class="tt">qualia 定时任务模块设计讨论</span><span class="time">08:12</span></li>
+          <li class="run"><span class="ico"><i class="fas fa-clock"></i></span><span class="tt">检查 CI 失败用例并给出修复建议</span><span class="time">昨天</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 方案 D ===== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">D</span><h2>标题下来源行（周期 · 上次运行）</h2></div>
+    <div class="card-desc">
+      双行布局：标题下加 10.5px 来源行「时钟 + 周期文本 + 上次运行时间」（mono）。信息最全——不点开就知道
+      这条会话属于哪个周期、最近何时跑的；行高 +14px。
+    </div>
+    <ul class="pros">
+      <li><b>信息最全</b>：来源、周期、时间三合一，与任务中心行同构</li>
+      <li>时间用 mono 与右侧列时间字体呼应</li>
+      <li>代价：列表密度下降；来源行文案长时截断</li>
+    </ul>
+    <div class="dual">
+      <div class="conv">
+        <h4>今天</h4>
+        <ul>
+          <li class="run on">
+            <span class="ico"><i class="far fa-comment"></i></span>
+            <span class="main">
+              <span class="tt" style="display:block">汇总本周站会纪要并整理行动项</span>
+              <span class="src"><i class="fas fa-clock"></i>每天 09:30 · <span class="tt-time">10-24 09:30</span></span>
+            </span>
+            <span class="time">09:30</span>
+          </li>
+          <li><span class="ico"><i class="far fa-comment"></i></span><span class="tt" style="display:block">qualia 定时任务模块设计讨论</span><span class="time">08:12</span></li>
+          <li class="run">
+            <span class="ico"><i class="far fa-comment"></i></span>
+            <span class="main">
+              <span class="tt" style="display:block">检查 CI 失败用例并给出修复建议</span>
+              <span class="src"><i class="fas fa-clock"></i>工作日 18:00 · <span class="tt-time">10-23 18:00</span></span>
+            </span>
+            <span class="time">昨天</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b style="color:var(--text-secondary)">实现备注（共同部分）</b>：
+  schedules store 新增 getter <code>runSessionById</code>（与现有 <code>markByMsgId</code> 同模式，遍历 list × runs 建
+  <code>sessionId → {def, run}</code> 索引）；ConversationList 的 <code>Row.session</code> 变体加
+  <code>run?: { cronText: string; runAt: number }</code> 字段，rows computed 里查索引填充；
+  手动「立即执行」与到点轮询 30s 同步后自动出现/更新标识，无需额外接口。
+  <div class="swatches" style="margin-top:10px">
+    <span class="sw"><i class="dot" style="background:var(--text-secondary)"></i>时钟图标 · --text-secondary</span>
+    <span class="sw"><i class="dot" style="background:var(--text-muted)"></i>徽章/边线 · --text-muted / --border-color</span>
+    <span class="sw"><i class="dot" style="background:var(--bg-active)"></i>选中态 · --bg-active（既有）</span>
+  </div>
+</footer>
+
+<script>
+  const btns = document.querySelectorAll('.mode-switch button')
+  btns.forEach((b) =>
+    b.addEventListener('click', () => {
+      btns.forEach((x) => x.classList.remove('on'))
+      b.classList.add('on')
+      const m = b.dataset.mode
+      document.documentElement.classList.toggle('night', m === 'night')
+      document.body.classList.toggle('side', m === 'side')
+      if (m === 'side') {
+        // 并排：每张方案卡内左日右夜，复制一份列表镜像夜间主题
+        document.querySelectorAll('.dual').forEach((d) => {
+          if (d.children.length === 1) {
+            const clone = d.children[0].cloneNode(true)
+            const wrap = document.createElement('div')
+            wrap.className = 'conv'
+            wrap.setAttribute('data-night', '')
+            wrap.appendChild(clone.firstElementChild.cloneNode(true))
+            wrap.appendChild(clone.lastElementChild.cloneNode(true))
+            wrap.style.cssText = 'background:#0d1117;border-color:rgba(230,237,243,.14);color:#e6edf3'
+            wrap.querySelectorAll('li').forEach((li) => (li.style.cssText = 'color:#9ea7b3'))
+            wrap.querySelector('li.on')?.setAttribute('style', 'background:rgba(230,237,243,.10);color:#e6edf3')
+            wrap.querySelectorAll('.ico,.b-chip,.src,.d .src .tt-time').forEach((el) => (el.style.color = '#6e7681'))
+            d.appendChild(wrap)
+          }
+        })
+      } else {
+        document.querySelectorAll('.dual').forEach((d) => {
+          while (d.children.length > 1) d.lastElementChild.remove()
+        })
+      }
+    }),
+  )
+</script>
+</body>
+</html>

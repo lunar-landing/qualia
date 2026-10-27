@@ -35,10 +35,10 @@ function genId(prefix: string): string {
 const QUEUE_LIMIT = 10
 const queueKey = (sid: string) => `qualia:queue:${sid}`
 
-/** 历史消息转统一消息模型（id 稳定：hist-{sid}-{index}，供 v-memo 记忆） */
+/** 历史消息转统一消息模型（id 稳定：服务端消息 id 优先（定时标注按它精确匹配），缺省 hist-{sid}-{index}） */
 function toChatMessage(m: HistoryMessage, index: number, sid: string): ChatMessage {
   const msg: ChatMessage = {
-    id: `hist-${sid}-${index}`,
+    id: m.id ?? `hist-${sid}-${index}`,
     role: m.role === 'user' ? 'user' : 'assistant',
     content: m.content,
   }

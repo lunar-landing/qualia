@@ -5,13 +5,12 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useSessionStore } from '@/stores/session'
 import { usePreviewStore } from '@/stores/preview'
 import ChangesPanel from './ChangesPanel.vue'
-import TerminalPanel from './TerminalPanel.vue'
 import BrowserPane from './BrowserPane.vue'
 import FileTree from './FileTree.vue'
 
 /**
  * 工作区面板壳（平移旧 index.html 的 steps-panel 结构与 toggleStepsPanel/toggleWsMaximize/initWsResize 逻辑）：
- * 文件 / 审查 / 终端 / 浏览器四 Tab（文件树自侧栏迁回面板，随会话绑定显示）；绑定变化时镜像失效，
+ * 文件 / 审查 / 浏览器三 Tab（文件树自侧栏迁回面板，随会话绑定显示）；绑定变化时镜像失效，
  * 切到文件 Tab 重新挂载 FileTree 即按当前绑定重载；标题随绑定显示项目名（沙箱态显示「沙箱」）；
  * 左缘拖拽调宽（252 ~ 视口余宽，不持久化）；
  * 放大转为覆盖层从右向左铺开盖住聊天区（占位符钉住布局避免重排）。
@@ -27,7 +26,6 @@ const preview = usePreviewStore()
 const TABS = [
   { id: 'wsFiles', icon: 'fa-folder-tree', label: 'wsPanel.files' },
   { id: 'wsChanges', icon: 'fa-code-pull-request', label: 'wsPanel.changes' },
-  { id: 'wsTerm', icon: 'fa-terminal', label: 'wsPanel.terminal' },
   { id: 'wsPreview', icon: 'fa-globe', label: 'wsPanel.browser' },
 ] as const
 
@@ -167,9 +165,6 @@ watch(
     <div class="ws-pane" :class="{ active: ws.activeTab === 'wsChanges' }" id="wsChanges">
       <ChangesPanel />
       <div class="cp-note"><i class="fas fa-circle-info"></i> {{ t('wsPanel.changesNote') }}</div>
-    </div>
-    <div class="ws-pane" :class="{ active: ws.activeTab === 'wsTerm' }" id="wsTerm">
-      <TerminalPanel />
     </div>
     <div class="ws-pane" :class="{ active: ws.activeTab === 'wsPreview' }" id="wsPreview">
       <BrowserPane />

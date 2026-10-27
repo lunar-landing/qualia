@@ -1,18 +1,18 @@
 /**
- * TokenHeatmap —— 侧边栏「近 30 日 Token 用量」热力矩阵组件（自包含：骨架 + 取数 + 样式自注入，依赖页面 CSS 变量）
+ * TokenHeatmap —— 欢迎页「近 30 日 Token 用量」迷你统计条组件（自包含：骨架 + 取数 + 样式自注入，依赖页面 CSS 变量）
  *
  * 职责：
- *   1. 拉取当前智能体的 /api/agents/{agentId}/chat/stats/tokens?days=30，按当期最大值动态分 4 档渲染 10×3 方格矩阵
+ *   1. 拉取当前智能体的 /api/agents/{agentId}/chat/stats/tokens?days=30，按当期最大值动态分 4 档渲染 15×2 方格矩阵 + 30 日总量摘要
  *   2. hover 气泡展示「X月X日 · Y.Yk tokens」（自动 k/M 格式化，首末两列气泡贴边防溢出）
- *   3. 接口失败或无数据时整块保持隐藏，不破坏侧边栏布局
- *   4. 点击矩阵弹出统计详情面板：总量/日均/峰值/活跃天数四张卡片 + SVG 折线趋势图，支持近 30/60/90 日切换
+ *   3. 接口失败或无数据时整块保持隐藏，不破坏 Hero 布局
+ *   4. 点击整条弹出统计详情面板：总量/日均/峰值/活跃天数四张卡片 + SVG 折线趋势图，支持近 30/60/90 日切换
  *
  * 视觉约定：品牌紫 4 档透明度梯度（lv4 实色 + 辉光），深浅主题经 CSS 变量自动适配
  *
  * 对外 API：
- *   TokenHeatmap.init(containerEl, agentIdGetter)   绑定容器并注入骨架，随即拉数据渲染（agentIdGetter 返回当前智能体 id）
- *   TokenHeatmap.refresh()           重新拉数据刷新（供发消息后更新用量等场景调用）
- *   TokenHeatmap.openDetail()        打开统计详情面板（点击矩阵时自动调用）
+ *   TokenHeatmap.init(containerEl, agentIdGetter)   绑定容器并注入骨架，随即拉数据渲染（容器位于欢迎 Hero 内，随 Hero 重建重复调用）
+ *   TokenHeatmap.refresh()           重新拉数据刷新（会话收尾后调用；Hero 已移除时静默跳过）
+ *   TokenHeatmap.openDetail()        打开统计详情面板（点击整条时自动调用）
  */
 window.TokenHeatmap = (function () {
     'use strict';
@@ -36,10 +36,8 @@ window.TokenHeatmap = (function () {
     }
 
     async function refresh() {
-        if (!container || !agentId()) {
-            if (container) container.style.display = 'none';
-            return;
-        }
+        // 容器随 Hero 移除后不再渲染（会话收尾的 refresh 调用静默跳过）
+        if (!container || !agentId() || !container.isConnected) return;
         try {
             const resp = await fetch(statsUrl(30));
             if (!resp.ok) return;
@@ -58,7 +56,10 @@ window.TokenHeatmap = (function () {
                 const tip = `${dt.getMonth() + 1}月${dt.getDate()}日 · ${formatTokens(d.tokens)} tokens`;
                 return `<span class="th-cell lv${lv}" data-tip="${tip}"></span>`;
             }).join('');
-            container.style.display = 'block';
+            const total = stats.reduce((s, d) => s + d.tokens, 0);
+            const totalEl = container.querySelector('.ts-meta b');
+            if (totalEl) totalEl.textContent = formatTokens(total);
+            container.style.display = 'flex';
         } catch (e) {
             // 静默失败，不影响主界面
         }
@@ -68,13 +69,14 @@ window.TokenHeatmap = (function () {
         container = containerEl;
         agentIdGetter = idGetter || null;
         if (!container) return;
-        container.classList.add('token-heatmap');
+        container.classList.add('token-strip');
         container.style.display = 'none';
         container.innerHTML = `
-            <div class="th-title"><i class="fas fa-fire"></i> 近 30 日 Token 用量</div>
             <div class="th-grid"></div>
+            <div class="ts-meta">近 30 日 <b></b> tokens</div>
+            <span class="ts-go">用量统计 <i class="fas fa-chevron-right"></i></span>
         `;
-        // 点击整块矩阵打开统计详情面板
+        // 点击整条打开统计详情面板
         container.addEventListener('click', openDetail);
         refresh();
     }
@@ -250,30 +252,51 @@ window.TokenHeatmap = (function () {
 
     // ===== 样式自注入（依赖页面 CSS 变量）=====
     const STYLE = `
-        /* 近 30 日 token 用量热力矩阵（GitHub 贡献图风格） */
-        .token-heatmap {
-            flex-shrink: 0;
-            padding: 11px 4px 2px;
-            border-top: 1px solid var(--border-color);
-            margin-bottom: 9px;
+        /* Hero 迷你统计条：输入框下方一行（15×2 微缩矩阵 + 30 日总量摘要），整条可点击开详情 */
+        /* Hero 为 flex column（gap 11px），margin-top 3px 合计 14px 对齐设计稿 */
+        .token-strip {
+            width: 100%;
+            max-width: 580px;
+            margin-top: 3px;
+            display: none;
+            align-items: center;
+            gap: 13px;
+            padding: 9px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 11px;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
         }
-        .th-title {
+        .token-strip:hover {
+            background: var(--bg-hover);
+            border-color: var(--text-muted);
+        }
+        .ts-meta {
+            font-size: 11.5px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .ts-meta b {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .ts-go {
+            margin-left: auto;
             font-size: 10.5px;
-            font-weight: 600;
             color: var(--text-muted);
-            margin-bottom: 7px;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 5px;
-        }
-        .th-title i {
-            font-size: 9.5px;
-            color: var(--accent-light);
+            white-space: nowrap;
         }
         .th-grid {
             display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 4px;
+            grid-template-columns: repeat(15, 1fr);
+            gap: 3px;
+            width: 172px;
+            flex-shrink: 0;
         }
         .th-cell {
             aspect-ratio: 1;
@@ -315,35 +338,18 @@ window.TokenHeatmap = (function () {
         .th-grid .th-cell:hover::after {
             opacity: 1;
         }
-        /* 前两列的气泡左对齐、末两列右对齐，避免溢出侧边栏 */
-        .th-grid .th-cell:nth-child(10n + 1)::after,
-        .th-grid .th-cell:nth-child(10n + 2)::after {
+        /* 前两列的气泡左对齐、末两列右对齐，避免溢出迷你条 */
+        .th-grid .th-cell:nth-child(15n + 1)::after,
+        .th-grid .th-cell:nth-child(15n + 2)::after {
             left: 0;
             transform: none;
         }
-        .th-grid .th-cell:nth-child(10n)::after,
-        .th-grid .th-cell:nth-child(10n + 9)::after {
+        .th-grid .th-cell:nth-child(15n)::after,
+        .th-grid .th-cell:nth-child(15n + 14)::after {
             left: auto;
             right: 0;
             transform: none;
         }
-        .th-legend {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            justify-content: flex-end;
-            margin-top: 7px;
-            font-size: 9.5px;
-            color: var(--text-muted);
-        }
-        .th-legend .th-cell {
-            width: 8px;
-            height: 8px;
-            aspect-ratio: auto;
-        }
-        /* 整块可点击打开统计详情 */
-        .token-heatmap { cursor: pointer; }
-
         /* ===== 统计详情面板（遮罩 + 卡片 + 折线图，尺寸规格对齐设置弹窗）===== */
         .thd-overlay {
             position: fixed;

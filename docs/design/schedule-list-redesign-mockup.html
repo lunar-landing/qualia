@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务中心列表重设计 · 四方案对比</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<!--
+  任务中心（SchedulesView）列表重设计对比
+  现状痛点：
+    1. 状态表达弱——仅一个状态点，running/error 在列表里不显眼
+    2. 无时序感——按创建时间平铺，看不出"接下来哪个会跑"
+    3. 信息位置杂——提示词/会话/周期/上次/下次五类信息挤一行，时间列占宽大
+    4. 执行历史展开视觉弱——仅 border-top 分隔
+  方案：
+    A 卡片精修——meta 单链化 + 操作 hover 浮现 + 状态强化（最小改动）★稳妥
+    B 表格密度——表头 + 紧凑行，任务多时的信息效率形态
+    C 时序面板——顶部「接下来」时间条 + 按下次运行排序 + 卡左缘状态带 ★推荐
+    D 主从双栏——左列表右详情，详情页承载历史与统计
+  色值全部取自现有变量体系；默认日间，可切夜间 / 双主题并排
+-->
+<style>
+  :root {
+    /* ===== 日间主题（石墨工程风，取自 index.css light-theme 段） ===== */
+    --bg-app: #f5f7f9;
+    --bg-list: #ffffff;
+    --bg-hover: #eef1f4;
+    --bg-active: #e4e9ee;
+    --bg-card: #ffffff;
+    --border-color: #d5dbe1;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --accent: #57606a;
+    --success: #1a7f37;
+    --error: #cf222e;
+  }
+  html.night {
+    /* ===== 夜间主题 ===== */
+    --bg-app: #0d1117;
+    --bg-list: #131820;
+    --bg-hover: rgba(230, 237, 243, 0.06);
+    --bg-active: rgba(230, 237, 243, 0.10);
+    --bg-card: #131820;
+    --border-color: rgba(230, 237, 243, 0.14);
+    --text-primary: #e6edf3;
+    --text-secondary: #9ea7b3;
+    --text-muted: #6e7681;
+    --accent: #e6edf3;
+    --success: #34d399;
+    --error: #f85149;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    padding: 32px 40px 64px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* ===== 页头 ===== */
+  header { max-width: 1180px; margin: 0 auto 28px; }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.3px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .sub b { color: var(--text-primary); }
+  .sub code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+  .mode-switch {
+    margin-top: 16px; display: inline-flex;
+    border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+  }
+  .mode-switch button {
+    background: var(--bg-list); border: none; color: var(--text-secondary);
+    font-size: 12.5px; padding: 7px 16px; cursor: pointer;
+    border-right: 1px solid var(--border-color);
+  }
+  .mode-switch button:last-child { border-right: none; }
+  .mode-switch button.on { background: var(--bg-active); color: var(--text-primary); font-weight: 600; }
+
+  /* ===== 方案卡 ===== */
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 26px; }
+  .card {
+    background: var(--bg-list);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 22px 24px 24px;
+  }
+  .card-title { display: flex; align-items: center; gap: 10px; }
+  .card-title h2 { font-size: 15.5px; font-weight: 650; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px;
+    background: var(--text-primary); color: var(--bg-list); letter-spacing: 0.5px;
+  }
+  .badge.rec { background: var(--success); color: #fff; }
+  .card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.75; margin: 10px 0 16px; }
+  .card-desc code { font-family: Consolas, monospace; font-size: 11.5px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+  .pros { margin: 0 0 18px; padding: 0; list-style: none; font-size: 12px; line-height: 1.9; color: var(--text-secondary); columns: 2; column-gap: 28px; }
+  .pros li::before { content: "· "; color: var(--text-muted); }
+  .pros li b { color: var(--text-primary); font-weight: 600; }
+
+  /* ===== 任务中心画布（860px 视口还原） ===== */
+  .stage {
+    background: var(--bg-app); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: 14px 22px 18px;
+  }
+  .stage-head {
+    height: 49px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border-color); margin-bottom: 14px;
+  }
+  .stage-head .h-ico { font-size: 13px; color: var(--accent); }
+  .stage-head h3 { font-size: 15px; font-weight: 650; margin: 0; }
+  .stage-head .cnt {
+    font-family: Consolas, monospace; font-size: 11px; color: var(--text-muted);
+    background: var(--bg-hover); border: 1px solid var(--border-color);
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .stage-head .sp { flex: 1; }
+  .stage-head .new {
+    display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px;
+    border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card);
+    color: var(--text-primary); font-size: 12px; font-weight: 500;
+  }
+  .mono { font-family: Consolas, monospace; }
+
+  /* 通用行内元素 */
+  .dot { font-size: 13px; }
+  .dot.on { color: var(--success); }
+  .dot.busy { color: var(--accent); }
+  .dot.off { color: var(--text-muted); opacity: 0.7; }
+  .dot.err { color: var(--error); }
+  .prompt { font-size: 13.5px; font-weight: 550; color: var(--text-primary); }
+  .btn-ico {
+    width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+    border: none; border-radius: 7px; background: transparent; color: var(--text-muted);
+    font-size: 12px; cursor: pointer;
+  }
+  .btn-ico:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .switch {
+    width: 30px; height: 17px; border-radius: 999px; position: relative; cursor: pointer;
+    background: var(--bg-hover); border: 1px solid var(--border-color); flex-shrink: 0;
+  }
+  .switch i {
+    position: absolute; top: 1px; left: 1px; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--text-muted); transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .switch.on { background: color-mix(in srgb, var(--success) 22%, transparent); border-color: color-mix(in srgb, var(--success) 45%, transparent); }
+  .switch.on i { transform: translateX(13px); background: var(--success); }
+
+  /* ===== 方案 A：卡片精修 ===== */
+  .a-list { display: flex; flex-direction: column; gap: 8px; }
+  .a-item { border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card); padding: 11px 14px; display: flex; align-items: center; gap: 12px; }
+  .a-item .main { flex: 1; min-width: 0; }
+  .a-meta { display: flex; align-items: center; gap: 7px; margin-top: 4px; font-size: 11.5px; color: var(--text-muted); }
+  .a-meta .sep { opacity: 0.55; }
+  .a-meta .last-ok { color: var(--text-secondary); }
+  .a-meta .last-ok i { color: var(--success); font-size: 10px; }
+  .a-meta .next { color: var(--text-secondary); }
+  .a-meta .next b { font-family: Consolas, monospace; font-weight: 600; }
+  .a-acts { display: flex; align-items: center; gap: 8px; }
+  .a-acts .run-err { color: var(--error) !important; }
+
+  /* ===== 方案 B：表格密度 ===== */
+  .b-table { width: 100%; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: var(--bg-card); }
+  .b-table table { width: 100%; border-collapse: collapse; }
+  .b-table th {
+    text-align: left; font-size: 11px; font-weight: 600; color: var(--text-muted);
+    letter-spacing: 0.4px; padding: 8px 12px; border-bottom: 1px solid var(--border-color);
+    background: var(--bg-hover);
+  }
+  .b-table td { padding: 9px 12px; font-size: 12.5px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); }
+  .b-table tr:last-child td { border-bottom: none; }
+  .b-table tr.run td { background: var(--bg-hover); }
+  .b-table .t-name { display: flex; align-items: center; gap: 9px; color: var(--text-primary); font-weight: 550; }
+  .b-table .t-cron { font-size: 11.5px; color: var(--text-muted); }
+  .b-table td.mono, .b-table .mono { font-size: 11.5px; }
+  .b-table .t-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; }
+  .b-table .t-status.err { color: var(--error); }
+
+  /* ===== 方案 C：时序面板（推荐） ===== */
+  .c-next {
+    display: flex; align-items: stretch; gap: 8px; margin-bottom: 14px;
+    padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-card);
+  }
+  .c-next .label {
+    display: flex; flex-direction: column; justify-content: center; padding-right: 12px;
+    border-right: 1px dashed var(--border-color); flex-shrink: 0;
+  }
+  .c-next .label .l1 { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+  .c-next .label .l2 { font-family: Consolas, monospace; font-size: 15px; font-weight: 650; color: var(--text-primary); margin-top: 2px; }
+  .c-next .queue { flex: 1; display: flex; align-items: center; gap: 0; overflow: hidden; }
+  .c-q {
+    display: flex; align-items: center; gap: 8px; padding: 5px 12px;
+    font-size: 11.5px; color: var(--text-secondary); min-width: 0;
+  }
+  .c-q + .c-q { border-left: 1px dashed var(--border-color); }
+  .c-q .tm { font-family: Consolas, monospace; font-weight: 650; font-size: 12px; color: var(--text-primary); flex-shrink: 0; }
+  .c-q .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .c-list { display: flex; flex-direction: column; gap: 8px; }
+  .c-item {
+    position: relative; border: 1px solid var(--border-color); border-radius: 12px;
+    background: var(--bg-card); padding: 11px 14px 11px 17px; display: flex; align-items: center; gap: 12px;
+  }
+  .c-item::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px;
+    background: var(--band, var(--text-muted));
+  }
+  .c-item.band-ok { --band: var(--success); }
+  .c-item.band-run { --band: var(--accent); }
+  .c-item.band-off { --band: var(--text-muted); opacity: 0.72; }
+  .c-item.band-err { --band: var(--error); }
+  .c-item .main { flex: 1; min-width: 0; }
+  .c-item .when { text-align: right; flex-shrink: 0; }
+  .c-item .when .k { display: block; font-size: 10px; color: var(--text-muted); letter-spacing: 0.4px; }
+  .c-item .when .v { font-family: Consolas, monospace; font-size: 12.5px; font-weight: 650; color: var(--text-primary); }
+  .c-item .when.paused .v { color: var(--text-muted); font-weight: 500; }
+
+  /* ===== 方案 D：主从双栏 ===== */
+  .d-wrap { display: flex; gap: 14px; }
+  .d-left { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+  .d-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-card);
+    font-size: 12.5px; cursor: pointer;
+  }
+  .d-row.sel { border-color: var(--text-muted); background: var(--bg-hover); }
+  .d-row .p { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); font-weight: 550; }
+  .d-row .tm { font-family: Consolas, monospace; font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+  .d-right { flex: 1; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card); padding: 16px 18px; min-width: 0; }
+  .d-right .d-prompt { font-size: 13.5px; font-weight: 550; line-height: 1.6; }
+  .d-stats { display: flex; gap: 22px; margin: 12px 0 14px; padding: 10px 14px; border: 1px dashed var(--border-color); border-radius: 9px; }
+  .d-stat .n { font-family: Consolas, monospace; font-size: 16px; font-weight: 650; }
+  .d-stat .k { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+  .d-hist { font-size: 11.5px; }
+  .d-hist .h-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-top: 1px dashed var(--border-color); color: var(--text-secondary); }
+  .d-hist .h-row i.ok { color: var(--success); font-size: 10px; }
+  .d-hist .h-row i.fail { color: var(--error); font-size: 10px; }
+  .d-hist .sum { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  footer { max-width: 1180px; margin: 26px auto 0; color: var(--text-muted); font-size: 12px; line-height: 1.8; }
+  footer code { font-family: Consolas, monospace; font-size: 11.5px; background: var(--bg-active); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>任务中心列表重设计 · 四方案对比</h1>
+  <div class="sub">
+    现状痛点：<b>状态弱</b>（仅一个状态点）、<b>无时序感</b>（按创建时间平铺）、<b>信息挤一行</b>（时间列占宽大）、<b>历史展开弱</b>。
+    四个方案共用同一组示例数据（4 条任务：运行中 / 正常 / 暂停 / 最近失败），色值全部取自现有变量体系。
+  </div>
+  <div class="mode-switch">
+    <button class="on" data-mode="light">日间</button>
+    <button data-mode="night">夜间</button>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- ===================== 方案 A ===================== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">A</span><h2>卡片精修 · meta 单链化</h2><span class="badge rec">最稳</span></div>
+    <div class="card-desc">
+      保留现卡片结构，信息重排：副行收成一条 meta 链「周期 · 上次 ✓ 时间 · 下次 时间」，时间列从右侧移除（省出约 100px 宽度给提示词）；
+      操作列 hover 浮现（平时只留开关 + 展开箭头）；<b>最近失败的轮次摘要直接进 meta 链</b>（红字），不用展开就能看到失败原因。
+    </div>
+    <ul class="pros">
+      <li><b>改动最小</b>：仅 DOM 重排 + CSS，交互语义不变</li>
+      <li>error 摘要前置：失败任务一眼看到原因</li>
+      <li>hover 才见操作钮，视觉更干净</li>
+      <li>时序感依旧缺失（同现状按创建排序）</li>
+    </ul>
+    <div class="stage">
+      <div class="stage-head">
+        <i class="fas fa-clock h-ico"></i><h3>任务</h3><span class="cnt">3/4</span>
+        <span class="sp"></span>
+        <span class="new"><i class="fas fa-plus"></i><span>新建任务</span></span>
+      </div>
+      <div class="a-list">
+        <div class="a-item">
+          <i class="fas fa-circle-notch fa-spin dot busy" style="color:var(--accent)"></i>
+          <div class="main">
+            <div class="prompt">监控磁盘空间并生成清理建议</div>
+            <div class="a-meta"><span>0 0/30 * * * *</span><span class="sep">·</span><span class="next">正在执行本轮…</span></div>
+          </div>
+          <div class="a-acts"><span class="switch on"><i></i></span><button class="btn-ico"><i class="fas fa-chevron-right"></i></button></div>
+        </div>
+        <div class="a-item">
+          <i class="fas fa-circle-check dot on"></i>
+          <div class="main">
+            <div class="prompt">汇总本周站会纪要并整理行动项</div>
+            <div class="a-meta"><span>每天 09:30</span><span class="sep">·</span><span class="last-ok"><i class="fas fa-circle-check"></i> 昨天 09:30</span><span class="sep">·</span><span class="next">下次 <b>10-25 09:30</b></span></div>
+          </div>
+          <div class="a-acts"><span class="switch on"><i></i></span><button class="btn-ico"><i class="fas fa-chevron-right"></i></button></div>
+        </div>
+        <div class="a-item">
+          <i class="fas fa-circle-xmark dot err"></i>
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="a-meta"><span>工作日 18:00</span><span class="sep">·</span><span style="color:var(--error)">模型连接超时 · 已重试 1 次</span><span class="sep">·</span><span class="next">下次 <b>10-27 18:00</b></span></div>
+          </div>
+          <div class="a-acts"><button class="btn-ico run-err"><i class="fas fa-bolt"></i></button><span class="switch on"><i></i></span><button class="btn-ico"><i class="fas fa-chevron-right"></i></button></div>
+        </div>
+        <div class="a-item" style="opacity:0.72">
+          <i class="fas fa-circle-pause dot off"></i>
+          <div class="main">
+            <div class="prompt">每周复盘：整理完成事项与下周计划</div>
+            <div class="a-meta"><span>每周一 20:00</span><span class="sep">·</span><span>已暂停 · 恢复后重新计算下次运行</span></div>
+          </div>
+          <div class="a-acts"><span class="switch"><i></i></span><button class="btn-ico"><i class="fas fa-chevron-right"></i></button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 方案 B ===================== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">B</span><h2>表格式密度布局</h2></div>
+    <div class="card-desc">
+      表头行 + 40px 紧凑行，列定位：状态并入「任务」列前缀点 + 「上次」列状态字。信息效率最高，
+      一屏可见任务数约为现卡片布局的 2 倍；点击行展开执行历史（表格行内展开）。
+    </div>
+    <ul class="pros">
+      <li><b>密度最高</b>：适合任务 10+ 的使用形态</li>
+      <li>列对齐使「上次/下次」时间可纵向扫读</li>
+      <li>代价：提示词长时截断更狠；移动端（&lt;820px）需降级回卡片</li>
+    </ul>
+    <div class="stage">
+      <div class="stage-head">
+        <i class="fas fa-clock h-ico"></i><h3>任务</h3><span class="cnt">3/4</span>
+        <span class="sp"></span>
+        <span class="new"><i class="fas fa-plus"></i><span>新建任务</span></span>
+      </div>
+      <div class="b-table">
+        <table>
+          <thead>
+            <tr><th style="width:34%">任务</th><th>周期</th><th>上次</th><th>下次</th><th style="width:88px">操作</th></tr>
+          </thead>
+          <tbody>
+            <tr class="run">
+              <td><span class="t-name"><i class="fas fa-circle-notch fa-spin dot busy" style="color:var(--accent);font-size:12px"></i>监控磁盘空间并生成清理建议</span></td>
+              <td class="t-cron mono">0 0/30 * * * *</td>
+              <td class="t-status" style="color:var(--accent)"><i class="fas fa-circle-notch fa-spin" style="font-size:10px"></i>执行中</td>
+              <td class="mono">10-24 15:00</td>
+              <td><button class="btn-ico"><i class="fas fa-pen"></i></button><button class="btn-ico"><i class="fas fa-trash-can"></i></button></td>
+            </tr>
+            <tr>
+              <td><span class="t-name"><i class="fas fa-circle-check dot on" style="font-size:12px"></i>汇总本周站会纪要并整理行动项</span></td>
+              <td class="t-cron">每天 09:30</td>
+              <td class="t-status" style="color:var(--success)"><i class="fas fa-circle-check" style="font-size:10px"></i>昨天 09:30</td>
+              <td class="mono">10-25 09:30</td>
+              <td><button class="btn-ico"><i class="fas fa-pen"></i></button><button class="btn-ico"><i class="fas fa-trash-can"></i></button></td>
+            </tr>
+            <tr>
+              <td><span class="t-name"><i class="fas fa-circle-xmark dot err" style="font-size:12px"></i>检查 CI 失败用例并给出修复建议</span></td>
+              <td class="t-cron">工作日 18:00</td>
+              <td class="t-status err"><i class="fas fa-circle-xmark" style="font-size:10px"></i>昨天 18:00</td>
+              <td class="mono">10-27 18:00</td>
+              <td><button class="btn-ico"><i class="fas fa-bolt"></i></button><button class="btn-ico"><i class="fas fa-trash-can"></i></button></td>
+            </tr>
+            <tr style="opacity:0.72">
+              <td><span class="t-name"><i class="fas fa-circle-pause dot off" style="font-size:12px"></i>每周复盘：整理完成事项与下周计划</span></td>
+              <td class="t-cron">每周一 20:00</td>
+              <td class="t-status" style="color:var(--text-muted)">—</td>
+              <td class="mono" style="color:var(--text-muted)">—</td>
+              <td><button class="btn-ico"><i class="fas fa-bolt"></i></button><button class="btn-ico"><i class="fas fa-trash-can"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 方案 C ===================== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">C</span><h2>时序面板 · 接下来运行队列</h2><span class="badge rec">推荐</span></div>
+    <div class="card-desc">
+      回答定时任务最本质的问题——<b>「接下来会发生什么」</b>。顶部「接下来」条按时间展示 24h 内的运行队列
+      （mono 大字最近一次 + 后续节点横排）；下方任务卡<b>按下次运行时间升序</b>，卡左缘 3px 状态带
+      （绿=正常 / 主题色=执行中 / 灰=暂停 / 红=最近失败）。启停开关常驻右侧，操作钮 hover 浮现。
+    </div>
+    <ul class="pros">
+      <li><b>时序感最强</b>：一眼看到「下次什么时候跑、跑什么」</li>
+      <li>列表按 nextRunAt 排序 = 自然的优先级视图</li>
+      <li>状态带在行内可纵向连成轨道，扫视性接近方案 C 旧稿</li>
+      <li>代价：实现量最大（排序 + 队列条），但全部纯前端</li>
+    </ul>
+    <div class="stage">
+      <div class="stage-head">
+        <i class="fas fa-clock h-ico"></i><h3>任务</h3><span class="cnt">3/4</span>
+        <span class="sp"></span>
+        <span class="new"><i class="fas fa-plus"></i><span>新建任务</span></span>
+      </div>
+      <div class="c-next">
+        <div class="label"><span class="l1">接下来</span><span class="l2">15:00</span></div>
+        <div class="queue">
+          <div class="c-q"><span class="tm">15:00</span><span class="nm">监控磁盘空间…</span></div>
+          <div class="c-q"><span class="tm">18:00</span><span class="nm">检查 CI 失败用例…</span></div>
+          <div class="c-q"><span class="tm">明天 09:30</span><span class="nm">汇总本周站会纪要…</span></div>
+          <div class="c-q" style="color:var(--text-muted)"><span class="tm">周一 20:00</span><span class="nm">每周复盘…</span></div>
+        </div>
+      </div>
+      <div class="c-list">
+        <div class="c-item band-run">
+          <div class="main">
+            <div class="prompt"><i class="fas fa-circle-notch fa-spin" style="color:var(--accent);font-size:12px;margin-right:8px"></i>监控磁盘空间并生成清理建议</div>
+            <div class="a-meta"><span class="mono">0 0/30 * * * *</span><span class="sep">·</span><span>执行中</span></div>
+          </div>
+          <div class="when"><span class="k">下次</span><span class="v">15:00</span></div>
+          <div class="a-acts"><button class="btn-ico"><i class="fas fa-pen"></i></button><span class="switch on"><i></i></span></div>
+        </div>
+        <div class="c-item band-ok">
+          <div class="main">
+            <div class="prompt">汇总本周站会纪要并整理行动项</div>
+            <div class="a-meta"><span>每天 09:30</span><span class="sep">·</span><span class="last-ok"><i class="fas fa-circle-check"></i> 昨天 09:30 成功</span></div>
+          </div>
+          <div class="when"><span class="k">下次</span><span class="v">明天 09:30</span></div>
+          <div class="a-acts"><button class="btn-ico"><i class="fas fa-pen"></i></button><span class="switch on"><i></i></span></div>
+        </div>
+        <div class="c-item band-err">
+          <div class="main">
+            <div class="prompt">检查 CI 失败用例并给出修复建议</div>
+            <div class="a-meta"><span>工作日 18:00</span><span class="sep">·</span><span style="color:var(--error)">上次失败 · 模型连接超时</span></div>
+          </div>
+          <div class="when"><span class="k">下次</span><span class="v">10-27 18:00</span></div>
+          <div class="a-acts"><button class="btn-ico"><i class="fas fa-bolt"></i></button><span class="switch on"><i></i></span></div>
+        </div>
+        <div class="c-item band-off">
+          <div class="main">
+            <div class="prompt">每周复盘：整理完成事项与下周计划</div>
+            <div class="a-meta"><span>每周一 20:00</span><span class="sep">·</span><span>已暂停</span></div>
+          </div>
+          <div class="when paused"><span class="k">已暂停</span><span class="v">—</span></div>
+          <div class="a-acts"><span class="switch"><i></i></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 方案 D ===================== -->
+  <div class="card">
+    <div class="card-title"><span class="badge">D</span><h2>主从双栏 · 列表 + 详情</h2></div>
+    <div class="card-desc">
+      左列窄列表（状态点 + 提示词 + 下次时间），右侧详情面板：提示词全文、周期、20 轮统计
+      （成功率 / 平均耗时）、执行历史完整表。信息架构最完整，把执行历史从「展开」升级为「常驻详情」。
+    </div>
+    <ul class="pros">
+      <li><b>信息架构最完整</b>：历史与统计不需要展开即可见</li>
+      <li>宽屏利用率高；点击行切换详情即时</li>
+      <li>代价：侧边栏场景偏重（现状单列已够用），任务少时右栏空旷</li>
+    </ul>
+    <div class="stage">
+      <div class="stage-head">
+        <i class="fas fa-clock h-ico"></i><h3>任务</h3><span class="cnt">3/4</span>
+        <span class="sp"></span>
+        <span class="new"><i class="fas fa-plus"></i><span>新建任务</span></span>
+      </div>
+      <div class="d-wrap">
+        <div class="d-left">
+          <div class="d-row sel"><i class="fas fa-circle-check dot on" style="font-size:12px"></i><span class="p">汇总本周站会纪要并整理行动项</span><span class="tm">09:30</span></div>
+          <div class="d-row"><i class="fas fa-circle-xmark dot err" style="font-size:12px"></i><span class="p">检查 CI 失败用例并给出修复建议</span><span class="tm">18:00</span></div>
+          <div class="d-row"><i class="fas fa-circle-notch fa-spin dot busy" style="font-size:12px;color:var(--accent)"></i><span class="p">监控磁盘空间并生成清理建议</span><span class="tm">15:00</span></div>
+          <div class="d-row" style="opacity:0.72"><i class="fas fa-circle-pause dot off" style="font-size:12px"></i><span class="p">每周复盘：整理完成事项与下周计划</span><span class="tm">—</span></div>
+        </div>
+        <div class="d-right">
+          <div class="d-prompt">汇总本周站会纪要并整理行动项</div>
+          <div class="a-meta" style="margin-top:5px"><span>每天 09:30</span><span class="sep">·</span><span class="mono">0 30 9 * * *</span><span class="sep">·</span><span class="last-ok"><i class="fas fa-circle-check"></i> 昨天 09:30</span></div>
+          <div class="d-stats">
+            <div class="d-stat"><div class="n">20</div><div class="k">近 20 轮</div></div>
+            <div class="d-stat"><div class="n" style="color:var(--success)">95%</div><div class="k">成功率</div></div>
+            <div class="d-stat"><div class="n">42s</div><div class="k">平均耗时</div></div>
+            <div class="d-stat"><div class="n">10-25</div><div class="k">下次运行 09:30</div></div>
+          </div>
+          <div class="d-hist">
+            <div class="h-row"><i class="fas fa-circle-check ok"></i><span class="mono">10-23 09:30</span><span class="mono">38s</span><span class="sum">已汇总本周 5 次站会记录，整理出 7 项行动项…</span><button class="btn-ico" style="height:20px;width:20px;font-size:10px"><i class="fas fa-chevron-right"></i></button></div>
+            <div class="h-row"><i class="fas fa-circle-check ok"></i><span class="mono">10-22 09:30</span><span class="mono">45s</span><span class="sum">本周站会纪要已归档，新增 3 项待办…</span><button class="btn-ico" style="height:20px;width:20px;font-size:10px"><i class="fas fa-chevron-right"></i></button></div>
+            <div class="h-row"><i class="fas fa-circle-xmark fail"></i><span class="mono">10-21 09:30</span><span class="mono">—</span><span class="sum" style="color:var(--error)">模型连接超时</span><button class="btn-ico" style="height:20px;width:20px;font-size:10px"><i class="fas fa-chevron-right"></i></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b style="color:var(--text-secondary)">实现备注</b>：
+  四个方案均基于现有数据模型（<code>ScheduleDef.nextRunAt / lastStatus / runs[]</code>），零后端改动。
+  方案 C 的「接下来」队列与按 <code>nextRunAt</code> 排序均为纯前端 computed；D 的统计（成功率/平均耗时）由
+  <code>runs[]</code> 就地聚合。展开执行历史、hover 操作钮、状态带颜色语义与现有「定时」消息标注体系共用变量。
+  建议：任务数预期 &le; 10 选 <b>C</b>（时序价值最大）；预期长期 20+ 选 <b>B</b>；想最小改动选 <b>A</b>。
+</footer>
+
+<script>
+  const btns = document.querySelectorAll('.mode-switch button')
+  btns.forEach((b) =>
+    b.addEventListener('click', () => {
+      btns.forEach((x) => x.classList.remove('on'))
+      b.classList.add('on')
+      document.documentElement.classList.toggle('night', b.dataset.mode === 'night')
+    }),
+  )
+</script>
+</body>
+</html>

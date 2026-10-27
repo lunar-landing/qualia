@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定时任务 · 资料中心 · 入口设计第三轮四案</title>
+<!--
+  ============================================================================
+  定时任务 & 资料中心 · 入口设计第三轮 · entries-third-round-mockup
+  ----------------------------------------------------------------------------
+  前两轮已覆盖坐标：侧栏顶部双行（现状）/ 会话 header 钮组 / 左缘 rail /
+  任务右抽屉 / 顶部 app bar / 侧栏底部 / 输入区工具行 / 列表虚拟行。
+  本轮换维度而非换位置，给四个不重样的方向：
+  I 合并入口 · 侧栏单行「工作台」→ 页内 Tab 双分区
+  J 手风琴就地展开 · 入口即分区，点击侧栏内展开清单，不跳整栏
+  K 拆掉入口 · 任务运行会话进列表 + 管理走 / 命令面板（任务无常驻入口）
+  L 品牌行下拉 · 两入口收进「更多」浮层，侧栏只留品牌行一处触点
+  风格：石墨工程 · 默认日间 · 零依赖（FontAwesome CDN）。
+  ============================================================================
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 石墨工程 · 日间（tr- 前缀命名空间）===== */
+    body {
+        --tr-bg: #f6f8fa;
+        --tr-panel: #ffffff;
+        --tr-panel-soft: #f6f8fa;
+        --tr-line: #d8dee4;
+        --tr-line-strong: #d0d7de;
+        --tr-text: #1f2328;
+        --tr-text-2: #57657a;
+        --tr-text-3: #8c959f;
+        --tr-accent: #32383f;
+        --tr-accent-soft: #e4e9ee;
+        --tr-wash: rgba(50, 56, 63, 0.045);
+        --tr-hl: #0969da;          /* 标注专用蓝，仅用于虚线框与标注文字 */
+        --tr-ok: #1a7f37;
+        --tr-warn: #9a6700;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--tr-bg);
+        color: var(--tr-text);
+        padding: 44px 24px 100px;
+        font-size: 13px;
+        line-height: 1.7;
+    }
+    i { line-height: 1; }
+    button { font-family: inherit; cursor: pointer; }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+
+    /* ===== 页头 ===== */
+    .tr-head { max-width: 1180px; margin: 0 auto 8px; }
+    .tr-head h1 { font-size: 20px; letter-spacing: -0.4px; margin-bottom: 8px; }
+    .tr-head .sub { font-size: 12.5px; color: var(--tr-text-2); line-height: 1.9; max-width: 880px; }
+    .tr-head .sub b { color: var(--tr-text); }
+    .tr-head .sub code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px;
+        color: var(--tr-accent); background: var(--tr-wash);
+        padding: 0 5px; border-radius: 4px;
+    }
+
+    /* ===== 通用区块 ===== */
+    .tr-sec { max-width: 1180px; margin: 44px auto 0; }
+    .sec-cap { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+    .sec-cap .no {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 11px; color: var(--tr-text-3); letter-spacing: 1px;
+    }
+    .sec-cap h2 { font-size: 15.5px; letter-spacing: -0.2px; }
+    .sec-cap .rec {
+        font-size: 10.5px; font-weight: 700; color: var(--tr-ok);
+        border: 1px solid currentColor; border-radius: 99px; padding: 0 9px;
+        letter-spacing: 0.5px;
+    }
+    .sec-desc { font-size: 12px; color: var(--tr-text-2); margin: 0 2px 16px; max-width: 880px; line-height: 1.85; }
+    .sec-desc code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px;
+        color: var(--tr-accent); background: var(--tr-wash);
+        padding: 0 5px; border-radius: 4px;
+    }
+
+    /* ===== 落位总览骨架 ===== */
+    .sk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .sk-cell .cap {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 10.5px; color: var(--tr-text-3); letter-spacing: 1px; margin: 0 2px 7px;
+    }
+    .sk-cell .cap b { color: var(--tr-text); font-weight: 700; }
+    .sk {
+        display: flex; height: 316px;
+        background: var(--tr-panel); border: 1px solid var(--tr-line-strong); border-radius: 10px;
+        overflow: hidden;
+    }
+    .sk-side {
+        width: 112px; flex-shrink: 0; padding: 8px 6px;
+        background: var(--tr-panel-soft); border-right: 1px solid var(--tr-line);
+        display: flex; flex-direction: column; gap: 4px; font-size: 8.5px;
+    }
+    .sk-brand { font-weight: 700; font-size: 9px; padding: 1px 5px 5px; display: flex; gap: 4px; align-items: center; }
+    .sk-brand i { font-size: 8px; }
+    .sk-item {
+        display: flex; align-items: center; gap: 5px;
+        padding: 4px 6px; border-radius: 5px; color: var(--tr-text-2);
+        white-space: nowrap; overflow: hidden;
+    }
+    .sk-item i { width: 9px; text-align: center; font-size: 8px; }
+    .sk-item.on { background: var(--tr-accent-soft); color: var(--tr-text); font-weight: 600; }
+    .sk-div { border-top: 1px solid var(--tr-line); margin: 2px 0; }
+    .sk-hdr { display: flex; align-items: center; justify-content: space-between; padding: 3px 5px; color: var(--tr-text-3); font-size: 8px; }
+    .sk-hdr .acts { display: flex; gap: 3px; }
+    .sk-hdr .acts i { font-size: 7px; color: var(--tr-text-3); }
+    .sk-row { height: 14px; border-radius: 4px; background: var(--tr-wash); }
+    .sk-row.w60 { width: 60%; }
+    .sk-row.w75 { width: 75%; }
+    .sk-row.w85 { width: 85%; }
+    .sk-spring { flex: 1; }
+    .sk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 10px 12px; gap: 6px; }
+    .sk-main .ttl { font-size: 9.5px; font-weight: 700; display: flex; gap: 6px; align-items: center; }
+    .sk-main .ttl i { font-size: 8px; color: var(--tr-text-3); }
+    .sk-card { border: 1px solid var(--tr-line); border-radius: 6px; padding: 5px 8px; font-size: 8.5px; color: var(--tr-text-2); display: flex; gap: 6px; align-items: center; }
+    .sk-card b { color: var(--tr-text); font-size: 8.5px; }
+    .sk-card .meta { margin-left: auto; color: var(--tr-text-3); font-size: 8px; white-space: nowrap; }
+    .sk-msg { max-width: 78%; border-radius: 7px; padding: 4px 8px; font-size: 8.5px; color: var(--tr-text-2); background: var(--tr-wash); }
+    .sk-msg.me { align-self: flex-end; background: var(--tr-accent-soft); color: var(--tr-text); }
+    .sk-input { border: 1px solid var(--tr-line); border-radius: 6px; height: 20px; margin-top: auto; }
+    .sk-tabs { display: flex; gap: 3px; }
+    .sk-tab { font-size: 8px; padding: 2px 7px; border-radius: 4px; color: var(--tr-text-3); border: 1px solid var(--tr-line); }
+    .sk-tab.on { background: var(--tr-accent-soft); color: var(--tr-text); font-weight: 700; border-color: transparent; }
+    .sk-hl { outline: 1.5px dashed var(--tr-hl); outline-offset: 2px; border-radius: 6px; position: relative; }
+    .sk-badge {
+        position: absolute; top: -7px; right: -4px; z-index: 2;
+        font-size: 7.5px; font-weight: 700; color: #fff; background: var(--tr-hl);
+        border-radius: 99px; padding: 0 5px; line-height: 12px;
+    }
+    .sk-note { font-size: 10px; color: var(--tr-text-3); margin-top: 8px; line-height: 1.7; }
+    .sk-note em { font-style: normal; color: var(--tr-hl); font-weight: 600; }
+
+    /* ===== 1:1 细节组件 ===== */
+    .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; align-items: start; }
+    .d-cell .cap {
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 10.5px; color: var(--tr-text-3); letter-spacing: 1px; margin: 0 2px 7px;
+    }
+    .d-cell .cap b { color: var(--tr-text); font-weight: 700; }
+    .stage {
+        background: var(--tr-panel); border: 1px solid var(--tr-line-strong); border-radius: 10px;
+        overflow: hidden;
+    }
+    .callout {
+        margin-top: 10px; padding: 8px 12px; border-top: 1px dashed var(--tr-line);
+        font-size: 11px; color: var(--tr-text-2); line-height: 1.8;
+    }
+    .callout b { color: var(--tr-hl); }
+
+    /* --- 侧栏通用 1:1 --- */
+    .side { width: 240px; background: var(--tr-panel-soft); padding: 12px 10px; font-size: 12px; display: flex; flex-direction: column; min-height: 400px; }
+    .side .brand { font-weight: 700; font-size: 13px; padding: 0 6px 10px; display: flex; gap: 8px; align-items: center; }
+    .side .brand i { color: var(--tr-accent); font-size: 12px; }
+    .side-hdr { display: flex; align-items: center; padding: 0 6px 6px; }
+    .side-hdr .t { font-size: 11px; font-weight: 700; color: var(--tr-text-2); letter-spacing: 0.5px; }
+    .side-hdr .acts { margin-left: auto; display: flex; gap: 2px; }
+    .hbtn {
+        width: 24px; height: 24px; border: none; background: transparent; border-radius: 6px;
+        color: var(--tr-text-2); font-size: 11px; display: grid; place-items: center;
+    }
+    .hbtn:hover { background: var(--tr-wash); color: var(--tr-text); }
+    .hbtn.new { background: var(--tr-accent); color: #fff; }
+    .hrow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; color: var(--tr-text-2); }
+    .hrow i { width: 14px; text-align: center; font-size: 11px; color: var(--tr-text-3); }
+    .hrow.on { background: var(--tr-accent-soft); color: var(--tr-text); font-weight: 600; }
+    .hrow .tm { margin-left: auto; font-size: 10px; color: var(--tr-text-3); }
+    .side .spring { flex: 1; }
+
+    /* --- I Hub 页 1:1 --- */
+    .hub-head { display: flex; align-items: flex-end; gap: 12px; padding: 20px 22px 0; }
+    .hub-head h2 { font-size: 18px; margin: 0; letter-spacing: -0.3px; }
+    .hub-tabs { display: flex; gap: 3px; margin-left: 8px; }
+    .hub-tab {
+        border: none; background: transparent; padding: 5px 13px; border-radius: 7px 7px 0 0;
+        font-size: 12.5px; color: var(--tr-text-2); border-bottom: 2px solid transparent;
+    }
+    .hub-tab.on { background: var(--tr-panel); color: var(--tr-text); font-weight: 700; border-bottom-color: var(--tr-accent); }
+    .hub-close { margin-left: auto; align-self: center; }
+    .hub-body { border-top: 1px solid var(--tr-line); padding: 14px 22px; display: flex; flex-direction: column; gap: 8px; }
+    .hub-card { border: 1px solid var(--tr-line); border-radius: 9px; padding: 9px 12px; font-size: 11.5px; color: var(--tr-text-2); display: flex; gap: 9px; align-items: center; background: var(--tr-panel); }
+    .hub-card b { color: var(--tr-text); }
+    .hub-card .st { color: var(--tr-ok); font-size: 10.5px; }
+    .hub-card .meta { margin-left: auto; font-size: 10.5px; color: var(--tr-text-3); white-space: nowrap; }
+
+    /* --- J 手风琴 1:1 --- */
+    .acc { border-radius: 8px; margin-bottom: 2px; }
+    .acc-hdr {
+        display: flex; align-items: center; gap: 9px; width: 100%;
+        padding: 7px 9px; border: none; background: transparent;
+        font-size: 12px; color: var(--tr-text-2); text-align: left;
+    }
+    .acc-hdr i.ico { width: 15px; text-align: center; font-size: 11px; color: var(--tr-text-3); }
+    .acc-hdr .caret { margin-left: auto; font-size: 9px; color: var(--tr-text-3); transition: none; }
+    .acc-hdr .cnt { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--tr-text-3); margin-left: auto; margin-right: 8px; }
+    .acc.open { background: var(--tr-panel); border: 1px solid var(--tr-line); }
+    .acc.open .acc-hdr { color: var(--tr-text); font-weight: 700; border-bottom: 1px solid var(--tr-line); }
+    .acc-body { padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+    .mini-task {
+        display: flex; align-items: center; gap: 7px; padding: 5px 8px;
+        border: 1px solid var(--tr-line); border-radius: 7px; background: var(--tr-panel);
+        font-size: 11px; color: var(--tr-text-2);
+    }
+    .mini-task .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--tr-ok); flex-shrink: 0; }
+    .mini-task .dot.off { background: var(--tr-text-3); opacity: 0.5; }
+    .mini-task b { color: var(--tr-text); font-weight: 600; }
+    .mini-task .c { margin-left: auto; font-size: 9.5px; color: var(--tr-text-3); white-space: nowrap; }
+    .mini-add { border: 1px dashed var(--tr-line-strong); background: transparent; color: var(--tr-text-3); font-size: 10.5px; border-radius: 7px; padding: 4px; }
+
+    /* --- K 命令面板 1:1 --- */
+    .palette {
+        border: 1px solid var(--tr-line-strong); border-radius: 11px; background: var(--tr-panel);
+        box-shadow: 0 14px 40px rgba(31, 35, 40, 0.16); overflow: hidden; font-size: 12.5px;
+    }
+    .pal-in { display: flex; align-items: center; gap: 9px; padding: 11px 15px; border-bottom: 1px solid var(--tr-line); color: var(--tr-text-3); }
+    .pal-in i { font-size: 11px; }
+    .pal-list { padding: 7px; }
+    .pal-grp { font-size: 10px; color: var(--tr-text-3); padding: 5px 9px 3px; letter-spacing: 0.5px; }
+    .pal-item { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 7px; color: var(--tr-text-2); }
+    .pal-item i { width: 15px; text-align: center; font-size: 11px; color: var(--tr-text-3); }
+    .pal-item.hot { background: var(--tr-accent-soft); color: var(--tr-text); }
+    .pal-item .kbd { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 9.5px; color: var(--tr-text-3); border: 1px solid var(--tr-line); border-radius: 4px; padding: 0 5px; line-height: 16px; }
+    .run-tag { font-size: 9.5px; color: var(--tr-text-3); border: 1px solid var(--tr-line); border-radius: 99px; padding: 0 6px; margin-left: 6px; }
+
+    /* --- L 品牌下拉 1:1 --- */
+    .brand-row {
+        display: flex; align-items: center; gap: 8px; padding: 0 6px 10px; cursor: pointer;
+        font-weight: 700; font-size: 13px; position: relative;
+    }
+    .brand-row > i.mark { color: var(--tr-accent); font-size: 12px; }
+    .brand-row .caret2 { margin-left: auto; font-size: 9px; color: var(--tr-text-3); }
+    .brand-row .bdot { width: 6px; height: 6px; border-radius: 50%; background: var(--tr-ok); margin-left: 4px; }
+    .popover {
+        border: 1px solid var(--tr-line-strong); border-radius: 10px; background: var(--tr-panel);
+        box-shadow: 0 10px 30px rgba(31, 35, 40, 0.14); padding: 6px; font-size: 12px; min-width: 196px;
+    }
+    .pop-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; border: none; background: transparent; color: var(--tr-text-2); font-size: 12px; width: 100%; text-align: left; }
+    .pop-item i { width: 14px; text-align: center; font-size: 11px; color: var(--tr-text-3); }
+    .pop-item .r { margin-left: auto; font-size: 10px; color: var(--tr-text-3); }
+    .pop-item .run { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--tr-ok); }
+    .pop-sep { border-top: 1px solid var(--tr-line); margin: 5px 4px; }
+
+    /* ===== 对比表 ===== */
+    .cmp { width: 100%; border-collapse: collapse; background: var(--tr-panel); border: 1px solid var(--tr-line-strong); border-radius: 10px; overflow: hidden; font-size: 12px; }
+    .cmp th, .cmp td { border-bottom: 1px solid var(--tr-line); padding: 9px 14px; text-align: left; vertical-align: top; }
+    .cmp tr:last-child td { border-bottom: none; }
+    .cmp th { background: var(--tr-panel-soft); font-size: 11px; color: var(--tr-text-2); font-weight: 700; letter-spacing: 0.5px; }
+    .cmp td:first-child { font-weight: 700; white-space: nowrap; }
+    .cmp td small { display: block; color: var(--tr-text-3); font-size: 11px; margin-top: 1px; }
+    .cmp .good { color: var(--tr-ok); }
+    .cmp .bad { color: #cf222e; }
+    .cmp .mid { color: var(--tr-warn); }
+    .cmp tr.rec-row td { background: rgba(26, 127, 55, 0.045); }
+
+    /* ===== 设计注释 ===== */
+    .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+    .note-card { background: var(--tr-panel); border: 1px solid var(--tr-line); border-radius: 9px; padding: 12px 14px; font-size: 12px; color: var(--tr-text-2); line-height: 1.8; }
+    .note-card h3 { font-size: 12.5px; color: var(--tr-text); margin-bottom: 5px; }
+    .note-card code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--tr-accent); background: var(--tr-wash); padding: 0 5px; border-radius: 4px; }
+
+    @media (max-width: 1080px) {
+        .sk-grid { grid-template-columns: repeat(2, 1fr); }
+        .detail-grid { grid-template-columns: 1fr; }
+        .notes { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+
+<div class="tr-head">
+    <h1>定时任务 · 资料中心 · 入口设计第三轮四案</h1>
+    <div class="sub">
+        前两轮把「入口放哪」翻了一遍：顶部双行（现状）、会话 header 钮组、左缘 rail、右抽屉、
+        app bar、侧栏底部、输入区、列表虚拟行。本轮<b>不再挪位置，而是改变入口的存在方式</b>：
+        <b>I</b> 两入口合并为单行「工作台」→ 页内 Tab；<b>J</b> 手风琴就地展开，点击不离开侧栏；
+        <b>K</b> 拆掉常驻入口，任务融入会话列表、管理走 <code>/</code> 命令面板；<b>L</b> 收进品牌行下拉浮层。
+    </div>
+</div>
+
+<!-- ===================== ⓪ 落位总览 ===================== -->
+<div class="tr-sec">
+    <div class="sec-cap"><span class="no">0</span><h2>全局落位总览 · 四案骨架对照</h2></div>
+    <div class="sec-desc">虚线框为该案入口位置。四案共同前提：侧栏顶部不再有两行独立入口；差别在于「替代触点是什么、打开后东西在哪」。</div>
+    <div class="sk-grid">
+
+        <!-- I 工作台 Hub -->
+        <div class="sk-cell">
+            <div class="cap">I · <b>工作台 Hub</b> 单入口 + 页内 Tab</div>
+            <div class="sk">
+                <div class="sk-side">
+                    <div class="sk-brand"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div class="sk-item sk-hl on"><span class="sk-badge">入口</span><i class="fas fa-table-columns"></i>工作台</div>
+                    <div class="sk-div"></div>
+                    <div class="sk-hdr">会话<span class="acts"><i class="fas fa-magnifying-glass"></i><i class="fas fa-plus"></i></span></div>
+                    <div class="sk-row w85"></div><div class="sk-row w60"></div>
+                </div>
+                <div class="sk-main">
+                    <div class="ttl"><i class="fas fa-table-columns"></i>工作台</div>
+                    <div class="sk-tabs"><div class="sk-tab on">定时任务</div><div class="sk-tab">资料中心</div></div>
+                    <div class="sk-card"><b>依赖巡检</b><span class="meta">每天 09:30 · 启用</span></div>
+                    <div class="sk-card"><b>周报整理</b><span class="meta">每周五 18:00</span></div>
+                </div>
+            </div>
+            <div class="sk-note">两行压成<em>一行</em>；打开后主区一个 Hub 页，<em>Tab 切换</em>任务/资料。</div>
+        </div>
+
+        <!-- J 手风琴 -->
+        <div class="sk-cell">
+            <div class="cap">J · <b>手风琴展开</b> 就地清单不出栏</div>
+            <div class="sk">
+                <div class="sk-side">
+                    <div class="sk-brand"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div class="sk-item sk-hl on" style="border:1px solid var(--tr-line); background:var(--tr-panel);"><span class="sk-badge">入口</span><i class="fas fa-clock"></i>定时任务<i class="fas fa-caret-down" style="margin-left:auto;"></i></div>
+                    <div style="border:1px solid var(--tr-line); border-top:none; border-radius:0 0 6px 6px; background:var(--tr-panel); padding:4px; display:flex; flex-direction:column; gap:3px;">
+                        <div class="sk-card"><b>依赖巡检</b><span class="meta">09:30</span></div>
+                        <div class="sk-card"><b>周报整理</b><span class="meta">周五</span></div>
+                    </div>
+                    <div class="sk-item"><i class="fas fa-book"></i>资料中心<i class="fas fa-caret-right" style="margin-left:auto;"></i></div>
+                    <div class="sk-div"></div>
+                    <div class="sk-hdr">会话</div>
+                    <div class="sk-row w85"></div><div class="sk-row w60"></div>
+                </div>
+                <div class="sk-main">
+                    <div class="ttl"><i class="fas fa-comment"></i>聊天区 · 完全不受影响</div>
+                    <div class="sk-msg">昨天构建失败了，帮我看下日志</div>
+                    <div class="sk-msg me">已定位：依赖版本冲突</div>
+                    <div class="sk-input"></div>
+                </div>
+            </div>
+            <div class="sk-note">点击入口<em>在侧栏内展开紧凑清单</em>；主区永不切换，重度操作才跳整栏页。</div>
+        </div>
+
+        <!-- K 拆掉入口 -->
+        <div class="sk-cell">
+            <div class="cap">K · <b>拆除入口</b> 列表融入 + / 唤起</div>
+            <div class="sk">
+                <div class="sk-side">
+                    <div class="sk-brand"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div class="sk-hdr">会话<span class="acts"><i class="fas fa-magnifying-glass"></i><i class="fas fa-plus"></i></span></div>
+                    <div class="sk-item sk-hl"><span class="sk-badge">融入</span><i class="fas fa-clock"></i>依赖巡检 · 09:30</div>
+                    <div class="sk-item"><i class="fas fa-comment"></i>终端输入区再设计</div>
+                    <div class="sk-item"><i class="fas fa-comment"></i>附件回读多模态</div>
+                    <div class="sk-div"></div>
+                    <div class="sk-hdr">更多<span class="acts"><i class="fas fa-ellipsis"></i></span></div>
+                    <div class="sk-item"><i class="fas fa-book"></i>资料中心</div>
+                </div>
+                <div class="sk-main">
+                    <div class="ttl"><i class="fas fa-comment"></i>任务运行会话 · 正常聊天</div>
+                    <div class="sk-card" style="border-style:dashed;"><i class="fas fa-clock" style="font-size:8px;"></i><b>定时 · 每天 09:30</b><span class="meta">执行标注</span></div>
+                    <div class="sk-msg">检查依赖漏洞…</div>
+                    <div class="sk-msg me">3 个待升级</div>
+                </div>
+            </div>
+            <div class="sk-note">任务<em>没有侧栏入口</em>：运行会话直接进列表，管理敲 <em>/schedule</em>；资料收进「更多」分区。</div>
+        </div>
+
+        <!-- L 品牌下拉 -->
+        <div class="sk-cell">
+            <div class="cap">L · <b>品牌下拉</b> 「更多」浮层</div>
+            <div class="sk">
+                <div class="sk-side">
+                    <div class="sk-brand sk-hl"><span class="sk-badge">入口</span><i class="fas fa-feather"></i>Qualia <i class="fas fa-caret-down" style="font-size:7px; margin-left:auto;"></i></div>
+                    <div style="border:1px solid var(--tr-line-strong); border-radius:6px; background:var(--tr-panel); padding:4px; font-size:8px; color:var(--tr-text-2);">
+                        <div class="sk-item" style="padding:3px 5px;"><i class="fas fa-clock"></i>定时任务<span style="margin-left:auto; width:5px; height:5px; border-radius:50%; background:var(--tr-ok);"></span></div>
+                        <div class="sk-item" style="padding:3px 5px;"><i class="fas fa-book"></i>资料中心</div>
+                        <div class="sk-div"></div>
+                        <div class="sk-item" style="padding:3px 5px;"><i class="fas fa-sliders-h"></i>设置</div>
+                    </div>
+                    <div class="sk-div"></div>
+                    <div class="sk-hdr">会话</div>
+                    <div class="sk-row w85"></div><div class="sk-row w75"></div><div class="sk-row w60"></div>
+                </div>
+                <div class="sk-main">
+                    <div class="ttl"><i class="fas fa-book"></i>资料中心 · 整栏视图（机制不变）</div>
+                    <div class="sk-card"><b>产品资料库</b><span class="meta">42 篇</span></div>
+                </div>
+            </div>
+            <div class="sk-note">入口藏进<em>品牌行点击浮层</em>，侧栏主体只留会话；设置也可一并收编。</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== I 工作台 Hub ===================== -->
+<div class="tr-sec">
+    <div class="sec-cap"><span class="no">I</span><h2>合并入口 · 单行「工作台」+ 页内 Tab</h2><span class="rec">推荐</span></div>
+    <div class="sec-desc">
+        现状的问题不是「位置不对」，而是<b>两个低频功能各占一行、各自互斥地抢主区</b>。
+        I 案把两者合并成单行「工作台」入口：打开后主区是一个 Hub 页，
+        <code>定时任务 / 资料中心</code> 以顶部 Tab 并列，现有两套整栏视图原样降级为 Tab 面板。
+        互斥逻辑天然消失（同一页内切换），侧栏少一行，心智从「两个页面」收敛为「一个管理区」。
+    </div>
+    <div class="detail-grid">
+        <div class="d-cell">
+            <div class="cap">I1 · Hub 页 1:1（任务 Tab 激活）</div>
+            <div class="stage">
+                <div class="hub-head">
+                    <h2><i class="fas fa-table-columns" style="color:var(--tr-text-3); font-size:15px; margin-right:8px;"></i>工作台</h2>
+                    <div class="hub-tabs">
+                        <button class="hub-tab on">定时任务 <span class="mono" style="font-size:10px; color:var(--tr-text-3);">2</span></button>
+                        <button class="hub-tab">资料中心 <span class="mono" style="font-size:10px; color:var(--tr-text-3);">42</span></button>
+                    </div>
+                    <button class="hbtn close hub-close" title="收起工作台"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="hub-body">
+                    <div class="hub-card"><span class="st">●</span><b>依赖巡检</b><span class="st">启用中</span><span class="meta">每天 09:30 · 下次 10-28 09:30 · 上次成功</span></div>
+                    <div class="hub-card"><span style="color:var(--tr-text-3);">○</span><b>周报整理</b><span style="font-size:10.5px; color:var(--tr-text-3);">已停用</span><span class="meta">每周五 18:00</span></div>
+                </div>
+                <div class="callout">
+                    Tab 条与会话 header 同层高度，<b>切 Tab 不离开主区、不回侧栏</b>；
+                    资料 Tab 内即现有「库列表 ⇄ 阅读页」双页结构，整栏行为不变，只是多了个爹。
+                </div>
+            </div>
+        </div>
+        <div class="d-cell">
+            <div class="cap">I2 · 侧栏变化 1:1（两行 → 一行）</div>
+            <div class="stage">
+                <div class="side" style="min-height:300px;">
+                    <div class="brand"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:8px;">
+                        <button class="fbtn" style="display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:7px; border:none; background:var(--tr-accent-soft); color:var(--tr-text); font-size:12px; font-weight:600; text-align:left;">
+                            <i class="fas fa-table-columns" style="width:15px; text-align:center; font-size:11px;"></i>工作台
+                            <span style="margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--tr-ok);" title="任务运行中"></span>
+                        </button>
+                    </div>
+                    <div class="side-hdr">
+                        <span class="t">会话</span>
+                        <span class="acts">
+                            <button class="hbtn"><i class="fas fa-magnifying-glass"></i></button>
+                            <button class="hbtn new"><i class="fas fa-plus"></i></button>
+                        </span>
+                    </div>
+                    <div class="hrow"><i class="fas fa-comment"></i>修复 SearchReplace 重试<span class="tm">14:02</span></div>
+                    <div class="hrow"><i class="fas fa-comment"></i>终端输入区再设计<span class="tm">11:47</span></div>
+                    <div class="hrow"><i class="fas fa-comment"></i>Wiki 检索调优<span class="tm">昨天</span></div>
+                </div>
+                <div class="callout">
+                    入口行沿用 <b>settings-btn 全宽行</b>规格，位置不动（仍在顶部），只是 2→1；
+                    风险在命名：「工作台」是抽象容器名，<b>首次使用不知道里面有什么</b>——需要配一行副标题或 tooltip 列出两者。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== J 手风琴就地展开 ===================== -->
+<div class="tr-sec">
+    <div class="sec-cap"><span class="no">J</span><h2>手风琴就地展开 · 入口即分区，轻操作不出栏</h2></div>
+    <div class="sec-desc">
+        翻转「点击 = 跳整栏」的惯性：入口点击后<b>在侧栏内展开紧凑清单</b>（任务：启停圆点 + 周期；资料：库列表），
+        高频轻操作（看状态、启停任务、打开某篇最近文章）就地完成，<b>主区永远停留在聊天</b>；
+        重度操作（新建任务、进资料阅读页）才跳整栏视图——就地清单底部给 CTA 承接。
+    </div>
+    <div class="detail-grid">
+        <div class="d-cell">
+            <div class="cap">J1 · 任务分区展开 1:1（就地启停）</div>
+            <div class="stage" style="padding:14px;">
+                <div class="side" style="min-height:0; padding:10px;">
+                    <div class="brand" style="padding-bottom:6px;"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div class="acc open">
+                        <button class="acc-hdr"><i class="ico fas fa-clock"></i>定时任务<span class="cnt">2/1</span><i class="caret fas fa-caret-down"></i></button>
+                        <div class="acc-body">
+                            <div class="mini-task"><span class="dot"></span><b>依赖巡检</b><span class="c">每天 09:30 · 5 分钟前</span></div>
+                            <div class="mini-task"><span class="dot off"></span><b>周报整理</b><span class="c">周五 18:00 · 停用</span></div>
+                            <button class="mini-add"><i class="fas fa-plus" style="font-size:9px;"></i> 新建任务 · 管理全部</button>
+                        </div>
+                    </div>
+                    <div class="acc">
+                        <button class="acc-hdr"><i class="ico fas fa-book"></i>资料中心<span class="cnt">3 库</span><i class="caret fas fa-caret-right"></i></button>
+                    </div>
+                </div>
+                <div class="callout">
+                    展开清单复用<b>主区视图的行语言</b>（卡片描边、状态点），只是尺寸收缩；
+                    「管理全部」一跳进整栏，就地清单当<b>预览层</b>。两态共享同一 store，无新数据流。
+                </div>
+            </div>
+        </div>
+        <div class="d-cell">
+            <div class="cap">J2 · 空间账与适用边界</div>
+            <div class="stage" style="padding:16px;">
+                <table class="cmp" style="font-size:11.5px;">
+                    <tr><th></th><th>展开时挤掉的是</th><th>谁受影响</th></tr>
+                    <tr><td>任务 2~4 条</td><td class="mid">会话列表底部 ~120px</td><td>会话多的用户</td></tr>
+                    <tr><td>资料 3 库</td><td class="mid">同上</td><td>同上</td></tr>
+                </table>
+                <div class="callout">
+                    <b>代价一</b>：手风琴与会话列表抢同一列纵向空间，任务/资料一多，会话被压成扫条；
+                    需限制展开高度（max-height + 内滚）兜底。<br>
+                    <b>代价二</b>：侧栏出现第三种交互层（展开/收起 + 就地按钮），<b>实现是四案里最重的</b>——
+                    等于给两个页面各做一个 mini 视图。<br>
+                    <b>适用</b>：巡检类任务「瞄一眼跑没跑」确实是高频动作时，J 省掉整栏往返，效率收益真实。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== K 拆掉入口 ===================== -->
+<div class="tr-sec">
+    <div class="sec-cap"><span class="no">K</span><h2>拆掉常驻入口 · 列表融入 + 命令面板唤起</h2></div>
+    <div class="sec-desc">
+        激进方案：定时任务<b>不设任何侧栏入口</b>。它的产出本来就是会话——每轮运行的会话带时钟标识
+        （现有 <code>runSessionById</code> 已支持）直接混排进会话列表，看执行结果=点开会话；
+        管理动作（新建/启停）通过输入区 <code>/schedule</code> 斜杠命令或命令面板唤起。
+        资料中心降级为列表底部「更多」分区的一行。
+    </div>
+    <div class="detail-grid">
+        <div class="d-cell">
+            <div class="cap">K1 · 任务运行会话在列表 + 执行标注 1:1</div>
+            <div class="stage">
+                <div class="side" style="min-height:280px;">
+                    <div class="brand" style="padding-bottom:6px;"><i class="fas fa-feather"></i>Qualia Code</div>
+                    <div class="side-hdr">
+                        <span class="t">会话</span>
+                        <span class="acts"><button class="hbtn"><i class="fas fa-magnifying-glass"></i></button><button class="hbtn new"><i class="fas fa-plus"></i></button></span>
+                    </div>
+                    <div class="hrow on"><i class="fas fa-clock" style="color:var(--tr-accent);"></i>依赖巡检 · 今天 09:30<span class="tm">5 分钟前</span></div>
+                    <div class="hrow"><i class="fas fa-clock" style="color:var(--tr-accent);"></i>依赖巡检 · 昨天 09:30<span class="tm">昨天</span></div>
+                    <div class="hrow"><i class="fas fa-comment"></i>终端输入区再设计<span class="tm">11:47</span></div>
+                    <div class="hrow"><i class="fas fa-comment"></i>Wiki 检索调优<span class="tm">昨天</span></div>
+                    <div class="spring"></div>
+                    <div style="border-top:1px solid var(--tr-line); padding-top:6px;">
+                        <div class="hrow"><i class="fas fa-book"></i>资料中心<span class="tm">42 篇</span></div>
+                    </div>
+                </div>
+                <div class="callout">
+                    时钟图标行 = 任务运行会话（数据源现成）；<b>任务的「管理视图」消失，「产物」升为一级内容</b>——
+                    符合「你关心的是跑出来的结果，不是任务定义本身」的真实使用分布。
+                </div>
+            </div>
+        </div>
+        <div class="d-cell">
+            <div class="cap">K2 · / 命令面板唤起管理</div>
+            <div class="stage" style="padding:14px;">
+                <div class="palette">
+                    <div class="pal-in"><i class="fas fa-magnifying-glass"></i>/schedule</div>
+                    <div class="pal-list">
+                        <div class="pal-grp">定时任务</div>
+                        <div class="pal-item hot"><i class="fas fa-plus"></i>新建定时任务…<span class="kbd">↵</span></div>
+                        <div class="pal-item"><i class="fas fa-list-ul"></i>打开任务中心<span class="kbd">↵</span></div>
+                        <div class="pal-item"><i class="fas fa-play"></i>立即执行 · 依赖巡检 <span class="run-tag">每天 09:30</span></div>
+                        <div class="pal-item"><i class="fas fa-pause"></i>暂停 · 周报整理 <span class="run-tag">已停用</span></div>
+                    </div>
+                </div>
+                <div class="callout">
+                    管理动作变成<b>对话式操作</b>（与 agent 产品的「一切皆会话」气质一致）；
+                    代价：纯鼠标用户失去可见入口，<b>可发现性跌幅最大</b>——需要首次引导 + 输入区 <code>@</code>/<code>/</code> 提示词兜底。
+                    资料中心阅读频率高、路径深，不建议同案拆除，保留「更多」区一行。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== L 品牌行下拉 ===================== -->
+<div class="tr-sec">
+    <div class="sec-cap"><span class="no">L</span><h2>品牌行下拉 · 侧栏唯一触点的「更多」浮层</h2></div>
+    <div class="sec-desc">
+        入口不再占行，收进<b>品牌行的下拉浮层</b>（复用现有设置 flyout 的交互语言）：
+        点「Qualia Code ⌄」弹出定时任务 / 资料中心 / 设置。侧栏主体从品牌行往下<b>100% 是会话</b>——
+        这是「让出顶部黄金位」的极限版。打开态在品牌行右端点<b>状态点</b>（任务运行中绿点）。
+    </div>
+    <div class="detail-grid">
+        <div class="d-cell">
+            <div class="cap">L1 · 浮层展开 1:1</div>
+            <div class="stage">
+                <div class="side" style="min-height:270px;">
+                    <div class="brand-row" style="border-bottom:1px solid var(--tr-line);">
+                        <i class="mark fas fa-feather"></i>Qualia Code
+                        <i class="fas fa-caret-down caret2"></i>
+                        <span class="bdot" title="任务运行中"></span>
+                    </div>
+                    <div class="popover" style="margin:8px 0;">
+                        <button class="pop-item"><i class="fas fa-clock"></i>定时任务<span class="run"></span></button>
+                        <button class="pop-item"><i class="fas fa-book"></i>资料中心<span class="r">42 篇</span></button>
+                        <div class="pop-sep"></div>
+                        <button class="pop-item"><i class="fas fa-sliders-h"></i>设置</button>
+                    </div>
+                    <div class="side-hdr">
+                        <span class="t">会话</span>
+                        <span class="acts"><button class="hbtn"><i class="fas fa-magnifying-glass"></i></button><button class="hbtn new"><i class="fas fa-plus"></i></button></span>
+                    </div>
+                    <div class="hrow"><i class="fas fa-comment"></i>终端输入区再设计<span class="tm">11:47</span></div>
+                    <div class="hrow"><i class="fas fa-comment"></i>附件回读多模态<span class="tm">昨天</span></div>
+                </div>
+                <div class="callout">
+                    浮层行右端放状态/计数，信息量不输常驻行；交互复用<b>现有 settings-flyout</b>
+                    （Teleport + fixed 定位那套已趟平 overflow 裁剪的坑），实现成本低。
+                </div>
+            </div>
+        </div>
+        <div class="d-cell">
+            <div class="cap">L2 · 反例警示 · 二级折叠的代价</div>
+            <div class="stage" style="padding:16px;">
+                <table class="cmp" style="font-size:11.5px;">
+                    <tr><th></th><th>现状</th><th>L 案</th></tr>
+                    <tr><td>打开资料中心</td><td class="good">1 击</td><td class="mid">2 击（品牌行 → 浮层项）</td></tr>
+                    <tr><td>可发现性</td><td class="good">明文行常驻</td><td class="bad">藏在下拉里，新人不知有功能</td></tr>
+                    <tr><td>侧栏纯净度</td><td class="bad">两行入口</td><td class="good">纯会话</td></tr>
+                </table>
+                <div class="callout">
+                    <b>品牌行下拉</b>在桌面产品里惯用于「关于/反馈」这类<em>极低频</em>项；
+                    资料中心若属于「每天顺手开」的量级，2 击 + 隐藏会把它压到没人用。
+                    L 适合与 I/J 组合：<b>资料常驻、任务(更低频)进下拉</b>，比整栏两入口全藏要稳妥。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== 对比与结论 ===================== -->
+<div class="er-sec tr-sec">
+    <div class="sec-cap"><span class="no">9</span><h2>对比与结论</h2></div>
+    <table class="cmp">
+        <tr><th>方案</th><th>入口存在方式</th><th>侧栏行数成本</th><th>打开路径</th><th>聊天打断</th><th>改动量</th><th>主要代价</th></tr>
+        <tr>
+            <td>A · 现状</td>
+            <td>顶部双行</td><td class="bad">2 行</td><td class="good">1 击</td><td class="bad">整栏互斥</td><td class="good">—</td>
+            <td>低频功能占两行；两视图互斥抢主区</td>
+        </tr>
+        <tr class="rec-row">
+            <td>I · 工作台 Hub<small>推荐</small></td>
+            <td>单行「工作台」</td><td class="mid">1 行</td><td class="mid">1 击 + Tab</td><td class="bad">仍整栏（但页内 Tab 互切）</td><td class="mid">包一层 Tab 容器</td>
+            <td>容器命名抽象，首次发现需解释</td>
+        </tr>
+        <tr>
+            <td>J · 手风琴</td>
+            <td>入口即分区</td><td class="mid">1~N 行（展开时）</td><td class="good">1 击就地</td><td class="good">不离开聊天</td><td class="bad">两个 mini 视图</td>
+            <td>与列表抢纵向；实现最重</td>
+        </tr>
+        <tr>
+            <td>K · 拆除入口</td>
+            <td>无（列表融入 + <code>/</code>）</td><td class="good">0 行</td><td class="bad">2~3 击 / 命令</td><td class="good">不打断</td><td class="mid">列表标识现成 + 命令面板</td>
+            <td>可发现性跌幅最大，纯鼠标用户受伤</td>
+        </tr>
+        <tr>
+            <td>L · 品牌下拉</td>
+            <td>浮层收纳</td><td class="good">0 行</td><td class="mid">2 击</td><td class="mid">整栏（机制不变）</td><td class="good">复用 flyout</td>
+            <td>中频功能被二级折叠压死；宜作组合拳的一角</td>
+        </tr>
+    </table>
+    <div class="notes">
+        <div class="note-card">
+            <h3>推荐 I · 合并优于搬迁</h3>
+            前两轮在<b>位置</b>维度穷举后，I 换了<b>数量</b>维度：2 入口 → 1 入口 + 1 容器页。
+            改动收在「给两套整栏视图套一个 Tab 头」，store 互斥逻辑顺势删除；
+            侧栏顶部仍有一行（心智连续），但纵向成本砍半。与上轮 F（沉底）可叠加：先合并、再沉底。
+        </div>
+        <div class="note-card">
+            <h3>J 的适用边界</h3>
+            J 赌的是「多数打开只为了瞄状态/顺手启停」。若数据佐证整栏视图的平均停留 &lt; 10s，
+            J 就地展开正中红心；否则用户仍要跳整栏，手风琴沦为多余一层。<b>先看埋点再上 J</b>。
+        </div>
+        <div class="note-card">
+            <h3>K + L 组合拳</h3>
+            单用任一都有硬伤，但拆开看：任务的真实入口是「运行会话」（K），资料需要常驻触点（L 收不下）。
+            极致版 = <b>任务走 K、资料留一行或进底部区</b>——侧栏 0~1 行，且不藏高频的东西。
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

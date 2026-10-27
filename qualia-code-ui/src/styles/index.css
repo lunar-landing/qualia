@@ -420,7 +420,8 @@ body.light-theme .sidebar-brand i {
     background: transparent;
     border: none;
     border-radius: 7px;
-    color: var(--text-secondary);
+    /* 入口菜单文字：secondary 掺 45% primary，比正文列表深半档又不到纯 primary */
+    color: color-mix(in srgb, var(--text-primary) 45%, var(--text-secondary));
     font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;

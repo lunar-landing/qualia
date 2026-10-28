@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技能市场空态重设计 · 补充五版（E~I）</title>
+<!--
+  ============================================================
+  与 skills-market-empty-mockup.html（A 居中指路 / B 热门精选 / C 命令行 / D 紧凑带）互补。
+  本轮方向：让空态从「等搜索」变成「可逛 / 可推荐 / 可视」。
+
+  E 分类橱窗：内置 6 个类目磁贴（文档处理/前端/测试/写作/DevOps/研究），点类目 = 发起对应搜索；
+    零输入可逛，无后端依赖（类目关键词内置）。
+  F 左右分栏导购：左侧三行讲 skills.sh 是什么 + 右栏热词与回车引导；信息密度高于居中版。
+  G 猜你喜欢：基于「已安装技能」的关键词做关联推荐（前端从 listSkills 的名称/描述提词，
+    自动并发 searchMarketSkills）；空态即推荐位。
+  H 橱窗横幅：顶部一条 accent 渐变 hero 带（网格纹理 + 标题文案），热词悬浮在带下缘；市场首页气质。
+  I 结果预演：用两帧半透明示例卡展示「搜索后会得到什么」，静态演示代替文字说明。
+
+  规范：日间默认 + 夜间切换；真实 --mat-* token；FontAwesome CDN；零依赖。
+  ============================================================
+-->
+<style>
+  :root {
+    --mat-card:#ffffff; --mat-surface-2:#f7f9fb; --mat-wash:#f2f5f8; --mat-wash-2:#e9eef3;
+    --mat-line:#e6ebf0; --mat-line-2:#d5dde5; --mat-ink:#1c2128; --mat-ink-2:#3c4551;
+    --mat-faint:#98a1ac; --mat-mut:#6b7480; --mat-accent:#3d5a80;
+    --mat-accent-wash:rgba(61,90,128,0.08); --bg-active:#e4e9ee; --bg-hover:#e9edf1;
+    --stage:#eef1f4; --text-primary:#24292f; --text-secondary:#5a6472; --text-muted:#8a93a0;
+    --border-color:#d5dde5; --card-shadow:0 1px 1px rgba(28,33,40,.04),0 10px 26px rgba(28,33,40,.07);
+    --success:#3a9b6c; --danger:#c6554b;
+  }
+  html.night {
+    --mat-card:#0d1117; --mat-surface-2:#11161e; --mat-wash:#161c26; --mat-wash-2:#1c232e;
+    --mat-line:#1d242f; --mat-line-2:#2a3441; --mat-ink:#e6ebf2; --mat-ink-2:#b7c1cd;
+    --mat-faint:#5b6572; --mat-mut:#8b94a3; --mat-accent:#8fb3d9;
+    --mat-accent-wash:rgba(143,179,217,0.12); --bg-active:rgba(230,237,243,.10); --bg-hover:rgba(255,255,255,.04);
+    --stage:#080a10; --text-primary:#e6ebf2; --text-secondary:#b7c1cd; --text-muted:#7d8794;
+    --border-color:#2a3441; --card-shadow:0 1px 2px rgba(0,0,0,.5),0 16px 40px rgba(0,0,0,.5);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+    background:var(--stage); color:var(--text-primary); padding:32px 36px 70px; transition:background .25s,color .25s; }
+  .page-head { display:flex; align-items:baseline; gap:14px; margin-bottom:4px; }
+  .page-head h1 { font-size:20px; font-weight:650; letter-spacing:-.01em; }
+  .acts { margin-left:auto; display:flex; gap:8px; }
+  .tbtn { padding:6px 13px; border:1px solid var(--mat-line-2); border-radius:8px;
+    background:var(--mat-card); color:var(--mat-ink-2); font-size:12px; cursor:pointer; }
+  .tbtn.on { background:var(--mat-ink); color:var(--mat-card); border-color:var(--mat-ink); }
+  .lead { font-size:12.5px; color:var(--mat-mut); margin:0 0 24px; line-height:1.7; max-width:920px; }
+  .lead b { color:var(--mat-ink-2); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); gap:22px; align-items:start; }
+  .demo-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .badge { font-family:'JetBrains Mono',Consolas,monospace; font-size:10.5px; font-weight:700;
+    background:var(--mat-wash-2); color:var(--mat-ink-2); border-radius:5px; padding:2px 7px; }
+  .badge.rec { background:var(--mat-accent); color:#fff; }
+  .demo-head h2 { font-size:13.5px; font-weight:600; }
+  .demo-desc { font-size:11.5px; color:var(--mat-mut); line-height:1.65; margin-bottom:10px; min-height:34px; }
+
+  /* ===== 真实语境骨架 ===== */
+  .view { background:var(--mat-card); border:1px solid var(--mat-line); border-radius:14px;
+    box-shadow:var(--card-shadow); overflow:hidden; height:400px; display:flex; flex-direction:column; }
+  .vh { padding:14px 18px 0; flex-shrink:0; }
+  .seg { display:inline-flex; gap:2px; padding:3px; border-radius:10px; background:var(--mat-wash); margin-bottom:11px; }
+  .seg span { font-size:12px; color:var(--text-secondary); padding:5px 13px; border-radius:8px; }
+  .seg span.on { background:var(--mat-card); color:var(--text-primary); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .seg .k { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-muted); }
+  .sbar { display:flex; align-items:center; gap:8px; height:30px; max-width:320px; padding:0 11px;
+    border:1px solid var(--border-color); border-radius:8px; background:var(--mat-card); font-size:12px; color:var(--text-muted); }
+  .sbar i { font-size:10.5px; }
+  .vbody { flex:1; min-height:0; }
+
+  /* ---------- E 分类橱窗 ---------- */
+  .e .vbody { padding:6px 18px 16px; }
+  .e .cap { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-muted); margin:4px 0 11px; }
+  .e .cap i { font-size:10px; color:var(--mat-accent); }
+  .e .cats { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .e .cat { border:1px solid var(--mat-line); border-radius:11px; padding:12px 12px 10px; cursor:pointer;
+    background:var(--mat-card); transition:border-color .15s, box-shadow .15s; }
+  .e .cat:hover { border-color:var(--mat-accent); box-shadow:var(--card-shadow); }
+  .e .cat .ci { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:11px; margin-bottom:8px; }
+  .e .cat .cn { font-size:12px; font-weight:650; }
+  .e .cat .ck { font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--text-muted); margin-top:3px; }
+  .e .c1 .ci { background:rgba(229,97,92,.10); color:#e5615c; }
+  .e .c2 .ci { background:rgba(91,155,213,.12); color:#5b9bd5; }
+  .e .c3 .ci { background:rgba(58,155,108,.12); color:#3a9b6c; }
+  .e .c4 .ci { background:var(--mat-accent-wash); color:var(--mat-accent); }
+  .e .c5 .ci { background:rgba(217,112,74,.12); color:#d9704a; }
+  .e .c6 .ci { background:var(--mat-wash-2); color:var(--mat-mut); }
+
+  /* ---------- F 左右分栏导购 ---------- */
+  .f .vbody { display:flex; gap:16px; padding:10px 18px 16px; }
+  .f .why { flex:1; border-right:1px solid var(--mat-line); padding-right:16px; display:flex; flex-direction:column; justify-content:center; }
+  .f .why h3 { font-size:13.5px; font-weight:650; margin-bottom:9px; }
+  .f .why h3 i { color:var(--mat-accent); margin-right:6px; font-size:11px; }
+  .f .pt { display:flex; gap:8px; font-size:11px; color:var(--text-secondary); line-height:1.6; margin-bottom:7px; }
+  .f .pt i { color:var(--success); font-size:9px; margin-top:3px; }
+  .f .how { width:190px; display:flex; flex-direction:column; justify-content:center; }
+  .f .how .lbl { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
+  .f .how .hw { display:flex; flex-wrap:wrap; gap:6px; }
+  .f .how .hw span { font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 11px; border-radius:20px;
+    border:1px solid var(--border-color); color:var(--text-secondary); cursor:pointer; }
+  .f .how .hw span:hover { border-color:var(--mat-accent); color:var(--mat-accent); background:var(--mat-accent-wash); }
+  .f .how .tip { margin-top:10px; font-size:10.5px; color:var(--text-muted); line-height:1.6; }
+  .f .how .tip code { font-family:'JetBrains Mono',monospace; font-size:9.5px; border:1px solid var(--border-color);
+    border-radius:4px; padding:1px 5px; color:var(--text-secondary); }
+
+  /* ---------- G 猜你喜欢 ---------- */
+  .g .vbody { padding:6px 18px 16px; }
+  .g .cap { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--text-muted); margin:4px 0 10px; }
+  .g .cap i { color:var(--mat-accent); font-size:10px; }
+  .g .cap b { color:var(--text-secondary); font-weight:600; font-family:'JetBrains Mono',monospace; font-size:10.5px; }
+  .g .recs { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .g .rc { border:1px solid var(--mat-line); border-radius:11px; padding:10px 12px; cursor:pointer; }
+  .g .rc:hover { border-color:var(--mat-line-2); box-shadow:var(--card-shadow); }
+  .g .rc .l1 { display:flex; align-items:center; gap:6px; }
+  .g .rc .ti { width:20px; height:20px; border-radius:6px; background:var(--mat-accent-wash); color:var(--mat-accent);
+    display:flex; align-items:center; justify-content:center; font-size:9px; flex-shrink:0; }
+  .g .rc .nm { font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .g .rc .ds { font-size:10px; color:var(--text-muted); line-height:1.55; margin:6px 0 6px; height:31px; overflow:hidden; }
+  .g .rc .ft { display:flex; align-items:center; font-size:9.5px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+  .g .rc .ft i { margin-right:4px; }
+  .g .rc .why-tag { margin-left:auto; font-size:9px; color:var(--mat-accent); background:var(--mat-accent-wash);
+    padding:1px 7px; border-radius:9px; }
+  .g .more { margin-top:10px; text-align:center; font-size:10.5px; color:var(--text-muted); }
+  .g .more span { color:var(--mat-accent); cursor:pointer; }
+
+  /* ---------- H 橱窗横幅 ---------- */
+  .h .vbody { padding:14px 18px 16px; }
+  .h .hero { position:relative; border-radius:13px; overflow:hidden; padding:20px 22px;
+    background:linear-gradient(115deg, var(--mat-accent), color-mix(in srgb, var(--mat-accent) 55%, #16334f));
+    color:#fff; }
+  html.night .h .hero { background:linear-gradient(115deg, #253a52, #141d29); }
+  .h .hero::after { content:''; position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+    background-size:22px 22px; pointer-events:none; }
+  .h .hero h3 { font-size:16px; font-weight:700; letter-spacing:-.01em; position:relative; z-index:1; }
+  .h .hero p { font-size:11px; opacity:.82; margin-top:6px; line-height:1.65; position:relative; z-index:1; max-width:330px; }
+  .h .hero .mark { position:absolute; right:18px; top:50%; transform:translateY(-50%); font-size:44px; opacity:.14; }
+  .h .hw { display:flex; gap:7px; margin-top:-13px; padding:0 16px; position:relative; z-index:2; }
+  .h .hw span { font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:5px 13px; border-radius:20px;
+    border:1px solid var(--border-color); background:var(--mat-card); color:var(--text-secondary); cursor:pointer;
+    box-shadow:0 3px 10px rgba(0,0,0,.10); }
+  .h .hw span:hover { border-color:var(--mat-accent); color:var(--mat-accent); }
+  .h .fine { margin-top:12px; font-size:10.5px; color:var(--text-muted); }
+  .h .fine kbd { font-family:'JetBrains Mono',monospace; font-size:9.5px; border:1px solid var(--border-color);
+    border-radius:4px; padding:1px 5px; color:var(--text-secondary); }
+
+  /* ---------- I 结果预演 ---------- */
+  .i .vbody { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 22px; }
+  .i .cap { font-size:11.5px; color:var(--text-muted); margin-bottom:12px; }
+  .i .cap b { color:var(--text-secondary); font-weight:600; }
+  .i .peek { display:flex; gap:10px; }
+  .i .pk { width:172px; border:1px solid var(--mat-line); border-radius:11px; padding:10px 12px;
+    background:var(--mat-card); opacity:.62; transform:scale(.96); }
+  .i .pk.mid { opacity:1; transform:none; border-color:var(--mat-line-2); box-shadow:var(--card-shadow); }
+  .i .pk .l1 { display:flex; align-items:center; gap:6px; }
+  .i .pk .ti { width:20px; height:20px; border-radius:6px; background:var(--mat-accent-wash); color:var(--mat-accent);
+    display:flex; align-items:center; justify-content:center; font-size:9px; flex-shrink:0; }
+  .i .pk .nm { font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:650; }
+  .i .pk .ds { font-size:9.5px; color:var(--text-muted); line-height:1.5; margin:6px 0; height:28px; overflow:hidden; }
+  .i .pk .btn { height:22px; border-radius:7px; background:var(--mat-accent); color:#fff; font-size:9.5px;
+    display:flex; align-items:center; justify-content:center; gap:5px; }
+  .i .pk:not(.mid) .btn { background:var(--mat-wash-2); color:var(--text-muted); }
+  .i .hw { display:flex; gap:7px; margin-top:14px; }
+  .i .hw span { font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:3px 12px; border-radius:20px;
+    border:1px solid var(--border-color); color:var(--text-secondary); cursor:pointer; }
+  .i .hw span:hover { border-color:var(--mat-accent); color:var(--mat-accent); }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:34px; background:var(--mat-card);
+    border-radius:12px; overflow:hidden; box-shadow:var(--card-shadow); }
+  th,td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--mat-line); }
+  th { background:var(--mat-wash); color:var(--mat-mut); font-weight:600; font-size:11px; }
+  td { color:var(--text-secondary); } td b { color:var(--text-primary); }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+  <div class="page-head">
+    <h1>技能市场空态 · 补充五版（E~I）</h1>
+    <div class="acts">
+      <button class="tbtn on" onclick="setTheme(false)">日间</button>
+      <button class="tbtn" onclick="setTheme(true)">夜间</button>
+    </div>
+  </div>
+  <p class="lead">
+    与 A~D（指路/精选/命令行/紧凑带）互补，本轮把空态从「等一次搜索」推进到「<b>可逛、可推荐、可视</b>」：E 给分类入口，F 给来龙去脉，G 用已有数据替你猜，H 做成市场门面，I 直接演示结果长什么样。
+  </p>
+
+  <div class="grid">
+    <!-- E -->
+    <div>
+      <div class="demo-head"><span class="badge rec">E</span><h2>分类橱窗 · 零输入可逛（推荐）</h2></div>
+      <p class="demo-desc">6 个类目磁贴常驻，点类目 = 以该关键词发起搜索；类目与关键词内置在前端，无后端依赖。空态第一次有了「逛」的价值。</p>
+      <div class="view e">
+        <div class="vh">
+          <div class="seg"><span>已安装 <i class="k">7</i></span><span class="on">技能市场</span></div>
+          <div class="sbar"><i class="fas fa-magnifying-glass"></i>搜索技能，如 pdf、docx、writing…</div>
+        </div>
+        <div class="vbody">
+          <div class="cap"><i class="fas fa-compass"></i>按类目浏览 · 点击即搜索</div>
+          <div class="cats">
+            <div class="cat c1"><span class="ci"><i class="fas fa-file-pdf"></i></span><div class="cn">文档处理</div><div class="ck">pdf · docx · xlsx</div></div>
+            <div class="cat c2"><span class="ci"><i class="fas fa-palette"></i></span><div class="cn">前端设计</div><div class="ck">frontend · ui</div></div>
+            <div class="cat c3"><span class="ci"><i class="fas fa-vial"></i></span><div class="cn">测试质量</div><div class="ck">testing · e2e</div></div>
+            <div class="cat c4"><span class="ci"><i class="fas fa-feather"></i></span><div class="cn">写作表达</div><div class="ck">writing · blog</div></div>
+            <div class="cat c5"><span class="ci"><i class="fas fa-server"></i></span><div class="cn">DevOps</div><div class="ck">deploy · docker</div></div>
+            <div class="cat c6"><span class="ci"><i class="fas fa-magnifying-glass-chart"></i></span><div class="cn">研究检索</div><div class="ck">research · search</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- F -->
+    <div>
+      <div class="demo-head"><span class="badge">F</span><h2>左右分栏导购</h2></div>
+      <p class="demo-desc">左栏三个要点讲清 skills.sh 是什么、装完在哪用、如何卸载；右栏热词 + 回车引导。信息密度最高，适合新用户占比大的阶段。</p>
+      <div class="view f">
+        <div class="vh">
+          <div class="seg"><span>已安装 <i class="k">7</i></span><span class="on">技能市场</span></div>
+          <div class="sbar"><i class="fas fa-magnifying-glass"></i>搜索技能，如 pdf、docx、writing…</div>
+        </div>
+        <div class="vbody">
+          <div class="why">
+            <h3><i class="fas fa-store"></i>技能市场 · skills.sh</h3>
+            <div class="pt"><i class="fas fa-circle-check"></i><span>社区维护的技能包，<b>一键安装</b>到全局技能目录，所有会话共享</span></div>
+            <div class="pt"><i class="fas fa-circle-check"></i><span>安装后在聊天区用 <code style="font-family:monospace;font-size:10px">/技能名</code> 唤起，或由模型按需自动加载</span></div>
+            <div class="pt"><i class="fas fa-circle-check"></i><span>随时可停用或卸载，不影响已有会话记录</span></div>
+          </div>
+          <div class="how">
+            <div class="lbl">热门关键词</div>
+            <div class="hw"><span>pdf</span><span>docx</span><span>frontend</span><span>testing</span><span>writing</span></div>
+            <div class="tip">点词即搜 · 或在上方输入框自由搜索，<code>Enter</code> 开始</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- G -->
+    <div>
+      <div class="demo-head"><span class="badge">G</span><h2>猜你喜欢 · 基于已安装</h2></div>
+      <p class="demo-desc">前端从已安装技能的名称/描述提取关键词，进页面时自动并发 searchMarketSkills 取回关联结果——空态即推荐位，每次打开内容都不同。</p>
+      <div class="view g">
+        <div class="vh">
+          <div class="seg"><span>已安装 <i class="k">7</i></span><span class="on">技能市场</span></div>
+          <div class="sbar"><i class="fas fa-magnifying-glass"></i>搜索技能，如 pdf、docx、writing…</div>
+        </div>
+        <div class="vbody">
+          <div class="cap"><i class="fas fa-wand-magic-sparkles"></i>猜你需要 · 与你已安装的 <b>pdf-processing</b> <b>docx-report</b> 相关</div>
+          <div class="recs">
+            <div class="rc">
+              <div class="l1"><span class="ti"><i class="fas fa-table"></i></span><span class="nm">table-extract</span></div>
+              <p class="ds">从 PDF / 扫描件中抽取表格并导出 xlsx / csv</p>
+              <div class="ft"><i class="fas fa-download"></i>4.3k<span class="why-tag">pdf 相关</span></div>
+            </div>
+            <div class="rc">
+              <div class="l1"><span class="ti"><i class="fas fa-file-invoice"></i></span><span class="nm">doc-diff</span></div>
+              <p class="ds">对比两版 Word 文档，输出变更摘要与批注</p>
+              <div class="ft"><i class="fas fa-download"></i>2.1k<span class="why-tag">docx 相关</span></div>
+            </div>
+            <div class="rc">
+              <div class="l1"><span class="ti"><i class="fas fa-stamp"></i></span><span class="nm">pdf-sign</span></div>
+              <p class="ds">批量加盖页眉页脚、水印与电子签章</p>
+              <div class="ft"><i class="fas fa-download"></i>1.8k<span class="why-tag">pdf 相关</span></div>
+            </div>
+            <div class="rc">
+              <div class="l1"><span class="ti"><i class="fas fa-text-height"></i></span><span class="nm">layout-polish</span></div>
+              <p class="ds">文档排版规范化：字号体系、段落与目录</p>
+              <div class="ft"><i class="fas fa-download"></i>3.5k<span class="why-tag">docx 相关</span></div>
+            </div>
+          </div>
+          <div class="more">不满意？<span>清空推荐</span>，改用上方搜索</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- H -->
+    <div>
+      <div class="demo-head"><span class="badge">H</span><h2>橱窗横幅 · 市场门面</h2></div>
+      <p class="demo-desc">顶部一条 accent 渐变 hero 带（细网格纹理 + 大字文案），热词胶囊悬浮在带下缘；市场视图第一次有「门面」，视觉最强。</p>
+      <div class="view h">
+        <div class="vh">
+          <div class="seg"><span>已安装 <i class="k">7</i></span><span class="on">技能市场</span></div>
+          <div class="sbar"><i class="fas fa-magnifying-glass"></i>搜索技能，如 pdf、docx、writing…</div>
+        </div>
+        <div class="vbody">
+          <div class="hero">
+            <h3>给智能体装上新本事</h3>
+            <p>skills.sh 社区技能库 · 一键安装到全局技能目录 · 所有会话即刻共享</p>
+            <i class="fas fa-shapes mark"></i>
+          </div>
+          <div class="hw"><span>pdf</span><span>docx</span><span>frontend</span><span>testing</span><span>writing</span></div>
+          <div class="fine">点词组即搜 · 或输入任意关键词，<kbd>Enter</kbd> 开始</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- I -->
+    <div>
+      <div class="demo-head"><span class="badge">I</span><h2>结果预演 · 所见即所得</h2></div>
+      <p class="demo-desc">中间一帧实卡、两侧半透明退晕，直接演示「搜索后会出现什么」；下方保留热词。用示例代替解释，暗示搜索的价值。</p>
+      <div class="view i">
+        <div class="vh">
+          <div class="seg"><span>已安装 <i class="k">7</i></span><span class="on">技能市场</span></div>
+          <div class="sbar"><i class="fas fa-magnifying-glass"></i>搜索技能，如 pdf、docx、writing…</div>
+        </div>
+        <div class="vbody">
+          <div class="cap">搜索后，结果会以<b>技能卡</b>呈现 —— 点开即装：</div>
+          <div class="peek">
+            <div class="pk">
+              <div class="l1"><span class="ti"><i class="fas fa-globe"></i></span><span class="nm">web-scrape</span></div>
+              <p class="ds">抓取网页正文并转 Markdown</p>
+              <div class="btn"><i class="fas fa-download"></i>安装</div>
+            </div>
+            <div class="pk mid">
+              <div class="l1"><span class="ti"><i class="fab fa-github"></i></span><span class="nm">pdf-processing</span></div>
+              <p class="ds">读取、拆分、合并 PDF，表格抽取与导出</p>
+              <div class="btn"><i class="fas fa-download"></i>安装</div>
+            </div>
+            <div class="pk">
+              <div class="l1"><span class="ti"><i class="fas fa-globe"></i></span><span class="nm">ocr-scan</span></div>
+              <p class="ds">图片与扫描件文字识别</p>
+              <div class="btn"><i class="fas fa-download"></i>安装</div>
+            </div>
+          </div>
+          <div class="hw"><span>pdf</span><span>docx</span><span>frontend</span><span>testing</span><span>writing</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>版本</th><th>空态职责</th><th>信息量</th><th>改动成本</th><th>后端依赖</th><th>备注</th></tr>
+    <tr><td><b>E 分类橱窗</b></td><td>零输入可逛</td><td>高</td><td>低（类目关键词内置前端，点击调现有搜索）</td><td>无</td><td><b>推荐 · 与 A 可叠加：横幅上磁贴下</b></td></tr>
+    <tr><td>F 分栏导购</td><td>讲清来龙去脉</td><td>高</td><td>低（纯模板文案）</td><td>无</td><td>文案需双语言 6 键</td></tr>
+    <tr><td>G 猜你喜欢</td><td>用已有数据替你选</td><td>最高</td><td>中（提词 + 并发搜索 + 去重）</td><td>无（复用 search 端点）</td><td>进页面即发请求，注意限流为 2~3 词</td></tr>
+    <tr><td>H 橱窗横幅</td><td>气质与门面</td><td>低-中</td><td>低（一段渐变 CSS）</td><td>无</td><td>hero 文案是品牌位，可轮换</td></tr>
+    <tr><td>I 结果预演</td><td>演示搜索价值</td><td>中</td><td>低（静态示例卡）</td><td>无</td><td>示例内容写死，市场风格改版时要跟着维护</td></tr>
+  </table>
+
+<script>
+  function setTheme(night) {
+    document.documentElement.classList.toggle('night', night);
+    document.querySelectorAll('.tbtn').forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
+  }
+</script>
+</body>
+</html>

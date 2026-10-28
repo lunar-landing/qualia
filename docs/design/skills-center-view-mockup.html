@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技能管理 · 侧栏入口 + 整栏覆盖视图设计对比</title>
+<!--
+  ============================================================
+  议题：SettingsDialog 的「技能」tab 升格为侧栏入口区第四行 + 整栏覆盖视图，
+        页面语言参考定时任务中心（sv-head 大标题 + 定宽卡网格）与资料中心（列表/双栏）。
+  数据面（现成，不改 API）：
+    SkillInfo{name,dir,description,source,enabled,scripts[],references[]}
+    MarketSkillInfo{id,name,skillId,source,installs,installable,installed}
+    开关落 disabledSkills 配置；卸载/打开文件夹/市场搜索/安装均有现成端点。
+
+  V1 卡网格 · 任务中心同源（推荐）：页头 = 标题+启用计数+凹槽分段（已安装/市场）+搜索+刷新；
+      已安装 290px 定宽卡网格（复用 gv-card 语言），卡 = 名称+常驻开关 / 描述3行 / chips 元信息 /
+      hover 动作（打开文件夹·卸载）；市场同网格换卡尾（installs + 安装钮）。
+  V2 高密度清单 · 扩展面板式：整行 52px list-row，名称+meta 同行、描述一行截断，
+      开关行尾常驻；技能多了以后扫视/管理最快，市场结果同语言（VSCode 扩展面板）。
+  V3 双栏 · 列表+详情：左 264px 列 = 搜索+行列表（复用 kb-tree-col 骨架），
+      右栏 = SKILL.md 渲染 + scripts/references 文件清单 + 头部开关/卸载；适合"这技能到底干嘛"。
+
+  规范：日间默认 + 夜间切换；真实 token（--mat-* 双主题）；FontAwesome CDN；零依赖。
+  侧栏入口区四行预览独立置顶（第四行为新增：技能管理，图标 fa-shapes 与现有空态图标同源）。
+  ============================================================
+-->
+<style>
+  :root {
+    --mat-card:#ffffff; --mat-surface-2:#f7f9fb; --mat-wash:#f2f5f8; --mat-wash-2:#e9eef3;
+    --mat-line:#e6ebf0; --mat-line-2:#d5dde5; --mat-ink:#1c2128; --mat-ink-2:#3c4551;
+    --mat-faint:#98a1ac; --mat-mut:#6b7480; --mat-accent:#3d5a80;
+    --mat-accent-wash:rgba(61,90,128,0.08); --bg-active:#e4e9ee; --bg-hover:#e9edf1;
+    --stage:#eef1f4; --text-primary:#24292f; --text-secondary:#5a6472; --text-muted:#8a93a0;
+    --success:#3a9b6c; --error:#d1495b; --info:#4a7ab5;
+    --card-shadow:0 1px 1px rgba(28,33,40,.04),0 10px 26px rgba(28,33,40,.07);
+  }
+  html.night {
+    --mat-card:#0d1117; --mat-surface-2:#11161e; --mat-wash:#161c26; --mat-wash-2:#1c232e;
+    --mat-line:#1d242f; --mat-line-2:#2a3441; --mat-ink:#e6ebf2; --mat-ink-2:#b7c1cd;
+    --mat-faint:#5b6572; --mat-mut:#8b94a3; --mat-accent:#8fb3d9;
+    --mat-accent-wash:rgba(143,179,217,0.10); --bg-active:rgba(230,237,243,.10); --bg-hover:rgba(255,255,255,.04);
+    --stage:#080a10; --text-primary:#e6ebf2; --text-secondary:#b7c1cd; --text-muted:#7d8794;
+    --card-shadow:0 1px 2px rgba(0,0,0,.5),0 16px 40px rgba(0,0,0,.5);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+    background:var(--stage); color:var(--text-primary); padding:32px 36px 70px; transition:background .25s,color .25s; }
+  .page-head { display:flex; align-items:baseline; gap:14px; margin-bottom:6px; }
+  .page-head h1 { font-size:20px; font-weight:650; letter-spacing:-.01em; }
+  .acts { margin-left:auto; display:flex; gap:8px; }
+  .tbtn { padding:6px 13px; border:1px solid var(--mat-line-2); border-radius:8px;
+    background:var(--mat-card); color:var(--mat-ink-2); font-size:12px; cursor:pointer; }
+  .tbtn.on { background:var(--mat-ink); color:var(--mat-card); border-color:var(--mat-ink); }
+  .lead { font-size:12.5px; color:var(--mat-mut); margin:0 0 22px; max-width:900px; line-height:1.7; }
+
+  /* ===== 侧栏入口区 · 四行预览 ===== */
+  .sb-wrap { display:flex; gap:18px; align-items:flex-start; margin-bottom:30px; }
+  .side { width:210px; background:var(--mat-card); border:1px solid var(--mat-line); border-radius:12px;
+    box-shadow:var(--card-shadow); padding:12px 10px; }
+  .side .brand { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:650; padding:4px 8px 12px; }
+  .side .brand i { color:var(--mat-accent); }
+  .sb-btn { display:flex; align-items:center; gap:10px; width:100%; border:none; background:transparent;
+    padding:8px 10px; border-radius:8px; cursor:pointer; text-align:left;
+    color:color-mix(in srgb, var(--text-primary) 45%, var(--text-secondary)); font-size:12.5px; font-weight:500; }
+  .sb-btn i { width:16px; text-align:center; font-size:12.5px; }
+  .sb-btn:hover { background:var(--bg-hover); }
+  .sb-btn.open { background:var(--bg-active); color:var(--text-primary); }
+  .sb-btn .nb { margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mat-faint); }
+  .sb-note { font-size:11.5px; color:var(--mat-mut); line-height:1.8; max-width:420px; padding-top:8px; }
+  .sb-note b { color:var(--text-primary); }
+
+  /* ===== 方案容器 ===== */
+  .demo { margin-bottom:34px; }
+  .demo-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .badge { font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+    background:var(--mat-wash-2); color:var(--mat-ink-2); border-radius:5px; padding:2px 7px; }
+  .badge.rec { background:var(--mat-accent); color:#fff; }
+  .demo-head h2 { font-size:14px; font-weight:600; }
+  .demo-desc { font-size:11.5px; color:var(--mat-mut); line-height:1.7; margin-bottom:12px; }
+
+  .view { background:var(--mat-card); border:1px solid var(--mat-line); border-radius:14px;
+    box-shadow:var(--card-shadow); overflow:hidden; }
+
+  /* ===== 页头（三版共用 sv-head 语言） ===== */
+  .sv-head { padding:18px 22px 0; }
+  .sv-title-row { display:flex; align-items:center; gap:10px; }
+  .sv-title-row h1 { font-size:17px; font-weight:650; letter-spacing:-.01em; }
+  .sv-count { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--mat-faint);
+    background:var(--mat-wash); border-radius:5px; padding:2px 7px; }
+  .spring { flex:1; }
+  .sv-new { display:inline-flex; align-items:center; gap:7px; border:none; cursor:pointer;
+    background:var(--mat-ink); color:var(--mat-card); font-size:12px; padding:7px 13px; border-radius:8px; }
+  .sv-new.ghost { background:transparent; border:1px solid var(--mat-line-2); color:var(--mat-ink-2); }
+  .sv-new.ghost:hover { background:var(--bg-hover); }
+  /* 凹槽分段控件（已安装 / 市场） */
+  .seg { display:inline-flex; background:var(--mat-wash); border-radius:9px; padding:3px; gap:2px; margin-top:14px; }
+  .seg button { border:none; background:transparent; cursor:pointer; font-size:12px; color:var(--mat-mut);
+    padding:6px 14px; border-radius:7px; display:inline-flex; align-items:center; gap:6px; }
+  .seg button.on { background:var(--mat-card); color:var(--text-primary); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .seg .k { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mat-faint); }
+  .head-tools { display:flex; align-items:center; gap:10px; margin-top:14px; padding-bottom:14px; border-bottom:1px solid var(--mat-line); }
+  .sk-search { flex:1; max-width:300px; display:flex; align-items:center; gap:8px; height:30px; padding:0 11px;
+    border-radius:8px; background:var(--mat-surface-2); border:1px solid var(--mat-line); font-size:12px; color:var(--mat-faint); }
+  .sk-search i { font-size:10.5px; }
+
+  /* ===== V1 卡网格 ===== */
+  .sk-grid { display:grid; grid-template-columns:repeat(auto-fill, 290px); gap:12px; padding:16px 22px 22px; }
+  .sk-card { position:relative; border:1px solid var(--mat-line); border-radius:11px; background:var(--mat-card);
+    padding:13px 14px 11px; transition:border-color .15s, box-shadow .15s; }
+  .sk-card:hover { border-color:var(--mat-line-2); box-shadow:var(--card-shadow); }
+  .sk-card.off { opacity:.55; }
+  .sk-top { display:flex; align-items:center; gap:8px; }
+  .sk-tile { width:26px; height:26px; border-radius:7px; background:var(--mat-accent-wash); color:var(--mat-accent);
+    display:flex; align-items:center; justify-content:center; font-size:11.5px; flex-shrink:0; }
+  .sk-nm { font-size:13px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* 常驻开关（沿用 gv-switch 语言） */
+  .sw { margin-left:auto; width:30px; height:17px; border-radius:10px; border:none; cursor:pointer; position:relative;
+    background:var(--mat-line-2); flex-shrink:0; transition:background .18s; }
+  .sw::after { content:''; position:absolute; top:2.5px; left:2.5px; width:12px; height:12px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .18s; }
+  .sw.on { background:var(--success); }
+  .sw.on::after { left:15.5px; }
+  .sk-desc { font-size:11.5px; color:var(--mat-mut); line-height:1.65; margin:9px 0 10px;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; min-height:57px; }
+  .sk-foot { display:flex; align-items:center; gap:6px; border-top:1px dashed var(--mat-line); padding-top:9px; }
+  .chip { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mat-faint);
+    background:var(--mat-wash); border-radius:5px; padding:2px 7px; display:inline-flex; align-items:center; gap:4px; }
+  .sk-acts { margin-left:auto; display:flex; gap:3px; opacity:0; transition:opacity .15s; }
+  .sk-card:hover .sk-acts { opacity:1; }
+  .ia { width:24px; height:24px; border:none; border-radius:6px; background:transparent; color:var(--mat-mut);
+    font-size:10.5px; cursor:pointer; }
+  .ia:hover { background:var(--bg-hover); color:var(--text-primary); }
+  .ia.danger:hover { background:rgba(209,73,91,.12); color:var(--error); }
+  /* 市场卡尾 */
+  .mk-foot { display:flex; align-items:center; gap:8px; border-top:1px dashed var(--mat-line); padding-top:9px; }
+  .mk-inst { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--mat-faint); }
+  .mk-inst i { margin-right:4px; }
+  .mk-src { font-size:10.5px; color:var(--mat-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .btn-inst { margin-left:auto; border:none; cursor:pointer; font-size:11px; padding:5px 12px; border-radius:7px;
+    background:var(--mat-ink); color:var(--mat-card); flex-shrink:0; }
+  .btn-inst.done { background:var(--mat-wash); color:var(--mat-faint); cursor:default; }
+
+  /* ===== V2 高密度清单 ===== */
+  .sk-list { padding:14px 22px 20px; }
+  .lr { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; }
+  .lr:hover { background:var(--bg-hover); }
+  .lr + .lr { margin-top:2px; }
+  .lr.off { opacity:.5; }
+  .lr-main { flex:1; min-width:0; }
+  .lr-l1 { display:flex; align-items:center; gap:8px; }
+  .lr-nm { font-size:12.5px; font-weight:600; }
+  .lr-meta { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mat-faint); }
+  .lr-desc { font-size:11px; color:var(--mat-mut); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lr-acts { display:flex; align-items:center; gap:4px; opacity:0; transition:opacity .15s; flex-shrink:0; }
+  .lr:hover .lr-acts { opacity:1; }
+  .btn-in2 { border:1px solid var(--mat-line-2); background:var(--mat-card); cursor:pointer; font-size:11px;
+    padding:5px 12px; border-radius:7px; color:var(--text-primary); flex-shrink:0; }
+  .btn-in2:hover { background:var(--bg-hover); }
+
+  /* ===== V3 双栏 ===== */
+  .duo { display:flex; height:430px; }
+  .duo-side { width:264px; flex-shrink:0; border-right:1px solid var(--mat-line); display:flex; flex-direction:column; }
+  .duo-side .dh { display:flex; align-items:center; gap:8px; height:44px; padding:0 14px; border-bottom:1px solid var(--mat-line);
+    font-size:12.5px; font-weight:600; }
+  .duo-side .dh i { font-size:11.5px; color:var(--mat-ink-2); }
+  .duo-search { margin:10px 12px 4px; display:flex; align-items:center; gap:8px; height:28px; padding:0 10px;
+    border-radius:8px; background:var(--mat-surface-2); border:1px solid var(--mat-line); font-size:11.5px; color:var(--mat-faint); }
+  .duo-list { flex:1; overflow:auto; padding:6px 8px; }
+  .dr { display:flex; align-items:center; gap:9px; height:38px; margin:1px 0; padding:0 10px; border-radius:8px;
+    font-size:12.5px; cursor:default; position:relative; }
+  .dr:hover { background:var(--bg-hover); }
+  .dr i { font-size:12px; color:var(--mat-ink-2); width:15px; text-align:center; flex-shrink:0; }
+  .dr .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dr.on { background:var(--bg-active); }
+  .dr.on::before { content:''; position:absolute; left:2px; top:8px; bottom:8px; width:2.5px; border-radius:2px; background:var(--mat-accent); }
+  .dr .st { margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--success); flex-shrink:0; }
+  .dr.off .st { background:var(--mat-line-2); }
+  .duo-main { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--mat-surface-2); }
+  .det-head { display:flex; align-items:center; gap:10px; height:44px; padding:0 18px; background:var(--mat-card);
+    border-bottom:1px solid var(--mat-line); }
+  .det-head .t { font-size:13.5px; font-weight:650; }
+  .det-head .src { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--mat-faint); }
+  .det-md { flex:1; overflow:auto; padding:16px 20px; }
+  .det-md h3 { font-size:14px; margin-bottom:8px; }
+  .det-md p { font-size:12px; color:var(--mat-ink-2); line-height:1.8; margin-bottom:10px; }
+  .det-md code { font-family:'JetBrains Mono',monospace; font-size:11px; background:var(--mat-wash); border-radius:4px; padding:1px 6px; color:var(--mat-accent); }
+  .det-files { display:flex; gap:18px; padding:12px 20px; background:var(--mat-card); border-top:1px solid var(--mat-line); }
+  .df-group { flex:1; min-width:0; }
+  .df-group .h { font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--mat-faint); margin-bottom:7px; }
+  .df-item { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--mat-ink-2); padding:3px 0; font-family:'JetBrains Mono',monospace; }
+  .df-item i { font-size:10px; color:var(--mat-faint); width:12px; }
+
+  /* ===== 对比表 ===== */
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; background:var(--mat-card);
+    border-radius:12px; overflow:hidden; box-shadow:var(--card-shadow); }
+  th,td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--mat-line); }
+  th { background:var(--mat-wash); color:var(--mat-mut); font-weight:600; font-size:11px; }
+  td { color:var(--mat-ink-2); } td b { color:var(--text-primary); }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+  <div class="page-head">
+    <h1>技能管理 · 升入侧栏入口区 + 整栏覆盖视图</h1>
+    <div class="acts">
+      <button class="tbtn on" onclick="setTheme(false)">日间</button>
+      <button class="tbtn" onclick="setTheme(true)">夜间</button>
+    </div>
+  </div>
+  <p class="lead">
+    把 SettingsDialog 的「技能」tab 拆出来，与定时任务 / 资料中心并列成为入口区第四行，点击在主区整栏展开（三视图互斥）。
+    数据与端点全部现成（listSkills / installMarketSkill / revealSkillFolder / disabledSkills 配置），纯前端改布局。
+  </p>
+
+  <!-- 侧栏入口区四行预览 -->
+  <div class="sb-wrap">
+    <div class="side">
+      <div class="brand"><i class="fas fa-feather"></i>Qualia Code</div>
+      <button class="sb-btn"><i class="far fa-comment"></i><span>新建会话</span></button>
+      <button class="sb-btn"><i class="fas fa-clock"></i><span>定时任务</span></button>
+      <button class="sb-btn"><i class="fas fa-book"></i><span>资料中心</span></button>
+      <button class="sb-btn open"><i class="fas fa-shapes"></i><span>技能管理</span><span class="nb">7</span></button>
+    </div>
+    <p class="sb-note">
+      入口区定稿为四行：<b>新建会话 / 定时任务 / 资料中心 / 技能管理</b>，统一 settings-btn 样式（无 accent 主钮），
+      任务 / 资料 / 技能三者点击互斥地整栏覆盖主区。图标取 <code>fa-shapes</code>——与技能现有空态图标同源，
+      且不与聊天气泡 / 时钟 / 书本撞形；行尾数字徽标显示已安装技能数。
+    </p>
+  </div>
+
+  <!-- ============ V1 ============ -->
+  <div class="demo">
+    <div class="demo-head"><span class="badge rec">V1</span><h2>卡网格 · 任务中心同源（推荐）</h2></div>
+    <p class="demo-desc">页头复用 sv-head 大标题语言 + 凹槽分段（已安装/市场）+ 搜索；290px 定宽卡网格与 G2 任务卡同规格；开关常驻、动作 hover 浮现。</p>
+    <div class="view">
+      <div class="sv-head">
+        <div class="sv-title-row">
+          <h1>技能管理</h1><span class="sv-count">5/7 已启用</span><span class="spring"></span>
+          <button class="sv-new ghost"><i class="fas fa-rotate"></i>重新扫描</button>
+        </div>
+        <div class="seg">
+          <button class="on"><i class="fas fa-puzzle-piece"></i>已安装<span class="k">7</span></button>
+          <button><i class="fas fa-store"></i>技能市场</button>
+        </div>
+        <div class="head-tools">
+          <div class="sk-search"><i class="fas fa-magnifying-glass"></i>搜索技能名或描述</div>
+        </div>
+      </div>
+      <div class="sk-grid">
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fas fa-file-pdf"></i></div><span class="sk-nm">pdf-processing</span><button class="sw on"></button></div>
+          <p class="sk-desc">读取、拆分、合并与转换 PDF 文档；支持表格抽取与批注导出，大文件走流式分段处理。</p>
+          <div class="sk-foot">
+            <span class="chip"><i class="fas fa-code"></i>3 scripts</span>
+            <span class="chip"><i class="fas fa-book"></i>2 refs</span>
+            <span class="sk-acts"><button class="ia" title="打开文件夹"><i class="far fa-folder-open"></i></button><button class="ia danger" title="卸载"><i class="far fa-trash-alt"></i></button></span>
+          </div>
+        </div>
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fas fa-wand-magic-sparkles"></i></div><span class="sk-nm">skill-creator</span><button class="sw on"></button></div>
+          <p class="sk-desc">按规范生成新技能目录：SKILL.md frontmatter、脚本骨架与参考文档模板，一键落到 ~/.qualia/skills/。</p>
+          <div class="sk-foot">
+            <span class="chip"><i class="fas fa-code"></i>1 script</span>
+            <span class="chip"><i class="fas fa-book"></i>4 refs</span>
+            <span class="sk-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          </div>
+        </div>
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fas fa-palette"></i></div><span class="sk-nm">frontend-design</span><button class="sw on"></button></div>
+          <p class="sk-desc">产出克制、可维护的界面方案：设计 token 派生、组件状态矩阵与日间/夜间双色板校验清单。</p>
+          <div class="sk-foot">
+            <span class="chip"><i class="fas fa-code"></i>0 scripts</span>
+            <span class="chip"><i class="fas fa-book"></i>3 refs</span>
+            <span class="sk-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          </div>
+        </div>
+        <div class="sk-card off">
+          <div class="sk-top"><div class="sk-tile"><i class="fas fa-vial"></i></div><span class="sk-nm">e2e-runner</span><button class="sw"></button></div>
+          <p class="sk-desc">Playwright 端到端回归：用例生成、并发分片与失败截图归档（已停用，开关恢复）。</p>
+          <div class="sk-foot">
+            <span class="chip"><i class="fas fa-code"></i>5 scripts</span>
+            <span class="chip"><i class="fas fa-book"></i>1 refs</span>
+            <span class="sk-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="view" style="margin-top:12px;">
+      <div class="sv-head">
+        <div class="sv-title-row">
+          <h1>技能管理</h1><span class="spring"></span>
+          <button class="sv-new ghost"><i class="fas fa-rotate"></i></button>
+        </div>
+        <div class="seg">
+          <button><i class="fas fa-puzzle-piece"></i>已安装<span class="k">7</span></button>
+          <button class="on"><i class="fas fa-store"></i>技能市场</button>
+        </div>
+        <div class="head-tools">
+          <div class="sk-search"><i class="fas fa-magnifying-glass"></i>搜索技能市场，回车确认 · pdf / docx / testing</div>
+        </div>
+      </div>
+      <div class="sk-grid">
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fab fa-github"></i></div><span class="sk-nm">anthropics/skills · docx</span></div>
+          <p class="sk-desc">创建与编辑 Word 文档：样式映射、域代码更新与修订跟踪导出。</p>
+          <div class="mk-foot"><span class="mk-inst"><i class="fas fa-download"></i>18.2k</span><span class="mk-src">github.com/anthropics/skills</span><button class="btn-inst">安装</button></div>
+        </div>
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fab fa-github"></i></div><span class="sk-nm">obra/superpowers · brainstorm</span></div>
+          <p class="sk-desc">需求发散到收敛的结构化头脑风暴协议，含评分矩阵与反方清单。</p>
+          <div class="mk-foot"><span class="mk-inst"><i class="fas fa-download"></i>9.4k</span><span class="mk-src">github.com/obra/superpowers</span><button class="btn-inst">安装</button></div>
+        </div>
+        <div class="sk-card">
+          <div class="sk-top"><div class="sk-tile"><i class="fab fa-github"></i></div><span class="sk-nm">vercel/agent-skills · next-upgrade</span></div>
+          <p class="sk-desc">Next.js 大版本升级迁移手册：codemod 执行清单与破坏性变更核对。</p>
+          <div class="mk-foot"><span class="mk-inst"><i class="fas fa-download"></i>6.1k</span><span class="mk-src">github.com/vercel/agent-skills</span><button class="btn-inst done">已安装</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V2 ============ -->
+  <div class="demo">
+    <div class="demo-head"><span class="badge">V2</span><h2>高密度清单 · 扩展面板式</h2></div>
+    <p class="demo-desc">页头同款，主体改整行清单：一行=名称+元信息+开关，描述单行截断；技能超过一屏时扫视与批量管理最快（VSCode 扩展面板语言）。</p>
+    <div class="view">
+      <div class="sv-head">
+        <div class="sv-title-row">
+          <h1>技能管理</h1><span class="sv-count">5/7 已启用</span><span class="spring"></span>
+          <button class="sv-new ghost"><i class="fas fa-rotate"></i>重新扫描</button>
+        </div>
+        <div class="seg">
+          <button class="on"><i class="fas fa-puzzle-piece"></i>已安装<span class="k">7</span></button>
+          <button><i class="fas fa-store"></i>技能市场</button>
+        </div>
+      </div>
+      <div class="sk-list">
+        <div class="lr">
+          <div class="sk-tile"><i class="fas fa-file-pdf"></i></div>
+          <div class="lr-main">
+            <div class="lr-l1"><span class="lr-nm">pdf-processing</span><span class="lr-meta">3 scripts · 2 refs</span></div>
+            <p class="lr-desc">读取、拆分、合并与转换 PDF 文档；支持表格抽取与批注导出</p>
+          </div>
+          <span class="lr-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          <button class="sw on"></button>
+        </div>
+        <div class="lr">
+          <div class="sk-tile"><i class="fas fa-wand-magic-sparkles"></i></div>
+          <div class="lr-main">
+            <div class="lr-l1"><span class="lr-nm">skill-creator</span><span class="lr-meta">1 script · 4 refs</span></div>
+            <p class="lr-desc">按规范生成新技能目录：SKILL.md frontmatter、脚本骨架与参考模板</p>
+          </div>
+          <span class="lr-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          <button class="sw on"></button>
+        </div>
+        <div class="lr off">
+          <div class="sk-tile"><i class="fas fa-vial"></i></div>
+          <div class="lr-main">
+            <div class="lr-l1"><span class="lr-nm">e2e-runner</span><span class="lr-meta">5 scripts · 1 ref</span></div>
+            <p class="lr-desc">Playwright 端到端回归：用例生成、并发分片与失败截图归档</p>
+          </div>
+          <span class="lr-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          <button class="sw"></button>
+        </div>
+        <div class="lr">
+          <div class="sk-tile"><i class="fas fa-palette"></i></div>
+          <div class="lr-main">
+            <div class="lr-l1"><span class="lr-nm">frontend-design</span><span class="lr-meta">3 refs</span></div>
+            <p class="lr-desc">产出克制、可维护的界面方案：token 派生、状态矩阵与双色板校验</p>
+          </div>
+          <span class="lr-acts"><button class="ia"><i class="far fa-folder-open"></i></button><button class="ia danger"><i class="far fa-trash-alt"></i></button></span>
+          <button class="sw on"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V3 ============ -->
+  <div class="demo">
+    <div class="demo-head"><span class="badge">V3</span><h2>双栏 · 列表 + SKILL.md 详情</h2></div>
+    <p class="demo-desc">左 264px 列复刻资料树栏骨架（搜索+行列表+accent 选中条），右栏渲染所选技能的 SKILL.md 与文件清单；市场改为顶部入口弹层。适合先搞清楚"这技能到底干嘛"再决定启不启用。</p>
+    <div class="view">
+      <div class="duo">
+        <div class="duo-side">
+          <div class="dh"><i class="fas fa-puzzle-piece"></i>已安装<span class="sv-count" style="margin-left:auto">7</span></div>
+          <div class="duo-search"><i class="fas fa-magnifying-glass" style="font-size:10px"></i>搜索技能</div>
+          <div class="duo-list">
+            <div class="dr on"><i class="fas fa-file-pdf"></i><span class="nm">pdf-processing</span><span class="st"></span></div>
+            <div class="dr"><i class="fas fa-wand-magic-sparkles"></i><span class="nm">skill-creator</span><span class="st"></span></div>
+            <div class="dr"><i class="fas fa-palette"></i><span class="nm">frontend-design</span><span class="st"></span></div>
+            <div class="dr off"><i class="fas fa-vial"></i><span class="nm">e2e-runner</span><span class="st"></span></div>
+            <div class="dr"><i class="fas fa-language"></i><span class="nm">i18n-sync</span><span class="st"></span></div>
+            <div class="dr" style="opacity:.5"><i class="fas fa-store"></i><span class="nm">去技能市场…</span></div>
+          </div>
+        </div>
+        <div class="duo-main">
+          <div class="det-head">
+            <span class="t">pdf-processing</span><span class="src">~/.qualia/skills/pdf-processing</span>
+            <span class="spring"></span>
+            <button class="ia" title="打开文件夹"><i class="far fa-folder-open"></i></button>
+            <button class="ia danger"><i class="far fa-trash-alt"></i></button>
+            <button class="sw on"></button>
+          </div>
+          <div class="det-md">
+            <h3>PDF Processing</h3>
+            <p>当用户需要<b>读取、拆分、合并或转换 PDF</b> 时加载本技能。先运行 <code>scripts/inspect.py</code> 获取页数与文本层判定，再按任务选择分支……</p>
+            <p>表格抽取优先 <code>reference/table-mapping.md</code> 的列对齐规则；扫描件走 OCR 回退路径，超过 200 页必须分段流式处理。</p>
+          </div>
+          <div class="det-files">
+            <div class="df-group">
+              <div class="h">Scripts · 3</div>
+              <div class="df-item"><i class="far fa-file-code"></i>inspect.py</div>
+              <div class="df-item"><i class="far fa-file-code"></i>split.py</div>
+              <div class="df-item"><i class="far fa-file-code"></i>table_extract.py</div>
+            </div>
+            <div class="df-group">
+              <div class="h">References · 2</div>
+              <div class="df-item"><i class="far fa-file-lines"></i>table-mapping.md</div>
+              <div class="df-item"><i class="far fa-file-lines"></i>ocr-fallback.md</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>版本</th><th>形态</th><th>详情可见性</th><th>密度</th><th>落地成本</th><th>适合</th></tr>
+    <tr><td><b>V1 卡网格</b></td><td>sv-head + 分段 + 290px 卡</td><td>描述 3 行 + chips，细节靠打开文件夹</td><td>中</td><td><b>最低（gv-card / sv-head 样式直接复用）</b></td><td><b>推荐 · 与任务中心成对，视觉家族统一</b></td></tr>
+    <tr><td>V2 清单</td><td>sv-head + 整行列表</td><td>描述 1 行</td><td>高</td><td>低</td><td>技能数量多、频繁开关</td></tr>
+    <tr><td>V3 双栏</td><td>列表 + SKILL.md 详情</td><td>全文可见</td><td>低</td><td><b>高（需前端渲染 SKILL.md，多一个读取端点）</b></td><td>重度评估技能内容的工作流</td></tr>
+  </table>
+
+<script>
+  function setTheme(night) {
+    document.documentElement.classList.toggle('night', night);
+    document.querySelectorAll('.tbtn').forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
+  }
+</script>
+</body>
+</html>

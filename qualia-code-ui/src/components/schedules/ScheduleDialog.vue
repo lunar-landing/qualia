@@ -7,8 +7,8 @@ import { buildCron, parseCronParts, previewNextRun, fmtRunTime, type SchedMode }
 import type { ScheduleDef } from '@/types'
 
 /**
- * 新建/修改定时任务弹窗（遮罩规格对齐工作区切换器）：
- * create = 提示词 + 周期；edit = 只改周期（提示词只读展示）。
+ * 新建/编辑定时任务弹窗（遮罩规格对齐工作区切换器）：
+ * create = 标题 + 任务内容 + 周期；edit = 标题与周期可改（内容只读展示）。
  * 运行会话由后端每轮新建，弹窗不涉及会话选择。
  * 由任务中心「新建任务」/ 行内铅笔唤起。
  */
@@ -23,7 +23,8 @@ const editing = computed<ScheduleDef | null>(() =>
 )
 if (dialog.mode === 'edit' && !editing.value) emit('close')
 
-// ===== 表单状态（edit 打开时从 cron 回填选择器） =====
+// ===== 表单状态（edit 打开时从任务回填标题与周期选择器） =====
+const title = ref('')
 const prompt = ref('')
 const mode = ref<SchedMode>('daily')
 const time = ref('09:30')
@@ -32,6 +33,7 @@ const customCron = ref('')
 const submitting = ref(false)
 
 if (editing.value) {
+  title.value = editing.value.title ?? ''
   const parts = parseCronParts(editing.value.cron)
   if (parts) {
     mode.value = parts.mode
@@ -65,8 +67,8 @@ const preview = computed(() => previewNextRun(mode.value, time.value, weekday.va
 
 const canSubmit = computed(() => {
   if (!resolvedCron.value) return false
-  if (editing.value) return true
-  return !!prompt.value.trim()
+  if (editing.value) return !!title.value.trim()
+  return !!title.value.trim() && !!prompt.value.trim()
 })
 
 async function submit() {
@@ -74,9 +76,15 @@ async function submit() {
   submitting.value = true
   try {
     if (editing.value) {
-      sched.applyUpdated(await updateSchedule(editing.value.id, { cron: resolvedCron.value, cronText: cronText.value }))
+      sched.applyUpdated(
+        await updateSchedule(editing.value.id, {
+          title: title.value.trim(),
+          cron: resolvedCron.value,
+          cronText: cronText.value,
+        }),
+      )
     } else {
-      await sched.create(prompt.value.trim(), resolvedCron.value, cronText.value)
+      await sched.create(title.value.trim(), prompt.value.trim(), resolvedCron.value, cronText.value)
     }
     emit('close')
   } catch (e) {
@@ -106,7 +114,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
       </header>
 
       <div class="sd-body">
-        <!-- 任务提示词 -->
+        <!-- 任务标题：列表卡面与运行会话名的主信息 -->
+        <div class="sd-field">
+          <span class="sd-label">{{ t('sched.fieldTitle') }}</span>
+          <input
+            v-model="title"
+            type="text"
+            class="sd-input"
+            maxlength="60"
+            :placeholder="t('sched.titlePh')"
+          />
+        </div>
+
+        <!-- 任务内容（提示词） -->
         <div class="sd-field">
           <span class="sd-label">{{ t('sched.fieldPrompt') }}</span>
           <textarea
@@ -273,6 +293,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
   margin-bottom: 6px;
 }
 .sd-textarea,
+.sd-input,
 .sd-time,
 .sd-cron {
   border: 1px solid var(--border-color);
@@ -284,10 +305,19 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .sd-textarea:focus,
+.sd-input:focus,
 .sd-time:focus,
 .sd-cron:focus {
   border-color: var(--border-active);
   box-shadow: var(--shadow-input);
+}
+.sd-input {
+  height: 32px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+.sd-input::placeholder {
+  color: var(--text-muted);
 }
 .sd-textarea {
   padding: 9px 11px;

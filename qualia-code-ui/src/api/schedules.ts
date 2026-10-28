@@ -7,14 +7,19 @@ export function listSchedules(): Promise<ScheduleDef[]> {
 }
 
 /** 创建任务（cron 非法 400，ApiError.message 透传原因；运行会话由调度器每轮新建） */
-export function createSchedule(prompt: string, cron: string, cronText: string): Promise<ScheduleDef> {
-  return http.post('/api/schedules', { prompt, cron, cronText })
+export function createSchedule(
+  title: string,
+  prompt: string,
+  cron: string,
+  cronText: string,
+): Promise<ScheduleDef> {
+  return http.post('/api/schedules', { title, prompt, cron, cronText })
 }
 
-/** 启停 / 改周期（均可选；改周期以 now 重算下次运行） */
+/** 标题 / 启停 / 改周期（均可选；改周期以 now 重算下次运行） */
 export function updateSchedule(
   id: string,
-  patch: { enabled?: boolean; cron?: string; cronText?: string },
+  patch: { enabled?: boolean; cron?: string; cronText?: string; title?: string },
 ): Promise<ScheduleDef> {
   return http.put(`/api/schedules/${encodeURIComponent(id)}`, patch)
 }

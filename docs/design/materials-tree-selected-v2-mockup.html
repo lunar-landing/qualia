@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料树 · 选中样式方案 II（补充 5 版）</title>
+<!--
+  ============================================================
+  与 materials-tree-selected-mockup.html 互补，前作已覆盖：
+    V0 现状灰底 / V1 实底加重 / V2 左缘竖条 / V3 发丝描边 / V4 反色选中
+  本稿补 5 个新方向：
+    A 通栏 rail：竖条贴栏左缘整列贯通（行铺满、rail 独立）
+    B accent 洗底：选中底 = mat-accent-wash（蓝调），与 hover 灰底分层
+    C 前导圆点：无底无条，accent 小点作指示（最轻）
+    D 左侧渐变洗底：accent 淡出横扫（无独立图形）
+    E 竖条 + 洗底 + 加重：多重信号叠加（夜间友好，容错最高）
+
+  色值走线上 --mat-* token；日间默认，右上切夜间；行高 34 / 密度与前作一致。
+  ============================================================
+-->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  :root {
+    --mat-card:#ffffff; --mat-surface-2:#f7f9fb; --mat-wash:#f2f5f8; --mat-wash-2:#e9eef3;
+    --mat-line:#e6ebf0; --mat-line-2:#d5dde5; --mat-ink:#1c2128; --mat-ink-2:#3c4551;
+    --mat-faint:#98a1ac; --mat-mut:#6b7480; --mat-accent:#3d5a80;
+    --mat-accent-wash:rgba(61,90,128,0.10); --bg-active:#e4e9ee; --bg-hover:#f2f5f8;
+    --stage:#eef1f4;
+    --ic-pdf:#e5615c; --ic-word:#5b9bd5; --ic-md:#519aba; --ic-html:#d9704a;
+  }
+  html.night {
+    --mat-card:#0d1117; --mat-surface-2:#11161e; --mat-wash:#161c26; --mat-wash-2:#1c232e;
+    --mat-line:#1d242f; --mat-line-2:#2a3441; --mat-ink:#e6ebf2; --mat-ink-2:#b7c1cd;
+    --mat-faint:#5b6572; --mat-mut:#8b94a3; --mat-accent:#8fb3d9;
+    --mat-accent-wash:rgba(143,179,217,0.14); --bg-active:rgba(230,237,243,.10); --bg-hover:rgba(255,255,255,.05);
+    --stage:#080a10;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;
+    background:var(--stage); color:var(--mat-ink); padding:34px 40px 70px; transition:background .25s,color .25s; }
+  .page-head { display:flex; align-items:baseline; gap:14px; }
+  .page-head h1 { font-size:20px; font-weight:650; letter-spacing:-.01em; }
+  .acts { margin-left:auto; display:flex; gap:8px; }
+  .tbtn { padding:6px 13px; border:1px solid var(--mat-line-2); border-radius:8px;
+    background:var(--mat-card); color:var(--mat-ink-2); font-size:12px; cursor:pointer; }
+  .tbtn.on { background:var(--mat-ink); color:var(--mat-card); border-color:var(--mat-ink); }
+  .lead { font-size:12.5px; color:var(--mat-mut); margin:8px 0 26px; line-height:1.7; }
+
+  .variants { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start; }
+  .variant { width:288px; }
+  .vname { font-size:13px; font-weight:650; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .vname .b { font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+    background:var(--mat-wash-2); color:var(--mat-ink-2); border-radius:5px; padding:2px 7px; }
+  .vname .b.rec { background:var(--mat-accent); color:#fff; }
+  .desc { font-size:11.5px; color:var(--mat-mut); margin-top:10px; line-height:1.7; }
+  .desc b { color:var(--mat-ink); }
+  .desc code { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--mat-accent);
+    background:var(--mat-wash); border-radius:4px; padding:1px 5px; }
+
+  /* ===== 树栏骨架 ===== */
+  .col { width:264px; border:1px solid var(--mat-line); border-radius:12px; background:var(--mat-card);
+    display:flex; flex-direction:column; overflow:hidden; height:322px; }
+  .tree-head { display:flex; align-items:center; gap:8px; height:42px; padding:0 14px;
+    border-bottom:1px solid var(--mat-line); flex-shrink:0; }
+  .tree-head i { color:var(--mat-ink-2); font-size:12px; }
+  .tree-head .t { font-size:13px; font-weight:600; color:var(--mat-ink); }
+  .tree-head .sp { flex:1; }
+  .kb-tree { flex:1; padding:6px 8px; }
+
+  /* ===== 行公共（34 行高 / 圆角 7 / 左内边距 9，缩进 depth*20） ===== */
+  .r { display:flex; align-items:center; gap:8px; height:34px; margin:1px 0;
+    padding:0 9px; border-radius:7px; font-size:12.5px; color:var(--mat-ink); position:relative; cursor:default; }
+  .r .cr { width:12px; text-align:center; font-size:9px; color:var(--mat-faint); flex-shrink:0; }
+  .r .fic { width:16px; text-align:center; font-size:12px; color:var(--mat-ink-2); flex-shrink:0; }
+  .r .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .ic-pdf{color:var(--ic-pdf)!important} .ic-word{color:var(--ic-word)!important}
+  .ic-md{color:var(--ic-md)!important} .ic-html{color:var(--ic-html)!important}
+  .sub { padding-left:29px; }
+  .hover { background:var(--bg-hover); }
+
+  /* ===== A 通栏 rail：rail 贴栏左缘整列贯通 ===== */
+  .A .col { position:relative; }
+  .A .rail { position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--mat-line-2); z-index:1; }
+  .A .rail .seg { position:absolute; left:0; width:3px; border-radius:0 2px 2px 0; background:var(--mat-accent); }
+  .A .kb-tree { padding-left:12px; }
+  .A .r.on { background:var(--bg-active); }
+  .A .r.on .nm { font-weight:600; }
+
+  /* ===== B accent 洗底 ===== */
+  .B .r.on { background:var(--mat-accent-wash); }
+  .B .r.on .nm { color:var(--mat-accent); font-weight:600; }
+  .B .r.on .fic { color:var(--mat-accent); }
+
+  /* ===== C 前导圆点 ===== */
+  .C .r::before { content:''; position:absolute; left:2px; top:50%; width:0; height:0;
+    border-radius:50%; background:var(--mat-accent); transform:translateY(-50%); transition:all .15s; }
+  .C .r.on::before { left:-2px; width:6px; height:6px; }
+  .C .r.on { background:var(--bg-hover); }
+  .C .kb-tree { padding-left:12px; }
+  .C .r.on .nm { font-weight:600; }
+
+  /* ===== D 左侧渐变洗底 ===== */
+  .D .r.on { background:linear-gradient(90deg, var(--mat-accent-wash) 0%, var(--mat-accent-wash) 45%, transparent 100%); }
+  .D .r.on .nm { font-weight:600; }
+
+  /* ===== E 竖条 + 洗底 + 加重 ===== */
+  .E .r.on { background:var(--mat-accent-wash); }
+  .E .r.on::before { content:''; position:absolute; left:2px; top:7px; bottom:7px; width:2.5px;
+    border-radius:2px; background:var(--mat-accent); }
+  .E .r.on .nm { font-weight:600; color:var(--mat-accent); }
+  .E .sub { padding-left:31px; }
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>资料树 · 选中样式补充方案（5 版）</h1>
+    <div class="acts">
+      <button class="tbtn on" onclick="setTheme(false)">日间</button>
+      <button class="tbtn" onclick="setTheme(true)">夜间</button>
+    </div>
+  </div>
+  <p class="lead">
+    与前作 V0–V4 互补：<b>A</b> 通栏 rail（VSCode File Explorer）· <b>B</b> accent 洗底（蓝调分层）· <b>C</b> 前导圆点（最轻）· <b>D</b> 左侧渐变洗底（横扫淡出）· <b>E</b> 竖条 + 洗底 + 加重（多重信号）。<br>
+    每栏固定选中「发布计划.md」，「评审记录.md」为 hover 对照。日间默认，右上切夜间。
+  </p>
+
+  <div class="variants">
+    <!-- A -->
+    <div class="variant A">
+      <div class="vname"><span class="b">A</span>通栏 rail · 选中随树滚动</div>
+      <div class="col">
+        <div class="rail"><span class="seg" style="top:84px;height:34px;"></span></div>
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="t">文章</span><span class="sp"></span><i class="fas fa-magnifying-glass" style="font-size:11px"></i></div>
+        <div class="kb-tree">
+          <div class="r"><i class="cr fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="r sub on"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="r sub hover"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="r"><i class="cr fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="r"><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+        </div>
+      </div>
+      <p class="desc">rail 是一条 <code>3px</code> 贴栏左缘的整列竖线（<code>--mat-line-2</code>），选中行处染 accent 高亮段（<code>top/bottom</code> 随选中行位置）。文件树滚动时高亮段跟走，栏本身不被"打断"。<br><b>适合：栏左侧本身已经有 border-right 分隔线，rail 是它的"强化版"——不占用行内部空间，行内容更整洁。</b></p>
+    </div>
+
+    <!-- B -->
+    <div class="variant B">
+      <div class="vname"><span class="b rec">B</span>accent 洗底（推荐）</div>
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="t">文章</span><span class="sp"></span><i class="fas fa-magnifying-glass" style="font-size:11px"></i></div>
+        <div class="kb-tree">
+          <div class="r"><i class="cr fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="r sub on"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="r sub hover"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="r"><i class="cr fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="r"><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+        </div>
+      </div>
+      <p class="desc">选中行底色 = <code>--mat-accent-wash</code>（10% 石墨蓝 / 夜间 14%），文字与图标一并染 accent。hover 仍是灰底，<b>色彩维度分层</b>——灰=路过、蓝=选中，扫视一眼锁定。<br><b>适合：accent 已经建立（对话框主按钮、workspace 胶囊等）的全局语境，一致性最高。</b></p>
+    </div>
+
+    <!-- C -->
+    <div class="variant C">
+      <div class="vname"><span class="b">C</span>前导圆点</div>
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="t">文章</span><span class="sp"></span><i class="fas fa-magnifying-glass" style="font-size:11px"></i></div>
+        <div class="kb-tree">
+          <div class="r"><i class="cr fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="r sub on"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="r sub hover"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="r"><i class="cr fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="r"><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+        </div>
+      </div>
+      <div style="height:34px;margin-top:8px;background:var(--mat-wash);border-radius:7px;padding:0 12px;font-size:11px;color:var(--mat-mut);display:flex;align-items:center;">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--mat-accent);margin-right:8px;"></span>
+        放大示意
+      </div>
+      <p class="desc">行左侧伸入栏 gutter 的 <code>6px</code> accent 小圆点，行底只留最浅 hover 灰。视觉上"行还是行、点是额外标记"——<b>最轻</b>。<br><b>适合：文件树本身信息密、不希望选中再叠大块底色；缺点：小点在低 DPI 屏可能糊。</b></p>
+    </div>
+
+    <!-- D -->
+    <div class="variant D">
+      <div class="vname"><span class="b">D</span>左侧渐变洗底</div>
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="t">文章</span><span class="sp"></span><i class="fas fa-magnifying-glass" style="font-size:11px"></i></div>
+        <div class="kb-tree">
+          <div class="r"><i class="cr fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="r sub on"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="r sub hover"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="r"><i class="cr fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="r"><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+        </div>
+      </div>
+      <p class="desc">选中底 = <code>linear-gradient(90deg, accent-wash 0%, accent-wash 45%, transparent)</code>，从左渗入右淡出，无独立图形。<br><b>适合：想要色彩指示又不想加竖条/描边这类"硬边界"；缺点：长名截断时末端"消失"可能不直观。</b></p>
+    </div>
+
+    <!-- E -->
+    <div class="variant E">
+      <div class="vname"><span class="b">E</span>竖条 + 洗底 + 加重</div>
+      <div class="col">
+        <div class="tree-head"><i class="fas fa-folder-tree"></i><span class="t">文章</span><span class="sp"></span><i class="fas fa-magnifying-glass" style="font-size:11px"></i></div>
+        <div class="kb-tree">
+          <div class="r"><i class="cr fas fa-chevron-down"></i><i class="fic fas fa-folder-open"></i><span class="nm">产品需求</span></div>
+          <div class="r sub on"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">发布计划.md</span></div>
+          <div class="r sub hover"><i class="fic fas fa-file-lines ic-md"></i><span class="nm">评审记录.md</span></div>
+          <div class="r"><i class="cr fas fa-chevron-right"></i><i class="fic fas fa-folder"></i><span class="nm">设计稿</span></div>
+          <div class="r"><i class="fic fas fa-file-pdf ic-pdf"></i><span class="nm">接口文档.pdf</span></div>
+        </div>
+      </div>
+      <p class="desc"><b>三重信号叠加</b>：accent 竖条 <code>2.5px</code> + <code>--mat-accent-wash</code> 洗底 + 文字 accent 色加重。<br><b>适合：夜间/低对比屏幕容错最强，一眼定位；代价：色彩浓度最高，偏"用力"，与整体克制语言需权衡。</b></p>
+    </div>
+  </div>
+
+<script>
+  function setTheme(night) {
+    document.documentElement.classList.toggle('night', night);
+    const btns = document.querySelectorAll('.tbtn');
+    btns.forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
+  }
+</script>
+</body>
+</html>

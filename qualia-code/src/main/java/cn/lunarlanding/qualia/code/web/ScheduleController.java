@@ -24,29 +24,30 @@ public class ScheduleController {
     }
 
     /**
-     * 创建任务（body: {@code {prompt, cron, cronText?}}；运行会话由调度器每轮新建）。
+     * 创建任务（body: {@code {title?, prompt, cron, cronText?}}；运行会话由调度器每轮新建）。
      * cron 非法 → 400。
      */
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Map<String, String> body) {
         try {
             ScheduleDef def = ScheduleService.getInstance().create(
-                    body.get("prompt"), body.get("cron"), body.get("cronText"));
+                    body.get("title"), body.get("prompt"), body.get("cron"), body.get("cronText"));
             return ResponseEntity.ok(def);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
-    /** 更新启停/周期（body: {@code {enabled?, cron?, cronText?}}，均可选；改周期以 now 重算下次运行） */
+    /** 更新标题/启停/周期（body: {@code {enabled?, cron?, cronText?, title?}}，均可选；改周期以 now 重算下次运行） */
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable String id, @RequestBody Map<String, Object> body) {
         Boolean enabled = body.get("enabled") == null ? null
                 : Boolean.parseBoolean(String.valueOf(body.get("enabled")));
         String cron = str(body.get("cron"));
         String cronText = str(body.get("cronText"));
+        String title = str(body.get("title"));
         try {
-            return ResponseEntity.ok(ScheduleService.getInstance().update(id, enabled, cron, cronText));
+            return ResponseEntity.ok(ScheduleService.getInstance().update(id, enabled, cron, cronText, title));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

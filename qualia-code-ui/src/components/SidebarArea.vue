@@ -6,6 +6,7 @@ import { setLocale } from '@/i18n'
 import { useSessionStore } from '@/stores/session'
 import { useMaterialsStore } from '@/stores/materials'
 import { useSchedulesStore } from '@/stores/schedules'
+import { useSkillsStore } from '@/stores/skills'
 import ConversationList from '@/components/ConversationList.vue'
 
 const emit = defineEmits<{ openSettings: [] }>()
@@ -13,6 +14,7 @@ const emit = defineEmits<{ openSettings: [] }>()
 const sessionStore = useSessionStore()
 const materials = useMaterialsStore()
 const schedules = useSchedulesStore()
+const skills = useSkillsStore()
 const { isLight, toggleTheme } = useTheme()
 const { t, locale } = useI18n()
 
@@ -124,7 +126,7 @@ onBeforeUnmount(() => {
       <span>Qualia Code</span>
     </div>
 
-    <!-- 侧栏顶部入口：新建会话 / 定时任务 / 资料（每项一行；任务与资料点击在主区整栏展开，互斥） -->
+    <!-- 侧栏顶部入口：新建会话 / 定时任务 / 资料 / 技能（每项一行；任务、资料与技能点击在主区整栏展开，互斥） -->
     <div class="side-entries">
       <!-- 新建会话：沿用 prepareDraft 延迟创建（进入草稿态，发首条消息才落库） -->
       <button class="settings-btn" :title="t('sidebar.newChat')" @click="sessionStore.prepareDraft()">
@@ -148,6 +150,15 @@ onBeforeUnmount(() => {
       >
         <i class="fas fa-book"></i>
         <span>{{ t('materials.entry') }}</span>
+      </button>
+      <button
+        class="settings-btn"
+        :class="{ open: skills.open }"
+        :title="t('skills.title')"
+        @click="skills.toggleView()"
+      >
+        <i class="fas fa-shapes"></i>
+        <span>{{ t('skills.entry') }}</span>
       </button>
     </div>
 

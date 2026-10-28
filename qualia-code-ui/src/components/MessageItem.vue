@@ -148,7 +148,7 @@ function toggleChip(key: string) {
     <div>
       <div v-if="schedMark?.kind === 'user'" class="sched-origin">
         <i class="fas fa-clock"></i>
-        <span>{{ t('sched.origin', { cron: schedMark.def.cronText, time: fmtRunTime(schedMark.run.runAt) }) }}</span>
+        <span>{{ t('sched.origin', { title: schedMark.def.title, time: fmtRunTime(schedMark.run.runAt) }) }}</span>
       </div>
       <div class="bubble">
         <template v-if="userSkill">

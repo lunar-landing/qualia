@@ -83,6 +83,8 @@ public class ScheduleService {
     /** 定时任务定义 */
     public static class ScheduleDef {
         public String id;
+        /** 任务标题（卡面主信息；旧数据由 load 时按提示词首行补齐） */
+        public String title;
         /** 任务提示词（到点作为用户消息发起一轮对话） */
         public String prompt;
         /** 标准 6 段 cron（秒 分 时 日 月 周，Spring CronExpression 方言） */
@@ -154,8 +156,9 @@ public class ScheduleService {
 
     /**
      * 创建任务。cron 非法抛 {@link IllegalArgumentException}——由 Controller 转 400。
+     * title 缺省时按提示词首行截取兜底。
      */
-    public synchronized ScheduleDef create(String prompt, String cron, String cronText) {
+    public synchronized ScheduleDef create(String title, String prompt, String cron, String cronText) {
         String trimmed = prompt == null ? "" : prompt.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("提示词不能为空");
@@ -163,6 +166,7 @@ public class ScheduleService {
         long next = parseAndNext(cron);
         ScheduleDef def = new ScheduleDef();
         def.id = UUID.randomUUID().toString();
+        def.title = title == null || title.isBlank() ? deriveTitle(trimmed) : title.trim();
         def.prompt = trimmed;
         def.cron = cron.trim();
         def.cronText = cronText == null || cronText.isBlank() ? def.cron : cronText.trim();
@@ -175,12 +179,15 @@ public class ScheduleService {
     }
 
     /**
-     * 更新启停/周期：改 cron 重算下次运行；重新启用同样以 now 重算（暂停期间错过的轮次不补跑）
+     * 更新标题/启停/周期：改 cron 重算下次运行；重新启用同样以 now 重算（暂停期间错过的轮次不补跑）
      */
-    public synchronized ScheduleDef update(String id, Boolean enabled, String cron, String cronText) {
+    public synchronized ScheduleDef update(String id, Boolean enabled, String cron, String cronText, String title) {
         ScheduleDef def = find(id);
         if (def == null) {
             throw new IllegalArgumentException("任务不存在");
+        }
+        if (title != null && !title.isBlank()) {
+            def.title = title.trim();
         }
         if (cron != null && !cron.isBlank()) {
             def.nextRunAt = parseAndNext(cron);
@@ -366,10 +373,18 @@ public class ScheduleService {
         }
     }
 
-    /** 运行会话标题：任务提示词截 30 字 */
+    /** 运行会话标题：任务标题优先，缺失时截提示词首行 */
     private static String runTitle(ScheduleDef def) {
-        String p = def.prompt.strip();
-        return p.length() > 30 ? p.substring(0, 30) + "…" : p;
+        if (def.title != null && !def.title.isBlank()) {
+            return def.title.trim();
+        }
+        return deriveTitle(def.prompt == null ? "" : def.prompt.strip());
+    }
+
+    /** 标题兜底：提示词首行截 30 字 */
+    private static String deriveTitle(String prompt) {
+        String first = prompt.lines().findFirst().orElse("").strip();
+        return first.length() > 30 ? first.substring(0, 30) + "…" : first;
     }
 
     /** 摘要：去 markdown 标记的首行，截 80 字符 */
@@ -456,10 +471,16 @@ public class ScheduleService {
             if (text.isBlank()) return;
             List<ScheduleDef> loaded = JSON.parseArray(text, ScheduleDef.class);
             defs = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
-            // 手改文件/旧版本兜底：runs 缺失时补空表，避免执行路径 NPE
+            // 手改文件/旧版本兜底：runs 缺失补空表；title 缺失按提示词首行补齐并回写
+            boolean dirty = false;
             for (ScheduleDef def : defs) {
                 if (def.runs == null) def.runs = new ArrayList<>();
+                if (def.title == null || def.title.isBlank()) {
+                    def.title = deriveTitle(def.prompt == null ? "" : def.prompt.strip());
+                    dirty = true;
+                }
             }
+            if (dirty) save();
             logger.info("已加载 {} 个定时任务", defs.size());
         } catch (Exception e) {
             logger.warn("读取定时任务存储失败（以空表启动）: {}", e.getMessage());

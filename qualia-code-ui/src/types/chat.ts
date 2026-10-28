@@ -116,9 +116,11 @@ export interface ScheduleRun {
   error?: string | null
 }
 
-/** 定时任务定义（一条固定提示词 + cron 周期；运行会话由调度器每轮新建） */
+/** 定时任务定义（标题 + 一条固定提示词 + cron 周期；运行会话由调度器每轮新建） */
 export interface ScheduleDef {
   id: string
+  /** 任务标题（卡面主信息；旧数据由后端按提示词首行补齐） */
+  title: string
   prompt: string
   /** 标准 6 段 cron（秒 分 时 日 月 周，Spring CronExpression 方言） */
   cron: string

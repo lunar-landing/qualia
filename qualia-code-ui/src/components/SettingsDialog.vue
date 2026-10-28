@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getAgentMd, getConfig, installMarketSkill, listSkills, listTools, revealSkillFolder, saveAgentMd, searchMarketSkills } from '@/api/config'
+import { getAgentMd, getConfig, listTools, saveAgentMd } from '@/api/config'
 import { renderMarkdown } from '@/utils/markdown'
 import { useConfigStore } from '@/stores/config'
 import { useTheme } from '@/composables/theme'
 import { useChatView } from '@/composables/chatView'
 import { setLocale } from '@/i18n'
-import type { AppConfigPatch, MarketSkillInfo, ModelConfig, ModelType, McpTransport, SkillInfo, ToolInfo } from '@/types'
+import type { AppConfigPatch, ModelConfig, ModelType, McpTransport, ToolInfo } from '@/types'
 
 /**
  * 全局配置弹窗（~/.qualia/qualia-code.json，与工作区无关）。
@@ -63,7 +63,6 @@ const APP_VERSION = '0.1.0'
 const TABS = [
   { id: 'models', icon: 'fa-robot', label: 'settings.tabModels' },
   { id: 'mcp', icon: 'fa-server', label: 'settings.tabMcp' },
-  { id: 'skills', icon: 'fa-shapes', label: 'settings.tabSkills' },
   { id: 'tools', icon: 'fa-wrench', label: 'settings.tabTools' },
   { id: 'app', icon: 'fa-gears', label: 'settings.tabApp' },
   { id: 'personalize', icon: 'fa-palette', label: 'settings.tabPersonalize' },
@@ -87,20 +86,8 @@ const activeTab = ref<TabId>('models')
 const defaultIndex = ref(-1) // 指向默认模型，避免改名后丢失默认标记
 const models = ref<ModelConfig[]>([])
 const mcpServers = ref<McpDraft[]>([])
-const disabledSkills = ref<string[]>([])
 const disabledTools = ref<string[]>([])
-const skills = ref<SkillInfo[]>([])
 const tools = ref<ToolInfo[]>([])
-// 技能市场（skills.sh 代理搜索 + GitHub 技能包安装）
-const skillView = ref<'installed' | 'market'>('installed')
-const marketQuery = ref('')
-const marketResults = ref<MarketSkillInfo[]>([])
-const marketLoading = ref(false)
-const marketError = ref('')
-const marketSearched = ref(false)
-const installingId = ref('')
-/** 市场空态快捷词，点击直接搜索 */
-const HOT_KEYWORDS = ['pdf', 'docx', 'frontend', 'testing', 'writing']
 
 // ===== 应用 Tab：AGENT.md 系统提示词在线编辑（保存即热生效） =====
 const agentMd = ref('')
@@ -155,7 +142,6 @@ onMounted(async () => {
       enabled: s.enabled !== false,
       headers: Object.entries(s.headers ?? {}).map(([k, v]) => ({ k, v })),
     }))
-    disabledSkills.value = [...(cfg.disabledSkills ?? [])]
     disabledTools.value = [...(cfg.disabledTools ?? [])]
     derivedDir.value = cfg.derivedWorkspaceDir ?? ''
     derivedDirSaved.value = derivedDir.value
@@ -165,10 +151,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-  // 技能与工具为独立接口，拉取失败不阻断配置展示
-  try {
-    skills.value = await listSkills()
-  } catch { /* 忽略 */ }
+  // 工具为独立接口，拉取失败不阻断配置展示
   try {
     tools.value = await listTools()
   } catch { /* 忽略 */ }
@@ -353,71 +336,7 @@ function saveMcpDialog() {
   closeMcpDialog()
 }
 
-// ===== 技能 / 工具开关 =====
-function skillEnabled(s: SkillInfo): boolean {
-  return s.enabled !== false && !disabledSkills.value.includes(s.name)
-}
-function skillScripts(s: SkillInfo): string[] {
-  return (s.scripts ?? []).filter(Boolean)
-}
-function toggleSkill(name: string, enabled: boolean) {
-  if (enabled) disabledSkills.value = disabledSkills.value.filter((n) => n !== name)
-  else if (!disabledSkills.value.includes(name)) disabledSkills.value.push(name)
-  persist({ disabledSkills: [...disabledSkills.value] })
-}
-async function onDeleteSkill(s: SkillInfo) {
-  if (!window.confirm(t('settings.uninstallConfirm', { name: s.name }))) return
-  try {
-    await config.deleteSkill(s.dir || s.name) // 按目录名删除 + 重新拉取技能列表
-    skills.value = [...config.skills]
-    disabledSkills.value = disabledSkills.value.filter((n) => n !== s.name)
-    persist({ disabledSkills: [...disabledSkills.value] })
-  } catch (e) {
-    window.alert(t('settings.deleteFailed', { msg: e instanceof Error ? e.message : String(e) }))
-  }
-}
-// ===== 技能市场 =====
-function formatInstalls(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
-}
-async function searchMarket() {
-  const q = marketQuery.value.trim()
-  if (!q || marketLoading.value) return
-  marketLoading.value = true
-  marketError.value = ''
-  try {
-    marketResults.value = await searchMarketSkills(q)
-    marketSearched.value = true
-  } catch (e) {
-    marketError.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    marketLoading.value = false
-  }
-}
-function quickSearch(word: string) {
-  marketQuery.value = word
-  searchMarket()
-}
-async function onInstallSkill(m: MarketSkillInfo) {
-  if (!m.installable || m.installed || installingId.value) return
-  installingId.value = m.id
-  try {
-    await installMarketSkill(m.id)
-    m.installed = true
-    skills.value = await listSkills() // 安装落盘后刷新已安装列表
-  } catch (e) {
-    window.alert(t('settings.installFailed', { msg: e instanceof Error ? e.message : String(e) }))
-  } finally {
-    installingId.value = ''
-  }
-}
-async function onRevealSkill(s: SkillInfo) {
-  try {
-    await revealSkillFolder(s.dir || s.name)
-  } catch (e) {
-    window.alert(t('settings.openFolderFailed', { msg: e instanceof Error ? e.message : String(e) }))
-  }
-}
+// ===== 工具开关 =====
 function toolEnabled(name: string): boolean {
   return !disabledTools.value.includes(name)
 }
@@ -449,7 +368,7 @@ const { isLight, toggleTheme } = useTheme()
 const { view: chatView, setView: setChatView } = useChatView()
 const NAV_GROUPS = [
   { key: 'svc', label: 'settings.groupService', items: ['models', 'mcp', 'app'] },
-  { key: 'ext', label: 'settings.groupExtend', items: ['skills', 'tools'] },
+  { key: 'ext', label: 'settings.groupExtend', items: ['tools'] },
   { key: 'misc', label: 'settings.groupMisc', items: ['personalize', 'about'] },
 ] as const
 const metaOf = (id: TabId) => TABS.find((x) => x.id === id)!
@@ -492,8 +411,6 @@ const secMeta = computed(() => {
         title: t('settings.tabMcp'),
         sub: mcpServers.value.length ? t('settings.secMcpSub', { n: mcpServers.value.length }) : '',
       }
-    case 'skills':
-      return { title: t('settings.tabSkills'), sub: skills.value.length ? t('settings.secSkillsSub', { n: skills.value.length }) : '' }
     case 'app':
       return { title: t('settings.tabApp'), sub: t('settings.secAppSub') }
     case 'personalize':
@@ -848,119 +765,6 @@ onUnmounted(() => {
                 </div>
                 <button class="set-add-btn" @click="openMcpDialog(-1)"><i class="fas fa-plus"></i> {{ t('settings.addMcp') }}</button>
               </div>
-            </template>
-
-            <!-- 技能 Tab：已安装列表 / 技能市场双子视图 -->
-            <template v-else-if="activeTab === 'skills'">
-              <div class="skill-view-switch">
-                <button class="sv-btn" :class="{ active: skillView === 'installed' }" @click="skillView = 'installed'">
-                  {{ t('settings.installedSkills') }}<span class="sv-count">{{ skills.length }}</span>
-                </button>
-                <button class="sv-btn" :class="{ active: skillView === 'market' }" @click="skillView = 'market'">
-                  {{ t('settings.skillMarket') }}
-                </button>
-              </div>
-
-              <!-- 已安装 -->
-              <template v-if="skillView === 'installed'">
-                <div v-if="!skills.length" class="set-empty">
-                  <i class="fas fa-shapes"></i>
-                  <span>{{ t('settings.noSkills') }}</span>
-                  <span class="skill-hint">{{ t('settings.skillHint') }}</span>
-                </div>
-                <div v-else>
-                  <div v-for="s in skills" :key="s.name" class="set-card" :class="{ disabled: !skillEnabled(s) }">
-                    <div class="set-card-head">
-                      <div class="set-card-info">
-                        <span class="skill-name">{{ s.name }}</span>
-                        <span class="skill-src">{{ t('settings.global') }}</span>
-                      </div>
-                    </div>
-                    <div class="skill-desc">{{ s.description || t('settings.noDesc') }}</div>
-                    <div v-if="skillScripts(s).length" class="set-row">
-                      <div class="skill-sub">{{ t('settings.scripts') }}</div>
-                      <ul class="skill-list">
-                        <li v-for="x in skillScripts(s)" :key="x">{{ x }}</li>
-                      </ul>
-                    </div>
-                    <div v-if="s.references?.length" class="set-row">
-                      <div class="skill-sub">{{ t('settings.references') }}</div>
-                      <div class="skill-refs">
-                        <span v-for="x in s.references" :key="x" class="skill-ref">{{ x }}</span>
-                      </div>
-                    </div>
-                    <div class="set-card-footer">
-                      <div class="set-card-actions">
-                        <button class="set-card-act" :title="t('settings.openFolderTitle')" @click="onRevealSkill(s)">
-                          <i class="far fa-folder-open"></i> {{ t('settings.openFolder') }}
-                        </button>
-                        <button class="set-card-del" :title="t('settings.uninstallTitle')" @click="onDeleteSkill(s)">
-                          <i class="far fa-trash-alt"></i> {{ t('settings.uninstall') }}
-                        </button>
-                      </div>
-                      <label class="toggle-switch" :title="skillEnabled(s) ? t('settings.disableTip') : t('settings.enableTip')">
-                        <input
-                          type="checkbox" :checked="skillEnabled(s)"
-                          @change="toggleSkill(s.name, ($event.target as HTMLInputElement).checked)"
-                        />
-                        <span class="toggle-slider"></span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- 技能市场 -->
-              <template v-else>
-                <div class="market-search">
-                  <i class="fas fa-magnifying-glass"></i>
-                  <input
-                    v-model="marketQuery"
-                    :placeholder="t('settings.marketSearchPlaceholder')"
-                    @keydown.enter="searchMarket()"
-                  />
-                  <button class="market-go" :disabled="marketLoading || !marketQuery.trim()" @click="searchMarket()">
-                    {{ t('settings.searchBtn') }}
-                  </button>
-                </div>
-                <div v-if="marketLoading" class="set-empty">
-                  <i class="fas fa-circle-notch fa-spin"></i>
-                </div>
-                <div v-else-if="marketError" class="set-empty market-err">
-                  <i class="fas fa-triangle-exclamation"></i>
-                  <span>{{ marketError }}</span>
-                </div>
-                <div v-else-if="!marketSearched" class="set-empty">
-                  <i class="fas fa-store"></i>
-                  <span>{{ t('settings.marketHint') }}</span>
-                  <div class="hot-words">
-                    <button v-for="w in HOT_KEYWORDS" :key="w" class="hot-word" @click="quickSearch(w)">{{ w }}</button>
-                  </div>
-                </div>
-                <div v-else-if="!marketResults.length" class="set-empty">
-                  <i class="fas fa-ghost"></i>
-                  <span>{{ t('settings.noMarketResults') }}</span>
-                </div>
-                <div v-else class="market-list">
-                  <div v-for="m in marketResults" :key="m.id" class="market-item">
-                    <span class="mi-name" :title="m.id">{{ m.name }}</span>
-                    <span class="mi-source" :title="m.source">{{ m.source }}</span>
-                    <span class="mi-installs"><i class="fas fa-download"></i>{{ formatInstalls(m.installs) }}</span>
-                    <button v-if="m.installed" class="mi-btn is-installed" disabled>
-                      <i class="fas fa-check"></i> {{ t('settings.installedTag') }}
-                    </button>
-                    <button
-                      v-else class="mi-btn"
-                      :disabled="!m.installable || installingId === m.id"
-                      :title="m.installable ? '' : t('settings.notInstallableTip')"
-                      @click="onInstallSkill(m)"
-                    >
-                      <i :class="installingId === m.id ? 'fas fa-circle-notch fa-spin' : 'fas fa-download'"></i>
-                      {{ m.installable ? t('settings.installBtn') : t('settings.notInstallable') }}
-                    </button>
-                  </div>
-                </div>
-              </template>
             </template>
 
             <!-- 系统 Tab：派生工作区存储位置 + AGENT.md 预览/编辑双模式 -->
@@ -1512,43 +1316,6 @@ body.light-theme .model-edit-dialog {
     background: rgba(128, 128, 128, 0.15);
     color: var(--text-primary);
 }
-/* ===== 技能市场双子视图 ===== */
-.skill-view-switch {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-.sv-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: inherit;
-    font-size: 11.5px;
-    font-weight: 500;
-    padding: 5px 12px;
-    border-radius: 7px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.sv-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--accent);
-}
-.sv-btn.active {
-    background: var(--bg-input);
-    border-color: var(--accent);
-    color: var(--text-primary);
-}
-.sv-count {
-    font-size: 10px;
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0 5px;
-}
 /* 应用 Tab：AGENT.md 编辑器 */
 .app-md-hint {
     display: flex;
@@ -1755,158 +1522,6 @@ body.light-theme .model-edit-dialog {
     word-break: break-all;
 }
 .sys-derived-tip.err {
-    color: var(--error);
-}
-.market-search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: 9px;
-    padding: 6px 8px 6px 11px;
-    margin-bottom: 10px;
-}
-.market-search:focus-within {
-    border-color: var(--accent);
-}
-.market-search > i {
-    color: var(--text-muted);
-    font-size: 11px;
-}
-.market-search input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text-primary);
-    font-size: 12px;
-    font-family: inherit;
-}
-.market-search input::placeholder {
-    color: var(--text-muted);
-}
-.market-go {
-    flex-shrink: 0;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.market-go:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--accent);
-}
-.market-go:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-.hot-words {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 2px;
-}
-.hot-word {
-    font-family: inherit;
-    font-size: 10.5px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.hot-word:hover {
-    color: var(--text-primary);
-    border-color: var(--accent);
-}
-.market-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.market-item {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: 9px;
-    padding: 9px 11px;
-    transition: border-color 0.15s;
-}
-.market-item:hover {
-    border-color: var(--text-muted);
-}
-.mi-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-primary);
-    min-width: 0;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.mi-source {
-    flex: 1;
-    min-width: 0;
-    font-size: 10.5px;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.mi-installs {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10.5px;
-    color: var(--text-muted);
-}
-.mi-installs i {
-    font-size: 9px;
-}
-.mi-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-.mi-btn:hover:not(:disabled) {
-    color: var(--text-primary);
-    border-color: var(--accent);
-}
-.mi-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-.mi-btn.is-installed {
-    border-color: transparent;
-    color: var(--text-muted);
-}
-.market-err span {
     color: var(--error);
 }
 /* ===== 模型卡片双列网格（与工具 Tab 同规格） ===== */
@@ -2638,55 +2253,13 @@ body.light-theme .med-field input:focus {
     background: var(--error);
     border-color: var(--error);
 }
-/* ===== 技能 Tab（只读展示全局技能）===== */
-.skill-name, .mcp-name {
+.mcp-name {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-.skill-src {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: var(--accent);
-    background: var(--bg-hover);
-    border-radius: 5px;
-    padding: 2px 6px;
-    flex-shrink: 0;
-}
-.skill-desc {
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-}
-.skill-sub {
-    font-size: 10.5px;
-    font-weight: 500;
-    color: var(--text-muted);
-    letter-spacing: 0.3px;
-    margin-bottom: 3px;
-}
-.skill-list {
-    margin: 0;
-    padding-left: 14px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.7;
-}
-.skill-refs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-.skill-ref {
-    font-size: 10.5px;
-    color: var(--text-secondary);
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    padding: 2px 7px;
 }
 /* 启用/禁用开关 */
 .toggle-switch {

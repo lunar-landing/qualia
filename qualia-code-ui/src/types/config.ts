@@ -81,6 +81,28 @@ export interface SkillInfo {
   references: string[]
 }
 
+/** 技能脚本条目（GET /api/config/skills/{dir}/detail） */
+export interface SkillScriptInfo {
+  /** 运行期标识 script_{skill}_{base} */
+  name: string
+  description: string
+  /** 脚本文件名（script/ 目录下） */
+  file: string
+}
+
+/** 技能详情（GET /api/config/skills/{dir}/detail） */
+export interface SkillDetail {
+  name: string
+  dir: string
+  description: string
+  /** SKILL.md frontmatter 键值（name/description/version/license 等） */
+  meta: Record<string, string>
+  /** SKILL.md 正文（frontmatter 已剥离），前端渲染 markdown */
+  content: string
+  scripts: SkillScriptInfo[]
+  references: string[]
+}
+
 /** 技能市场条目（GET /api/config/skills/market/search） */
 export interface MarketSkillInfo {
   /** owner/repo/skillId 三段式标识 */

@@ -87,7 +87,7 @@ async function runNow(def: ScheduleDef) {
 }
 
 async function remove(def: ScheduleDef) {
-  if (!window.confirm(t('sched.removeConfirm', { cron: def.cronText }))) return
+  if (!window.confirm(t('sched.removeConfirm', { title: def.title }))) return
   await sched.remove(def.id).catch(() => undefined)
 }
 
@@ -150,6 +150,7 @@ const activeCount = computed(() => sched.list.filter((d) => d.enabled).length)
             <span class="gv-st"><i class="fas" :class="statusIcon(def)"></i>{{ statusLabel(def) }}</span>
             <span class="gv-cron">{{ def.cronText }}</span>
           </div>
+          <div class="gv-title" :title="def.title">{{ def.title }}</div>
           <div class="gv-prompt" :title="def.prompt">{{ def.prompt }}</div>
 
           <!-- 执行脉搏：最近 8 次旧→新，点击跳该轮运行会话 -->
@@ -364,6 +365,7 @@ const activeCount = computed(() => sched.list.filter((d) => d.enabled).length)
 .gv-card.idle::before {
   background: var(--text-muted);
 }
+.gv-card.idle .gv-title,
 .gv-card.idle .gv-prompt {
   opacity: 0.55;
 }
@@ -403,13 +405,23 @@ const activeCount = computed(() => sched.list.filter((d) => d.enabled).length)
   white-space: nowrap;
 }
 
-/* 提示词：2 行截断（网格卡宽度足以容纳，不再单行省略） */
-.gv-prompt {
-  font-size: 13px;
-  line-height: 1.55;
-  margin-top: 8px;
+/* 标题：卡面主信息，单行省略；内容提示词降为 2 行截断的次级描述 */
+.gv-title {
+  font-size: 13.5px;
+  line-height: 1.4;
+  margin: 8px 0 3px;
   color: var(--text-primary);
-  font-weight: 550;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-prompt {
+  font-size: 11.5px;
+  line-height: 1.55;
+  margin: 0 0 6px;
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

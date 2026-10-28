@@ -7,6 +7,7 @@ import WorkspacePanel from '@/components/WorkspacePanel.vue'
 import MaterialsView from '@/components/materials/MaterialsView.vue'
 import SchedulesView from '@/components/schedules/SchedulesView.vue'
 import ScheduleDialog from '@/components/schedules/ScheduleDialog.vue'
+import SkillsView from '@/components/skills/SkillsView.vue'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher.vue'
 import Lightbox from '@/components/Lightbox.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
@@ -62,6 +63,8 @@ onMounted(async () => {
         <MaterialsView />
         <!-- 定时任务中心：同款整栏覆盖视图（内部随 schedules store 开合） -->
         <SchedulesView />
+        <!-- 技能管理中心：同款整栏覆盖视图（内部随 skills store 开合） -->
+        <SkillsView />
       </div>
     </div>
 

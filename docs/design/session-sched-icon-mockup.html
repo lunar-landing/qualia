@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话列表 · 定时任务图标选项对比</title>
+<!--
+  会话列表中「定时任务运行会话」的行首图标选型
+  背景：现用 fas fa-clock，与侧栏「定时任务」入口同图标，语义撞车且像手动会话
+  约束：仅用项目实际打包的 FontAwesome 免费版（经 node_modules 校验存在）：
+        robot / stopwatch / hourglass-half / bolt / satellite-dish / gauge 可用；
+        fa-alarm-clock、fa-clock-rotate-left 免费版不存在，已排除
+  方案：
+    A fa-robot（智能体执行）★推荐 —— 该行本质是「agent 跑出来的一轮对话」
+    B fa-stopwatch（执行计时）
+    C fa-hourglass-half（到点待发）
+    D fa-bolt（自动触发）
+    E fa-satellite-dish（调度回执）
+  线条款（far regular，经 metadata 校验 free 版含 regular 字形；fa-regular 不存在款已排除）：
+    L1 far fa-hourglass-half（线条沙漏）
+    L2 far fa-note-sticky（线条便签）★线条款推荐
+    L3 far fa-bell（线条铃）
+    L4 far fa-calendar（线条日历）
+  默认日间模式；右上可切夜间；普通会话行（fa-comment）作对照基线
+-->
+<style>
+  :root {
+    --bg-app: #f5f7f9;
+    --bg-list: #ffffff;
+    --bg-hover: #eef1f4;
+    --bg-active: #e4e9ee;
+    --border-color: #d5dbe1;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --accent: #32382f;
+  }
+  html.night {
+    --bg-app: #0d1117;
+    --bg-list: #11161e;
+    --bg-hover: #161c26;
+    --bg-active: #1c232e;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --text-primary: #e4e9f2;
+    --text-secondary: #8f97ae;
+    --text-muted: #4f566b;
+    --accent: #e6edf3;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: var(--bg-app); color: var(--text-primary);
+    padding: 36px 40px 60px; transition: background 0.25s, color 0.25s;
+  }
+  .page-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
+  .page-head h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  .page-head .sub { font-size: 12.5px; color: var(--text-muted); }
+  .head-acts { margin-left: auto; display: flex; gap: 8px; }
+  .theme-btn {
+    padding: 6px 13px; border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--bg-list); color: var(--text-secondary);
+    font-size: 12px; cursor: pointer;
+  }
+  .theme-btn.on { background: var(--accent); color: var(--bg-app); border-color: var(--accent); }
+  .note { font-size: 12px; color: var(--text-muted); margin-bottom: 26px; line-height: 1.7; }
+  .note code { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 11px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  .panel { border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-list); overflow: hidden; }
+  .p-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px 10px; }
+  .p-head .badge {
+    font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10.5px; font-weight: 700;
+    background: var(--bg-active); color: var(--text-secondary); border-radius: 5px; padding: 2px 7px;
+  }
+  .p-head .badge.rec { background: var(--accent); color: var(--bg-app); }
+  .p-head h2 { font-size: 13px; font-weight: 600; }
+  .p-head .cls { margin-left: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10.5px; color: var(--text-muted); }
+
+  /* 真实语境：仿会话列表行（图标 12px + 标题 13px + 时间右置） */
+  .rows { padding: 4px 8px 12px; }
+  .row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 9px; border-radius: 7px; font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .row i { font-size: 12px; width: 14px; text-align: center; flex-shrink: 0; }
+  .row .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tm { font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+  .row.base i { color: var(--text-muted); }
+  .row.sched { background: var(--bg-hover); color: var(--text-primary); }
+  .row.sched i { color: var(--accent); }
+  .p-desc { padding: 0 16px 14px; font-size: 11.5px; color: var(--text-muted); line-height: 1.7; border-top: 1px dashed var(--border-color); padding-top: 10px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 30px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; }
+  td { color: var(--text-secondary); }
+  td b { color: var(--text-primary); font-weight: 600; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+  <div class="page-head">
+    <h1>会话列表 · 定时任务图标</h1>
+    <span class="sub">运行会话行首图标选型（现为 fa-clock，与侧栏入口撞图标）</span>
+    <div class="head-acts">
+      <button class="theme-btn on" onclick="setTheme(false)">日间</button>
+      <button class="theme-btn" onclick="setTheme(true)">夜间</button>
+    </div>
+  </div>
+  <p class="note">
+    对照基线：普通会话行 <code>far fa-comment</code>（灰色）。选中高亮行为定时任务的运行会话，悬浮提示保留「定时 · 周期」。图标均以 12px 呈现，颜色沿用 accent（夜间雾白/日间石墨），不加新色。
+  </p>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="p-head"><span class="badge">V0</span><h2>现状 · 时钟</h2><span class="cls">fas fa-clock</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-clock"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">与侧栏「定时任务」入口、任务卡页头三处同图标，列表里看不出这是 agent 跑出来的会话。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge rec">A</span><h2>智能体执行</h2><span class="cls">fas fa-robot</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-robot"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">语义最准：这行本质是「agent 自动跑的一轮对话」，与手动会话（气泡）形成「人 vs 机器」对照；时间语义让位给 tooltip 与任务中心。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">B</span><h2>执行计时</h2><span class="cls">fas fa-stopwatch</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-stopwatch"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">保留「时间系」隐喻且与时钟形态拉开距离，12px 下轮廓清晰；但更像「计时工具」而非「自动执行」。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">C</span><h2>到点待发</h2><span class="cls">fas fa-hourglass-half</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-hourglass-half"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">沙漏指向「等待/调度」，但该会话已执行完毕，状态语义错位；且 12px 下沙漏细节易糊。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">D</span><h2>自动触发</h2><span class="cls">fas fa-bolt</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-bolt"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">「自动/瞬时」感强，小尺寸最醒目；但闪电在任务卡上已被「立即执行」占用，跨视图会有关联混淆。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">E</span><h2>调度回执</h2><span class="cls">fas fa-satellite-dish</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="fas fa-satellite-dish"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">「系统调度」气质足、无撞车；但具象细节多，12px 下辨识度一般，语义也偏「通讯」而非「执行」。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">L1</span><h2>线条 · 沙漏</h2><span class="cls">far fa-hourglass-half</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="far fa-hourglass-half"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">描边沙漏比实心版轻盈，与气泡同为线条体系、行首视觉重量统一；仍带「等待」的语义错位。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge rec">L2</span><h2>线条 · 便签</h2><span class="cls">far fa-note-sticky</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="far fa-note-sticky"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">便签 =「交代下来的差事」，暗合定时提示词的本质；线条版与 fa-comment 同描边体系，画面最安静。★线条款推荐</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">L3</span><h2>线条 · 铃</h2><span class="cls">far fa-bell</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="far fa-bell"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">铃的「提醒/到点」语义直接，12px 下轮廓干净；但更像通知系统的图标，偏「提示」不偏「执行」。</div>
+    </div>
+
+    <div class="panel">
+      <div class="p-head"><span class="badge">L4</span><h2>线条 · 日历</h2><span class="cls">far fa-calendar</span></div>
+      <div class="rows">
+        <div class="row base"><i class="far fa-comment"></i><span class="tt">帮我重构这个模块</span><span class="tm">10:24</span></div>
+        <div class="row sched"><i class="far fa-calendar"></i><span class="tt">每日站会纪要整理</span><span class="tm">09:30</span></div>
+      </div>
+      <div class="p-desc">「按计划」语义足、辨识度高；但更适合「按天」的任务，分钟级周期（每 30 分钟）会被日历误导。</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>方案</th><th>图标</th><th>语义</th><th>12px 清晰度</th><th>撞车风险</th><th>推荐度</th></tr>
+    <tr><td><b>A 智能体执行</b></td><td>fa-robot</td><td>机器自动跑的会话</td><td>高</td><td>无</td><td><b>★ 推荐</b></td></tr>
+    <tr><td>B 执行计时</td><td>fa-stopwatch</td><td>定时/耗时</td><td>高</td><td>低</td><td>备选</td></tr>
+    <tr><td>C 到点待发</td><td>fa-hourglass-half</td><td>等待调度</td><td>中</td><td>低</td><td>状态错位</td></tr>
+    <tr><td>D 自动触发</td><td>fa-bolt</td><td>自动/瞬时</td><td>高</td><td>中（任务卡「立即执行」）</td><td>谨慎</td></tr>
+    <tr><td>E 调度回执</td><td>fa-satellite-dish</td><td>系统调度</td><td>中</td><td>无</td><td>备选</td></tr>
+    <tr><td><b>L2 线条便签</b></td><td>far fa-note-sticky</td><td>交代下来的差事</td><td>高</td><td>无</td><td><b>★ 线条款推荐</b></td></tr>
+    <tr><td>L1 线条沙漏</td><td>far fa-hourglass-half</td><td>等待调度</td><td>中</td><td>低</td><td>语义错位</td></tr>
+    <tr><td>L3 线条铃</td><td>far fa-bell</td><td>到点提醒</td><td>高</td><td>低</td><td>备选</td></tr>
+    <tr><td>L4 线条日历</td><td>far fa-calendar</td><td>按计划</td><td>高</td><td>低</td><td>误导分钟级周期</td></tr>
+  </table>
+
+<script>
+  function setTheme(night) {
+    document.documentElement.classList.toggle('night', night);
+    document.querySelectorAll('.theme-btn').forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
+  }
+</script>
+</body>
+</html>

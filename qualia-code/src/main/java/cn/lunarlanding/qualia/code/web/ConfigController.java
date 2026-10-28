@@ -23,6 +23,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -536,6 +538,61 @@ public class ConfigController {
     @GetMapping("/skills")
     public ResponseEntity<List<Map<String, Object>>> getGlobalSkills() {
         return ResponseEntity.ok(loadGlobalSkillsList());
+    }
+
+    /** SKILL.md frontmatter 块（首行 --- 至次行 ---） */
+    private static final Pattern FRONTMATTER_PATTERN = Pattern.compile("^---\\s*\\n([\\s\\S]*?)\\n---\\s*\\n?");
+
+    /**
+     * 技能详情：SKILL.md frontmatter 拆为 meta 键值（version/license 等徽章展示），
+     * 正文剥离后由前端渲染 markdown；附脚本（含文件名与描述）与附属文档清单
+     */
+    @GetMapping("/skills/{dir}/detail")
+    public ResponseEntity<Map<String, Object>> getSkillDetail(@PathVariable String dir) {
+        Path globalSkillsDir = GLOBAL_CONFIG_DIR.resolve("skills");
+        Path skillDir = globalSkillsDir.resolve(dir);
+        // 安全检查：确保读取的是技能目录内的内容（与 reveal/delete 同款）
+        if (!skillDir.normalize().startsWith(globalSkillsDir.normalize())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "路径越界"));
+        }
+        if (!Files.isDirectory(skillDir)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "技能不存在: " + dir));
+        }
+        Skill skill = new DirectorySkillLoader(globalSkillsDir).loadByName(dir);
+        if (skill == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "技能不存在: " + dir));
+        }
+
+        String raw = skill.getContent() == null ? "" : skill.getContent();
+        Map<String, String> meta = new LinkedHashMap<>();
+        String content = raw;
+        Matcher fm = FRONTMATTER_PATTERN.matcher(raw);
+        if (fm.find()) {
+            for (String line : fm.group(1).split("\n")) {
+                int colon = line.indexOf(':');
+                if (colon > 0 && !line.strip().startsWith("#")) {
+                    meta.put(line.substring(0, colon).strip(),
+                            line.substring(colon + 1).strip().replaceAll("^['\"]|['\"]$", ""));
+                }
+            }
+            content = raw.substring(fm.end());
+        }
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("name", skill.getName());
+        res.put("dir", dir);
+        res.put("description", skill.getDescription());
+        res.put("meta", meta);
+        res.put("content", content.stripLeading());
+        res.put("scripts", skill.getScripts().stream().map(s -> {
+            Map<String, String> sm = new LinkedHashMap<>();
+            sm.put("name", s.getName());
+            sm.put("description", s.getDescription() == null ? "" : s.getDescription());
+            sm.put("file", s.getScriptPath().getFileName().toString());
+            return sm;
+        }).collect(Collectors.toList()));
+        res.put("references", skill.getReferenceNames());
+        return ResponseEntity.ok(res);
     }
 
     /**

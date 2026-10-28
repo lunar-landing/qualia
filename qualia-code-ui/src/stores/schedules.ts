@@ -7,6 +7,7 @@ import {
   runScheduleNow,
 } from '@/api/schedules'
 import { useMaterialsStore } from '@/stores/materials'
+import { useSkillsStore } from '@/stores/skills'
 import type { ScheduleDef, ScheduleRun } from '@/types'
 
 /**
@@ -57,7 +58,8 @@ export const useSchedulesStore = defineStore('schedules', {
       else void this.openView()
     },
     async openView() {
-      useMaterialsStore().closeView() // 覆盖视图互斥：任务与资料同时只开一个
+      useMaterialsStore().closeView() // 覆盖视图互斥：任务/资料/技能同时只开一个
+      useSkillsStore().closeView()
       this.open = true
       await this.load()
     },
@@ -76,8 +78,8 @@ export const useSchedulesStore = defineStore('schedules', {
     },
 
     /** 创建任务：本地置顶（错误透传给调用方提示） */
-    async create(prompt: string, cron: string, cronText: string): Promise<ScheduleDef> {
-      const def = await createSchedule(prompt, cron, cronText)
+    async create(title: string, prompt: string, cron: string, cronText: string): Promise<ScheduleDef> {
+      const def = await createSchedule(title, prompt, cron, cronText)
       this.list = [def, ...this.list.filter((d) => d.id !== def.id)]
       syncPolling(this.list.length)
       return def

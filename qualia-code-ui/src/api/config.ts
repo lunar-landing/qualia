@@ -6,6 +6,7 @@ import type {
   MarketSkillInfo,
   McpServerConfig,
   SaveConfigResult,
+  SkillDetail,
   SkillInfo,
   ToolInfo,
   WorkspaceFileContent,
@@ -54,6 +55,11 @@ export function installMarketSkill(id: string): Promise<{ success: boolean; name
 /** 在系统文件管理器中打开技能目录 */
 export function revealSkillFolder(name: string): Promise<{ success: boolean }> {
   return http.post(`/api/config/skills/${encodeURIComponent(name)}/reveal`)
+}
+
+/** 技能详情：SKILL.md 正文（frontmatter 剥离）+ 脚本/附属文档清单 */
+export function getSkillDetail(dir: string): Promise<SkillDetail> {
+  return http.get(`/api/config/skills/${encodeURIComponent(dir)}/detail`)
 }
 
 /** 读取全局系统提示词（~/.qualia/code/AGENT.md）；exists=false 时 content 为空 */

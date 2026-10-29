@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技能详情页 · 四版方案</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  /* ===== 日间石墨工程 token（对齐 qualia-code-ui light-theme 与 --mat-* 体系） ===== */
+  :root {
+    --bg-app: #ffffff;
+    --bg-hover: #e9edf1;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --mat-stage: #eef1f5;
+    --mat-wash: #f2f5f8;
+    --mat-card: #ffffff;
+    --mat-line: #e6ebf0;
+    --mat-ink: #1c2128;
+    --mat-ink-2: #3c4551;
+    --mat-mut: #6b7480;
+    --mat-faint: #98a1ac;
+    --mat-accent: #3d5a80;
+    --mat-accent-wash: rgba(61, 90, 128, 0.07);
+    --success: #1a7f37;
+    --error: #cf222e;
+    --page: #f4f5f7;
+    --mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; }
+  .page-head p { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; }
+
+  /* 方案对照表 */
+  table.cmp { width: 100%; margin-top: 22px; border-collapse: collapse; font-size: 12.5px; }
+  table.cmp th { text-align: left; font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 0 12px 9px 0; border-bottom: 1px solid var(--border-color); }
+  table.cmp td { padding: 10px 12px 10px 0; border-bottom: 1px solid rgba(28,33,40,.07); color: var(--text-secondary); vertical-align: top; }
+  table.cmp td b { color: var(--text-primary); font-weight: 650; }
+  table.cmp tr.pick td { background: var(--mat-accent-wash); }
+  .tag-rec { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 650; color: var(--mat-accent); background: var(--mat-accent-wash); border: 1px solid rgba(61,90,128,.18); padding: 1px 8px; border-radius: 999px; }
+
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-secondary); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--text-primary);
+    margin-bottom: 16px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+  .layout { display: flex; gap: 22px; align-items: flex-start; }
+  .stage {
+    flex: 1; min-width: 0;
+    background: var(--mat-stage);
+    border: 1px solid var(--mat-line);
+    border-radius: 14px;
+    padding: 26px 30px 30px;
+  }
+  .notes { width: 300px; flex-shrink: 0; background: var(--mat-card); border: 1px solid var(--mat-line); border-radius: 12px; padding: 16px 18px; font-size: 12px; color: var(--text-secondary); }
+  .notes h5 { font-size: 11px; color: var(--text-primary); margin: 13px 0 4px; letter-spacing: 0.04em; }
+  .notes h5:first-child { margin-top: 0; }
+  .notes ul { padding-left: 17px; }
+  .notes li { margin-bottom: 3px; }
+  .notes .good { color: var(--success); }
+  .notes .bad { color: #b35900; }
+
+  /* ===== 各版本共用的详情页原子件 ===== */
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px;
+    border: 1px solid var(--border-color); border-radius: 9px; background: transparent;
+    color: var(--text-secondary); font-size: 12.5px; cursor: pointer;
+  }
+  .btn-ghost i { font-size: 11px; }
+  .title-row { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; }
+  .tile { width: 30px; height: 30px; border-radius: 8px; background: var(--mat-accent-wash); color: var(--mat-accent); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .nm { font-family: var(--mono); font-size: 19px; font-weight: 650; letter-spacing: -0.02em; color: var(--text-primary); }
+  .ver { font-family: var(--mono); font-size: 10.5px; color: var(--mat-accent); background: var(--mat-accent-wash); border-radius: 5px; padding: 3px 9px; }
+  .spring { flex: 1; }
+  .switch { width: 30px; height: 17px; border: 1px solid rgba(26,127,55,.45); border-radius: 999px; background: rgba(26,127,55,.22); position: relative; flex-shrink: 0; }
+  .switch .knob { position: absolute; top: 1px; left: 14px; width: 13px; height: 13px; border-radius: 50%; background: var(--success); }
+  .icon-btn { width: 28px; height: 28px; border: none; border-radius: 7px; background: transparent; color: var(--text-muted); font-size: 12px; }
+  .icon-btn.danger { color: var(--text-muted); }
+  .desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 10px; }
+  .meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 0 16px; border-bottom: 1px solid var(--border-color); }
+  .path { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-right: 4px; }
+  .chip { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--mat-wash); border-radius: 5px; padding: 2px 7px; }
+  .card { background: var(--mat-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px 24px 20px; }
+  .cap { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 14px; }
+  .cap i { font-size: 10px; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+
+  /* 假 markdown 正文（.mat-md 阅读态：14.5px / 1.9，去彩化） */
+  .md { font-size: 14.5px; line-height: 1.9; color: var(--mat-ink-2); }
+  .md h2 { font-size: 18px; font-weight: 650; color: var(--mat-ink); margin: 30px 0 4px; letter-spacing: -0.015em; }
+  .md h2:first-child { margin-top: 0; }
+  .md h3 { font-size: 15px; font-weight: 650; color: var(--mat-ink); margin: 24px 0 2px; }
+  .md p { margin: 12px 0; }
+  .md ul { padding-left: 20px; margin: 12px 0; }
+  .md li { margin: 6px 0; }
+  .md li::marker { color: var(--mat-faint); }
+  .md code { font-family: var(--mono); font-size: 12.5px; background: var(--mat-wash); color: var(--mat-ink); padding: 2px 6px; border-radius: 5px; }
+  .md pre { margin: 16px 0; border: 1px solid var(--mat-line); border-radius: 12px; background: var(--mat-card); overflow: hidden; }
+  .md pre .bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--mat-line); font-family: var(--mono); font-size: 10.5px; color: var(--mat-faint); }
+  .md pre .bar i { margin-left: auto; }
+  .md pre .bar .b2 { margin-left: 0; }
+  .md pre code { display: block; padding: 14px 17px; font-size: 12px; line-height: 1.75; color: var(--mat-ink-2); background: none; font-family: var(--mono); }
+  .md pre code .k { color: #0550ae; }
+  .md pre code .s { color: #0a3069; }
+  .md pre code .c { color: var(--mat-faint); }
+
+  /* 脚本 / 附属文档清单行 */
+  .line { display: flex; align-items: baseline; gap: 14px; padding: 9px 0; }
+  .line + .line { border-top: 1px dashed var(--border-color); }
+  .file { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-primary); flex-shrink: 0; }
+  .dsc { font-size: 11.5px; color: var(--text-secondary); min-width: 0; }
+
+  /* ===== V2 · 能力条（清单前置 + 折叠） ===== */
+  .assets { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .assets .half { padding: 2px 0; }
+  .assets .half + .half { border-left: 1px dashed var(--border-color); padding-left: 22px; }
+  .assets .hd { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; color: var(--text-primary); margin-bottom: 4px; }
+  .assets .hd i { font-size: 10px; color: var(--mat-accent); }
+  .assets .hd .n { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--mat-wash); padding: 2px 7px; border-radius: 5px; }
+  .fold { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; }
+  .fold + .fold { border-top: 1px dashed var(--border-color); }
+  .fold i { width: 15px; text-align: center; color: var(--text-muted); font-size: 11px; }
+  .fold .file { font-size: 11.5px; font-weight: 550; }
+  .fold .dsc { flex: 1; min-width: 0; color: var(--text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold .open { font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+
+  /* ===== V3 · 左锚点 + 右正文 ===== */
+  .v3 { display: flex; gap: 16px; align-items: flex-start; }
+  .rail { width: 216px; flex-shrink: 0; position: sticky; top: 0; }
+  .rail .grp { padding: 0 0 12px; }
+  .rail .grp + .grp { padding-top: 12px; border-top: 1px solid var(--mat-line); margin-top: 2px; }
+  .rail .grp-hd { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mat-faint); margin-bottom: 6px; }
+  .rail .grp-hd .n { margin-left: auto; }
+  .rail .it { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 12px; color: var(--text-secondary); }
+  .rail .it i { font-size: 10px; color: var(--text-muted); width: 12px; text-align: center; }
+  .rail .it.on { background: var(--mat-wash-2, #e9eef3); color: var(--text-primary); font-weight: 600; }
+  .rail .it .sub { display: block; font-size: 10.5px; color: var(--text-muted); font-weight: 400; }
+  .v3 .doc { flex: 1; min-width: 0; }
+
+  /* ===== V4 · 凹槽分段标签页 ===== */
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--mat-wash); margin: 14px 0 16px; }
+  .seg button { display: inline-flex; align-items: center; gap: 7px; border: none; background: transparent; font-size: 12.5px; color: var(--text-secondary); padding: 6px 14px; border-radius: 8px; }
+  .seg button.on { background: var(--mat-card); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .seg .k { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>技能详情页 · 四版方案</h1>
+  <p>已安装技能卡点击后的二级页。共性约束：整栏覆盖视图 / 正文列不留左右边距（撑满主区，仅保留视图 30px 页边距）/ 日间石墨工程配色 / SKILL.md 走 .mat-md 阅读态。差异只在信息架构：资源清单放哪、正文是否独占。</p>
+  <table class="cmp">
+    <tr><th style="width:150px">方案</th><th>结构</th><th style="width:190px">适合</th><th style="width:210px">风险</th></tr>
+    <tr><td><b>V1 · 现状基线</b><br><small>单列三卡堆叠</small></td><td>头部 → SKILL.md 卡 → 脚本卡 → 附属文档卡</td><td>脚本/文档少、SKILL.md 短的技能</td><td>长文把清单推到底部；三张同质卡层级扁平</td></tr>
+    <tr class="pick"><td><b>V2 · 能力前置</b> <span class="tag-rec"><i class="fas fa-star"></i>推荐</span><br><small>清单折叠 + 正文独占</small></td><td>头部 → 能力条（脚本 | 附属文档 双栏折叠）→ SKILL.md 唯一大卡</td><td>所有技能的默认形态</td><td>清单收起时需一次点击才见描述</td></tr>
+    <tr><td><b>V3 · 左锚双栏</b><br><small>目录 + 资源栏</small></td><td>头部 → 左栏（小节 TOC + 脚本 + 文档）｜右栏 SKILL.md</td><td>SKILL.md 长、脚本多的大型技能</td><td>短文档时左栏空荡；窄窗口拥挤</td></tr>
+    <tr><td><b>V4 · 分段标签页</b><br><small>概览 / SKILL.md / 脚本 / 文档</small></td><td>头部 → .kv-seg 凹槽 tab → 当前 tab 内容</td><td>想要页面绝对精简的场景</td><td>主角 SKILL.md 被降级为一个 tab，每次多一击</td></tr>
+  </table>
+</header>
+
+<!-- ================= V1 ================= -->
+<section class="sec">
+  <div class="sec-title">V1 · 现状基线 <small>单列三卡堆叠（当前实现）</small></div>
+  <div class="layout">
+    <div class="stage">
+      <button class="btn-ghost"><i class="fas fa-arrow-left"></i>返回列表</button>
+      <div class="title-row">
+        <span class="tile"><i class="fas fa-shapes"></i></span>
+        <span class="nm">pdf-processing</span>
+        <span class="ver"><i class="fas fa-tag" style="font-size:9px"></i> 1.2.0</span>
+        <span class="spring"></span>
+        <span class="switch"><span class="knob"></span></span>
+        <button class="icon-btn"><i class="far fa-folder-open"></i></button>
+        <button class="icon-btn danger"><i class="far fa-trash-alt"></i></button>
+      </div>
+      <div class="desc">读取、拆分、合并与填写 PDF 文档，支持文本提取、表格解析与表单字段填充。</div>
+      <div class="meta-row">
+        <span class="path">~/.qualia/code/skills/pdf-processing</span>
+        <span class="chip">license: MIT</span>
+        <span class="chip">author: anthropics</span>
+      </div>
+      <div class="stack" style="margin-top:18px">
+        <div class="card">
+          <div class="cap"><i class="far fa-file-lines"></i>SKILL.md</div>
+          <div class="md">
+            <h2>Overview</h2>
+            <p>本技能提供 PDF 处理全套脚本：文本提取、分页拆分、表单填写。所有脚本基于 <code>pdfplumber</code>，输出统一为 UTF-8。</p>
+            <ul>
+              <li>提取纯文本与表格：<code>extract_text.py</code></li>
+              <li>填充 AcroForm 表单字段：<code>fill_form.py</code></li>
+            </ul>
+            <h2>Usage</h2>
+            <pre><div class="bar"><span class="b2">bash</span><span>script/extract_text.py</span><i class="far fa-copy"></i><i class="far fa-eye"></i></div><code><span class="k">python</span> script/extract_text.py <span class="s">"input.pdf"</span> --pages 1-3</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="cap"><i class="fas fa-code"></i>脚本 · 2</div>
+          <div class="line"><span class="file">extract_text.py</span><span class="dsc">提取 PDF 指定页范围的纯文本与表格</span></div>
+          <div class="line"><span class="file">fill_form.py</span><span class="dsc">向 AcroForm 字段写入值并导出成品 PDF</span></div>
+        </div>
+        <div class="card">
+          <div class="cap"><i class="fas fa-book"></i>附属文档 · 2</div>
+          <div class="line"><span class="file">forms.md</span><span class="dsc">表单字段命名约定与常见填表陷阱</span></div>
+          <div class="line"><span class="file">cheatsheet.md</span><span class="dsc">pdfplumber 常用 API 速查</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>头部四行：返回 / 标题动作 / 描述 / meta chips</li>
+        <li>正文、脚本、附属文档各一张全宽卡，纵向堆到底</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">实现已落地，零改动成本</li>
+        <li class="good">一屏读到底，无需额外交互</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li class="bad">SKILL.md 稍长，脚本与文档清单就被推到首屏之外</li>
+        <li class="bad">三张卡视觉同质，「读什么」与「有什么」没有分层</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= V2 ================= -->
+<section class="sec">
+  <div class="sec-title">V2 · 能力前置（推荐） <small>清单折叠成一条，正文独占全篇</small></div>
+  <div class="layout">
+    <div class="stage">
+      <button class="btn-ghost"><i class="fas fa-arrow-left"></i>返回列表</button>
+      <div class="title-row">
+        <span class="tile"><i class="fas fa-shapes"></i></span>
+        <span class="nm">pdf-processing</span>
+        <span class="ver"><i class="fas fa-tag" style="font-size:9px"></i> 1.2.0</span>
+        <span class="chip">license: MIT</span>
+        <span class="path" style="margin-left:2px">~/.qualia/code/skills/pdf-processing</span>
+        <span class="spring"></span>
+        <span class="switch"><span class="knob"></span></span>
+        <button class="icon-btn"><i class="far fa-folder-open"></i></button>
+        <button class="icon-btn danger"><i class="far fa-trash-alt"></i></button>
+      </div>
+      <div class="desc">读取、拆分、合并与填写 PDF 文档，支持文本提取、表格解析与表单字段填充。</div>
+      <div class="stack" style="margin-top:6px">
+        <div class="card" style="padding:14px 22px 12px">
+          <div class="assets">
+            <div class="half">
+              <div class="hd"><i class="fas fa-code"></i>脚本<span class="n">2</span></div>
+              <div class="fold"><i class="far fa-file-code"></i><span class="file">extract_text.py</span><span class="dsc">提取指定页范围的纯文本与表格</span><span class="open">查看 <i class="fas fa-chevron-down" style="font-size:9px"></i></span></div>
+              <div class="fold"><i class="far fa-file-code"></i><span class="file">fill_form.py</span><span class="dsc">向 AcroForm 字段写入值并导出</span><span class="open">查看 <i class="fas fa-chevron-down" style="font-size:9px"></i></span></div>
+            </div>
+            <div class="half">
+              <div class="hd"><i class="fas fa-book"></i>附属文档<span class="n">2</span></div>
+              <div class="fold"><i class="far fa-file-alt"></i><span class="file">forms.md</span><span class="dsc">表单字段命名约定与填表陷阱</span><span class="open">阅读 <i class="fas fa-chevron-right" style="font-size:9px"></i></span></div>
+              <div class="fold"><i class="far fa-file-alt"></i><span class="file">cheatsheet.md</span><span class="dsc">pdfplumber 常用 API 速查</span><span class="open">阅读 <i class="fas fa-chevron-right" style="font-size:9px"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="cap"><i class="far fa-file-lines"></i>SKILL.md</div>
+          <div class="md">
+            <h2>Overview</h2>
+            <p>本技能提供 PDF 处理全套脚本：文本提取、分页拆分、表单填写。所有脚本基于 <code>pdfplumber</code>，输出统一为 UTF-8。</p>
+            <ul>
+              <li>提取纯文本与表格：<code>extract_text.py</code></li>
+              <li>填充 AcroForm 表单字段：<code>fill_form.py</code></li>
+            </ul>
+            <h2>Usage</h2>
+            <pre><div class="bar"><span class="b2">bash</span><span>script/extract_text.py</span><i class="far fa-copy"></i><i class="far fa-eye"></i></div><code><span class="k">python</span> script/extract_text.py <span class="s">"input.pdf"</span> --pages 1-3</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>与 V1 的差异</h5>
+      <ul>
+        <li>描述不再挤两行：升到标题下独立一行</li>
+        <li>version / license / 目录路径并入标题行与副行，省掉 meta 分隔线</li>
+        <li>脚本 + 附属文档合并为一条<b>能力条</b>（双栏），文件名为主体、一行一描述</li>
+        <li>SKILL.md 独占正文区，全页只有两张卡</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">「有什么能力」进首屏，不必滚到长文末尾</li>
+        <li class="good">两级层次（能力条 / 正文）替代三张同质卡，更符合减法</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li class="bad">描述默认截断一行，展开需一次点击（可默认展开，仅收起态用箭头）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= V3 ================= -->
+<section class="sec">
+  <div class="sec-title">V3 · 左锚双栏 <small>目录 + 资源栏，正文靠右（资料库详情页同源语言）</small></div>
+  <div class="layout">
+    <div class="stage">
+      <button class="btn-ghost"><i class="fas fa-arrow-left"></i>返回列表</button>
+      <div class="title-row">
+        <span class="tile"><i class="fas fa-shapes"></i></span>
+        <span class="nm">pdf-processing</span>
+        <span class="ver"><i class="fas fa-tag" style="font-size:9px"></i> 1.2.0</span>
+        <span class="spring"></span>
+        <span class="switch"><span class="knob"></span></span>
+        <button class="icon-btn"><i class="far fa-folder-open"></i></button>
+        <button class="icon-btn danger"><i class="far fa-trash-alt"></i></button>
+      </div>
+      <div class="meta-row" style="border-bottom:none;padding-bottom:8px">
+        <span class="path">~/.qualia/code/skills/pdf-processing</span>
+        <span class="chip">license: MIT</span>
+      </div>
+      <div class="v3">
+        <aside class="rail">
+          <div class="grp">
+            <div class="grp-hd"><i class="fas fa-list"></i>小节<span class="n">3</span></div>
+            <div class="it on"><i class="fas fa-heading"></i>Overview</div>
+            <div class="it"><i class="fas fa-heading"></i>Usage</div>
+            <div class="it"><i class="fas fa-heading"></i>Troubleshooting</div>
+          </div>
+          <div class="grp">
+            <div class="grp-hd"><i class="fas fa-code"></i>脚本<span class="n">2</span></div>
+            <div class="it"><i class="far fa-file-code"></i><span>extract_text.py<span class="sub">提取文本与表格</span></span></div>
+            <div class="it"><i class="far fa-file-code"></i><span>fill_form.py<span class="sub">填充 AcroForm</span></span></div>
+          </div>
+          <div class="grp">
+            <div class="grp-hd"><i class="fas fa-book"></i>附属文档<span class="n">2</span></div>
+            <div class="it"><i class="far fa-file-alt"></i><span>forms.md<span class="sub">字段命名约定</span></span></div>
+            <div class="it"><i class="far fa-file-alt"></i><span>cheatsheet.md<span class="sub">API 速查</span></span></div>
+          </div>
+        </aside>
+        <div class="doc card">
+          <div class="md">
+            <h2>Overview</h2>
+            <p>本技能提供 PDF 处理全套脚本：文本提取、分页拆分、表单填写。所有脚本基于 <code>pdfplumber</code>，输出统一为 UTF-8。</p>
+            <ul>
+              <li>提取纯文本与表格：<code>extract_text.py</code></li>
+              <li>填充 AcroForm 表单字段：<code>fill_form.py</code></li>
+            </ul>
+            <h2>Usage</h2>
+            <pre><div class="bar"><span class="b2">bash</span><span>script/extract_text.py</span><i class="far fa-copy"></i><i class="far fa-eye"></i></div><code><span class="k">python</span> script/extract_text.py <span class="s">"input.pdf"</span> --pages 1-3</code></pre>
+            <h2>Troubleshooting</h2>
+            <p>扫描版 PDF 无文本层时需先 OCR，脚本不内置识别。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>左栏 216px sticky 三组：小节 TOC（滚动跟随高亮）/ 脚本 / 附属文档</li>
+        <li>正文单卡铺满剩余宽度，不留左右边距</li>
+        <li>点脚本/文档行 → 右侧切换为该文件预览（文件名 + 返回 SKILL.md）</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">长 SKILL.md 可跳小节，资源入口常驻可见</li>
+        <li class="good">附属文档可就地阅读，无需离开页面</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li class="bad">需要后端补 TOC 与文档正文接口（现仅返回文件名）</li>
+        <li class="bad">脚本 ≤2、正文 ≤40 行的技能，左栏明显空</li>
+        <li class="bad">窄窗口下正文列被压到 600px 以下</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= V4 ================= -->
+<section class="sec">
+  <div class="sec-title">V4 · 分段标签页 <small>概览 / SKILL.md / 脚本 / 附属文档</small></div>
+  <div class="layout">
+    <div class="stage">
+      <button class="btn-ghost"><i class="fas fa-arrow-left"></i>返回列表</button>
+      <div class="title-row">
+        <span class="tile"><i class="fas fa-shapes"></i></span>
+        <span class="nm">pdf-processing</span>
+        <span class="ver"><i class="fas fa-tag" style="font-size:9px"></i> 1.2.0</span>
+        <span class="spring"></span>
+        <span class="switch"><span class="knob"></span></span>
+        <button class="icon-btn"><i class="far fa-folder-open"></i></button>
+        <button class="icon-btn danger"><i class="far fa-trash-alt"></i></button>
+      </div>
+      <div class="desc">读取、拆分、合并与填写 PDF 文档，支持文本提取、表格解析与表单字段填充。</div>
+      <div class="seg">
+        <button><i class="fas fa-circle-info"></i>概览</button>
+        <button class="on"><i class="far fa-file-lines"></i>SKILL.md</button>
+        <button><i class="fas fa-code"></i>脚本<span class="k">2</span></button>
+        <button><i class="fas fa-book"></i>附属文档<span class="k">2</span></button>
+      </div>
+      <div class="card">
+        <div class="md">
+          <h2>Overview</h2>
+          <p>本技能提供 PDF 处理全套脚本：文本提取、分页拆分、表单填写。所有脚本基于 <code>pdfplumber</code>，输出统一为 UTF-8。</p>
+          <ul>
+            <li>提取纯文本与表格：<code>extract_text.py</code></li>
+            <li>填充 AcroForm 表单字段：<code>fill_form.py</code></li>
+          </ul>
+          <h2>Usage</h2>
+          <pre><div class="bar"><span class="b2">bash</span><span>script/extract_text.py</span><i class="far fa-copy"></i><i class="far fa-eye"></i></div><code><span class="k">python</span> script/extract_text.py <span class="s">"input.pdf"</span> --pages 1-3</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>分段控件沿用页头 <code>.kv-seg</code> 凹槽样式，视觉零新语言</li>
+        <li>概览 tab 承载版本 / license / 目录 / 脚本 / 文档计数表</li>
+        <li>SKILL.md 与各类文件各占一个 tab，互不打扰</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">页面最精简，任何一类资源都一击可达</li>
+        <li class="good">后续加「变更记录」「使用统计」有现成位置</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li class="bad">主要阅读物 SKILL.md 变成 tab 之一，进入页面默认停在哪需要再定</li>
+        <li class="bad">tab 与列表页的分段（已安装 / 市场）语义重复，易混淆</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

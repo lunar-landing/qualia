@@ -32,22 +32,14 @@ Based on the ReAct (Reasoning + Acting) paradigm, it supports complex task decom
 ```
 qualia/
 ├── qualia-core/          # Core module
-├── qualia-code/          # Code module (includes web service)
-├── qualia-code-desktop/  # Code desktop app
-├── qualia-claw/          # Claw module (includes web service)
-├── qualia-claw-desktop/  # Claw desktop app
 └── qualia-docs/          # Project documentation
 ```
 
 **Qualia-core** The framework core module, providing the agent core architecture (ReActAgent, HarnessAgent), the model protocol abstraction layer (ChatModel, EmbeddingModel, RerankModel), the tool system and MCP integration, conversation memory management, the RAG retrieval pipeline, and the skill system.
 
-**Qualia-code** An AI coding assistant product built on the Qualia framework, delivering a complete Web IDE experience: multi-session management and workspace switching, code generation and analysis, file read/write and search, terminal command execution, tool-call visualization, MCP server management, multi-model configuration with dynamic switching, streaming responses and real-time interaction, available in both desktop and web deployment modes.
+**Qualia-code** An AI coding assistant product built on the Qualia framework, delivering a complete Web IDE experience: multi-session management and workspace switching, code generation and analysis, file read/write and search, terminal command execution, tool-call visualization, MCP server management, multi-model configuration with dynamic switching, streaming responses and real-time interaction, available in both desktop and web deployment modes. It now lives in its own repository together with its Vue front end (`qualia-code-ui`) and SWT desktop shell (`qualia-code-desktop`), consuming `qualia-core` from Maven Central.
 
-**Qualia-code-desktop** The desktop application module, built on SWT with an embedded browser loading the Web IDE UI. Provides a native desktop experience with window state persistence (size, position, maximized state), system title-bar theme synchronization (automatic dark/light adaptation), and cross-platform support (Windows/macOS).
-
-**Qualia-claw** A multi-agent collaboration product built on the Qualia framework. Each agent has its own workstation (system-managed workspace + independent conversation memory), supporting role personas, parallel multi-agent conversations, global skills and MCP servers referenced via per-agent allowlists, workspace file browsing and preview, and per-session token usage statistics. All configuration is consolidated in the user home directory, isolated per product, and it likewise supports both desktop and web deployment modes.
-
-**Qualia-claw-desktop** The Claw desktop application module, architecturally identical to Qualia-code-desktop (SWT + system WebView). Lock files, window state, and crash logs are isolated per product directory, so it can run alongside the Qualia Code desktop app.
+**Qualia-claw** A multi-agent collaboration product built on the Qualia framework. Each agent has its own workstation (system-managed workspace + independent conversation memory), supporting role personas, parallel multi-agent conversations, global skills and MCP servers referenced via per-agent allowlists, workspace file browsing and preview, and per-session token usage statistics. All configuration is consolidated in the user home directory, isolated per product, and it likewise supports both desktop and web deployment modes. It has also been split out of this repository and consumes `qualia-core` from Maven Central as a regular dependency.
 
 ## 🚀 Quick Start
 
@@ -121,22 +113,14 @@ qualia-core is published to Maven Central.
 
 ```bash
 # Publish qualia-core to Maven Central
-mvn clean deploy -pl qualia-core -am -DskipTests
+# Publish the parent POM first (downstream resolution of qualia-core needs it), then the module; -P release also GPG-signs the parent POM
+mvn clean deploy -N -P release
+mvn clean deploy -pl qualia-core -P release -DskipTests
 ```
 
 ### Build Desktop Apps
 
-```powershell
-# Build executable jars
-mvn -pl qualia-code-desktop -am clean package -DskipTests
-mvn -pl qualia-claw-desktop -am clean package -DskipTests
-
-# Package as Windows applications (portable, no installer)
-.\qualia-code-desktop\packaging\package-win.ps1
-.\qualia-claw-desktop\packaging\package-win.ps1
-```
-
-Artifacts: `qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe` and `qualia-claw-desktop\target\dist\<version>\Qualia Claw\Qualia Claw.exe`
+This repository no longer ships a desktop shell module: the Qualia Code desktop app is built from its own repository, and the same goes for Qualia Claw.
 
 ## 📄 License
 

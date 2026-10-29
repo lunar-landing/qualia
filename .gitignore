@@ -1,5 +1,7 @@
 HELP.md
 target/
+# flatten-maven-plugin 生成的发布用 POM
+.flattened-pom.xml
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

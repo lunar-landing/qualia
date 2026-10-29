@@ -32,22 +32,14 @@ ReAct（Reasoning + Acting）パラダイムに基づき、思考-行動-観察�
 ```
 qualia/
 ├── qualia-core/          # コアモジュール
-├── qualia-code/          # Code モジュール（Web サービス含む）
-├── qualia-code-desktop/  # Code デスクトップアプリ
-├── qualia-claw/          # Claw モジュール（Web サービス含む）
-├── qualia-claw-desktop/  # Claw デスクトップアプリ
 └── qualia-docs/          # プロジェクトドキュメント
 ```
 
 **Qualia-core** フレームワークコアモジュール。エージェントコアアーキテクチャ（ReActAgent、HarnessAgent）、モデルプロトコル抽象レイヤー（ChatModel、EmbeddingModel、RerankModel）、ツールシステムと MCP 統合、会話メモリ管理、RAG 検索パイプライン、スキルシステムを提供します。
 
-**Qualia-code** Qualia フレームワーク上に構築された AI コーディングアシスタント製品。完全な Web IDE エクスペリエンスを提供し、マルチセッション管理とワークスペース切り替え、コード生成と分析、ファイル読み書きと検索、ターミナルコマンド実行、ツール呼び出しの可視化、MCP サーバー管理、マルチモデル設定と動的切り替え、ストリーミングレスポンスとリアルタイムインタラクションをサポート。デスクトップアプリと Web の2つのデプロイモードをサポートします。
+**Qualia-code** Qualia フレームワーク上に構築された AI コーディングアシスタント製品。完全な Web IDE エクスペリエンスを提供し、マルチセッション管理とワークスペース切り替え、コード生成と分析、ファイル読み書きと検索、ターミナルコマンド実行、ツール呼び出しの可視化、MCP サーバー管理、マルチモデル設定と動的切り替え、ストリーミングレスポンスとリアルタイムインタラクションをサポート。デスクトップアプリと Web の2つのデプロイモードをサポートします。現在は独立リポジトリに分離され、フロントエンド（`qualia-code-ui`）とデスクトップシェル（`qualia-code-desktop`）と同じリポジトリで管理され、`qualia-core` は Maven Central から依存取り込みしています。
 
-**Qualia-code-desktop** SWT ベースのデスクトップアプリケーションモジュール。内蔵ブラウザで Web IDE UI を読み込み、ネイティブデスクトップエクスペリエンスを提供。ウィンドウ状態の永続化（サイズ、位置、最大化状態）、システムタイトルバーのテーマ連動（ダーク/ライト自動適応）、クロスプラットフォームサポート（Windows/macOS）を実現します。
-
-**Qualia-claw** Qualia フレームワーク上に構築されたマルチエージェント協調製品。各エージェントは独立したワークステーション（システム管理ワークスペース + 独立会話メモリ）を持ち、ロールペルソナ設定、マルチエージェント並行会話、グローバルスキルと MCP サーバーのエージェント別ホワイトリスト参照、ワークスペースファイルの参照とプレビュー、セッション別トークン使用量統計をサポート。設定はユーザーディレクトリに製品別に集約され、デスクトップアプリと Web の両方のデプロイモードをサポートします。
-
-**Qualia-claw-desktop** Claw デスクトップアプリケーションモジュール。Qualia-code-desktop と同じアーキテクチャ（SWT + システム WebView）。ロックファイル、ウィンドウ状態、クラッシュログは製品ディレクトリに分離され、Qualia Code デスクトップアプリと同時に実行できます。
+**Qualia-claw** Qualia フレームワーク上に構築されたマルチエージェント協調製品。各エージェントは独立したワークステーション（システム管理ワークスペース + 独立会話メモリ）を持ち、ロールペルソナ設定、マルチエージェント並行会話、グローバルスキルと MCP サーバーのエージェント別ホワイトリスト参照、ワークスペースファイルの参照とプレビュー、セッション別トークン使用量統計をサポート。設定はユーザーディレクトリに製品別に集約され、デスクトップアプリと Web の両方のデプロイモードをサポートします。現在は独立リポジトリに分離されており、`qualia-core` は Maven Central から依存取り込みしています。
 
 ## 🚀 クイックスタート
 
@@ -121,22 +113,14 @@ qualia-core は Maven Central で公開されています。
 
 ```bash
 # qualia-core を Maven Central に公開
-mvn clean deploy -pl qualia-core -am -DskipTests
+# 父 POM を先に公開（qualia-core の解決に必要）、次にモジュールを公開；-P release で父 POM も GPG 署名
+mvn clean deploy -N -P release
+mvn clean deploy -pl qualia-core -P release -DskipTests
 ```
 
 ### デスクトップアプリのビルド
 
-```powershell
-# 実行可能 jar のビルド
-mvn -pl qualia-code-desktop -am clean package -DskipTests
-mvn -pl qualia-claw-desktop -am clean package -DskipTests
-
-# Windows アプリケーションとしてパッケージ（ポータブル、インストーラー不要）
-.\qualia-code-desktop\packaging\package-win.ps1
-.\qualia-claw-desktop\packaging\package-win.ps1
-```
-
-成果物：`qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe` および `qualia-claw-desktop\target\dist\<version>\Qualia Claw\Qualia Claw.exe`
+本リポジトリにデスクトップシェルモジュールは含まれません。Qualia Code デスクトップアプリも Qualia Claw デスクトップアプリも、それぞれ専用のリポジトリでビルドされます。
 
 ## 📄 ライセンス
 

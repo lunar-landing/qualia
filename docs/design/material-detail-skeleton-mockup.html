@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资料库详情页 · 骨架四版方案</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  /* ===== 日间石墨工程 token（对齐 qualia-code-ui light-theme 与 --mat-* 体系） ===== */
+  :root {
+    --bg-app: #ffffff;
+    --bg-hover: #e9edf1;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #57657a;
+    --text-muted: #8c959f;
+    --mat-stage: #eef1f5;
+    --mat-surface-2: #f6f8fa;
+    --mat-wash: #f2f5f8;
+    --mat-card: #ffffff;
+    --mat-line: #e6ebf0;
+    --mat-ink: #1c2128;
+    --mat-ink-2: #3c4551;
+    --mat-mut: #6b7480;
+    --mat-faint: #98a1ac;
+    --mat-accent: #3d5a80;
+    --mat-accent-wash: rgba(61, 90, 128, 0.07);
+    --mat-t-md: #7d8da0;
+    --mat-t-pdf: #c0857c;
+    --mat-t-word: #8aa6c8;
+    --mat-t-html: #c79a72;
+    --mat-lift: 0 1px 1px rgba(28, 33, 40, 0.03), 0 10px 28px rgba(28, 33, 40, 0.06);
+    --success: #1a7f37;
+    --page: #f4f5f7;
+    --mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 40px 48px 80px;
+  }
+  .page-head h1 { font-size: 20px; font-weight: 700; }
+  .page-head p { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; }
+
+  /* ===== 方案对照表 ===== */
+  table.cmp { width: 100%; margin-top: 22px; border-collapse: collapse; font-size: 12.5px; }
+  table.cmp th { text-align: left; font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 0 12px 9px 0; border-bottom: 1px solid var(--border-color); }
+  table.cmp td { padding: 10px 12px 10px 0; border-bottom: 1px solid rgba(28,33,40,.07); color: var(--text-secondary); vertical-align: top; }
+  table.cmp td b { color: var(--text-primary); font-weight: 650; }
+  table.cmp tr.pick td { background: var(--mat-accent-wash); }
+  .tag-rec { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 650; color: var(--mat-accent); background: var(--mat-accent-wash); border: 1px solid rgba(61,90,128,.18); padding: 1px 8px; border-radius: 999px; }
+  .lv { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+
+  /* ===== 版块骨架 ===== */
+  .sec { margin-top: 44px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: var(--text-secondary); text-transform: uppercase;
+    padding-bottom: 8px; border-bottom: 2px solid var(--text-primary);
+    margin-bottom: 16px;
+  }
+  .sec-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+  .layout { display: flex; gap: 22px; align-items: flex-start; }
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .notes { width: 296px; flex-shrink: 0; background: var(--mat-card); border: 1px solid var(--mat-line); border-radius: 12px; padding: 16px 18px; font-size: 12px; color: var(--text-secondary); }
+  .notes h5 { font-size: 11px; color: var(--text-primary); margin: 13px 0 4px; letter-spacing: 0.04em; }
+  .notes h5:first-child { margin-top: 0; }
+  .notes ul { padding-left: 17px; }
+  .notes li { margin-bottom: 3px; }
+  .notes .good { color: var(--success); }
+  .notes .bad { color: #b35900; }
+
+  /* ===== 页面框：双栏详情页的等比缩样（左树实现按 264px，此处 216px 便于并排） ===== */
+  .frame {
+    background: var(--mat-surface-2);
+    border: 1px solid var(--mat-line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--mat-lift);
+    height: 412px;
+    display: flex;
+    flex-direction: column;
+  }
+  .frame.tall { height: 456px; }
+  .cols { flex: 1; display: flex; min-height: 0; }
+  .tree { width: 216px; flex-shrink: 0; background: var(--mat-card); border-right: 1px solid var(--mat-line); display: flex; flex-direction: column; min-height: 0; }
+  .reader { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--mat-surface-2); }
+  .scroll { flex: 1; min-height: 0; overflow: hidden; padding: 18px 20px; }
+  .spring { flex: 1; }
+
+  /* 通用原子件 */
+  .th-49 { height: 49px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--mat-card); border-bottom: 1px solid var(--mat-line); }
+  .ic-btn { width: 26px; height: 26px; border: none; border-radius: 6px; background: transparent; color: var(--text-muted); font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ic-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .ic-btn.danger:hover { background: rgba(207,34,46,.08); color: #cf222e; }
+  .back { width: 28px; height: 28px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11.5px; flex-shrink: 0; }
+  .back:hover { background: var(--bg-hover); }
+  .tile { width: 26px; height: 26px; border-radius: 7px; background: var(--mat-accent-wash); color: var(--mat-accent); display: inline-flex; align-items: center; justify-content: center; font-size: 11.5px; flex-shrink: 0; }
+  .tile.big { width: 38px; height: 38px; border-radius: 10px; font-size: 15px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--mat-wash); border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+  .chip i { font-size: 9px; }
+  .chip.acc { background: var(--mat-accent-wash); color: var(--mat-accent); }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid var(--border-color); border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .btn-ghost.sm { height: 24px; padding: 0 9px; font-size: 11.5px; }
+  .btn-solid { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 1px solid var(--mat-accent); border-radius: 8px; background: var(--mat-accent); color: #fff; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .vdiv { width: 1px; height: 16px; background: var(--mat-line); flex-shrink: 0; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--mat-wash); flex-shrink: 0; }
+  .seg button { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: none; border-radius: 7px; background: transparent; color: var(--text-secondary); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+  .seg button.on { background: var(--mat-card); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 2px rgba(28,33,40,.06); }
+  .seg button .n { font-family: var(--mono); font-size: 9.5px; color: var(--text-muted); }
+  .crumbs { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--mat-faint); min-width: 0; }
+  .crumbs .lnk { cursor: pointer; color: var(--mat-mut); white-space: nowrap; }
+  .crumbs .lnk:hover { color: var(--mat-accent); }
+  .crumbs .cur { color: var(--mat-ink); font-weight: 600; }
+  .crumbs i.sep { font-size: 8px; color: var(--mat-faint); }
+
+  /* 树 */
+  .filt { margin: 8px 10px 6px; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px; border: 1px solid var(--mat-line); border-radius: 8px; background: var(--mat-wash); color: var(--mat-faint); font-size: 11.5px; flex-shrink: 0; }
+  .filt i { font-size: 10px; }
+  .tn { display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px 0 12px; font-size: 12px; color: var(--mat-ink-2); cursor: pointer; position: relative; }
+  .tn:hover { background: var(--mat-wash); }
+  .tn.on { background: var(--mat-accent-wash); color: var(--mat-ink); font-weight: 600; }
+  .tn.on::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 2px; border-radius: 0 2px 2px 0; background: var(--mat-accent); }
+  .tn .car { font-size: 8px; color: var(--mat-faint); width: 9px; flex-shrink: 0; }
+  .tn .f { font-size: 11px; width: 14px; text-align: center; flex-shrink: 0; }
+  .tn.md .f { color: var(--mat-t-md); }
+  .tn.pdf .f { color: var(--mat-t-pdf); }
+  .tn.word .f { color: var(--mat-t-word); }
+  .tn.html .f { color: var(--mat-t-html); }
+  .tn.folder .f { color: var(--mat-mut); }
+  .tn .lb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tn.d1 { padding-left: 26px; }
+  .tn.d2 { padding-left: 40px; }
+  .tsec { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mat-faint); padding: 12px 12px 5px; }
+
+  /* 目录首页：Hero + 分组 + 卡片 */
+  .hero { display: flex; align-items: flex-start; gap: 15px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+  .hero .mark { width: 46px; height: 46px; border-radius: 12px; background: var(--mat-wash); border: 1px solid var(--mat-line); color: var(--mat-accent); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .hero .t { font-size: 20px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; }
+  .hero .desc { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+  .hero .meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 11.5px; color: var(--text-muted); }
+  .hero .meta b { font-family: var(--mono); font-weight: 600; color: var(--text-primary); font-size: 11.5px; }
+  .gt { display: flex; align-items: center; gap: 8px; margin: 16px 0 9px; }
+  .gt i { font-size: 11px; color: var(--text-secondary); }
+  .gt .t { font-size: 12px; font-weight: 600; }
+  .gt .cnt { font-family: var(--mono); font-size: 10px; color: var(--text-secondary); background: var(--mat-wash); padding: 1px 6px; border-radius: 4px; }
+  .gt .rule { flex: 1; height: 1px; background: var(--mat-line); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px; }
+  .kc { border: 1px solid var(--border-color); border-radius: 11px; background: var(--mat-card); padding: 11px 12px 10px; display: flex; flex-direction: column; gap: 7px; cursor: pointer; }
+  .kc:hover { border-color: var(--text-muted); background: var(--bg-hover); }
+  .kc .ch { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .kc .fic { width: 22px; height: 22px; border-radius: 6px; background: var(--mat-wash); display: flex; align-items: center; justify-content: center; font-size: 10.5px; flex-shrink: 0; }
+  .kc .nm { font-size: 12.5px; font-weight: 600; color: var(--mat-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kc .sm { font-size: 11.5px; color: var(--text-secondary); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .kc .mt { font-family: var(--mono); font-size: 10px; color: var(--mat-faint); }
+
+  /* 文章阅读态缩样 */
+  .strip { background: var(--mat-card); border: 1px solid var(--mat-line); border-radius: 10px; overflow: hidden; }
+  .strip .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--mat-faint); padding: 7px 12px 0; }
+  .art { padding: 14px 18px 16px; }
+  .art .at { font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+  .art .am { display: flex; align-items: center; gap: 9px; margin-top: 7px; font-size: 11.5px; color: var(--text-muted); }
+  .art .am .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--mat-faint); }
+  .art .lines { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+  .art .lines i { display: block; height: 7px; border-radius: 3px; background: var(--mat-wash); }
+  .art .lines i:nth-child(1) { width: 100%; }
+  .art .lines i:nth-child(2) { width: 94%; }
+  .art .lines i:nth-child(3) { width: 62%; }
+
+  /* ===== 背景融合实验：变量全部加在左栏 ===== */
+  .frame.mid { height: 316px; }
+  .vlab { display: flex; align-items: baseline; gap: 9px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mat-mut); margin-top: 4px; }
+  .vlab b { color: var(--text-primary); font-size: 11px; letter-spacing: .04em; }
+  .vlab span { font-family: 'Inter', 'PingFang SC', sans-serif; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--mat-faint); }
+  .f1 .tree { background: var(--mat-surface-2); }
+  .f1 .tree > .th-49 { background: var(--mat-card); }
+  .f2 .tree { background: var(--mat-surface-2); border-right-color: rgba(28,33,40,.045); }
+  .f2 .tree > .th-49 { background: var(--mat-card); }
+  .f3 { background: var(--mat-stage); }
+  .f3 .cols { padding: 10px; gap: 10px; }
+  .f3 .tree, .f3 .reader { border: 1px solid var(--mat-line); border-radius: 11px; overflow: hidden; }
+  .f3 .tree { border-right: 1px solid var(--mat-line); }
+  .f3 .reader { background: var(--mat-card); }
+  .f3 .kc { background: var(--mat-wash); border-color: transparent; }
+
+  /* 结论条 */
+  .concl { margin-top: 40px; background: var(--mat-card); border: 1px solid var(--mat-line); border-left: 3px solid var(--mat-accent); border-radius: 0 12px 12px 0; padding: 18px 22px; font-size: 12.5px; color: var(--text-secondary); }
+  .concl h4 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-primary); margin-bottom: 8px; }
+  .concl ol { padding-left: 18px; }
+  .concl li { margin-bottom: 4px; }
+  .concl code { font-family: var(--mono); font-size: 11.5px; color: var(--mat-accent); background: var(--mat-accent-wash); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>资料库详情页 · 骨架四版方案</h1>
+  <p>范围：点进某个资料库之后的整页（左文章树 + 右阅读区，含目录首页 / 整篇阅读 / 源码编辑三态）。约束：左树常驻双栏不动，只在信息架构与头部上精修。</p>
+</div>
+
+<table class="cmp">
+  <tr><th style="width:130px">方案</th><th style="width:190px">库身份落位</th><th>核心改动</th><th style="width:120px">改动量</th></tr>
+  <tr>
+    <td><b>V1 · 现状基线</b></td>
+    <td class="lv">三处：tree-head / kb-hero / 面包屑</td>
+    <td>不改动，用于标注问题：库名重复、返回入口弱、头部内容随态跳变</td>
+    <td>—</td>
+  </tr>
+  <tr class="pick">
+    <td><b>V2 · 通栏库页头</b> <span class="tag-rec"><i class="fas fa-star"></i>推荐</span></td>
+    <td class="lv">唯一：页面顶部通栏</td>
+    <td>新增 56px 通栏承载库身份 + 库级动作；左树头退化为「目录 N」导航标题；右 reader-head 退化为位置条；删 kb-hero</td>
+    <td>中（重排头部，不动栏结构）</td>
+  </tr>
+  <tr>
+    <td><b>V3 · 库头归左栏</b></td>
+    <td class="lv">唯一：左栏顶部块</td>
+    <td>不加通栏，把左树头扩成 96px 库信息块（名称/描述/统计/动作），右头部只留位置条；删 kb-hero</td>
+    <td>小（改一个容器）</td>
+  </tr>
+  <tr>
+    <td><b>V4 · 单头随态切换</b></td>
+    <td class="lv">从属：库 chip 常驻</td>
+    <td>整屏只留一条头部，内容随三态换（库 / 文章 / 编辑），库名降为头部左侧可点的库 chip</td>
+    <td>大（头部状态机）</td>
+  </tr>
+</table>
+
+<!-- ============ V1 ============ -->
+<div class="sec">
+  <div class="sec-title">V1 · 现状基线 <small>两栏各一个 49px 头部，库信息落在右栏 Hero</small></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="frame">
+        <div class="cols">
+          <div class="tree">
+            <div class="th-49">
+              <i class="fas fa-book-open" style="font-size:12px;color:var(--text-secondary)"></i>
+              <span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">后端架构手册</span>
+              <span class="spring"></span>
+              <button class="ic-btn" title="新建文件夹"><i class="fas fa-folder-plus"></i></button>
+              <button class="ic-btn" title="新建文章"><i class="fas fa-file-circle-plus"></i></button>
+              <span class="vdiv"></span>
+              <button class="ic-btn" title="上传"><i class="fas fa-arrow-up-from-bracket"></i></button>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn word d2"><i class="car"></i><i class="f fas fa-file-word"></i><span class="lb">对账字段映射表.docx</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+            <div class="tn html"><i class="car"></i><i class="f fas fa-file-code"></i><span class="lb">灰度看板.html</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="padding:0 16px">
+              <span class="back"><i class="fas fa-arrow-left"></i></span>
+              <div class="crumbs"><span class="lnk">后端架构手册</span><i class="sep fas fa-chevron-right"></i><span class="cur">目录首页</span></div>
+            </div>
+            <div class="scroll">
+              <div class="hero">
+                <div class="mark"><i class="fas fa-book-open"></i></div>
+                <div style="min-width:0">
+                  <div class="t">后端架构手册</div>
+                  <div class="desc">服务拆分、容量规划与故障复盘的长期沉淀</div>
+                  <div class="meta"><span><b>12</b> 篇</span><span><b>4.2w</b> 字</span><span>3 天前更新</span></div>
+                </div>
+              </div>
+              <div class="gt"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="strip">
+        <div class="lbl">点开文章后 · 右栏头部换成位置条 + 视图切换，Hero 消失</div>
+        <div class="th-49" style="border-bottom:none;padding:0 16px">
+          <span class="back"><i class="fas fa-arrow-left"></i></span>
+          <div class="crumbs"><span class="lnk">后端架构手册</span><i class="sep fas fa-chevron-right"></i><span class="lnk">接入规范</span><i class="sep fas fa-chevron-right"></i><span class="cur">支付网关对接说明</span></div>
+          <span class="spring"></span>
+          <div class="seg"><button class="on"><i class="fas fa-eye"></i>预览</button><button><i class="fas fa-code"></i>源码</button></div>
+          <button class="btn-ghost sm"><i class="fas fa-pen"></i>编辑</button>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>现状问题</h5>
+      <ul>
+        <li class="bad">库名出现两次：左 <code>tree-head</code> 一行小字 + 右 <code>kb-hero</code> 大字，同一页面两个锚点</li>
+        <li class="bad">库身份随态蒸发：<code>kb-hero</code> 只在目录首页存在，点开文章后只剩面包屑第一段，用户容易忘记自己在哪个库</li>
+        <li class="bad">返回资料库列表的唯一入口是右栏左上角 28px 裸箭头，无文字，且被面包屑挤在左侧</li>
+        <li class="bad">左树头 49px 里塞了「图标 + 库名 + 三枚动作钮」，长库名必然截断</li>
+      </ul>
+      <h5>唯一的优点</h5>
+      <ul><li class="good">左右头部同高 49px、分隔线严格同线，横向节奏是干净的——这一点应保留</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ V2 ============ -->
+<div class="sec">
+  <div class="sec-title">V2 · 通栏库页头 <small>库身份上移为整页唯一锚点，两栏头部各退一层</small></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="frame tall">
+        <div class="th-49" style="height:56px;padding:0 18px;gap:10px;border-bottom:1px solid var(--mat-line)">
+          <span class="back"><i class="fas fa-arrow-left"></i></span>
+          <span class="tile"><i class="fas fa-book-open"></i></span>
+          <span style="font-size:15.5px;font-weight:650;letter-spacing:-.02em;white-space:nowrap">后端架构手册</span>
+          <span style="font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">服务拆分、容量规划与故障复盘的长期沉淀</span>
+          <span class="chip"><i class="fas fa-file-lines"></i>12 篇</span>
+          <span class="chip"><i class="fas fa-text-width"></i>4.2w 字</span>
+          <span class="chip">3 天前</span>
+          <span class="spring"></span>
+          <button class="btn-ghost sm"><i class="fas fa-arrow-up-from-bracket"></i>上传文档</button>
+          <button class="btn-ghost sm"><i class="fas fa-folder-plus"></i></button>
+          <button class="btn-ghost sm"><i class="fas fa-file-circle-plus"></i></button>
+          <span class="vdiv"></span>
+          <button class="ic-btn" title="编辑库"><i class="fas fa-pen"></i></button>
+          <button class="ic-btn danger" title="删除库"><i class="fas fa-trash-can"></i></button>
+        </div>
+        <div class="cols">
+          <div class="tree">
+            <div class="th-49" style="height:38px">
+              <span style="font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted)">目录</span>
+              <span class="chip">12</span>
+              <span class="spring"></span>
+              <button class="ic-btn" title="全部展开"><i class="fas fa-angles-down"></i></button>
+              <button class="ic-btn" title="刷新"><i class="fas fa-rotate"></i></button>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn word d2"><i class="car"></i><i class="f fas fa-file-word"></i><span class="lb">对账字段映射表.docx</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+            <div class="tn html"><i class="car"></i><i class="f fas fa-file-code"></i><span class="lb">灰度看板.html</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="height:38px;padding:0 16px">
+              <div class="crumbs" style="font-size:11.5px"><span class="lnk"><i class="far fa-compass" style="font-size:10px;margin-right:5px"></i>全部目录</span></div>
+              <span class="spring"></span>
+              <span style="font-size:11px;color:var(--mat-faint)">按更新时间排序</span>
+            </div>
+            <div class="scroll" style="padding-top:14px">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-word)"><i class="fas fa-file-word"></i></span><span class="nm">对账字段映射表.docx</span></div><div class="sm">渠道流水与内部账单的字段对应关系。</div><div class="mt">920 字 · 5 天前</div></div>
+              </div>
+              <div class="gt"><i class="fas fa-folder"></i><span class="t">根目录</span><span class="cnt">2</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">连接池容量测算</span></div><div class="sm">按 QPS 峰值反推 HikariCP 与上游线程池配比。</div><div class="mt">2.4k 字 · 3 天前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-html)"><i class="fas fa-file-code"></i></span><span class="nm">灰度看板.html</span></div><div class="sm">分批放量进度的静态快照页。</div><div class="mt">610 字 · 1 周前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="strip">
+        <div class="lbl">点开文章后 · 通栏不动，右栏位置条换面包屑 + 视图切换</div>
+        <div class="th-49" style="height:38px;border-bottom:none;padding:0 16px">
+          <div class="crumbs" style="font-size:11.5px"><span class="lnk">接入规范</span><i class="sep fas fa-chevron-right"></i><span class="cur">支付网关对接说明</span></div>
+          <span class="spring"></span>
+          <div class="seg"><button class="on"><i class="fas fa-eye"></i>预览</button><button><i class="fas fa-code"></i>源码</button></div>
+          <button class="btn-ghost sm"><i class="fas fa-pen"></i>编辑</button>
+        </div>
+        <div class="art">
+          <div class="lines"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>头部三层：<b>通栏 56px</b>（库身份 + 库级动作）→ <b>左「目录 12」38px</b> + <b>右位置条 38px</b> → 内容</li>
+        <li>库级动作全部上移通栏：上传 / 新建文件夹 / 新建文章 / 编辑库 / 删除库，左树头只留展开与刷新这类导航辅助</li>
+        <li>面包屑不再重复库名，从目录段起写；返回列表改为通栏最左的箭头（与技能页 <code>kv-rescan</code> 同位）</li>
+        <li><code>kb-hero</code> 整块删除，目录首页直接进分组卡片</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">库身份唯一且恒定，三态下通栏不变，上下文稳定</li>
+        <li class="good">与技能页「返回 + tile + 大字标题 + chips + 右侧动作」同一种节奏，跨页一致</li>
+        <li class="good">左树头不再挂库名，长名称不再截断</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul><li>通栏 + 两栏头共三层，纵向占用比现状多约 7px（56+38 vs 49+49）</li></ul>
+      <h5>落地映射</h5>
+      <ul>
+        <li><code>MaterialDetailPage.vue</code> 的 <code>kb-view</code> 外再包一层 header；<code>tree-head</code> 去库名与三枚钮；<code>reader-head</code> 去 <code>back-btn</code> 与库名面包屑；<code>kb-hero</code> 移除</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ V3 ============ -->
+<div class="sec">
+  <div class="sec-title">V3 · 库头归左栏 <small>不加通栏，把左栏顶部做成库信息块，改动面最小</small></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="frame">
+        <div class="cols">
+          <div class="tree">
+            <div style="padding:14px;border-bottom:1px solid var(--mat-line);flex-shrink:0">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
+                <span class="back" style="width:22px;height:22px;font-size:10px;margin-left:-4px"><i class="fas fa-arrow-left"></i></span>
+                <span style="font-size:11px;color:var(--mat-mut)">资料库</span>
+                <span class="spring"></span>
+                <button class="ic-btn" style="width:22px;height:22px;font-size:10px" title="编辑库"><i class="fas fa-pen"></i></button>
+                <button class="ic-btn danger" style="width:22px;height:22px;font-size:10px" title="更多"><i class="fas fa-ellipsis"></i></button>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px">
+                <span class="tile big"><i class="fas fa-book-open"></i></span>
+                <div style="min-width:0">
+                  <div style="font-size:14.5px;font-weight:650;letter-spacing:-.02em;line-height:1.3">后端架构手册</div>
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">服务拆分、容量规划与故障复盘的长期沉淀</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:11px">
+                <span class="chip"><i class="fas fa-file-lines"></i>12 篇</span>
+                <span class="chip"><i class="fas fa-text-width"></i>4.2w</span>
+                <span class="chip">3 天前</span>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:10px">
+                <button class="btn-ghost sm" style="flex:1;justify-content:center"><i class="fas fa-arrow-up-from-bracket"></i>上传</button>
+                <button class="btn-ghost sm"><i class="fas fa-folder-plus"></i></button>
+                <button class="btn-ghost sm"><i class="fas fa-file-circle-plus"></i></button>
+              </div>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+            <div class="tn html"><i class="car"></i><i class="f fas fa-file-code"></i><span class="lb">灰度看板.html</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="padding:0 18px">
+              <div class="crumbs"><span class="cur">目录首页</span></div>
+              <span class="spring"></span>
+              <div class="seg"><button class="on"><i class="fas fa-grip"></i>卡片</button><button><i class="fas fa-list"></i>列表</button></div>
+            </div>
+            <div class="scroll">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+              </div>
+              <div class="gt"><i class="fas fa-folder"></i><span class="t">根目录</span><span class="cnt">2</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">连接池容量测算</span></div><div class="sm">按 QPS 峰值反推 HikariCP 与上游线程池配比。</div><div class="mt">2.4k 字 · 3 天前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-html)"><i class="fas fa-file-code"></i></span><span class="nm">灰度看板.html</span></div><div class="sm">分批放量进度的静态快照页。</div><div class="mt">610 字 · 1 周前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="strip">
+        <div class="lbl">点开文章后 · 左栏库块完全不变（上下文更稳），右头部换文章位置条</div>
+        <div class="th-49" style="border-bottom:none;padding:0 18px">
+          <div class="crumbs"><span class="lnk">接入规范</span><i class="sep fas fa-chevron-right"></i><span class="cur">支付网关对接说明</span></div>
+          <span class="spring"></span>
+          <div class="seg"><button class="on"><i class="fas fa-eye"></i>预览</button><button><i class="fas fa-code"></i>源码</button></div>
+          <button class="btn-ghost sm"><i class="fas fa-pen"></i>编辑</button>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>左栏顶部 96px 库块：返回 + 38px tile + 库名/描述 + 统计 chips + 动作行，「库 = 左栏上下文」</li>
+        <li>右 <code>reader-head</code> 保持 49px 同高线，只放位置条与态操作，不放库名</li>
+        <li>三态下左栏库块恒定不动，等于把「自己在哪个库」常驻在视线起点</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">改动面最小：不新增头部层，页面总高度节奏完全不变</li>
+        <li class="good">符合精修优于重构；<code>kb-tree-col</code> 宽度不变就能做完</li>
+        <li class="good">描述文字有了固定落点（现状只有目录首页能看到）</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li>264px 放 2 行描述 + 3 chips + 动作行会显挤，描述可能压到 1 行</li>
+        <li>库身份在左栏而非页面级，跨栏视觉重量偏沉，列表页的「大标题页头」语言在此落不到</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ V4 ============ -->
+<div class="sec">
+  <div class="sec-title">V4 · 单头随态切换 <small>整屏只一条 52px 头部，内容按 三态换，库名降为常驻 chip</small></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="frame">
+        <div class="th-49" style="height:52px;padding:0 18px;gap:9px">
+          <span class="chip acc" style="cursor:pointer"><i class="fas fa-book-open"></i>后端架构手册</span>
+          <i class="sep fas fa-chevron-right" style="font-size:8px;color:var(--mat-faint)"></i>
+          <span style="font-size:15px;font-weight:650;letter-spacing:-.02em">目录首页</span>
+          <span class="chip">12 篇</span>
+          <span class="chip">4.2w 字</span>
+          <span class="spring"></span>
+          <button class="btn-ghost sm"><i class="fas fa-arrow-up-from-bracket"></i>上传</button>
+          <button class="ic-btn" title="返回资料库列表"><i class="fas fa-arrow-left"></i></button>
+        </div>
+        <div class="cols">
+          <div class="tree">
+            <div class="filt" style="margin-top:12px"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2 on"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn word d2"><i class="car"></i><i class="f fas fa-file-word"></i><span class="lb">对账字段映射表.docx</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+            <div class="tn html"><i class="car"></i><i class="f fas fa-file-code"></i><span class="lb">灰度看板.html</span></div>
+            <div style="margin-top:auto;padding:10px;border-top:1px solid var(--mat-line);flex-shrink:0">
+              <button class="btn-ghost sm" style="width:100%;justify-content:center"><i class="fas fa-arrow-up-from-bracket"></i>拖拽或点击上传</button>
+            </div>
+          </div>
+          <div class="reader">
+            <div class="scroll">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc" style="border-color:var(--mat-accent)"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-word)"><i class="fas fa-file-word"></i></span><span class="nm">对账字段映射表.docx</span></div><div class="sm">渠道流水与内部账单的字段对应关系。</div><div class="mt">920 字 · 5 天前</div></div>
+              </div>
+              <div class="gt"><i class="fas fa-folder"></i><span class="t">根目录</span><span class="cnt">2</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">连接池容量测算</span></div><div class="sm">按 QPS 峰值反推 HikariCP 与上游线程池配比。</div><div class="mt">2.4k 字 · 3 天前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-html)"><i class="fas fa-file-code"></i></span><span class="nm">灰度看板.html</span></div><div class="sm">分批放量进度的静态快照页。</div><div class="mt">610 字 · 1 周前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="strip">
+        <div class="lbl">同一头部在文章态 / 编辑态的三种填充</div>
+        <div class="th-49" style="height:52px;border-bottom:none;padding:0 18px;gap:9px">
+          <span class="chip acc" style="cursor:pointer"><i class="fas fa-book-open"></i>后端架构手册</span>
+          <i class="sep fas fa-chevron-right" style="font-size:8px;color:var(--mat-faint)"></i>
+          <span style="font-size:15px;font-weight:650;letter-spacing:-.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">支付网关对接说明</span>
+          <span class="chip">3.1k 字</span>
+          <span class="chip">2 周前</span>
+          <span class="spring"></span>
+          <div class="seg"><button class="on"><i class="fas fa-eye"></i>预览</button><button><i class="fas fa-code"></i>源码</button></div>
+          <button class="btn-ghost sm"><i class="fas fa-pen"></i>编辑</button>
+          <button class="ic-btn"><i class="fas fa-arrow-left"></i></button>
+        </div>
+        <div class="th-49" style="height:52px;border-bottom:none;padding:0 18px;gap:9px;background:var(--mat-wash)">
+          <span class="chip acc"><i class="fas fa-book-open"></i>后端架构手册</span>
+          <i class="sep fas fa-chevron-right" style="font-size:8px;color:var(--mat-faint)"></i>
+          <span style="font-size:15px;font-weight:650;letter-spacing:-.02em">编辑 · 支付网关对接说明</span>
+          <span class="spring"></span>
+          <button class="btn-ghost sm"><i class="fas fa-times"></i>取消</button>
+          <button class="btn-solid" style="height:24px;font-size:11.5px"><i class="fas fa-check"></i>保存</button>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <h5>结构要点</h5>
+      <ul>
+        <li>整屏一条 52px 头部，读作「库 chip › 当前对象标题 + 元信息 + 态操作」</li>
+        <li>左树头彻底取消，只留过滤行；右 <code>reader-head</code> 取消，两栏内容从头部下沿直接开始</li>
+        <li>库名以 accent chip 常驻头部最左，点击 = 回目录首页；返回列表的箭头放到头部最右</li>
+      </ul>
+      <h5>优点</h5>
+      <ul>
+        <li class="good">纵向最省（净减约 46px），内容区最高</li>
+        <li class="good">一条头 = 一个上下文，读起来最接近终端/IDE 的标题栏心智</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li class="bad">头部需按三态换内容，是状态机改造，<code>readerMode</code> 分支逻辑要重排（改动最大）</li>
+        <li class="bad">库 chip 字号 10px 承担「身份 + 返回」双责，比通栏大标题弱，长库名会被截</li>
+        <li>左右两栏失去同高分隔线，现有「严格同线」的横向节奏被打散</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 背景融合 ============ -->
+<div class="sec">
+  <div class="sec-title">背景融合 · 只改侧边栏 <small>不动头部结构，只把左栏底色与竖线改掉</small></div>
+  <div class="layout">
+    <div class="stage">
+
+      <div class="vlab"><b>F1</b><span>两栏同底，竖线保留</span></div>
+      <div class="frame mid f1">
+        <div class="cols">
+          <div class="tree">
+            <div class="th-49">
+              <i class="fas fa-book-open" style="font-size:12px;color:var(--text-secondary)"></i>
+              <span style="font-size:12px;font-weight:600">后端架构手册</span>
+              <span class="spring"></span>
+              <button class="ic-btn"><i class="fas fa-folder-plus"></i></button>
+              <button class="ic-btn"><i class="fas fa-file-circle-plus"></i></button>
+              <span class="vdiv"></span>
+              <button class="ic-btn"><i class="fas fa-arrow-up-from-bracket"></i></button>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2 on"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="padding:0 16px">
+              <span class="back"><i class="fas fa-arrow-left"></i></span>
+              <div class="crumbs" style="font-size:12px"><span class="lnk">后端架构手册</span><i class="sep fas fa-chevron-right"></i><span class="cur">目录首页</span></div>
+            </div>
+            <div class="scroll">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vlab"><b>F2</b><span>两栏同底 + 竖线淡化至 4.5%（推荐）</span></div>
+      <div class="frame mid f2">
+        <div class="cols">
+          <div class="tree">
+            <div class="th-49">
+              <i class="fas fa-book-open" style="font-size:12px;color:var(--text-secondary)"></i>
+              <span style="font-size:12px;font-weight:600">后端架构手册</span>
+              <span class="spring"></span>
+              <button class="ic-btn"><i class="fas fa-folder-plus"></i></button>
+              <button class="ic-btn"><i class="fas fa-file-circle-plus"></i></button>
+              <span class="vdiv"></span>
+              <button class="ic-btn"><i class="fas fa-arrow-up-from-bracket"></i></button>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2 on"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="padding:0 16px">
+              <span class="back"><i class="fas fa-arrow-left"></i></span>
+              <div class="crumbs" style="font-size:12px"><span class="lnk">后端架构手册</span><i class="sep fas fa-chevron-right"></i><span class="cur">目录首页</span></div>
+            </div>
+            <div class="scroll">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vlab"><b>F3</b><span>反向：舞台底 + 两栏各成白卡（对齐列表页）</span></div>
+      <div class="frame mid f3">
+        <div class="cols">
+          <div class="tree">
+            <div class="th-49">
+              <i class="fas fa-book-open" style="font-size:12px;color:var(--text-secondary)"></i>
+              <span style="font-size:12px;font-weight:600">后端架构手册</span>
+              <span class="spring"></span>
+              <button class="ic-btn"><i class="fas fa-folder-plus"></i></button>
+              <button class="ic-btn"><i class="fas fa-file-circle-plus"></i></button>
+              <span class="vdiv"></span>
+              <button class="ic-btn"><i class="fas fa-arrow-up-from-bracket"></i></button>
+            </div>
+            <div class="filt"><i class="fas fa-magnifying-glass"></i><span>过滤目录…</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-down"></i><i class="f fas fa-folder-open"></i><span class="lb">接入规范</span></div>
+            <div class="tn md d2 on"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">支付网关对接说明</span></div>
+            <div class="tn pdf d2"><i class="car"></i><i class="f fas fa-file-pdf"></i><span class="lb">接口签名规范 v3.pdf</span></div>
+            <div class="tn folder"><i class="car fas fa-caret-right"></i><i class="f fas fa-folder"></i><span class="lb">复盘记录</span></div>
+            <div class="tn md"><i class="car"></i><i class="f fas fa-file-lines"></i><span class="lb">连接池容量测算</span></div>
+          </div>
+          <div class="reader">
+            <div class="th-49" style="padding:0 16px">
+              <span class="back"><i class="fas fa-arrow-left"></i></span>
+              <div class="crumbs" style="font-size:12px"><span class="lnk">后端架构手册</span><i class="sep fas fa-chevron-right"></i><span class="cur">目录首页</span></div>
+            </div>
+            <div class="scroll">
+              <div class="gt" style="margin-top:0"><i class="fas fa-folder"></i><span class="t">接入规范</span><span class="cnt">3</span><span class="rule"></span></div>
+              <div class="grid">
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-md)"><i class="fas fa-file-lines"></i></span><span class="nm">支付网关对接说明</span></div><div class="sm">签名串拼接顺序、幂等键与回调重试窗口的对接口径。</div><div class="mt">3.1k 字 · 2 周前</div></div>
+                <div class="kc"><div class="ch"><span class="fic" style="color:var(--mat-t-pdf)"><i class="fas fa-file-pdf"></i></span><span class="nm">接口签名规范 v3.pdf</span></div><div class="sm">第三方原件，含错误码总表与沙箱环境参数。</div><div class="mt">1.8k 字 · 1 月前</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="notes">
+      <h5>诊断</h5>
+      <ul>
+        <li>左栏 <code>--mat-card</code> #fff 与右栏 <code>--mat-surface-2</code> #f7f9fb 仅差 8 个 RGB 单位（夜间 #0d1117 vs #11161e 差 4），底色其实已经“差等于没有”</li>
+        <li>割裂感主要来自那 1px <code>border-right</code>，不是颜色</li>
+        <li>右头部本来就是白底压在灰底上，左头部却是白底压在白底上——两个头部同高却不同构</li>
+      </ul>
+      <h5>F1 / F2 的完整改动（三行 CSS）</h5>
+      <ul>
+        <li><code>.kb-tree-col { background: var(--mat-surface-2) }</code> 从 card 换过来，两栏 body 同色</li>
+        <li><code>.tree-head { background: var(--mat-card) }</code> 补上，保住横贯页面的白色头带</li>
+        <li>F2 再加一行：<code>border-right-color: rgba(28,33,40,.045)</code>（或直接 none）</li>
+      </ul>
+      <h5>连带要改的一处</h5>
+      <ul>
+        <li><code>.filter-row</code> 下沿用 <code>--border-color</code> #d0d7de，比 <code>--mat-line</code> 重两档；两栏同底后它会变成左栏最扎眼的线，建议换 <code>--mat-line</code></li>
+        <li>树行 hover <code>--mat-wash</code> #f2f5f8 比新底 #f7f9fb 更深一档，选中态 accent wash 也仍然可见，不用动</li>
+      </ul>
+      <h5>风险点</h5>
+      <ul>
+        <li>左栏失去白卡底后，“树 = 独立面板”的心智靠头部白带与竖线残留支撑；F2 完全无竖线时只能靠 8px 内边距与字号层级</li>
+        <li>正文区的 <code>.src-code</code> / <code>.doc-card</code> 是白底，在灰底上反而比现在更浮起——这是好事，但得确认不与卡片描边叠加过重</li>
+      </ul>
+      <h5>建议</h5>
+      <ul>
+        <li class="good">选 <b>F2</b>：比 F1 就多改一行，融合感差别最大；比 F3 便宜得多，且不推翻现有“左右头部严格同线”的节奏</li>
+        <li>F3 不融合而是同构：把反差拉开到 #eef1f5 才真看得出分层，代价是得给两栏包卡（圆角 + 描边 + 10px 缝），与列表页一致但页面重一档</li>
+        <li>F1/F2 与前面任何一版骨架（V2/V3/V4）都不冲突，可先单独上背景再讨论头部</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="concl">
+  <h4>推荐与落地拆法（V2）</h4>
+  <ol>
+    <li>新增通栏 <code>kb-page-head</code>，56px，<code>background: var(--mat-card)</code> + 下沿 <code>var(--mat-line)</code>：返回箭头 → <code>kv-tile</code> 同款 26px tile → 库名 15.5px/650 → 描述单行省略 → 三枚 <code>kv-chip</code>（篇数 / 字数 / 更新时间）→ spring → 上传、新建文件夹、新建文章 ghost 钮 → 竖线 → 编辑库、删除库图标钮。</li>
+    <li><code>tree-head</code> 由 49px 降到 38px，文案换 <code>目录</code> + 计数 chip，右侧只留「全部展开 / 刷新」；三枚创建钮与上传钮全部上移通栏，长库名不再截断。</li>
+    <li><code>reader-head</code> 同步降到 38px，保持左右分隔线同线；去掉 <code>back-btn</code>，面包屑从目录段起写（不再重复库名）；视图切换 <code>view-switch</code> 沿用现规格不动。</li>
+    <li>删除 <code>kb-hero</code> 整块及其 <code>.mark / .t / .desc / .meta</code> 样式；目录首页直接以 <code>gt</code> 分组头开篇。</li>
+    <li>三态动作归位：通栏只放库级动作且恒定；阅读态与编辑态的取消/保存仍留在 <code>reader-head</code>，不混进通栏。</li>
+    <li>若嫌新增一层头部偏重，退一档选 <b>V3</b>：不动栏结构，仅把 <code>kb-tree-col</code> 顶部换成库信息块并删 <code>kb-hero</code>，问题同样能解掉七成。</li>
+  </ol>
+</div>
+
+</body>
+</html>

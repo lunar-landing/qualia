@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更清单白卡网格</title>
+<!--
+  ============================================================
+  设计稿：变更清单（cfd）· 白色固定宽卡片网格
+  需求：卡片白底 · 宽度固定 · 多列换行（不再一行一个）
+
+  ⚠ 前提（线上实测）：助手消息气泡为透明底（.msg.codex .bubble{background:transparent}），
+    日间聊天区底色即 --bg-app = #ffffff —— 白卡与容器<同色>，边界只能靠描边承担，
+    hover 阴影是唯一的「浮起」手段。故本稿 stage 底色刻意取 #ffffff 还原真实条件。
+
+    W1 · 描边白卡     —— 白底 + 1px 描边，图标+文件名 / op + 预览文字链（推荐基座）
+    W2 · 顶条白卡     —— 状态色上移到卡顶 2px 色条，op 文字转灰
+    W3 · 左脊徽标白卡 —— 卡左 3px 色脊 + op 描边胶囊，与资料中心色脊语言一致
+    W4 · 宽卡带路径   —— 230px 宽卡，目录段灰显，解决同名文件不可辨
+
+  网格：grid-template-columns: repeat(auto-fill, 168px) —— 卡宽恒定，列数随容器浮动
+  数据：5 个文件（含两个同名 index.ts / 一个删除），必然换行成 3+2，演示尾行留白
+  可交互：右上角切换日/夜间 · 卡片可 hover
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 主题变量（默认日间 · 对齐 styles/index.css 石墨工程 token 实际值） ===== */
+    :root {
+        --bg-page: #f2f4f7;          /* 仅本 mockup 页面底色，便于区分 stage */
+        --bg-chat: #ffffff;          /* 聊天区真实底色 = --bg-app（日间） */
+        --bg-card: #ffffff;          /* 卡片底色 = --bg-surface（日间纯白，与聊天区同色！） */
+        --bg-hover: #e9edf1;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;           /* --border-color */
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --shadow-card: 0 1px 2px rgba(31, 35, 40, 0.04);
+        --shadow-hover: 0 4px 12px rgba(31, 35, 40, 0.09);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #059669;              /* 写入，同审查面板徽标色系 */
+        --add-line: rgba(5, 150, 105, 0.42);
+        --mod: #b45309;              /* 修改（琥珀） */
+        --mod-line: rgba(180, 83, 9, 0.40);
+        --del: #8c959f;              /* 删除（去彩化灰） */
+        --ft-html: #d9480f;
+        --ft-code: #1971c2;
+        --ft-css: #7d5bbd;
+        --ft-img: #8c959f;
+    }
+    body.dark-theme {
+        --bg-page: #05070c;
+        --bg-chat: #080a10;
+        /* 夜间无纯白：「白卡」= 比页面底亮一档的实心面（--bg-surface 基色实心，同浮层约定） */
+        --bg-card: #131820;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.5);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #34d399;
+        --add-line: rgba(52, 211, 153, 0.45);
+        --mod: #f59e0b;
+        --mod-line: rgba(245, 158, 11, 0.45);
+        --del: #6b7689;
+        --ft-html: #ff922b;
+        --ft-code: #4dabf7;
+        --ft-css: #a48ae0;
+        --ft-img: #8f97ae;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-page); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 10px; height: 10px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .caveat {
+        max-width: 860px; margin: 0 auto 34px; font-size: 11.5px; line-height: 1.75;
+        color: var(--text-secondary); background: var(--bg-card); border: 1px solid var(--border);
+        border-left: 3px solid var(--accent-light); border-radius: 0 10px 10px 0; padding: 11px 15px;
+    }
+    .caveat code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 4px; padding: 1px 5px; color: var(--text-primary);
+    }
+
+    .demo { max-width: 860px; margin: 0 auto 40px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-head .dim { font-size: 11px; color: var(--text-muted); }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    /* stage = 聊天区底色（纯白），与卡片同色，用于真实检验描边是否够用 */
+    .stage {
+        background: var(--bg-chat); border: 1px solid var(--border); border-radius: 18px;
+        padding: 26px 24px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+    .spec em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .spec b { color: var(--mod); font-weight: 600; }
+
+    /* ===== 消息语境 ===== */
+    .chat { width: 100%; max-width: 560px; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; margin-bottom: 12px; }
+
+    /* ===== 共用网格：卡宽固定，列数随容器自适应 ===== */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, 168px); gap: 8px; }
+    .grid.wide { grid-template-columns: repeat(auto-fill, 230px); }
+
+    /* 卡基座：168×58，白底描边（与聊天区同色，描边即唯一边界） */
+    .c {
+        width: 168px; height: 58px; padding: 9px 10px; border-radius: 10px;
+        background: var(--bg-card); border: 1px solid var(--border); box-shadow: var(--shadow-card);
+        display: flex; flex-direction: column; justify-content: space-between; min-width: 0;
+        transition: border-color .12s, box-shadow .12s, transform .12s;
+    }
+    .c:hover { border-color: var(--border-active); box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+    .c .r1 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .c .r2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .fn {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px; font-weight: 600;
+        color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+    }
+    .op { font-size: 10.5px; flex-shrink: 0; }
+    .op.add { color: var(--add); }
+    .op.mod { color: var(--mod); }
+    .op.del { color: var(--del); }
+    /* 卡内预览用无边框文字链：避免「框中框」把 168px 挤爆 */
+    .cl {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+        font-size: 10.5px; color: var(--text-secondary); flex-shrink: 0; transition: color .12s;
+    }
+    .cl:hover { color: var(--text-primary); }
+
+    /* 类型图标块：16px 方角 tile，类型色 12% 底 + 同色字 */
+    .ft {
+        width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 7.5px; font-weight: 700;
+    }
+    .ft.html { color: var(--ft-html); background: color-mix(in srgb, var(--ft-html) 13%, transparent); }
+    .ft.code { color: var(--ft-code); background: color-mix(in srgb, var(--ft-code) 13%, transparent); }
+    .ft.css  { color: var(--ft-css);  background: color-mix(in srgb, var(--ft-css) 13%, transparent); }
+    .ft.img  { color: var(--ft-img);  background: color-mix(in srgb, var(--ft-img) 15%, transparent); }
+
+    /* 删除卡：虚线描边表达「已移除」，行列表做不到的一档信息 */
+    .c.isdel { border-style: dashed; }
+    .c.isdel .fn { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--border); }
+    .c.isdel:hover { transform: none; box-shadow: var(--shadow-card); }
+
+    /* ============================================================
+       W2 · 顶条白卡：状态色上移到卡顶 2px 色条，op 文字转灰
+       ============================================================ */
+    .w2 .c { position: relative; overflow: hidden; padding-top: 10px; }
+    .w2 .c::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .w2 .c.add::before { background: var(--add); }
+    .w2 .c.mod::before { background: var(--mod); }
+    .w2 .c.del::before { background: var(--del); }
+    .w2 .op { color: var(--text-muted) !important; }
+
+    /* ============================================================
+       W3 · 左脊徽标白卡：3px 色脊 + op 描边胶囊
+       ============================================================ */
+    .w3 .c { position: relative; padding-left: 13px; }
+    .w3 .c::before {
+        content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 2px 2px 0;
+    }
+    .w3 .c.add::before { background: var(--add); }
+    .w3 .c.mod::before { background: var(--mod); }
+    .w3 .c.del::before { background: var(--del); }
+    .w3 .bdg {
+        margin-left: auto; flex-shrink: 0; font-size: 9.5px; font-weight: 600;
+        border-radius: 999px; padding: 1px 7px; border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+    .w3 .c.add .bdg { color: var(--add); border-color: var(--add-line); }
+    .w3 .c.mod .bdg { color: var(--mod); border-color: var(--mod-line); }
+
+    /* ============================================================
+       W4 · 宽卡带路径：230px，目录段灰显，同名可辨
+       ============================================================ */
+    .w4 .c { width: 230px; height: 62px; }
+    .w4 .dir {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text-muted);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+    }
+
+    /* ===== 选型说明 ===== */
+    .notes {
+        max-width: 860px; margin: 4px auto 0; background: var(--bg-card);
+        border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px;
+    }
+    .notes h2 { font-size: 15px; margin-bottom: 14px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .notes td { padding: 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .notes .concl { margin-top: 12px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.8; }
+    .notes .concl em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .notes .impl {
+        margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg-hover);
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; line-height: 1.85;
+        color: var(--text-secondary); white-space: pre-wrap; overflow-x: auto;
+    }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更清单 · 白色定宽卡片网格</h1>
+<p class="sub">
+    白底 · 固定 <em>168px</em>（W4 为 230px）· <em>auto-fill</em> 多列换行，不再一行一个
+</p>
+
+<p class="caveat">
+    ⚠ <b>同色前提</b>：助手气泡透明底，日间聊天区底色即 <code>--bg-app = #ffffff</code>，而卡片底色
+    <code>--bg-surface</code> 日间也是 <code>#ffffff</code> —— 白卡与容器<b>完全同色</b>，
+    1px <code>--border-color (#d0d7de)</code> 描边是唯一边界，hover 阴影是唯一浮起手段。
+    本稿 stage 底色刻意取 <code>#ffffff</code> 还原该条件（外层灰底仅为区分演示框）。
+    夜间无纯白，「白卡」= 比页面底亮一档的实心面 <code>#131820</code>（同浮层约定，不用半透明 <code>--bg-surface</code>）。
+</p>
+
+<!-- ==================== W1 · 描边白卡 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">W1</span>
+        <span class="name">描边白卡</span>
+        <span class="dim">168 × 58 · 一屏 3~4 列</span>
+    </div>
+    <p class="demo-desc">
+        白底 + 1px 描边 + 极轻阴影。首行<em>类型图标 + 文件名</em>，次行<em>op 彩字 + 预览文字链</em>。
+        卡内预览刻意用无边框文字链，避免「框中框」把 168px 挤爆。删除卡走<em>虚线描边 + 删除线</em>。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页重构完成，样式与入口一并调整，旧横幅已清理。</p>
+                    <div class="grid w1">
+                        <div class="c add">
+                            <div class="r1"><span class="ft html">&lt;/&gt;</span><span class="fn">login.html</span></div>
+                            <div class="r2"><span class="op add">写入</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span></div>
+                            <div class="r2"><span class="op mod">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span></div>
+                            <div class="r2"><span class="op mod">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft css">CSS</span><span class="fn">styles.css</span></div>
+                            <div class="r2"><span class="op mod">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c del isdel">
+                            <div class="r1"><span class="ft img">IMG</span><span class="fn">banner-old.png</span></div>
+                            <div class="r2"><span class="op del">删除</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        固定 <code>repeat(auto-fill, 168px)</code>：卡宽恒定不拉伸，列数随容器宽度自然给 3 或 4 列 —— 比 <code>minmax(1fr)</code> 更稳，
+        不受 <code>.act-col</code>（思考摘要宽度浮动）挤压<br>
+        <b>风险</b>：卡内只放末段名 → <em>两个 index.ts 无法区分</em>（本稿第 2/3 卡即为演示），需 W4 目录前缀或 <code title> 悬停兜底
+    </p>
+</div>
+
+<!-- ==================== W2 · 顶条白卡 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">W2</span>
+        <span class="name">顶条白卡</span>
+        <span class="dim">168 × 58 · 状态色上移</span>
+    </div>
+    <p class="demo-desc">
+        卡顶 <em>2px op 色条</em>承担状态，op 文字转灰。整片网格顶部形成一条<em>色带节奏</em>，
+        远看像一叠便签；卡身更白更净。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页重构完成，样式与入口一并调整，旧横幅已清理。</p>
+                    <div class="grid w2">
+                        <div class="c add">
+                            <div class="r1"><span class="ft html">&lt;/&gt;</span><span class="fn">login.html</span></div>
+                            <div class="r2"><span class="op">写入</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span></div>
+                            <div class="r2"><span class="op">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span></div>
+                            <div class="r2"><span class="op">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft css">CSS</span><span class="fn">styles.css</span></div>
+                            <div class="r2"><span class="op">修改</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c del isdel">
+                            <div class="r1"><span class="ft img">IMG</span><span class="fn">banner-old.png</span></div>
+                            <div class="r2"><span class="op">删除</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        色条 <code>overflow:hidden</code> 随 10px 圆角裁切，不断边 · 灰底 + 彩条 = 状态可辨但去彩化 ·
+        <b>风险</b>：删除卡顶条为灰色，与「无状态」易混，建议删除卡改用虚线框（本稿已保留）
+    </p>
+</div>
+
+<!-- ==================== W3 · 左脊徽标白卡 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">W3</span>
+        <span class="name">左脊徽标白卡</span>
+        <span class="dim">168 × 58 · 色脊 + 描边胶囊</span>
+    </div>
+    <p class="demo-desc">
+        卡左 <em>3px 色脊</em>（上下内缩 8px，不顶满），op 升级为<em>描边小胶囊</em>置于首行右端。
+        色脊与资料中心 / 侧栏选中态同族语言，胶囊让状态词「标签化」。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页重构完成，样式与入口一并调整，旧横幅已清理。</p>
+                    <div class="grid w3">
+                        <div class="c add">
+                            <div class="r1"><span class="ft html">&lt;/&gt;</span><span class="fn">login.html</span><span class="bdg">写入</span></div>
+                            <div class="r2"><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span><span class="bdg">修改</span></div>
+                            <div class="r2"><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span><span class="bdg">修改</span></div>
+                            <div class="r2"><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft css">CSS</span><span class="fn">styles.css</span><span class="bdg">修改</span></div>
+                            <div class="r2"><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c del isdel">
+                            <div class="r1"><span class="ft img">IMG</span><span class="fn">banner-old.png</span><span class="bdg">删除</span></div>
+                            <div class="r2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        文件名被胶囊挤压，<code>min-width:0 + ellipsis</code> 必须保留（约 <code>88px</code> 可视，长名截断更凶）·
+        次行只剩预览链，右端留白偏多 · 状态表达最强、密度最低
+    </p>
+</div>
+
+<!-- ==================== W4 · 宽卡带路径 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">W4</span>
+        <span class="name">宽卡带路径</span>
+        <span class="dim">230 × 62 · 一屏 2 列</span>
+    </div>
+    <p class="demo-desc">
+        换宽度换信息量：<em>230px</em> 卡内加一行<em>目录灰显</em>（<code>src/api</code> › 末段）。
+        上面 W1 里无法区分的两个 <code>index.ts</code>，在这一版直接可辨。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页重构完成，样式与入口一并调整，旧横幅已清理。</p>
+                    <div class="grid wide w4">
+                        <div class="c add">
+                            <div class="r1"><span class="ft html">&lt;/&gt;</span><span class="fn">login.html</span><span class="op add">写入</span></div>
+                            <div class="r2"><span class="dir">工作区根</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span><span class="op mod">修改</span></div>
+                            <div class="r2"><span class="dir">src › api</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft code">TS</span><span class="fn">index.ts</span><span class="op mod">修改</span></div>
+                            <div class="r2"><span class="dir">src › components</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c mod">
+                            <div class="r1"><span class="ft css">CSS</span><span class="fn">styles.css</span><span class="op mod">修改</span></div>
+                            <div class="r2"><span class="dir">src › assets</span><span class="cl">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></span></div>
+                        </div>
+                        <div class="c del isdel">
+                            <div class="r1"><span class="ft img">IMG</span><span class="fn">banner-old.png</span><span class="op del">删除</span></div>
+                            <div class="r2"><span class="dir">public › assets</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">
+        <code>230px</code> 取 <code>3×230+2×8 = 706 ≤ 709</code>（750 上限减头像与 gap），最宽场景仍可 3 列；本稿 560 语境为 2 列 ·
+        目录超 4 段中段折叠为 <code>…</code>（同浏览器 Tab 地址栏规则）· 卡变高变宽后，纵向扫读效率下降
+    </p>
+</div>
+
+<!-- ==================== 选型说明 ==================== -->
+<div class="notes">
+    <h2>选型说明 · 落地要点</h2>
+    <table>
+        <tr><th>形态</th><th>状态表达</th><th>容量</th><th>适合</th></tr>
+        <tr><td>W1 描边白卡</td><td>op 彩字</td><td>名 88px 可视</td><td><em>推荐基座</em>：密度/信息/耐看最均衡</td></tr>
+        <tr><td>W2 顶条白卡</td><td>2px 顶条 + 灰字</td><td>名 88px</td><td>去彩化偏好，想要「色带节奏」</td></tr>
+        <tr><td>W3 左脊徽标</td><td>3px 色脊 + 胶囊</td><td>名 ~72px</td><td>状态必须一眼锁定，接受截断加重</td></tr>
+        <tr><td>W4 宽卡带路径</td><td>op 彩字</td><td>名 + 目录行</td><td>多同名文件 / 深目录工程（唯一解）</td></tr>
+    </table>
+    <p class="concl">
+        建议：<em>W1 为基座</em>；同名文件冲突或目录较深时升 <em>W4</em>（可先判定：<em>去重末段名数 &lt; 文件数 → 切宽卡</em>）。
+        行数 &gt; 4 时网格收益才显现，<em>1 个文件建议回落单行</em>（孤零零一张 168px 卡右边大片空白）。
+    </p>
+    <div class="impl">/* ChangedFiles.vue 改造要点（保持 cfd- 前缀全局样式） */
+.cfd      { display: grid; grid-template-columns: repeat(auto-fill, 168px); gap: 8px; }
+.cfd-card { background: var(--bg-surface); border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 9px 10px; height: 58px; }
+.cfd-card:hover { border-color: var(--border-active); box-shadow: 0 4px 12px rgba(31,35,40,.09);
+                  transform: translateY(-1px); }
+/* 夜间 --bg-surface 为 rgba(19,24,32,.85) 半透明，卡片需转实心：
+   body:not(.light-theme) .cfd-card { background: #131820; }（同 settings-flyout 约定）
+   ⚠ 不存在 --bg-card，写错不会报错只会静默透明 */</div>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+</script>
+</body>
+</html>

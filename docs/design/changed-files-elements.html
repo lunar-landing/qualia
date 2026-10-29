@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Code · 变更清单元素设计 Vol.3</title>
+<!--
+  ============================================================
+  设计稿：变更清单（cfd）· 元素设计 第三批
+  前两轮比的是「容器与 op 表达」（V1–V8，V5 微染底色行已定稿落地），
+  本轮把行内三要素本身作为设计对象，统一沿用 V5 染底容器做隔离对照：
+
+    基线 · V5 现行定稿   —— 文件名 + 彩色 op 文字 + 文字预览钮（补删除行演示）
+    V9 · 状态字母行      —— op 文字 → git 血统字母 A/M/D（与终端模式语言统一）
+    V10 · 类型图标行     —— 文件名前加扩展名色块图标，辨识度最高
+    V11 · 状态点行       —— op 收敛为 7px 实心圆点，去文字化最彻底
+    V12 · 整行可点行     —— 去掉预览钮，整行即按钮，hover 浮现外链箭头
+    V13 · 目录前缀行     —— 文件名目录段灰显、末段加重，长路径可读性
+
+  三条演示数据固定：写入 login.html / 修改 src/api/client.ts / 删除 assets/banner-old.png
+  op 文案与线上一致（写入/修改/删除，非早期 mockup 的「新建」）。
+  可交互：右上角切换日/夜间；行与按钮均可 hover。
+  ============================================================
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ===== 主题变量（默认日间；op 色对齐 ChangedFiles.vue 与审查面板徽标同色系） ===== */
+    :root {
+        --bg-app: #ffffff;
+        --bg-stage: #eff2f5;
+        --bg-elev: #ffffff;
+        --bg-hover: #e9edf1;
+        --text-primary: #1f2328;
+        --text-secondary: #57657a;
+        --text-muted: #8c959f;
+        --border: #d0d7de;
+        --border-soft: #e4e8ec;
+        --border-active: rgba(31, 35, 40, 0.3);
+        --accent-light: #32383f;
+        --accent-ink: #ffffff;
+        --add: #059669;
+        --add-tint: rgba(5, 150, 105, 0.07);
+        --mod: #b45309;
+        --mod-tint: rgba(180, 83, 9, 0.06);
+        --del-bg: #e9edf1;
+        /* V10 类型图标色（中饱和，日/夜通用） */
+        --ft-html: #d9480f;
+        --ft-code: #1971c2;
+        --ft-img: #8c959f;
+    }
+    body.dark-theme {
+        --bg-app: #080a10;
+        --bg-stage: rgba(255, 255, 255, 0.02);
+        --bg-elev: #141922;
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --text-primary: #e4e9f2;
+        --text-secondary: #8f97ae;
+        --text-muted: #4f566b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-soft: rgba(255, 255, 255, 0.05);
+        --border-active: rgba(230, 237, 243, 0.42);
+        --accent-light: #f0f6fc;
+        --accent-ink: #0d1117;
+        --add: #34d399;
+        --add-tint: rgba(52, 211, 153, 0.07);
+        --mod: #f59e0b;
+        --mod-tint: rgba(245, 158, 11, 0.07);
+        --del-bg: rgba(255, 255, 255, 0.04);
+        --ft-html: #ff922b;
+        --ft-code: #4dabf7;
+        --ft-img: #8f97ae;
+    }
+
+    body {
+        font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg-app); color: var(--text-primary);
+        padding: 40px 20px 90px; transition: background 0.3s;
+    }
+    .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+    .ic { width: 10px; height: 10px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .topbar-fixed { position: fixed; top: 14px; right: 16px; z-index: 99; display: flex; gap: 8px; }
+    .topbar-fixed button {
+        padding: 7px 14px; font-size: 12.5px; cursor: pointer; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--bg-elev); color: var(--text-secondary);
+    }
+    .topbar-fixed button:hover { color: var(--text-primary); border-color: var(--border-active); }
+
+    h1 { text-align: center; font-size: 20px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sub { text-align: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 38px; line-height: 1.8; }
+    .sub em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    .demo { max-width: 860px; margin: 0 auto 42px; }
+    .demo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; padding-left: 4px; }
+    .demo-head .tag {
+        font-size: 12px; font-weight: 700; color: var(--accent-ink);
+        background: var(--accent-light); border-radius: 7px; padding: 2px 9px;
+    }
+    .demo-head .name { font-size: 14px; font-weight: 600; }
+    .demo-head .base { font-size: 11px; color: var(--text-muted); }
+    .demo-desc { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 14px; padding-left: 4px; line-height: 1.7; }
+    .demo-desc em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .stage {
+        background: var(--bg-stage); border: 1px solid var(--border); border-radius: 18px;
+        padding: 26px 24px; display: flex; justify-content: center;
+    }
+    .spec { margin-top: 11px; padding-left: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+    .spec code {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px;
+        background: var(--bg-hover); border-radius: 5px; padding: 1px 6px; color: var(--text-secondary);
+    }
+    .spec em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+
+    /* ===== 消息语境 ===== */
+    .chat { width: 100%; max-width: 560px; }
+    .msg { display: flex; gap: 12px; }
+    .avatar {
+        width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+        background: var(--accent-light); color: var(--accent-ink);
+        font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .msg-meta .who { font-size: 12.5px; font-weight: 600; }
+    .msg-meta .time { font-size: 10.5px; color: var(--text-muted); }
+    .msg-text { font-size: 13px; line-height: 1.75; margin-bottom: 12px; }
+
+    /* ===== 共用行骨架（容器统一 = V5 微染底色行，仅换行内元素） ===== */
+    .frow {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 12px; border-radius: 9px; margin-bottom: 6px; min-width: 0;
+    }
+    .frow.add { background: var(--add-tint); }
+    .frow.mod { background: var(--mod-tint); }
+    .frow.del { background: var(--del-bg); }
+    .frow:hover { box-shadow: inset 0 0 0 1px var(--border-soft); }
+    .fn {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 600;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .op { font-size: 11px; flex-shrink: 0; }
+    .op.add { color: var(--add); }
+    .op.mod { color: var(--mod); }
+    .op.del { color: var(--text-muted); }
+    .pv {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+        border: 1px solid var(--border); border-radius: 7px; background: transparent;
+        color: var(--text-secondary); font-size: 11px; padding: 3px 10px; flex-shrink: 0;
+        transition: border-color .12s, color .12s;
+    }
+    .pv:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+    /* ============================================================
+       V9 · 状态字母行：op 文字 → git 血统字母 A/M/D
+       ============================================================ */
+    .v9 .st {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px; font-weight: 700;
+        width: 14px; text-align: center; flex-shrink: 0;
+    }
+    .v9 .st.add { color: var(--add); }
+    .v9 .st.mod { color: var(--mod); }
+    .v9 .st.del { color: var(--text-muted); }
+
+    /* ============================================================
+       V10 · 类型图标行：文件名前置扩展名色块
+       ============================================================ */
+    .ft {
+        width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 8px; font-weight: 700;
+    }
+    .ft.html { color: var(--ft-html); background: color-mix(in srgb, var(--ft-html) 12%, transparent); }
+    .ft.code { color: var(--ft-code); background: color-mix(in srgb, var(--ft-code) 12%, transparent); }
+    .ft.img  { color: var(--ft-img);  background: color-mix(in srgb, var(--ft-img) 14%, transparent); }
+
+    /* ============================================================
+       V11 · 状态点行：op 收敛为 7px 实心圆点
+       ============================================================ */
+    .v11 .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .v11 .dot.add { background: var(--add); }
+    .v11 .dot.mod { background: var(--mod); }
+    .v11 .dot.del { background: var(--text-muted); }
+
+    /* ============================================================
+       V12 · 整行可点行：去按钮，整行即按钮
+       ============================================================ */
+    .v12 .frow { cursor: pointer; }
+    .v12 .frow.del { cursor: default; }
+    .v12 .ext {
+        margin-left: auto; color: var(--text-secondary); opacity: 0.45;
+        transition: opacity .12s; flex-shrink: 0;
+    }
+    .v12 .frow:hover { box-shadow: inset 0 0 0 1px var(--border-active); }
+    .v12 .frow:hover .ext { opacity: 1; }
+
+    /* ============================================================
+       V13 · 目录前缀行：目录段灰显，末段加重
+       ============================================================ */
+    .v13 .crumb { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+    .v13 .dir {
+        font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px;
+        color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .v13 .sep { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+
+    /* ===== 底部选型说明 ===== */
+    .notes {
+        max-width: 860px; margin: 4px auto 0; background: var(--bg-stage);
+        border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px;
+    }
+    .notes h2 { font-size: 15px; margin-bottom: 14px; letter-spacing: -0.3px; }
+    .notes table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .notes th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .notes td { padding: 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); line-height: 1.6; vertical-align: top; }
+    .notes td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .notes td em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+    .notes .concl { margin-top: 12px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.8; }
+    .notes .concl em { color: var(--text-primary); font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="topbar-fixed">
+    <button id="themeBtn" onclick="toggleTheme()">切换夜间</button>
+</div>
+
+<h1>变更清单 · 元素设计 Vol.3</h1>
+<p class="sub">
+    容器统一沿用定稿 <em>V5 微染底色行</em>，本轮只换行内三要素：<em>文件名 · op 标识 · 预览入口</em><br>
+    三条固定演示数据含 <em>删除行</em>（灰底、无预览，与线上一致）
+</p>
+
+<!-- ==================== 基线 · V5 现行定稿 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">基线</span>
+        <span class="name">V5 微染底色行（现行定稿）</span>
+        <span class="base">ChangedFiles.vue 当前实现，含删除行</span>
+    </div>
+    <p class="demo-desc">
+        整行铺 6~8% op 色底，彩色 op 文字 + 文字预览钮。作为本轮所有方案的<em>共同容器</em>，
+        下面每个方案只替换一个元素，便于隔离归因。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="base5">
+                        <div class="frow add">
+                            <span class="fn">login.html</span>
+                            <span class="op add">写入</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow mod">
+                            <span class="fn">client.ts</span>
+                            <span class="op mod">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow del">
+                            <span class="fn">banner-old.png</span>
+                            <span class="op del">删除</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">同文件多次操作聚合为终态 op（末步删除 &gt; 含修改 &gt; 写入）· 删除行无预览钮</p>
+</div>
+
+<!-- ==================== V9 · 状态字母行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V9</span>
+        <span class="name">状态字母行</span>
+        <span class="base">替换元素：op 标识</span>
+    </div>
+    <p class="demo-desc">
+        op 文字收敛为 <em>git 血统字母 A / M / D</em>（等宽、固定 14px 列宽，多行对齐成一列）。
+        与终端模式 ChatTerminal 的 git-status 色标<em>语言统一</em>，双端心智一致。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="v9">
+                        <div class="frow add">
+                            <span class="st add">A</span>
+                            <span class="fn">login.html</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow mod">
+                            <span class="st mod">M</span>
+                            <span class="fn">client.ts</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow del">
+                            <span class="st del">D</span>
+                            <span class="fn">banner-old.png</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">字母即列，<em>多行垂直对齐</em>最齐整 · 风险：中文语境下 A/M/D 需要学习成本，非 git 用户不直觉</p>
+</div>
+
+<!-- ==================== V10 · 类型图标行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V10</span>
+        <span class="name">类型图标行</span>
+        <span class="base">替换元素：文件名</span>
+    </div>
+    <p class="demo-desc">
+        文件名前加 <em>18px 扩展名色块</em>（<code class="mono">&lt;/&gt;</code> 橙=网页 · <code class="mono">TS</code> 蓝=代码 · <code class="mono">IMG</code> 灰=图片）。
+        类型<em>零学习成本</em>即可辨，op 文字保留不变，是辨识度增益最大的方案。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="v10">
+                        <div class="frow add">
+                            <span class="ft html">&lt;/&gt;</span>
+                            <span class="fn">login.html</span>
+                            <span class="op add">写入</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow mod">
+                            <span class="ft code">TS</span>
+                            <span class="fn">client.ts</span>
+                            <span class="op mod">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow del">
+                            <span class="ft img">IMG</span>
+                            <span class="fn">banner-old.png</span>
+                            <span class="op del">删除</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">色块 = 类型色 12% 透明度底 + 同色字 · 需维护<em>扩展名 → 类别映射表</em>（html/md/代码/图片/配置…），未知扩展回落灰色 <code class="mono">?</code></p>
+</div>
+
+<!-- ==================== V11 · 状态点行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V11</span>
+        <span class="name">状态点行</span>
+        <span class="base">替换元素：op 标识</span>
+    </div>
+    <p class="demo-desc">
+        op 彻底去文字，收敛为 <em>7px 实心圆点</em>（同 op 色）。色彩面积最小、行内最安静，
+        视觉焦点完全让给文件名；类型信息转 <code class="mono">title</code> 悬停提示。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="v11">
+                        <div class="frow add">
+                            <span class="dot add" title="写入"></span>
+                            <span class="fn">login.html</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow mod">
+                            <span class="dot mod" title="修改"></span>
+                            <span class="fn">client.ts</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow del">
+                            <span class="dot del" title="删除"></span>
+                            <span class="fn">banner-old.png</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">信息密度最低 · 风险：<em>色弱场景不可辨</em>，且「写入/修改」仅一色差，误读率高于字母/文字</p>
+</div>
+
+<!-- ==================== V12 · 整行可点行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V12</span>
+        <span class="name">整行可点行</span>
+        <span class="base">替换元素：预览入口</span>
+    </div>
+    <p class="demo-desc">
+        去掉独立预览钮，<em>整行即按钮</em>：hover 时内描边加重、右端浮现外链箭头。
+        目标区域从一个小钮扩大到整行，命中更轻松，行内元素最少。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="v12">
+                        <div class="frow add" title="预览 login.html">
+                            <span class="fn">login.html</span>
+                            <span class="op add">写入</span>
+                            <svg class="ic ext" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                        </div>
+                        <div class="frow mod" title="预览 client.ts">
+                            <span class="fn">client.ts</span>
+                            <span class="op mod">修改</span>
+                            <svg class="ic ext" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>
+                        </div>
+                        <div class="frow del">
+                            <span class="fn">banner-old.png</span>
+                            <span class="op del">删除</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">箭头常显 45% 透明度、hover 提到 100% · 风险：<em>误触率上升</em>（想选中文字也会触发预览），可发现性依赖 hover</p>
+</div>
+
+<!-- ==================== V13 · 目录前缀行 ==================== -->
+<div class="demo">
+    <div class="demo-head">
+        <span class="tag">V13</span>
+        <span class="name">目录前缀行</span>
+        <span class="base">替换元素：文件名</span>
+    </div>
+    <p class="demo-desc">
+        文件名从「仅末段」升级为<em>面包屑前缀</em>：目录段灰显小号、<code class="mono">›</code> 分隔、末段加重。
+        同名文件（如多个 <code class="mono">index.ts</code>）不再无法区分，长路径语境完整。
+    </p>
+    <div class="stage">
+        <div class="chat">
+            <div class="msg">
+                <div class="avatar">Q</div>
+                <div class="msg-body">
+                    <div class="msg-meta"><span class="who">Qualia</span><span class="time">14:32</span></div>
+                    <p class="msg-text">登录页已重构完成，旧横幅资源一并清理，可直接预览。</p>
+                    <div class="v13">
+                        <div class="frow add">
+                            <span class="crumb"><span class="fn">login.html</span></span>
+                            <span class="op add">写入</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow mod">
+                            <span class="crumb"><span class="dir">src › api</span><span class="sep">›</span><span class="fn">client.ts</span></span>
+                            <span class="op mod">修改</span>
+                            <button class="pv">预览 <svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></button>
+                        </div>
+                        <div class="frow del">
+                            <span class="crumb"><span class="dir">assets</span><span class="sep">›</span><span class="fn">banner-old.png</span></span>
+                            <span class="op del">删除</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="spec">根级文件无前缀、直接末段（如 login.html）· 目录超宽时中段折叠为 <code class="mono">…</code>（同浏览器地址栏规则）· 行高不变</p>
+</div>
+
+<!-- ==================== 选型说明 ==================== -->
+<div class="notes">
+    <h2>选型说明（元素轮 5 形态汇总）</h2>
+    <table>
+        <tr><th>形态</th><th>替换元素</th><th>收益</th><th>风险与代价</th></tr>
+        <tr><td>V9 状态字母</td><td>op 标识</td><td>与终端模式 A/M/D 语言统一，列对齐最齐整</td><td>非 git 用户需学习；字母语义依赖图例</td></tr>
+        <tr><td>V10 类型图标</td><td>文件名</td><td>类型零成本可辨，全年龄直觉</td><td>需维护扩展名映射表（一次性成本）</td></tr>
+        <tr><td>V11 状态点</td><td>op 标识</td><td>色彩面积最小、行内最安静</td><td>色弱不可辨；写入/修改仅一色差易误读</td></tr>
+        <tr><td>V12 整行可点</td><td>预览入口</td><td>命中区域最大、行内元素最少</td><td>误触率上升；可发现性依赖 hover</td></tr>
+        <tr><td>V13 目录前缀</td><td>文件名</td><td>同名文件可区分，路径语境完整</td><td>长前缀挤压文件名空间（需折叠兜底）</td></tr>
+    </table>
+    <p class="concl">
+        建议：<em>V10 类型图标</em>为普适收益最大的单点升级（可与 V13 叠加成终态）；
+        若更看重<em>双端一致性</em>（气泡 ↔ 终端）则选 V9；V11 / V12 属「更极简但更冒险」，仅在接受可发现性损失时采用。
+    </p>
+</div>
+
+<script>
+    /* 日/夜间切换：默认日间 */
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        document.getElementById('themeBtn').textContent = dark ? '切换日间' : '切换夜间';
+    }
+</script>
+</body>
+</html>

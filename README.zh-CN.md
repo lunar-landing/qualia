@@ -32,22 +32,14 @@ Qualia 是一个轻量级、模块化的 Java 框架，用于构建基于大语�
 ```
 qualia/
 ├── qualia-core/          # 核心模块
-├── qualia-code/          # Code 模块 (包括 web 服务)
-├── qualia-code-desktop/  # Code 桌面应用
-├── qualia-claw/          # Claw 模块 (包括 web 服务)
-├── qualia-claw-desktop/  # Claw 桌面应用
 └── qualia-docs/          # 项目文档
 ```
 
 **Qualia-core** 框架核心模块，提供智能体核心架构（ReActAgent、HarnessAgent）、模型协议抽象层（ChatModel、EmbeddingModel、RerankModel）、工具系统和 MCP 集成、会话记忆管理、RAG 检索管道以及技能系统。
 
-**Qualia-code** AI 编码助手产品，基于 Qualia 框架构建，提供完整的 Web IDE 体验，支持多会话管理与工作区切换、代码生成与分析、文件读写与搜索、终端命令执行、工具调用可视化展示、MCP 服务器管理、多模型配置与动态切换，以及流式响应和实时交互，支持桌面应用和 Web 两种部署模式。
+**Qualia-code** AI 编码助手产品，基于 Qualia 框架构建，提供完整的 Web IDE 体验，支持多会话管理与工作区切换、代码生成与分析、文件读写与搜索、终端命令执行、工具调用可视化展示、MCP 服务器管理、多模型配置与动态切换，以及流式响应和实时交互，支持桌面应用和 Web 两种部署模式。现拆为独立仓库，与前端（`qualia-code-ui`）、桌面壳（`qualia-code-desktop`）同仓维护，按 Maven 依赖引用 Central 上的 `qualia-core`。
 
-**Qualia-code-desktop** 桌面应用模块，基于 SWT 构建，内嵌浏览器加载 Web IDE 界面，提供原生桌面应用体验，支持窗口状态持久化（尺寸、位置、最大化状态）、系统标题栏主题联动（深色/浅色自动适配）以及跨平台支持（Windows/macOS）。
-
-**Qualia-claw** 多智能体协作产品，基于 Qualia 框架构建，每个智能体拥有独立工位（系统托管工作区 + 独立会话记忆），支持职能角色设定、多智能体并行对话、全局技能与 MCP 服务器按智能体白名单引用、工作区文件浏览与预览、会话 token 用量统计，配置统一收敛在用户目录按产品隔离存储，同样支持桌面应用和 Web 两种部署模式。
-
-**Qualia-claw-desktop** Claw 桌面应用模块，与 Qualia-code-desktop 同构（SWT + 系统 WebView），锁文件、窗口状态、崩溃日志按产品目录隔离，可与 Qualia Code 桌面版同时运行。
+**Qualia-claw** 多智能体协作产品，基于 Qualia 框架构建，每个智能体拥有独立工位（系统托管工作区 + 独立会话记忆），支持职能角色设定、多智能体并行对话、全局技能与 MCP 服务器按智能体白名单引用、工作区文件浏览与预览、会话 token 用量统计，配置统一收敛在用户目录按产品隔离存储，同样支持桌面应用和 Web 两种部署模式。现已拆出本仓库，与桌面壳同仓维护，按 Maven 依赖引用 Central 上的 `qualia-core`。
 
 ## 🚀 快速开始
 
@@ -121,22 +113,14 @@ qualia-core 已发布到 Maven Central。
 
 ```bash
 # 发布 qualia-core 到 Maven Central
-mvn clean deploy -pl qualia-core -am -DskipTests
+# 先发父 POM（下游解析 qualia-core 需要它），再发模块；-P release 使父 POM 也走 GPG 签名
+mvn clean deploy -N -P release
+mvn clean deploy -pl qualia-core -P release -DskipTests
 ```
 
 ### 构建桌面应用
 
-```powershell
-# 构建可执行 jar
-mvn -pl qualia-code-desktop -am clean package -DskipTests
-mvn -pl qualia-claw-desktop -am clean package -DskipTests
-
-# 打包成 Windows 应用（免安装）
-.\qualia-code-desktop\packaging\package-win.ps1
-.\qualia-claw-desktop\packaging\package-win.ps1
-```
-
-产物：`qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe` 与 `qualia-claw-desktop\target\dist\<version>\Qualia Claw\Qualia Claw.exe`
+本仓库不再包含桌面壳模块：Qualia Code 由其独立仓库构建，Qualia Claw 桌面应用同理。
 
 ## 📄 许可证
 

@@ -32,22 +32,14 @@ ReAct(Reasoning + Acting) 패러다임을 기반으로 사고-행동-관찰 루�
 ```
 qualia/
 ├── qualia-core/          # 코어 모듈
-├── qualia-code/          # Code 모듈 (Web 서비스 포함)
-├── qualia-code-desktop/  # Code 데스크톱 앱
-├── qualia-claw/          # Claw 모듈 (Web 서비스 포함)
-├── qualia-claw-desktop/  # Claw 데스크톱 앱
 └── qualia-docs/          # 프로젝트 문서
 ```
 
 **Qualia-core** 프레임워크 코어 모듈. 에이전트 코어 아키텍처(ReActAgent, HarnessAgent), 모델 프로토콜 추상 레이어(ChatModel, EmbeddingModel, RerankModel), 도구 시스템과 MCP 통합, 대화 메모리 관리, RAG 검색 파이프라인, 스킬 시스템을 제공합니다.
 
-**Qualia-code** Qualia 프레임워크 위에 구축된 AI 코딩 어시스턴트 제품. 완전한 Web IDE 경험을 제공하며, 멀티세션 관리와 워크스페이스 전환, 코드 생성과 분석, 파일 읽기/쓰기와 검색, 터미널 명령 실행, 도구 호출 시각화, MCP 서버 관리, 멀티모델 설정과 동적 전환, 스트리밍 응답과 실시간 상호작용을 지원합니다. 데스크톱 앱과 Web 두 가지 배포 모드를 지원합니다.
+**Qualia-code** Qualia 프레임워크 위에 구축된 AI 코딩 어시스턴트 제품. 완전한 Web IDE 경험을 제공하며, 멀티세션 관리와 워크스페이스 전환, 코드 생성과 분석, 파일 읽기/쓰기와 검색, 터미널 명령 실행, 도구 호출 시각화, MCP 서버 관리, 멀티모델 설정과 동적 전환, 스트리밍 응답과 실시간 상호작용을 지원합니다. 데스크톱 앱과 Web 두 가지 배포 모드를 지원합니다. 현재 별도 저장소로 분리되어 프론트엔드(`qualia-code-ui`), 데스크톱 셸(`qualia-code-desktop`)과 같은 저장소에서 관리되며, `qualia-core`는 Maven Central에서 의존성으로 가져옵니다.
 
-**Qualia-code-desktop** SWT 기반 데스크톱 애플리케이션 모듈. 내장 브라우저로 Web IDE UI를 로드하며 네이티브 데스크톱 경험을 제공합니다. 윈도우 상태 영속화(크기, 위치, 최대화 상태), 시스템 제목 표시줄 테마 연동(다크/라이트 자동 적응), 크로스 플랫폼 지원(Windows/macOS)을 구현합니다.
-
-**Qualia-claw** Qualia 프레임워크 위에 구축된 멀티에이전트 협업 제품. 각 에이전트는 독립적인 워크스테이션(시스템 관리 워크스페이스 + 독립 대화 메모리)을 가지며, 롤 페르소나 설정, 멀티에이전트 병렬 대화, 글로벌 스킬과 MCP 서버의 에이전트별 화이트리스트 참조, 워크스페이스 파일 탐색과 미리보기, 세션별 토큰 사용량 통계를 지원합니다. 설정은 사용자 디렉토리에 제품별로 집약되며, 데스크톱 앱과 Web 양쪽 배포 모드를 지원합니다.
-
-**Qualia-claw-desktop** Claw 데스크톱 애플리케이션 모듈. Qualia-code-desktop과 동일한 아키텍처(SWT + 시스템 WebView). 잠금 파일, 윈도우 상태, 크래시 로그는 제품 디렉토리에 분리되어 Qualia Code 데스크톱 앱과 동시에 실행할 수 있습니다.
+**Qualia-claw** Qualia 프레임워크 위에 구축된 멀티에이전트 협업 제품. 각 에이전트는 독립적인 워크스테이션(시스템 관리 워크스페이스 + 독립 대화 메모리)을 가지며, 롤 페르소나 설정, 멀티에이전트 병렬 대화, 글로벌 스킬과 MCP 서버의 에이전트별 화이트리스트 참조, 워크스페이스 파일 탐색과 미리보기, 세션별 토큰 사용량 통계를 지원합니다. 설정은 사용자 디렉토리에 제품별로 집약되며, 데스크톱 앱과 Web 양쪽 배포 모드를 지원합니다. 현재 별도 저장소로 분리되어, `qualia-core`는 Maven Central에서 의존성으로 가져옵니다.
 
 ## 🚀 빠른 시작
 
@@ -121,22 +113,14 @@ qualia-core는 Maven Central에 게시되어 있습니다.
 
 ```bash
 # qualia-core를 Maven Central에 게시
-mvn clean deploy -pl qualia-core -am -DskipTests
+# 부모 POM을 먼저 게시(qualia-core 해석에 필요), 그 다음 모듈을 게시; -P release로 부모 POM도 GPG 서명
+mvn clean deploy -N -P release
+mvn clean deploy -pl qualia-core -P release -DskipTests
 ```
 
 ### 데스크톱 앱 빌드
 
-```powershell
-# 실행 가능한 jar 빌드
-mvn -pl qualia-code-desktop -am clean package -DskipTests
-mvn -pl qualia-claw-desktop -am clean package -DskipTests
-
-# Windows 애플리케이션으로 패키징 (포터블, 설치 프로그램 불필요)
-.\qualia-code-desktop\packaging\package-win.ps1
-.\qualia-claw-desktop\packaging\package-win.ps1
-```
-
-산출물: `qualia-code-desktop\target\dist\<version>\Qualia Code\Qualia Code.exe` 및 `qualia-claw-desktop\target\dist\<version>\Qualia Claw\Qualia Claw.exe`
+이 저장소에는 데스크톱 셸 모듈이 없습니다. Qualia Code와 Qualia Claw 데스크톱 앱은 각각 별도 저장소에서 빌드합니다.
 
 ## 📄 라이선스
 

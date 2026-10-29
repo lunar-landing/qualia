@@ -11,9 +11,35 @@
     <description>qualia</description>
     <packaging>pom</packaging>
 
+    <!-- 父 POM 也需发布到 Central（qualia-core 的 POM 声明了本 parent，缺少则下游无法解析），
+         故 Central 强制要求的元信息在此齐备 -->
+    <url>https://github.com/lunar-landing/qualia</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Lunar Landing</name>
+            <email>contact@lunar-landing.dev</email>
+            <url>https://github.com/lunar-landing</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/lunar-landing/qualia.git</connection>
+        <developerConnection>scm:git:ssh://github.com/lunar-landing/qualia.git</developerConnection>
+        <url>https://github.com/lunar-landing/qualia</url>
+    </scm>
+
     <properties>
 
-        <revision>0.1.0</revision>
+        <revision>0.2.0</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
@@ -26,10 +52,6 @@
     </properties>
 
     <modules>
-        <module>qualia-code</module>
-        <module>qualia-code-desktop</module>
-        <module>qualia-claw</module>
-        <module>qualia-claw-desktop</module>
         <module>qualia-core</module>
     </modules>
 
@@ -46,6 +68,35 @@
                     <parameters>true</parameters>
                 </configuration>
             </plugin>
+            <!-- Flatten: resolve ${revision} in published POM -->
+            <!-- 仅处理根 POM 自身（inherited=false），子模块各自声明的 flatten 不受影响；
+                 缺少这段时发布的父 POM 会带着字面量 ${revision}，Central 校验拒收 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <inherited>false</inherited>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
@@ -58,4 +109,34 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- 发布专用：父 POM 也需 GPG 签名，否则 Central 校验拒收（qualia-core 自身的签名在子 POM 常开）
+             日常构建不挂此 profile，避开每模块签名开销与密钥依赖：mvn clean deploy -pl qualia-core -am -P release -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <keyname>7C9B7B3B3521809A</keyname>
+                                    <passphraseServerId>opensource</passphraseServerId>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
